@@ -13,6 +13,7 @@ export const DEFAULT_SETTINGS = {
   robot: '2910', alliance: BLUE, ds: 1, start: 'rightTrench', preload: 8, auto: 'sweep',
   hp: 'manual', climber: 'none', camera: 'driver', preview: 'on',
   opponent: 'off', oppRobot: '4414', oppSkill: 'regional', customSide: 'drawn',
+  driver: 'human', driverSkill: 'trained',
 };
 
 export function loadSettings() {
@@ -50,6 +51,12 @@ const OPTIONS = [
   { key: 'opponent', label: 'Opponent (PvE)', values: OPP_ORDER.map((k) => [k, OPP_STRATEGIES[k].name]), descFn: (s) => OPP_STRATEGIES[s.opponent].desc },
   { key: 'oppRobot', label: 'Opponent robot', values: ROBOT_ORDER.map((k) => [k, `${ROBOTS[k].team} ${ROBOTS[k].archetype}`]), desc: 'The AI drives any of the three robots on the other alliance.' },
   { key: 'oppSkill', label: 'Opponent skill', values: SKILL_ORDER.map((k) => [k, OPP_SKILLS[k].name]), descFn: (s) => OPP_SKILLS[s.oppSkill].desc },
+  {
+    key: 'driver', label: 'Your robot driven by',
+    values: [['human', 'You'], ['scorer', 'AI Scorer (watch)'], ['defense', 'AI Defense (watch)'], ['hybrid', 'AI Hybrid (watch)']],
+    desc: 'Watch mode: an AI drives your robot in TELEOP (AUTO still runs your auto routine). Pair it with an opponent to watch AI vs AI.',
+  },
+  { key: 'driverSkill', label: 'Your AI skill', values: SKILL_ORDER.map((k) => [k, OPP_SKILLS[k].name]), descFn: (s) => 'Only used in watch mode. ' + OPP_SKILLS[s.driverSkill].desc },
 ];
 
 const optValues = (o, s) => (typeof o.values === 'function' ? o.values(s) : o.values);
@@ -368,7 +375,9 @@ export class UI {
     $('rpIntake').textContent = r.intakeSpeed > 0 ? 'Intaking' : r.intakeSpeed < 0 ? 'Ejecting' : r.intakeDeploy > 0.5 ? 'Deployed' : 'Stowed';
     $('rpClimbRow').classList.toggle('hidden', !r.climberCfg);
     if (r.climberCfg) $('rpClimb').textContent = `${r.climbState === 'none' ? 'Ready' : r.climbState} · target L${r.climbTarget}${r.climbLevel ? ' · at L' + r.climbLevel : ''}`;
-    $('rpDrive').textContent = (game.fieldRelative ? 'Field-relative' : 'Robot-relative') + (game.slow ? ' · SLOW' : '') + (m.isAuto ? ' · AUTO' : '');
+    $('rpDrive').textContent = game.driverAI
+      ? `AI ${OPP_STRATEGIES[game.driverAI.strategy].name} · ${game.driverAI.label}`
+      : (game.fieldRelative ? 'Field-relative' : 'Robot-relative') + (game.slow ? ' · SLOW' : '') + (m.isAuto ? ' · AUTO' : '');
     // human player
     $('hpChute').textContent = game.fuel.chuteCount(me);
     $('hpCorral').textContent = hp.corralCount();
@@ -400,7 +409,9 @@ export class UI {
     pw.classList.toggle('hidden', !pinTxt);
     // hint
     const pad = input.lastSource === 'gamepad';
-    $('hint').innerHTML = pad
+    $('hint').innerHTML = game.driverAI
+      ? `Watching the AI drive · ${pad ? '<b>D-pad ◀▶</b> Camera · <b>☰</b> Pause' : '<b>[ ]</b> Camera · <b>Esc</b> Pause'}`
+      : pad
       ? '<b>RT</b> Shoot · <b>LT</b> Intake · <b>RB</b> Pass · <b>LB</b> Eject · <b>X</b> Chute door · <b>Y</b> HP throw · <b>A</b> Climb · <b>D-pad ◀▶</b> Camera · <b>☰</b> Pause'
       : '<b>WASD</b> Drive · <b>Q/E</b> Rotate · <b>Space</b> Shoot · <b>Shift</b> Intake · <b>R</b> Pass · <b>F</b> Eject · <b>G</b> Chute · <b>H</b> HP throw · <b>C</b> Climb · <b>[ ]</b> Camera · <b>Esc</b> Pause';
   }

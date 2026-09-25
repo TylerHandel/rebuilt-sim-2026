@@ -3,6 +3,7 @@
 A single-player, single-match FRC simulator for the 2026 game **REBUILT**, in the spirit of MoSimulator / CloSimulator.
 It runs in the browser (Three.js rendering + Rapier physics), works with an Xbox controller, and simulates **all 504 FUEL**.
 Play solo, or against an AI opponent robot (PvE), and build your own autos in the Auto Editor.
+The AI can also drive your robot, so you can watch AI-vs-AI matches, and its strategy can be trained by self-play.
 
 ## Run it
 
@@ -57,9 +58,63 @@ Set **Opponent (PvE)** in the main menu to put an AI robot on the other alliance
 **Opponent skill** sets its speed, how carefully it collects, how much of its hopper it uses, its shooting accuracy, how long it hesitates between cycles, its reaction time on defense and its pin discipline:
 - **Rookie:** slow, small loads, misses more, stops to shoot, and holds pins too long, so it draws G418 fouls.
 - **Regional:** a solid district/regional robot.
-- **Champs:** full speed, full hoppers, tight cycles and clean defense.
+- **Champs:** full speed, full hoppers, tight cycles and clean defense, using the hand-tuned strategy.
+- **Trained (self-play):** Champs-level driving, using the strategy learned by AI-vs-AI self-play (see below).
 
 In AUTO the AI runs a normal routine: a Neutral Zone sweep for Scorer and Hybrid, or preload only for Defense.
+
+### Watch AI vs AI
+
+Set **Your robot driven by** to one of the AI strategies (and **Your AI skill**) to let the AI drive your robot in TELEOP. Your AUTO routine still runs first.
+- Pair it with an opponent to watch AI vs AI.
+- Cameras and pause still work.
+
+## Self-play training
+
+The AI's strategy lives in a small set of numbers, its "brain". The trainer (`tools/train.mjs`) tunes them by having AI robots play full matches against each other. The brain covers:
+- how full to get before a cycle, and how long to collect before scoring anyway;
+- when to head back and stage for an active HUB, and where to shoot from;
+- how fast to drive through FUEL, and which FUEL to go for;
+- how long to hold a pin, how hard to shove and where to block;
+- when a Hybrid robot is loaded enough to go defend.
+
+The difficulty handicaps (speed, accuracy, reaction time) are separate, so training improves decisions, not raw ability.
+
+The matches are headless: the same code, field, rules and all 504 FUEL as the browser game, run in Node without rendering. Each match gets a fresh physics world and a seeded random stream, so it plays out identically every time.
+
+How training works:
+1. Each generation samples candidate brains around the current one (an evolution strategy with mirrored sampling).
+2. Every candidate plays the same seeded scenarios, with mixed strategies, robots and alliances. Its opponents come from a league: the hand-tuned brain plus earlier snapshots of the trained brain.
+3. Scores are ranked per scenario, and the brain moves toward the best half.
+4. At the end, the trained and hand-tuned brains play the same held-out matches, and the paired difference is reported.
+5. The result is saved to `js/trainedBrain.js` (the **Trained** skill level) only if it beats the hand-tuned brain. Each run's history is appended to `tools/training-log.json`.
+
+Requires Node 18+:
+
+```
+npm install                                   # three + rapier for Node (the browser still uses the CDN)
+npm run train                                 # 10 generations, about 45 min on 4 cores
+npm run train -- --gens 30 --pop 12 --scenarios 6 --resume   # longer run, continuing from the last result
+npm run train -- --quick                      # smoke test, nothing saved
+npm run match -- --a hybrid:trained:4414 --b defense:champs:2910   # one headless match
+```
+
+Each side of `npm run match` is `strategy:skill:robot`. Training options:
+
+| Option | Meaning |
+|---|---|
+| `--gens` | Number of generations |
+| `--pop` | Candidates per generation |
+| `--scenarios` | Matches per candidate per generation |
+| `--validate` | Held-out validation matches |
+| `--workers` | Parallel processes (default: all cores) |
+| `--seed` | Random seed |
+| `--sigma` | Initial step size |
+| `--resume` | Continue from the last trained brain |
+| `--no-save` | Don't write the result |
+| `--force` | Save even if validation didn't show an improvement |
+
+A match takes about 30 s of CPU, so more cores train faster.
 
 ## The robots
 
@@ -180,13 +235,17 @@ js/humanPlayer.js           OUTPOST human player
 js/auto.js                  autonomous routines and starting positions
 js/customAutos.js           saved custom autos (Auto Editor) -> auto steps
 js/editor.js                Auto Editor screen
-js/opponent.js              AI opponent (Scorer / Defense / Hybrid)
+js/opponent.js              robot AI (Scorer / Defense / Hybrid): skill handicaps + trainable brain
+js/trainedBrain.js          brain learned by self-play (written by tools/train.mjs)
+js/game.js                  one match: robots, autos, AIs, rules (shared by browser and trainer)
 js/nav.js                   grid A* path planning around field structures
 js/rules.js                 robot-to-robot contact rules (G403, G415, G416, G418, G420)
 js/input.js                 Xbox controller (Gamepad API) + keyboard
 js/cameras.js, js/ui.js     cameras, menus and HUD
 js/main.js                  game loop
 serve.py                    local server
+tools/train.mjs             self-play trainer (Node); tools/match.mjs runs one headless match
+tools/headless.mjs          headless match runner; tools/node-env.mjs + resolve-hook.mjs load the game in Node
 start.bat / start.command   double-click launchers (Windows / macOS)
 ```
 
