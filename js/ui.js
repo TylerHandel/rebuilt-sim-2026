@@ -3,19 +3,26 @@ import { ROBOTS, ROBOT_ORDER, AUTO_ROUTINES } from './robotConfigs.js';
 import { START_POSITIONS, START_ORDER } from './auto.js';
 import { CAMERA_MODES, CAMERA_NAMES } from './cameras.js';
 import { DRIVER_STATIONS, TIMING, BLUE, RED, other } from './constants.js';
+import { loadAutos, isCustom, getCustom, CUSTOM_PREFIX } from './customAutos.js';
+import { OPP_STRATEGIES, OPP_ORDER, OPP_SKILLS, SKILL_ORDER } from './opponent.js';
+import { PIN_LIMIT } from './rules.js';
 
 const $ = (id) => document.getElementById(id);
 
 export const DEFAULT_SETTINGS = {
   robot: '2910', alliance: BLUE, ds: 1, start: 'rightTrench', preload: 8, auto: 'sweep',
   hp: 'manual', climber: 'none', camera: 'driver', preview: 'on',
+  opponent: 'off', oppRobot: '4414', oppSkill: 'regional', customSide: 'drawn',
 };
 
 export function loadSettings() {
+  let s;
   try {
-    const s = JSON.parse(localStorage.getItem('rebuiltSim.settings') || '{}');
-    return { ...DEFAULT_SETTINGS, ...s };
-  } catch { return { ...DEFAULT_SETTINGS }; }
+    s = { ...DEFAULT_SETTINGS, ...JSON.parse(localStorage.getItem('rebuiltSim.settings') || '{}') };
+  } catch { s = { ...DEFAULT_SETTINGS }; }
+  // a custom auto that was deleted falls back to the default routine
+  if (isCustom(s.auto) ? !getCustom(s.auto) : !AUTO_ROUTINES[s.auto]) s.auto = DEFAULT_SETTINGS.auto;
+  return s;
 }
 export function saveSettings(s) {
   try { localStorage.setItem('rebuiltSim.settings', JSON.stringify(s)); } catch { /* storage unavailable */ }
@@ -24,14 +31,30 @@ export function saveSettings(s) {
 const OPTIONS = [
   { key: 'alliance', label: 'Alliance', values: [[BLUE, 'Blue'], [RED, 'Red']] },
   { key: 'ds', label: 'Driver station', values: DRIVER_STATIONS.map((d, i) => [i, d.name]) },
-  { key: 'start', label: 'Starting position', values: START_ORDER.map((k) => [k, START_POSITIONS[k].name]), desc: 'BUMPERS overlap the ROBOT STARTING LINE without touching a BUMP (G303).' },
+  {
+    key: (s) => (isCustom(s.auto) ? 'customSide' : 'start'),
+    label: 'Starting position',
+    values: (s) => (isCustom(s.auto) ? [['drawn', 'As drawn in editor'], ['mirror', 'Mirrored left ↔ right']] : START_ORDER.map((k) => [k, START_POSITIONS[k].name])),
+    descFn: (s) => (isCustom(s.auto) ? 'Custom autos start where you placed them in the Auto Editor; mirror to run it from the other side.' : 'BUMPERS overlap the ROBOT STARTING LINE without touching a BUMP (G303).'),
+  },
   { key: 'preload', label: 'Preloaded FUEL', values: [0, 1, 2, 3, 4, 5, 6, 7, 8].map((n) => [n, String(n)]), desc: 'Up to 8 FUEL may be preloaded. Unused preload FUEL is staged in the NEUTRAL ZONE.' },
-  { key: 'auto', label: 'Auto routine', values: Object.entries(AUTO_ROUTINES).map(([k, v]) => [k, v.name]), descFn: (s) => AUTO_ROUTINES[s.auto].desc + ' (G402: drivers cannot control the robot in AUTO.)' },
+  {
+    key: 'auto', label: 'Auto routine',
+    values: () => [...Object.entries(AUTO_ROUTINES).map(([k, v]) => [k, v.name]), ...loadAutos().map((a) => [CUSTOM_PREFIX + a.id, '✎ ' + a.name])],
+    descFn: (s) => (isCustom(s.auto) ? 'Custom auto from the Auto Editor.' : AUTO_ROUTINES[s.auto].desc) + ' (G402: drivers cannot control the robot in AUTO.)',
+  },
   { key: 'hp', label: 'Human player', values: [['manual', 'Manual (X / Y)'], ['auto', 'Auto-throw when HUB active']] },
   { key: 'climber', label: 'Climber add-on', values: [['none', 'None (as built)'], ['l1', 'Level 1 hook'], ['l3', 'Level 1-3 climber']], desc: 'None of these three robots climbed in 2026. Add a hypothetical climber to try the TOWER.' },
   { key: 'camera', label: 'Camera', values: CAMERA_MODES.map((m) => [m, CAMERA_NAMES[m]]) },
   { key: 'preview', label: 'Shot preview line', values: [['on', 'On'], ['off', 'Off']] },
+  { key: 'opponent', label: 'Opponent (PvE)', values: OPP_ORDER.map((k) => [k, OPP_STRATEGIES[k].name]), descFn: (s) => OPP_STRATEGIES[s.opponent].desc },
+  { key: 'oppRobot', label: 'Opponent robot', values: ROBOT_ORDER.map((k) => [k, `${ROBOTS[k].team} ${ROBOTS[k].archetype}`]), desc: 'The AI drives any of the three robots on the other alliance.' },
+  { key: 'oppSkill', label: 'Opponent skill', values: SKILL_ORDER.map((k) => [k, OPP_SKILLS[k].name]), descFn: (s) => OPP_SKILLS[s.oppSkill].desc },
 ];
+
+const optValues = (o, s) => (typeof o.values === 'function' ? o.values(s) : o.values);
+const optKey = (o, s) => (typeof o.key === 'function' ? o.key(s) : o.key);
+const MENU_BUTTONS = ['START MATCH', 'AUTO EDITOR', 'CONTROLS'];
 
 const CONTROLS = [
   ['Drive (field-relative)', 'Left stick', 'W A S D'],
@@ -72,14 +95,16 @@ export class UI {
     $('pause').classList.toggle('hidden', screen !== 'pause');
     $('results').classList.toggle('hidden', screen !== 'results');
     $('controls').classList.toggle('hidden', screen !== 'controls');
-    $('hud').classList.toggle('hidden', screen === 'menu');
+    $('editor').classList.toggle('hidden', screen !== 'editor');
+    $('hud').classList.toggle('hidden', screen === 'menu' || screen === 'editor');
     if (screen === 'menu') this.renderMenu();
+    if (screen === 'editor') this.editor.show();
     if (screen === 'pause') this.renderPause();
   }
 
   _menuItems() {
-    // 0 = robot row, 1..N options, N+1 start, N+2 controls
-    return 1 + OPTIONS.length + 2;
+    // 0 = robot row, 1..N options, then the buttons
+    return 1 + OPTIONS.length + MENU_BUTTONS.length;
   }
 
   renderMenu() {
@@ -93,7 +118,8 @@ export class UI {
     }).join('');
     $('robotCards').innerHTML = cards;
     const opts = OPTIONS.map((o, i) => {
-      const cur = o.values.find((v) => v[0] === s[o.key]) || o.values[0];
+      const vals = optValues(o, s);
+      const cur = vals.find((v) => v[0] === s[optKey(o, s)]) || vals[0];
       return `<div class="opt ${this.focus === i + 1 ? 'focus' : ''}" data-i="${i + 1}"><span class="ol">${o.label}</span><span class="ov"><span class="arr">◀</span>${cur[1]}<span class="arr">▶</span></span></div>`;
     }).join('');
     const fi = this.focus;
@@ -105,8 +131,7 @@ export class UI {
     const N = OPTIONS.length;
     $('options').innerHTML = opts +
       `<div class="optdesc">${desc}</div>` +
-      `<div class="btn ${fi === N + 1 ? 'focus' : ''}" data-i="${N + 1}">START MATCH</div>` +
-      `<div class="btn secondary ${fi === N + 2 ? 'focus' : ''}" data-i="${N + 2}">CONTROLS</div>`;
+      MENU_BUTTONS.map((t, k) => `<div class="btn ${k ? 'secondary half' : ''} ${fi === N + 1 + k ? 'focus' : ''}" data-i="${N + 1 + k}">${t}</div>`).join('');
     // mouse support
     for (const el of document.querySelectorAll('.rcard')) el.onclick = () => { this.s.robot = el.dataset.robot; this.focus = 0; this._changed(); };
     for (const el of document.querySelectorAll('#options [data-i]')) {
@@ -115,16 +140,19 @@ export class UI {
         this.focus = i;
         if (i >= 1 && i <= N) this._cycleOption(i - 1, e.offsetX < el.clientWidth / 2 ? -1 : 1);
         else this._activate();
-        this.renderMenu();
+        if (this.screen === 'menu') this.renderMenu();
       };
     }
+    const f = document.querySelector('#menu .focus');
+    if (f) f.scrollIntoView({ block: 'nearest' });
   }
 
   _cycleOption(oi, dir) {
     const o = OPTIONS[oi];
-    let idx = o.values.findIndex((v) => v[0] === this.s[o.key]);
-    idx = (idx + dir + o.values.length) % o.values.length;
-    this.s[o.key] = o.values[idx][0];
+    const vals = optValues(o, this.s), key = optKey(o, this.s);
+    let idx = vals.findIndex((v) => v[0] === this.s[key]);
+    idx = (idx + dir + vals.length) % vals.length;
+    this.s[key] = vals[idx][0];
     this._changed();
   }
 
@@ -136,7 +164,8 @@ export class UI {
   _activate() {
     const N = OPTIONS.length;
     if (this.focus === N + 1) this.h.onStart();
-    else if (this.focus === N + 2) { this.prevScreen = 'menu'; this.show('controls'); }
+    else if (this.focus === N + 2) this.show('editor');
+    else if (this.focus === N + 3) { this.prevScreen = 'menu'; this.show('controls'); }
   }
 
   renderPause() {
@@ -155,12 +184,16 @@ export class UI {
 
   _buildControls() {
     $('controlsBody').innerHTML = `<table class="ctable"><tr><th>Action</th><th>Xbox controller</th><th>Keyboard</th></tr>${CONTROLS.map((c) => `<tr><td>${c[0]}</td><td>${c[1]}</td><td><kbd>${c[2]}</kbd></td></tr>`).join('')}</table>
-      <p class="muted" style="font-size:13px">Menus: D-pad / left stick to move, ◀ ▶ to change, A to select, B to go back. Shooting auto-targets your HUB when your BUMPERS are in your ALLIANCE ZONE; anywhere else RT lobs FUEL back into your ALLIANCE ZONE.</p>`;
+      <p class="muted" style="font-size:13px">Menus: D-pad / left stick to move, ◀ ▶ to change, A to select, B to go back. Shooting auto-targets your HUB when your BUMPERS are in your ALLIANCE ZONE; anywhere else RT lobs FUEL back into your ALLIANCE ZONE. The Auto Editor lists its own controls at the bottom of its screen.</p>`;
   }
 
   // Returns true when a menu overlay is open (gameplay input suppressed)
-  handleInput(inp) {
+  handleInput(inp, dt) {
     const p = inp.pressed, n = inp.nav;
+    if (this.screen === 'editor') {
+      this.editor.handleInput(inp, dt);
+      return true;
+    }
     if (this.screen === 'menu') {
       const N = this._menuItems();
       if (n.up) { this.focus = (this.focus - 1 + N) % N; this.renderMenu(); }
@@ -227,6 +260,8 @@ export class UI {
         <div class="stat"><div class="sv">${r.stats.shots}</div><div class="sk">FUEL launched by robot</div></div>
         <div class="stat"><div class="sv">${r.stats.intaked}</div><div class="sk">FUEL intaked</div></div>
       </div>
+      ${game.opp ? `<div class="ptitle small">Opponent: ${game.opp.robot.cfg.team} ${game.opp.robot.cfg.archetype} · ${OPP_STRATEGIES[game.opp.ai.strategy].name} · ${OPP_SKILLS[this.s.oppSkill].name}</div>
+      <div class="foullist">Launched ${game.opp.robot.stats.shots} FUEL, intaked ${game.opp.robot.stats.intaked}. Fouls: ${m.score[other(me)].fouls.length ? m.score[other(me)].fouls.map((f) => `${f.rule} ${f.type.toUpperCase()} (+${f.pts} to you): ${f.desc}`).join('<br>') : 'none'}</div>` : ''}
       <div class="ptitle small">Your fouls (${fouls.length})</div>
       <div class="foullist">${fouls.length ? fouls.map((f) => `${f.rule} ${f.type.toUpperCase()} (+${f.pts} to ${other(me).toUpperCase()}): ${f.desc}`).join('<br>') : 'None — clean match!'}</div>`;
     this.resFocus = 0;
@@ -341,6 +376,28 @@ export class UI {
     $('hpMode').textContent = hp.auto ? 'Auto-throw' : 'Manual';
     const f = m.score[me].fouls;
     $('foulCount').textContent = `${f.length} (${f.reduce((a, b) => a + b.pts, 0)} pts to opp.)`;
+    // opponent + PIN status
+    const op = game.opp;
+    $('oppPanel').classList.toggle('hidden', !op);
+    let pinTxt = '';
+    if (op) {
+      const o = op.robot;
+      $('oppTitle').textContent = `Opponent ${o.cfg.team}`;
+      $('oppStrat').textContent = `${OPP_STRATEGIES[op.ai.strategy].name} · ${OPP_SKILLS[s.oppSkill].name}`;
+      $('oppState').textContent = op.ai.label;
+      $('oppFuel').textContent = `${o.stored.length} / ${o.capacity()}`;
+      const of = m.score[other(me)].fouls;
+      $('oppFouls').textContent = `${of.length} (${of.reduce((a, b) => a + b.pts, 0)} pts to you)`;
+      const mine = game.rules.pinState(r, o), theirs = game.rules.pinState(o, r);
+      if (mine.t > 0.5 && m.robotEnabled) {
+        pinTxt = mine.active
+          ? `<span class="bad">PINNING ${mine.t.toFixed(1)} s</span> — back off 72 in (${PIN_LIMIT} s limit, G418)`
+          : `Pin count ${mine.t.toFixed(1)} s — resets once you are 72 in away`;
+      } else if (theirs.t > 0.5 && m.robotEnabled && theirs.active) pinTxt = `<span class="warn">PINNED ${theirs.t.toFixed(1)} s</span> — foul on the opponent at ${PIN_LIMIT * (theirs.fouls + 1)} s`;
+    }
+    const pw = $('pinWarn');
+    pw.innerHTML = pinTxt;
+    pw.classList.toggle('hidden', !pinTxt);
     // hint
     const pad = input.lastSource === 'gamepad';
     $('hint').innerHTML = pad

@@ -7,6 +7,7 @@ import { BUMPER_T } from './robotConfigs.js';
 import { buildRobotModel, addClimberVisual } from './robotModels.js';
 import { ShotTable, solveMovingShot, trajectoryPoints } from './ballistics.js';
 import { Field } from './field.js';
+import { obstacleAt } from './nav.js';
 import { clamp, wrapAngle, approach, approachAngle, gauss, DEG, rand } from './util.js';
 
 const WHEEL_R = 0.05;
@@ -58,7 +59,7 @@ export class Robot {
       .setLinearDamping(0)
       .setAngularDamping(0);
     this.body = world.createRigidBody(desc);
-    const robotGroups = groups(GROUP.ROBOT, GROUP.STATIC | GROUP.TERRAIN | GROUP.BALL | GROUP.ROBOT_BARRIER);
+    const robotGroups = groups(GROUP.ROBOT, GROUP.STATIC | GROUP.TERRAIN | GROUP.BALL | GROUP.ROBOT_BARRIER | GROUP.ROBOT);
     const y0 = 0.055, y1 = 0.16;
     const bumper = RAPIER.ColliderDesc.cuboid(this.halfL, (y1 - y0) / 2, this.halfW)
       .setTranslation(0, (y0 + y1) / 2, 0)
@@ -235,7 +236,16 @@ export class Robot {
     this.intakeDeploy = approach(this.intakeDeploy, want ? 1 : 0, dt / ic.deployTime);
     if (this.intakeDeploy > 0.3 && this.hopperDeploy < 1 && on) this.hopperDeploy = approach(this.hopperDeploy, 1, dt / 0.4);
     const deployed = this.intakeDeploy > 0.85;
-    this.intakeCollider.setCollisionGroups(deployed ? groups(GROUP.INTAKE, GROUP.BALL | GROUP.STATIC | GROUP.ROBOT_BARRIER) : 0);
+    // An intake that deploys into a structure (e.g. 4414 at the Hub start) would jam the robot,
+    // so it only collides with field structures once it is clear of them.
+    let groupsNow = 0;
+    if (deployed) {
+      const tip = this.halfL + ic.reach, hw = ic.width / 2;
+      const clear = [[tip, hw], [tip, -hw], [tip, 0], [this.halfL + 0.05, hw], [this.halfL + 0.05, -hw]]
+        .every(([lx, lz]) => { const p = this.localToWorld(lx, 0, lz); return !obstacleAt(p.x, p.z, 0); });
+      groupsNow = groups(GROUP.INTAKE, GROUP.BALL | GROUP.ROBOT_BARRIER | (clear ? GROUP.STATIC : 0));
+    }
+    this.intakeCollider.setCollisionGroups(groupsNow);
 
     const running = on && this.cmd.intake && deployed;
     this.intakeSpeed = on && this.cmd.outtake ? -1 : running ? 1 : 0;

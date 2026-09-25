@@ -5,7 +5,10 @@ import { FuelManager } from './fuel.js';
 import { Robot } from './robot.js';
 import { Match } from './match.js';
 import { HumanPlayer } from './humanPlayer.js';
-import { AutoRunner, startPose } from './auto.js';
+import { AutoRunner, startPose, customSelection } from './auto.js';
+import { OpponentAI, opponentAuto } from './opponent.js';
+import { RobotRules } from './rules.js';
+import { AutoEditor } from './editor.js';
 import { Input } from './input.js';
 import { CameraRig, CAMERA_NAMES } from './cameras.js';
 import { UI, loadSettings } from './ui.js';
@@ -80,6 +83,11 @@ const ui = new UI(settings, {
   onRestart: () => startMatch(),
   onMenu: () => ui.show('menu'),
 });
+ui.editor = new AutoEditor({
+  settings, field,
+  onClose: () => ui.show('menu'),
+  onTest: (key) => { settings.auto = key; ui._changed(); startMatch(); },
+});
 ui.show('menu');
 $('loading').classList.add('hidden');
 
@@ -107,9 +115,10 @@ function onEvent(type, d) {
       break;
     case 'foul':
       if (d.committedBy === me) ui.toast(`${d.type === 'major' ? 'MAJOR' : 'MINOR'} FOUL ${d.rule}: ${d.desc} (+${d.pts} to ${other(me).toUpperCase()})`, 'foul');
+      else ui.toast(`Opponent ${d.type === 'major' ? 'MAJOR' : 'MINOR'} FOUL ${d.rule}: ${d.desc} (+${d.pts} to you)`, 'good');
       break;
     case 'tower':
-      ui.toast(`TOWER LEVEL ${d.level}${d.auto ? ' in AUTO' : ''}: +${d.pts}`, 'good');
+      ui.toast(`${d.alliance === me ? '' : 'Opponent '}TOWER LEVEL ${d.level}${d.auto ? ' in AUTO' : ''}: +${d.pts}`, d.alliance === me ? 'good' : 'info');
       break;
     case 'inactive':
       if (d.alliance === me && game.match.t - lastInactiveToast > 2.5) {
@@ -123,19 +132,43 @@ function onEvent(type, d) {
 }
 
 function startMatch() {
-  if (game) game.robot.destroy();
+  if (game) for (const r of game.robots) r.destroy();
   const alliance = settings.alliance;
   const match = new Match({ playerAlliance: alliance, onEvent });
   fuel.match = match;
   const cfg = ROBOTS[settings.robot];
   const robot = new Robot({ cfg, alliance, physics, scene, field, fuel, match, climber: CLIMBER_OPTIONS[settings.climber] });
-  const pose = startPose(settings.start, robot, alliance);
+  const custom = customSelection(settings.auto, settings.customSide);
+  const pose = startPose(settings.start, robot, alliance, custom);
   robot.spawn(pose.x, pose.z, pose.yaw);
-  robot.stored.push(...fuel.stage(settings.preload));
+  const oppOn = settings.opponent && settings.opponent !== 'off';
+  const oppPreload = oppOn ? 8 : 0;
+  const pre = fuel.stage(settings.preload + oppPreload);
+  robot.stored.push(...pre.slice(0, settings.preload));
   const hp = new HumanPlayer({ alliance, field, fuel, match });
   hp.auto = settings.hp === 'auto';
-  const auto = new AutoRunner(robot, settings.auto, settings.start, alliance);
-  game = { match, robot, hp, auto, fuel, settings, input, fieldRelative: true, slow: false, driver: null, hpControls: {} };
+  const auto = new AutoRunner(robot, settings.auto, settings.start, alliance, custom);
+  const rules = new RobotRules(match);
+  const robots = [robot];
+  let opp = null;
+  if (oppOn) {
+    const oa = other(alliance);
+    const orobot = new Robot({ cfg: ROBOTS[settings.oppRobot] || ROBOTS['4414'], alliance: oa, physics, scene, field, fuel, match, climber: null });
+    const plan = opponentAuto(settings.opponent);
+    const op = startPose(plan.start, orobot, oa);
+    orobot.spawn(op.x, op.z, op.yaw);
+    orobot.stored.push(...pre.slice(settings.preload));
+    const ohp = new HumanPlayer({ alliance: oa, field, fuel, match });
+    ohp.auto = true;
+    opp = {
+      robot: orobot,
+      hp: ohp,
+      auto: new AutoRunner(orobot, plan.routine, plan.start, oa),
+      ai: new OpponentAI({ robot: orobot, player: robot, match, fuel, rules, strategy: settings.opponent, skill: settings.oppSkill }),
+    };
+    robots.push(orobot);
+  }
+  game = { match, robot, robots, opp, rules, hp, auto, fuel, settings, input, fieldRelative: true, slow: false, driver: null, hpControls: {} };
   rig.alliance = alliance;
   rig.ds = settings.ds;
   rig.setMode(settings.camera);
@@ -204,26 +237,36 @@ function handleGameInput(inp, dt) {
   } else backHeld = 0;
 }
 
+const IDLE_CMD = { vx: 0, vz: 0, omega: 0, intake: false, shoot: false, pass: false, outtake: false };
+
 function stepSim(dt) {
-  const { match, robot, auto } = game;
+  const { match, robot, robots, auto, opp } = game;
   const prevPhase = match.phase;
-  match.update(dt, robot);
-  if (prevPhase === 'pre' && match.phase === 'auto' && robot.cfg.intake.latched) robot.forceDeploy = true;
-  if (robot.forceDeploy && robot.intakeDeploy >= 1) robot.forceDeploy = false;
-  robot.enabled = match.robotEnabled;
-  const cmd = robot.cmd;
+  match.update(dt, robots);
+  for (const r of robots) {
+    if (prevPhase === 'pre' && match.phase === 'auto' && r.cfg.intake.latched) r.forceDeploy = true;
+    if (r.forceDeploy && r.intakeDeploy >= 1) r.forceDeploy = false;
+    r.enabled = match.robotEnabled;
+  }
   if (match.isAuto) {
     auto.update(dt);
+  } else if (match.isTeleop && game.autopilot) {
+    game.autopilot.update(dt); // test hook: an AI drives the player's robot
   } else if (match.isTeleop && game.driver) {
-    Object.assign(cmd, game.driver);
+    Object.assign(robot.cmd, game.driver);
   } else {
-    Object.assign(cmd, { vx: 0, vz: 0, omega: 0, intake: false, shoot: false, pass: false, outtake: false });
+    Object.assign(robot.cmd, IDLE_CMD);
   }
-  robot.preStep(dt);
+  if (opp) {
+    if (match.isAuto) opp.auto.update(dt);
+    else opp.ai.update(dt);
+  }
+  for (const r of robots) r.preStep(dt);
   fuel.preStep(dt);
   physics.step();
   fuel.postStep(dt, match.t);
-  robot.postStep(dt, match.t);
+  for (const r of robots) r.postStep(dt, match.t);
+  game.rules.update(dt, robots);
 }
 
 // ------------------------------------------------------------------ main loop
@@ -247,7 +290,7 @@ function tick(dt, render) {
     if (debugInput.pressed) debugInput.pressed = {};
   }
   if (ui.screen === 'menu') ui.setPadStatus(input.padName);
-  const overlay = ui.handleInput(inp);
+  const overlay = ui.handleInput(inp, dt);
 
   if (game && !overlay && ui.screen === 'hud') {
     handleGameInput(inp, dt);
@@ -263,6 +306,7 @@ function tick(dt, render) {
       const t = game.match.t;
       fuel.update(dt, t);
       game.hp.update(dt, t, game.hpControls);
+      if (game.opp) game.opp.hp.update(dt, t, {});
       if (game.match.over && !resultsShown) {
         resultsShown = true;
         ui.showResults(game);
@@ -271,7 +315,7 @@ function tick(dt, render) {
   }
 
   if (game) {
-    game.robot.update(dt);
+    for (const r of game.robots) r.update(dt);
     for (const a of [BLUE, RED]) field.setHubLights(a, game.match.hubLightMode(a), performance.now() / 1000);
     if (ui.screen === 'hud') ui.updateHUD(game);
     // shot preview
@@ -295,7 +339,7 @@ function tick(dt, render) {
   }
   fuel.sync();
 
-  if (ui.screen === 'menu') {
+  if (ui.screen === 'menu' || ui.screen === 'editor') {
     // slow orbit behind the menu
     menuOrbit += dt * 0.06;
     camera.position.set(Math.cos(menuOrbit) * 13, 7.5, Math.sin(menuOrbit) * 10);
@@ -314,6 +358,12 @@ requestAnimationFrame(frame);
 window.__sim = {
   get game() { return game; }, fuel, field, physics, settings, THREE, renderer, scene, camera, ui, rig, startMatch,
   setInput(v) { debugInput = v; },
+  // test hook: let the AI drive the player's robot too (needs an opponent on the field)
+  autopilot(strategy = 'scorer', skill = 'champs') {
+    if (!game || !game.opp) return false;
+    game.autopilot = new OpponentAI({ robot: game.robot, player: game.opp.robot, match: game.match, fuel, rules: game.rules, strategy, skill });
+    return true;
+  },
   advance(seconds, fps = 60) {
     const n = Math.round(seconds * fps);
     for (let i = 0; i < n; i++) tick(1 / fps, i === n - 1);

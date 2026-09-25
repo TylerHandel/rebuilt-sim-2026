@@ -2,6 +2,7 @@
 
 A single-player, single-match FRC simulator for the 2026 game **REBUILT**, in the spirit of MoSimulator / CloSimulator.
 It runs in the browser (Three.js rendering + Rapier physics), works with an Xbox controller, and simulates **all 504 FUEL**.
+Play solo, or against an AI opponent robot (PvE), and build your own autos in the Auto Editor.
 
 ## Run it
 
@@ -15,7 +16,7 @@ Keep the server window open while you play; close it to stop.
 
 ES modules won't load from `file://`, so always use `serve.py` instead of opening `index.html` directly.
 
-**Controller:** connect an Xbox controller (USB or Bluetooth) and press any button so the browser detects it. The menus, the match and the pause/results screens all work from the controller.
+**Controller:** connect an Xbox controller (USB or Bluetooth) and press any button so the browser detects it. The menus, the match, the Auto Editor and the pause/results screens all work from the controller.
 
 ## Controls
 
@@ -43,6 +44,23 @@ ES modules won't load from `file://`, so always use `serve.py` instead of openin
 
 Every robot shoots on the move: the solver leads the target by the robot's velocity, including air drag.
 
+## PvE: AI opponent
+
+Set **Opponent (PvE)** in the main menu to put an AI robot on the other alliance. It can drive any of the three robots (**Opponent robot**), scores into its own HUB, and has its own HUMAN PLAYER, who throws when its HUB is active. Its AUTO FUEL counts toward which HUB goes inactive first.
+
+| Strategy | What it does |
+|---|---|
+| Scorer | Runs its own cycles. It collects FUEL (avoiding your ALLIANCE ZONE), stages in its ALLIANCE ZONE while its HUB is inactive, then shoots on the move when the HUB turns active. |
+| Defense | Blocks the lane between you and your HUB and pushes you while you shoot. It backs off 72 in before a PIN becomes a foul, keeps its intake from reaching into your frame, and leaves you alone at your TOWER in END GAME. |
+| Hybrid | Shift-aware. It defends during the SHIFTS when only your HUB is active and scores the rest of the time. |
+
+**Opponent skill** sets its speed, how carefully it collects, how full it gets before a cycle, how long it hesitates between cycles, its reaction time on defense and its pin discipline:
+- **Rookie:** slow, stops to shoot, and holds pins too long, so it draws G418 fouls.
+- **Regional:** a solid district/regional robot.
+- **Champs:** full speed, tight cycles and clean defense.
+
+In AUTO the AI runs a normal routine: a Neutral Zone sweep for Scorer and Hybrid, or preload only for Defense.
+
 ## The robots
 
 | | 2910 Jack in the Bot "Re•Blitz" | 4414 HighTide "RIPCURRENT" | 8793 Pumpkin Bots |
@@ -52,6 +70,7 @@ Every robot shoots on the move: the solver leads the target by the robot's veloc
 | Capacity | 58 FUEL | 88 FUEL (extending hopper) | 12 (only the ball path) |
 | Shooter | 4-wide drum, adjustable hood, **fixed to the chassis** (whole robot turns to aim) | Single-stream 3" flywheel on a **turret**, adjustable hood | Hooded flywheel on a **turret** |
 | Rate | 32 FUEL/s | 18 FUEL/s | 13 FUEL/s |
+| Intake | 26 FUEL/s | 30 FUEL/s | 14 FUEL/s |
 | Fits under TRENCH | yes | yes | yes |
 | Climber | none | none | none |
 
@@ -101,7 +120,14 @@ None of the three climbed, so each defaults to *no climber*. The **Climber add-o
 - **R105 / R106 / R107:** robots stay under 30 in, extend at most 12 in, and extend in only one direction.
 - Robots can't enter the OUTPOST openings.
 
-Robot-to-robot rules (G403, G415–G420) are left out because there is only one robot.
+**Robot-to-robot rules** apply when an opponent is on the field. Both robots are held to them, and foul points go to the other alliance:
+- **G403** (MAJOR): in AUTO, contacting an opponent while your BUMPERS are fully across the CENTER LINE.
+- **G415** (MINOR): a deployed over-the-bumper intake reaching inside the opponent's FRAME PERIMETER, i.e. hitting them intake-first with the intake down.
+- **G416** (MAJOR): high-speed ramming (over about 3.3 m/s closing speed, most of it yours), treated as a damage risk. Robots here can't tip over, so G417 never triggers.
+- **G418** (MINOR): PINNING an opponent against a FIELD element for more than 3 s, plus another MINOR for every further 3 s. The count resets when the robots are 72 in apart. The HUD shows the pin count for either robot.
+- **G420** (MAJOR): in END GAME, contacting an opponent that is touching its TOWER or climbing.
+
+Robots push each other with realistic traction (mass × acceleration limit), so heavier or faster-accelerating robots win shoving matches.
 
 ## Auto routines
 
@@ -111,6 +137,32 @@ Each routine is mirrored automatically for the red alliance and for left/right s
 - Neutral Zone sweep: out through the TRENCH, back over the BUMP, shooting on the move
 - Double sweep
 - Preload + Climb L1 (needs the climber add-on)
+
+## Auto Editor
+
+**AUTO EDITOR** in the main menu is a simplified PathPlanner. It shows a top-down view of your half of the field (drawn as blue, with the ALLIANCE WALL on the left).
+- Drag the START box along the ROBOT STARTING LINE, and place waypoints for the path.
+- For each waypoint, set what happens on the way there: intake on/off, shooting (off, shoot on the move once in the ALLIANCE ZONE, or shoot/pass anywhere) and max speed.
+- Also set what happens when the robot arrives: drive through, stop, stop and shoot until empty, or wait 1–3 s. Optionally shoot the preload first.
+- The panel shows an estimated run time against the 20 s AUTO. Waypoints past the CENTER LINE turn red as a G403 warning.
+
+Autos save automatically in the browser (localStorage) and appear in the **Auto routine** menu marked with ✎. **Test in a match** starts a match with the auto straight away.
+- Red alliance runs the path rotated automatically.
+- With a custom auto selected, **Starting position** switches to *As drawn* / *Mirrored left ↔ right*.
+- **Mirror left ↔ right** in the editor flips the saved path.
+
+| Editor action | Xbox controller | Mouse / keyboard |
+|---|---|---|
+| Move cursor | Left stick (hold LS click for fine) | Mouse / W A S D |
+| Add waypoint / grab / drop | A | Click (drag to move) / Enter |
+| Delete waypoint | X | Right-click / G |
+| Previous / next waypoint | LB / RB | F / R |
+| Shooting on the way | D-pad ◀ ▶ | [ / ] |
+| Speed | D-pad ▲ ▼ | ↑ / ↓ |
+| Intake on the way | Right stick click | T |
+| At-waypoint action | View (⧉) | Backspace |
+| Settings panel (auto list, start, mirror, test…) | Y, then D-pad + A | Click / H |
+| Done | B or Menu (☰) | Esc |
 
 ## Project layout
 
@@ -126,6 +178,11 @@ js/robot.js                 swerve drive, intake, storage, turret/chassis aiming
 js/match.js                 match timing, HUB shifts, scoring, fouls
 js/humanPlayer.js           OUTPOST human player
 js/auto.js                  autonomous routines and starting positions
+js/customAutos.js           saved custom autos (Auto Editor) -> auto steps
+js/editor.js                Auto Editor screen
+js/opponent.js              AI opponent (Scorer / Defense / Hybrid)
+js/nav.js                   grid A* path planning around field structures
+js/rules.js                 robot-to-robot contact rules (G403, G415, G416, G418, G420)
 js/input.js                 Xbox controller (Gamepad API) + keyboard
 js/cameras.js, js/ui.js     cameras, menus and HUD
 js/main.js                  game loop
