@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>REBUILT Sim 2026</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/",
+      "rapier": "https://cdn.jsdelivr.net/npm/@dimforge/rapier3d-compat@0.14.0/+esm"
+    }
+  }
+  </script>
+</head>
+<body>
+  <canvas id="view"></canvas>
+
+  <!-- ============================== HUD ============================== -->
+  <div id="hud" class="hidden">
+    <div id="scorebar">
+      <div class="team blue"><div class="lbl">BLUE</div><div class="pts" id="scoreBlue">0</div></div>
+      <div class="center">
+        <div id="phase">AUTO</div>
+        <div id="clock">0:20</div>
+        <div id="hubs">
+          <span class="hubpill blue" id="hubBlue">HUB</span>
+          <span class="hubpill red" id="hubRed">HUB</span>
+        </div>
+      </div>
+      <div class="team red"><div class="pts" id="scoreRed">0</div><div class="lbl">RED</div></div>
+    </div>
+    <div id="myhub"><div id="myhubState">YOUR HUB ACTIVE</div><div id="myhubSub"></div></div>
+    <div id="timeline"></div>
+
+    <div id="robotPanel" class="panel">
+      <div class="ptitle"><span id="rpTeam">2910</span> <span id="rpName" class="muted">Re•Blitz</span></div>
+      <div class="fuelbar"><div id="fuelFill"></div><span id="fuelText">0 / 58</span></div>
+      <div class="rows">
+        <div><span class="k">Shooter</span><span id="rpShooter" class="v">—</span></div>
+        <div><span class="k">Zone</span><span id="rpZone" class="v">—</span></div>
+        <div><span class="k">Intake</span><span id="rpIntake" class="v">—</span></div>
+        <div id="rpClimbRow"><span class="k">Climb</span><span id="rpClimb" class="v">—</span></div>
+        <div><span class="k">Drive</span><span id="rpDrive" class="v">Field-relative</span></div>
+      </div>
+    </div>
+
+    <div id="hpPanel" class="panel">
+      <div class="ptitle">Human Player</div>
+      <div class="rows">
+        <div><span class="k">Chute</span><span id="hpChute" class="v">24</span></div>
+        <div><span class="k">Corral</span><span id="hpCorral" class="v">0</span></div>
+        <div><span class="k">Chute door</span><span id="hpDoor" class="v">Closed</span></div>
+        <div><span class="k">Mode</span><span id="hpMode" class="v">Manual</span></div>
+      </div>
+      <div class="ptitle small">Fouls</div>
+      <div class="rows"><div><span class="k">Committed</span><span id="foulCount" class="v">0 (0 pts)</span></div></div>
+    </div>
+
+    <div id="toasts"></div>
+    <div id="camName"></div>
+    <div id="hint"></div>
+    <div id="bigmsg"></div>
+  </div>
+
+  <!-- ============================== MENUS ============================== -->
+  <div id="menu" class="overlay">
+    <div class="menuBox">
+      <div class="brand">
+        <div class="logo">REBUILT<span>2026</span></div>
+        <div class="tag">FRC match simulator · single robot · Xbox controller ready</div>
+      </div>
+      <div id="robotCards"></div>
+      <div id="options"></div>
+      <div class="menuFoot">
+        <div id="padStatus" class="muted">Press any button on your Xbox controller to connect it</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="pause" class="overlay hidden">
+    <div class="menuBox small">
+      <div class="heading">Paused</div>
+      <div id="pauseItems" class="list"></div>
+    </div>
+  </div>
+
+  <div id="results" class="overlay hidden">
+    <div class="menuBox">
+      <div class="heading" id="resHeading">Match Results</div>
+      <div id="resBody"></div>
+      <div id="resItems" class="list horizontal"></div>
+    </div>
+  </div>
+
+  <div id="controls" class="overlay hidden">
+    <div class="menuBox">
+      <div class="heading">Controls</div>
+      <div id="controlsBody"></div>
+      <div class="muted center">Press B / Esc to close</div>
+    </div>
+  </div>
+
+  <div id="loading" class="overlay"><div class="loadmsg">Loading physics…</div></div>
+
+  <script>
+    // surface load/runtime failures on the loading screen (e.g. no internet for the CDN libraries)
+    function showFatal(msg) {
+      const el = document.querySelector('#loading .loadmsg');
+      if (el) { el.textContent = msg; el.parentElement.classList.remove('hidden'); }
+    }
+    window.addEventListener('error', (e) => showFatal('Error: ' + (e.message || 'failed to load')));
+    window.addEventListener('unhandledrejection', (e) => showFatal('Error: ' + (e.reason && e.reason.message || e.reason)));
+  </script>
+  <script type="module" src="js/main.js" onerror="showFatal('Could not load the game scripts. Run it with serve.py (not by opening the file directly).')"></script>
+</body>
+</html>
