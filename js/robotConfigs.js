@@ -52,7 +52,7 @@ export const ROBOTS = {
     height: 21.75 * IN,
     mass: 60,
     drive: { maxSpeed: 4.0, maxAccel: 9.0, maxOmega: 8.0, maxAlpha: 30 },
-    intake: { width: 30 * IN, reach: 12 * IN, rate: 20, deployTime: 0.4, side: 'front', latched: true },
+    intake: { width: 30 * IN, reach: 12 * IN, rate: 30, deployTime: 0.4, side: 'front', latched: true },
     storage: { capacity: 88 },
     shooter: {
       type: 'turret',

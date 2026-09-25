@@ -1,0 +1,14 @@
+{
+  "name": "rebuilt-sim-2026",
+  "private": true,
+  "type": "module",
+  "description": "REBUILT 2026 FRC match simulator. The game runs in the browser with no build step; these scripts are only for headless AI-vs-AI matches and self-play training.",
+  "scripts": {
+    "match": "node --import ./tools/node-env.mjs tools/match.mjs",
+    "train": "node --import ./tools/node-env.mjs tools/train.mjs"
+  },
+  "devDependencies": {
+    "@dimforge/rapier3d-compat": "0.14.0",
+    "three": "0.169.0"
+  }
+}

@@ -128,19 +128,20 @@ export class Match {
     }
   }
 
-  update(dt, robot) {
+  // robots: every ROBOT on the field (TOWER points are assessed per robot)
+  update(dt, robots) {
     this.t += dt;
     this.phaseTime += dt;
     const P = this.phase;
     if (P === 'pre' && this.phaseTime >= TIMING.preMatch) this._go('auto');
     else if (P === 'auto' && this.phaseTime >= TIMING.auto) {
-      this._assessAutoTower(robot);
+      for (const r of robots) this._assessAutoTower(r);
       this._go('autoGap');
     } else if (P === 'autoGap' && this.phaseTime >= TIMING.autoGap) {
       this._decideShifts();
       this._go('teleop');
     } else if (P === 'teleop' && this.phaseTime >= TIMING.teleop) {
-      this._assessTeleopTower(robot);
+      for (const r of robots) this._assessTeleopTower(r);
       this._go('post');
     } else if (P === 'post' && this.phaseTime >= TIMING.post) {
       this._go('done');

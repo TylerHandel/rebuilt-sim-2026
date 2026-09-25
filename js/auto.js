@@ -4,6 +4,7 @@
 // the red ALLIANCE and for left-side starts.
 import { FIELD_W, ALLIANCE_ZONE_DEPTH, HUB, DEPOT, fw } from './constants.js';
 import { clamp, wrapAngle } from './util.js';
+import { getCustom, customSteps } from './customAutos.js';
 
 export const START_POSITIONS = {
   leftTrench: { name: 'Left Trench', fy: FIELD_W - 0.64 },
@@ -15,19 +16,29 @@ export const START_POSITIONS = {
 export const START_ORDER = ['leftTrench', 'leftBump', 'hub', 'rightBump', 'rightTrench'];
 
 // Starting pose: BUMPERS overlapping the ROBOT STARTING LINE, not touching the BUMP (G303)
-export function startPose(key, robot, alliance) {
-  const sp = START_POSITIONS[key];
+export function startPose(key, robot, alliance, custom = null) {
+  let fy;
+  if (custom) {
+    fy = custom.mirror ? FIELD_W - custom.auto.startFy : custom.auto.startFy;
+    fy = clamp(fy, robot.halfW + 0.02, FIELD_W - robot.halfW - 0.02);
+  } else fy = START_POSITIONS[key].fy;
   const fx = ALLIANCE_ZONE_DEPTH - 0.02 - robot.halfL;
-  const w = fw(fx, sp.fy, alliance);
+  const w = fw(fx, fy, alliance);
   return { x: w.x, z: w.z, yaw: alliance === 'blue' ? 0 : Math.PI };
 }
 
+// Resolve a custom auto selection: { auto, mirror } or null for built-in routines
+export function customSelection(routine, side) {
+  const auto = getCustom(routine);
+  return auto ? { auto, mirror: side === 'mirror' } : null;
+}
+
 export class AutoRunner {
-  constructor(robot, routine, startKey, alliance) {
+  constructor(robot, routine, startKey, alliance, custom = null) {
     this.robot = robot;
     this.alliance = alliance;
-    this.left = START_POSITIONS[startKey].fy > FIELD_W / 2 + 0.01;
-    this.steps = this._build(routine);
+    this.left = !custom && START_POSITIONS[startKey].fy > FIELD_W / 2 + 0.01;
+    this.steps = custom ? customSteps(custom.auto, custom.mirror, robot.cfg.drive.maxSpeed) : this._build(routine);
     this.i = 0;
     this.stepT = 0;
     this.done = false;
@@ -105,6 +116,10 @@ export class AutoRunner {
       if (r.stored.length === 0 || this.stepT > s.timeout) next();
       return;
     }
+    if (s.type === 'wait') {
+      if (this.stepT >= s.t) next();
+      return;
+    }
     if (s.type === 'climb') {
       if (r.climbState === 'none' && !s.requested) {
         // approach the climb pose, then request the climb
@@ -145,7 +160,7 @@ export class AutoRunner {
         if (last) next();
         else this.pi++;
       }
-      if (this.stepT > 8) next();
+      if (this.stepT > (s.timeout ?? 8)) next();
     }
   }
 }

@@ -2,6 +2,8 @@
 
 A single-player, single-match FRC simulator for the 2026 game **REBUILT**, in the spirit of MoSimulator / CloSimulator.
 It runs in the browser (Three.js rendering + Rapier physics), works with an Xbox controller, and simulates **all 504 FUEL**.
+Play solo, or against an AI opponent robot (PvE), and build your own autos in the Auto Editor.
+The AI can also drive your robot, so you can watch AI-vs-AI matches, and its strategy can be trained by self-play.
 
 ## Run it
 
@@ -15,7 +17,7 @@ Keep the server window open while you play; close it to stop.
 
 ES modules won't load from `file://`, so always use `serve.py` instead of opening `index.html` directly.
 
-**Controller:** connect an Xbox controller (USB or Bluetooth) and press any button so the browser detects it. The menus, the match and the pause/results screens all work from the controller.
+**Controller:** connect an Xbox controller (USB or Bluetooth) and press any button so the browser detects it. The menus, the match, the Auto Editor and the pause/results screens all work from the controller.
 
 ## Controls
 
@@ -43,6 +45,77 @@ ES modules won't load from `file://`, so always use `serve.py` instead of openin
 
 Every robot shoots on the move: the solver leads the target by the robot's velocity, including air drag.
 
+## PvE: AI opponent
+
+Set **Opponent (PvE)** in the main menu to put an AI robot on the other alliance. It can drive any of the three robots (**Opponent robot**), scores into its own HUB, and has its own HUMAN PLAYER, who throws when its HUB is active. Its AUTO FUEL counts toward which HUB goes inactive first.
+
+| Strategy | What it does |
+|---|---|
+| Scorer | Runs its own cycles. It collects FUEL (avoiding your ALLIANCE ZONE), stages in its ALLIANCE ZONE while its HUB is inactive, then shoots on the move when the HUB turns active. |
+| Defense | Blocks the lane between you and your HUB and pushes you while you shoot. It backs off 72 in before a PIN becomes a foul, keeps its intake from reaching into your frame, and leaves you alone at your TOWER in END GAME. |
+| Hybrid | Shift-aware. It defends during the SHIFTS when only your HUB is active and scores the rest of the time. |
+
+**Opponent skill** sets its speed, how carefully it collects, how much of its hopper it uses, its shooting accuracy, how long it hesitates between cycles, its reaction time on defense and its pin discipline:
+- **Rookie:** slow, small loads, misses more, stops to shoot, and holds pins too long, so it draws G418 fouls.
+- **Regional:** a solid district/regional robot.
+- **Champs:** full speed, full hoppers, tight cycles and clean defense, using the hand-tuned strategy.
+- **Trained (self-play):** Champs-level driving, using the strategy learned by AI-vs-AI self-play (see below).
+
+In AUTO the AI runs a normal routine: a Neutral Zone sweep for Scorer and Hybrid, or preload only for Defense.
+
+### Watch AI vs AI
+
+Set **Your robot driven by** to one of the AI strategies (and **Your AI skill**) to let the AI drive your robot in TELEOP. Your AUTO routine still runs first.
+- Pair it with an opponent to watch AI vs AI.
+- Cameras and pause still work.
+
+## Self-play training
+
+The AI's strategy lives in a small set of numbers, its "brain". The trainer (`tools/train.mjs`) tunes them by having AI robots play full matches against each other. The brain covers:
+- how full to get before a cycle, and how long to collect before scoring anyway;
+- when to head back and stage for an active HUB, and where to shoot from;
+- how fast to drive through FUEL, and which FUEL to go for;
+- how long to hold a pin, how hard to shove and where to block;
+- when a Hybrid robot is loaded enough to go defend.
+
+The difficulty handicaps (speed, accuracy, reaction time) are separate, so training improves decisions, not raw ability.
+
+The matches are headless: the same code, field, rules and all 504 FUEL as the browser game, run in Node without rendering. Each match gets a fresh physics world and a seeded random stream, so it plays out identically every time.
+
+How training works:
+1. Each generation samples candidate brains around the current one (an evolution strategy with mirrored sampling).
+2. Every candidate plays the same seeded scenarios, with mixed strategies, robots and alliances. Its opponents come from a league: the hand-tuned brain plus earlier snapshots of the trained brain.
+3. Scores are ranked per scenario, and the brain moves toward the best half.
+4. At the end, the trained and hand-tuned brains play the same held-out matches, and the paired difference is reported.
+5. The result is saved to `js/trainedBrain.js` (the **Trained** skill level) only if it beats the hand-tuned brain. Each run's history is appended to `tools/training-log.json`.
+
+Requires Node 18+:
+
+```
+npm install                                   # three + rapier for Node (the browser still uses the CDN)
+npm run train                                 # 10 generations, about 45 min on 4 cores
+npm run train -- --gens 30 --pop 12 --scenarios 6 --resume   # longer run, continuing from the last result
+npm run train -- --quick                      # smoke test, nothing saved
+npm run match -- --a hybrid:trained:4414 --b defense:champs:2910   # one headless match
+```
+
+Each side of `npm run match` is `strategy:skill:robot`. Training options:
+
+| Option | Meaning |
+|---|---|
+| `--gens` | Number of generations |
+| `--pop` | Candidates per generation |
+| `--scenarios` | Matches per candidate per generation |
+| `--validate` | Held-out validation matches |
+| `--workers` | Parallel processes (default: all cores) |
+| `--seed` | Random seed |
+| `--sigma` | Initial step size |
+| `--resume` | Continue from the last trained brain |
+| `--no-save` | Don't write the result |
+| `--force` | Save even if validation didn't show an improvement |
+
+A match takes about 30 s of CPU, so more cores train faster.
+
 ## The robots
 
 | | 2910 Jack in the Bot "Re•Blitz" | 4414 HighTide "RIPCURRENT" | 8793 Pumpkin Bots |
@@ -52,6 +125,7 @@ Every robot shoots on the move: the solver leads the target by the robot's veloc
 | Capacity | 58 FUEL | 88 FUEL (extending hopper) | 12 (only the ball path) |
 | Shooter | 4-wide drum, adjustable hood, **fixed to the chassis** (whole robot turns to aim) | Single-stream 3" flywheel on a **turret**, adjustable hood | Hooded flywheel on a **turret** |
 | Rate | 32 FUEL/s | 18 FUEL/s | 13 FUEL/s |
+| Intake | 26 FUEL/s | 30 FUEL/s | 14 FUEL/s |
 | Fits under TRENCH | yes | yes | yes |
 | Climber | none | none | none |
 
@@ -101,7 +175,14 @@ None of the three climbed, so each defaults to *no climber*. The **Climber add-o
 - **R105 / R106 / R107:** robots stay under 30 in, extend at most 12 in, and extend in only one direction.
 - Robots can't enter the OUTPOST openings.
 
-Robot-to-robot rules (G403, G415–G420) are left out because there is only one robot.
+**Robot-to-robot rules** apply when an opponent is on the field. Both robots are held to them, and foul points go to the other alliance:
+- **G403** (MAJOR): in AUTO, contacting an opponent while your BUMPERS are fully across the CENTER LINE.
+- **G415** (MINOR): a deployed over-the-bumper intake reaching inside the opponent's FRAME PERIMETER, i.e. hitting them intake-first with the intake down.
+- **G416** (MAJOR): high-speed ramming (over about 3.3 m/s closing speed, most of it yours), treated as a damage risk. Robots here can't tip over, so G417 never triggers.
+- **G418** (MINOR): PINNING an opponent against a FIELD element for more than 3 s, plus another MINOR for every further 3 s. The count resets when the robots are 72 in apart. The HUD shows the pin count for either robot.
+- **G420** (MAJOR): in END GAME, contacting an opponent that is touching its TOWER or climbing.
+
+Robots push each other with realistic traction (mass × acceleration limit), so heavier or faster-accelerating robots win shoving matches.
 
 ## Auto routines
 
@@ -111,6 +192,32 @@ Each routine is mirrored automatically for the red alliance and for left/right s
 - Neutral Zone sweep: out through the TRENCH, back over the BUMP, shooting on the move
 - Double sweep
 - Preload + Climb L1 (needs the climber add-on)
+
+## Auto Editor
+
+**AUTO EDITOR** in the main menu is a simplified PathPlanner. It shows a top-down view of your half of the field (drawn as blue, with the ALLIANCE WALL on the left).
+- Drag the START box along the ROBOT STARTING LINE, and place waypoints for the path.
+- For each waypoint, set what happens on the way there: intake on/off, shooting (off, shoot on the move once in the ALLIANCE ZONE, or shoot/pass anywhere) and max speed.
+- Also set what happens when the robot arrives: drive through, stop, stop and shoot until empty, or wait 1–3 s. Optionally shoot the preload first.
+- The panel shows an estimated run time against the 20 s AUTO. Waypoints past the CENTER LINE turn red as a G403 warning.
+
+Autos save automatically in the browser (localStorage) and appear in the **Auto routine** menu marked with ✎. **Test in a match** starts a match with the auto straight away.
+- Red alliance runs the path rotated automatically.
+- With a custom auto selected, **Starting position** switches to *As drawn* / *Mirrored left ↔ right*.
+- **Mirror left ↔ right** in the editor flips the saved path.
+
+| Editor action | Xbox controller | Mouse / keyboard |
+|---|---|---|
+| Move cursor | Left stick (hold LS click for fine) | Mouse / W A S D |
+| Add waypoint / grab / drop | A | Click (drag to move) / Enter |
+| Delete waypoint | X | Right-click / G |
+| Previous / next waypoint | LB / RB | F / R |
+| Shooting on the way | D-pad ◀ ▶ | [ / ] |
+| Speed | D-pad ▲ ▼ | ↑ / ↓ |
+| Intake on the way | Right stick click | T |
+| At-waypoint action | View (⧉) | Backspace |
+| Settings panel (auto list, start, mirror, test…) | Y, then D-pad + A | Click / H |
+| Done | B or Menu (☰) | Esc |
 
 ## Project layout
 
@@ -126,10 +233,19 @@ js/robot.js                 swerve drive, intake, storage, turret/chassis aiming
 js/match.js                 match timing, HUB shifts, scoring, fouls
 js/humanPlayer.js           OUTPOST human player
 js/auto.js                  autonomous routines and starting positions
+js/customAutos.js           saved custom autos (Auto Editor) -> auto steps
+js/editor.js                Auto Editor screen
+js/opponent.js              robot AI (Scorer / Defense / Hybrid): skill handicaps + trainable brain
+js/trainedBrain.js          brain learned by self-play (written by tools/train.mjs)
+js/game.js                  one match: robots, autos, AIs, rules (shared by browser and trainer)
+js/nav.js                   grid A* path planning around field structures
+js/rules.js                 robot-to-robot contact rules (G403, G415, G416, G418, G420)
 js/input.js                 Xbox controller (Gamepad API) + keyboard
 js/cameras.js, js/ui.js     cameras, menus and HUD
 js/main.js                  game loop
 serve.py                    local server
+tools/train.mjs             self-play trainer (Node); tools/match.mjs runs one headless match
+tools/headless.mjs          headless match runner; tools/node-env.mjs + resolve-hook.mjs load the game in Node
 start.bat / start.command   double-click launchers (Windows / macOS)
 ```
 

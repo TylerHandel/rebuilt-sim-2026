@@ -61,6 +61,16 @@
       <div class="rows"><div><span class="k">Committed</span><span id="foulCount" class="v">0 (0 pts)</span></div></div>
     </div>
 
+    <div id="oppPanel" class="panel hidden">
+      <div class="ptitle"><span id="oppTitle">Opponent</span> <span id="oppStrat" class="muted small"></span></div>
+      <div class="rows">
+        <div><span class="k">Doing</span><span id="oppState" class="v">—</span></div>
+        <div><span class="k">FUEL</span><span id="oppFuel" class="v">0</span></div>
+        <div><span class="k">Fouls</span><span id="oppFouls" class="v">0</span></div>
+      </div>
+    </div>
+    <div id="pinWarn" class="hidden"></div>
+
     <div id="toasts"></div>
     <div id="camName"></div>
     <div id="hint"></div>
@@ -72,7 +82,7 @@
     <div class="menuBox">
       <div class="brand">
         <div class="logo">REBUILT<span>2026</span></div>
-        <div class="tag">FRC match simulator · single robot · Xbox controller ready</div>
+        <div class="tag">FRC match simulator · solo or vs. an AI opponent · Xbox controller ready</div>
       </div>
       <div id="robotCards"></div>
       <div id="options"></div>
@@ -102,6 +112,17 @@
       <div class="heading">Controls</div>
       <div id="controlsBody"></div>
       <div class="muted center">Press B / Esc to close</div>
+    </div>
+  </div>
+
+  <div id="editor" class="overlay hidden">
+    <div class="menuBox wide">
+      <div class="heading">Auto Editor</div>
+      <div class="edMain">
+        <div class="edField"><canvas id="edCanvas"></canvas></div>
+        <div id="edSide"></div>
+      </div>
+      <div id="edHelp"></div>
     </div>
   </div>
 
