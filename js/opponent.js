@@ -6,7 +6,7 @@
 import { BLUE, HALF_L, HALF_W, TIMING } from './constants.js';
 import { Field } from './field.js';
 import { NavGrid, obstacleAt } from './nav.js';
-import { towerProtected, PIN_RESET } from './rules.js';
+import { towerProtected, PIN_RESET, RAM_AGGRESSOR } from './rules.js';
 import { clamp, wrapAngle, rand } from './util.js';
 
 export const OPP_STRATEGIES = {
@@ -153,13 +153,14 @@ export class OpponentAI {
         vz += (oz / od) * k + side * (ox / od) * k * 0.6;
       }
     }
-    // never close on the other robot fast enough to count as a ram (G416)
+    // never close on the other robot fast enough to count as a ram (G416 needs the rammer
+    // itself to be moving faster than RAM_AGGRESSOR)
     {
       const P = this.player;
       const px = P.pos.x - r.pos.x, pz = P.pos.z - r.pos.z;
       const pd = Math.hypot(px, pz);
       const closing = pd > 1e-3 ? (vx * px + vz * pz) / pd : 0;
-      const cap = pd < 1.4 ? 1.2 : pd < 2.4 ? 2.0 : Infinity;
+      const cap = pd < 2.5 ? RAM_AGGRESSOR - 0.2 : Infinity;
       if (closing > cap) {
         const k = (closing - cap) / pd;
         vx -= px * k; vz -= pz * k;
@@ -279,8 +280,17 @@ export class OpponentAI {
     const toP = { x: P.pos.x - r.pos.x, z: P.pos.z - r.pos.z };
     const dP = Math.hypot(toP.x, toP.z);
     const playerAhead = dP < 1.5 && (toP.x * f.x + toP.z * f.z) / dP > 0.3;
-    r.cmd.intake = d < 2.5 && !playerAhead && r.stored.length < this.maxLoad;
+    r.cmd.intake = d < 2.5 && !playerAhead && r.stored.length < this.maxLoad && !this._hubFuelNear();
     this.label = `Collecting (${r.stored.length}/${r.capacity()})`;
+  }
+
+  // FUEL just released by a HUB can't be caught before it touches the carpet (G408)
+  _hubFuelNear() {
+    const r = this.robot;
+    for (const b of this.fuel.balls) {
+      if (b.state === 'field' && b.hubFresh && Math.abs(b.pos.x - r.pos.x) < 1.4 && Math.abs(b.pos.z - r.pos.z) < 1.4) return true;
+    }
+    return false;
   }
 
   // ------------------------------------------------------------------ defense
@@ -325,7 +335,7 @@ export class OpponentAI {
     if (inZone) {
       // shove the shooter; slow down before impact so it isn't a ram (G416)
       const d = Math.hypot(P.pos.x - r.pos.x, P.pos.z - r.pos.z);
-      this._drive(P.pos.x, P.pos.z, { face, arrive: -1, speed: d < 1.8 ? 0.45 : 1 });
+      this._drive(P.pos.x, P.pos.z, { face, arrive: -1, speed: d < 1.8 ? 0.6 : 1 });
       this.label = pin.active ? `Pinning ${pin.t.toFixed(1)} s` : 'Pushing';
     } else {
       // block the lane between the player and its HUB
@@ -335,7 +345,7 @@ export class OpponentAI {
       bx /= bd; bz /= bd;
       const lead = Math.min(1.4, bd * 0.5);
       const d = Math.hypot(P.pos.x - r.pos.x, P.pos.z - r.pos.z);
-      this._drive(P.pos.x + bx * lead, P.pos.z + bz * lead, { face, speed: d < 1.8 ? 0.55 : 1 });
+      this._drive(P.pos.x + bx * lead, P.pos.z + bz * lead, { face, speed: d < 1.8 ? 0.7 : 1 });
       this.label = 'Blocking';
     }
   }

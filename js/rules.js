@@ -14,7 +14,7 @@ export const PIN_LIMIT = 3;
 export const PIN_RESET = 72 * IN;
 const CONTACT_GAP = 0.03;
 const RAM_CLOSING = 3.3; // m/s closing speed
-const RAM_AGGRESSOR = 2.6; // m/s of that from the rammer
+export const RAM_AGGRESSOR = 2.6; // m/s of that from the rammer
 
 // ---------------------------------------------------------------- 2D polygon helpers
 function rectPoly(r, hl, hw, ox = 0) {
