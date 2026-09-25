@@ -54,10 +54,10 @@ Set **Opponent (PvE)** in the main menu to put an AI robot on the other alliance
 | Defense | Blocks the lane between you and your HUB and pushes you while you shoot. It backs off 72 in before a PIN becomes a foul, keeps its intake from reaching into your frame, and leaves you alone at your TOWER in END GAME. |
 | Hybrid | Shift-aware. It defends during the SHIFTS when only your HUB is active and scores the rest of the time. |
 
-**Opponent skill** sets its speed, how carefully it collects, how full it gets before a cycle, how long it hesitates between cycles, its reaction time on defense and its pin discipline:
-- **Rookie:** slow, stops to shoot, and holds pins too long, so it draws G418 fouls.
+**Opponent skill** sets its speed, how carefully it collects, how much of its hopper it uses, its shooting accuracy, how long it hesitates between cycles, its reaction time on defense and its pin discipline:
+- **Rookie:** slow, small loads, misses more, stops to shoot, and holds pins too long, so it draws G418 fouls.
 - **Regional:** a solid district/regional robot.
-- **Champs:** full speed, tight cycles and clean defense.
+- **Champs:** full speed, full hoppers, tight cycles and clean defense.
 
 In AUTO the AI runs a normal routine: a Neutral Zone sweep for Scorer and Hybrid, or preload only for Defense.
 

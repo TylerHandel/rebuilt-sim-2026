@@ -19,10 +19,11 @@ export const OPP_ORDER = ['off', 'scorer', 'defense', 'hybrid'];
 
 export const OPP_SKILLS = {
   // speed: drive speed scale · collect: speed scale among FUEL · fill: how full before a cycle
-  // hesitate: pause between cycles (s) · sotm: shoots on the move · lag: defender reaction (s)
-  rookie: { name: 'Rookie', speed: 0.6, collect: 0.35, fill: 0.4, hesitate: 2.0, sotm: false, pinLimit: 3.6, think: 0.6, lag: 0.7, desc: 'Slow, stops to shoot, and sometimes holds a PIN too long.' },
-  regional: { name: 'Regional', speed: 0.8, collect: 0.5, fill: 0.6, hesitate: 0.8, sotm: true, pinLimit: 2.4, think: 0.35, lag: 0.45, desc: 'A solid district/regional robot.' },
-  champs: { name: 'Champs', speed: 1.0, collect: 0.7, fill: 0.85, hesitate: 0, sotm: true, pinLimit: 1.8, think: 0.2, lag: 0.25, desc: 'Full speed, tight cycles, clean defense.' },
+  // hesitate: pause between cycles (s) · sotm: shoots on the move · load: most of the hopper it
+  // uses · noise: shot scatter multiplier · lag: defender reaction (s)
+  rookie: { name: 'Rookie', speed: 0.6, collect: 0.35, fill: 0.3, load: 0.35, noise: 3.0, hesitate: 2.5, sotm: false, pinLimit: 3.6, think: 0.6, lag: 0.7, desc: 'Slow, small loads, misses more, stops to shoot, and sometimes holds a PIN too long.' },
+  regional: { name: 'Regional', speed: 0.8, collect: 0.5, fill: 0.5, load: 0.65, noise: 1.7, hesitate: 1.0, sotm: true, pinLimit: 2.4, think: 0.35, lag: 0.45, desc: 'A solid district/regional robot.' },
+  champs: { name: 'Champs', speed: 1.0, collect: 0.7, fill: 0.85, load: 1.0, noise: 1.0, hesitate: 0, sotm: true, pinLimit: 1.8, think: 0.2, lag: 0.25, desc: 'Full speed, full hoppers, tight cycles, clean defense.' },
 };
 export const SKILL_ORDER = ['rookie', 'regional', 'champs'];
 
@@ -62,7 +63,9 @@ export class OpponentAI {
     this.hesitateT = 0;
     this.seen = []; // where the player was, for the defender's reaction lag
     const cap = robot.capacity();
-    this.fillTarget = cap < 20 ? cap : Math.max(8, Math.round(this.skill.fill * Math.min(cap, 60)));
+    robot.noiseScale = this.skill.noise;
+    this.maxLoad = cap < 20 ? cap : Math.max(10, Math.round(this.skill.load * cap));
+    this.fillTarget = cap < 20 ? cap : Math.min(this.maxLoad, Math.max(8, Math.round(this.skill.fill * Math.min(cap, 60))));
   }
 
   get own() { return this.robot.alliance; }
@@ -180,7 +183,7 @@ export class OpponentAI {
 
   _score(dt) {
     const r = this.robot, m = this.match;
-    const stored = r.stored.length, cap = r.capacity();
+    const stored = r.stored.length, cap = this.maxLoad;
     const active = m.hubActive(this.own);
     const nc = m.hubNextChange(this.own);
     const untilActive = active ? 0 : nc ?? Infinity;
@@ -212,13 +215,13 @@ export class OpponentAI {
       this.collectT += dt;
       this._collect(dt);
       // the hopperless robot keeps scoring as it collects in its own zone
-      if (cap < 20 && canShoot && r.lastInZone) r.cmd.shoot = true;
+      if (r.capacity() < 20 && canShoot && r.lastInZone) r.cmd.shoot = true;
       return;
     }
     const remain = this._drive(spot.x, spot.z, { avoid: true, speed: 1 });
     const settled = this.skill.sotm || (remain < 0.3 && Math.hypot(r.vel.x, r.vel.z) < 0.3);
     r.cmd.shoot = canShoot && r.lastInZone && settled;
-    if (cap < 20 && r.lastInZone) r.cmd.intake = true;
+    if (r.capacity() < 20 && r.lastInZone) r.cmd.intake = true;
     this.label = r.cmd.shoot ? (r.ready ? 'Shooting' : 'Aiming') : remain > 0.3 ? 'Returning to score' : 'Staged — waiting for HUB';
   }
 
@@ -276,7 +279,7 @@ export class OpponentAI {
     const toP = { x: P.pos.x - r.pos.x, z: P.pos.z - r.pos.z };
     const dP = Math.hypot(toP.x, toP.z);
     const playerAhead = dP < 1.5 && (toP.x * f.x + toP.z * f.z) / dP > 0.3;
-    r.cmd.intake = d < 2.5 && !playerAhead;
+    r.cmd.intake = d < 2.5 && !playerAhead && r.stored.length < this.maxLoad;
     this.label = `Collecting (${r.stored.length}/${r.capacity()})`;
   }
 

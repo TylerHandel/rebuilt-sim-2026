@@ -423,9 +423,10 @@ export class Robot {
       const c = this._exitPoint();
       exit = new THREE.Vector3(c.x + Math.cos(psi) * sh.exitRadius, c.y, c.z - Math.sin(psi) * sh.exitRadius);
     }
-    psi += gauss() * sh.yawSigma * DEG;
-    const th = this.hoodDeg * DEG + gauss() * sh.angleSigma * DEG;
-    const v = this.flywheel * (1 + gauss() * sh.speedSigma);
+    const k = this.noiseScale ?? 1; // AI skill: extra scatter for weaker drivers
+    psi += gauss() * sh.yawSigma * k * DEG;
+    const th = this.hoodDeg * DEG + gauss() * sh.angleSigma * k * DEG;
+    const v = this.flywheel * (1 + gauss() * sh.speedSigma * k);
     const lv = this.velocityAt(exit);
     const vel = {
       x: Math.cos(psi) * Math.cos(th) * v + lv.x,
