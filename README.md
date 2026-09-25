@@ -39,6 +39,8 @@ ES modules won't load from `file://`, so always use `serve.py` instead of openin
 | Pause | Menu (☰) | Esc |
 | Restart match | Hold View (⧉) for 1 s | Hold Backspace |
 
+Flywheels stay spun up for 1.5 s after you release the trigger, so stop-and-go shooting doesn't spin up from zero every time.
+
 **RT is context-aware:**
 - With your BUMPERS in your ALLIANCE ZONE, it targets your HUB.
 - Anywhere else it lobs FUEL into the nearest corner of your ALLIANCE ZONE, because scoring from outside is a MAJOR FOUL (G407).
@@ -51,14 +53,15 @@ Set **Opponent (PvE)** in the main menu to put an AI robot on the other alliance
 
 | Strategy | What it does |
 |---|---|
-| Scorer | Runs its own cycles. It collects FUEL (never in your ALLIANCE ZONE) and shoots on the move once back in its zone. During its off shifts it **shuttles**: it keeps collecting in the NEUTRAL ZONE and passes the surplus into its own zone, then heads home just before its HUB turns active and picks up that stockpile. |
+| Scorer | Runs its own cycles. It collects FUEL, and **steals** from your ALLIANCE ZONE when it's worth it (every FUEL taken counts twice: one fewer for you, one more for it), then shoots on the move once back in its zone. **Off shifts:** it has one goal, to get as much FUEL onto its side as possible. It collects in the NEUTRAL ZONE and passes everything into its own zone (turrets pass as they intake; the 2910 passes in batches), never over its HUB. Near the end of the shift it fills its hopper and heads home, then works through that stockpile when its HUB turns on. |
 | Defense | Tries to **keep you out of your zone**. It guards the BUMP or TRENCH lane you'd use to get in and **rams** you back when you come close. If you get in, it shoves you off your shot. It backs off 72 in before a PIN becomes a foul, and leaves you alone at your TOWER in END GAME. |
 | Hybrid | Shift-aware. It defends during the SHIFTS when only your HUB is active and scores the rest of the time. |
 
 How the Scorer handles time and traffic:
 - If its own zone has too little FUEL left to be worth picking through, it goes to the NEUTRAL ZONE.
 - It measures its own collection rate. If its HUB's active window won't last long enough to fill up, travel and shoot, it scores the partial load it has. It also heads in with any load just before its HUB activates.
-- Turret robots (4414, 8793) shoot while collecting inside their zone. The 2910 can't, because its shooter is fixed to the chassis.
+- Turret robots (4414, 8793) don't use a fixed shooting spot. Once inside their zone with the HUB active, they shoot from wherever they are while collecting. Outside the zone they head for the nearest point inside it. The 2910 still drives to a shooting spot, because its whole chassis has to turn to aim.
+- While shooting or passing on the move, it drives smoothly: capped speed, limited acceleration and turning. This lets the turret, hood and flywheel settle so the shot actually releases (a shot only fires when aim, flywheel speed and hood are all on target).
 - If you block it on the way to its zone, it goes around at first. Once it stops gaining ground (you're mirroring it), it drives straight through you.
 
 **Opponent skill** sets its speed, how carefully it collects, how much of its hopper it uses, its shooting accuracy, how long it hesitates between cycles, its reaction time on defense and its pin discipline:
@@ -67,7 +70,7 @@ How the Scorer handles time and traffic:
 - **Champs:** full speed, full hoppers, tight cycles and clean defense, using the hand-tuned strategy.
 - **Trained (self-play):** Champs-level driving, using the strategy learned by AI-vs-AI self-play (see below).
 
-In AUTO the AI runs a normal routine: a Neutral Zone sweep for Scorer and Hybrid, or preload only for Defense.
+In AUTO the AI runs a normal routine. Scorer and Hybrid do a Neutral Zone sweep. Defense starts beside its HUB, shoots its preload and drives over its BUMP to wait at mid-field, on its side of the CENTER LINE, ready for TELEOP.
 
 ### Watch AI vs AI
 
@@ -235,6 +238,7 @@ Each routine is mirrored automatically for the red alliance and for left/right s
 - Neutral Zone sweep: out through the TRENCH, back over the BUMP, shooting on the move
 - Double sweep
 - Preload + Climb L1 (needs the climber add-on)
+- Preload + defensive position: shoot the preload, then drive over the BUMP to mid-field to start TELEOP on defense
 
 ## Auto Editor
 

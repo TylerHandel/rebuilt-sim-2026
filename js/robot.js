@@ -115,6 +115,7 @@ export class Robot {
     this.enabled = false;
     this.cmd = { vx: 0, vz: 0, omega: 0, intake: false, outtake: false, shoot: false, pass: false };
     this.aimOverride = null;
+    this.passTarget = null;
     this.shot = null;
     this.status = 'Idle';
     this.feeding = 0;
@@ -295,7 +296,9 @@ export class Robot {
       const c = Field.hubCenter(this.alliance);
       return { mode: 'hub', x: c.x, z: c.z, table: this.hubTable, inZone };
     }
-    // nearest corner of our ALLIANCE ZONE (away from the HUB)
+    // an AI can pick where its passes land (feeding its own zone); otherwise the nearest
+    // corner of our ALLIANCE ZONE (away from the HUB)
+    if (this.passTarget) return { mode: 'pass', x: this.passTarget.x, z: this.passTarget.z, table: this.passTable, inZone };
     const s = this.alliance === BLUE ? 1 : -1;
     // aimed well inside the corner so long lobs that scatter or bounce stay on the FIELD (G405)
     const x = s * (-HALF_L + 1.7);
@@ -387,6 +390,10 @@ export class Robot {
     if (!this.shot) this._lastPsi = undefined;
     if (!on) status = this.enabled ? status : 'Disabled';
 
+    // keep the flywheel at its last shot speed for a moment after the trigger is released, so
+    // stop-and-go shooting (or passing) doesn't have to spin up from scratch every time
+    if (setpoint > 0) { this.spinHold = setpoint; this.spinHoldT = t; }
+    else if (on && this.spinHold && t - this.spinHoldT < 1.5) setpoint = this.spinHold;
     // flywheel dynamics: torque-limited spin-up (0 -> max in spinTau*2), fast closed-loop
     // settle near the setpoint, slow coast-down
     const target = Math.min(setpoint, sh.speedMax);

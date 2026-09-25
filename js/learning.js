@@ -16,7 +16,7 @@ const KEY = 'rebuiltSim.learner';
 export const KEYS = Object.keys(BRAIN_SPEC);
 const DEFENSE_KEYS = ['pinLimit', 'pushSpeed', 'blockLead', 'engage'];
 // samples needed before a measurement of your driving is trusted
-const MIN_SAMPLES = { spotFx: 3, spotZ: 3, fill: 2, cycleTime: 2, stageMargin: 1, collectSpeed: 20, intakeDist: 4, pinLimit: 2, pushSpeed: 2, blockLead: 12, engage: 2, shuttle: 2, shuttleKeep: 2 };
+const MIN_SAMPLES = { spotFx: 3, spotZ: 3, fill: 2, cycleTime: 2, stageMargin: 1, collectSpeed: 20, intakeDist: 4, pinLimit: 2, pushSpeed: 2, blockLead: 12, engage: 2, shuttle: 2, passBatch: 2, shootSpeed: 20 };
 export const EXPLORE_LEVELS = [[0, 'Off'], [0.04, 'Small'], [0.08, 'Medium'], [0.14, 'Large']];
 export const IMITATE_LEVELS = [[0, 'Off'], [0.15, 'A little'], [0.3, 'Some'], [0.5, 'A lot']];
 
@@ -257,6 +257,7 @@ export class DrivingRecorder {
     // ---- shooting: where from, how full, how long you collected
     const fired = r.stats.shots - this.lastShots;
     this.lastShots = r.stats.shots;
+    if (fired > 0 && r.shot && r.shot.mode === 'hub' && tick) O.shootSpeed.push(speed / maxSp);
     if (fired > 0 && r.shot && r.shot.mode === 'hub') {
       if (!this.inBurst) {
         this.inBurst = true;
@@ -275,10 +276,10 @@ export class DrivingRecorder {
     const act = m.hubActive(own);
     const passed = r.stats.passes - this.lastPasses;
     this.lastPasses = r.stats.passes;
-    if (!act && passed > 0) { this.offPasses += passed; this.passBurstT = t; }
-    if (!act && this.passBurstT > 0 && t - this.passBurstT > 1.0) {
-      O.shuttleKeep.push(r.stored.length / Math.max(1, r.capacity()));
-      this.passBurstT = -99;
+    if (!act && passed > 0) {
+      if (t - this.passBurstT > 1.0) O.passBatch.push(r.stored.length + passed); // how many you pass at once
+      this.offPasses += passed;
+      this.passBurstT = t;
     }
     if (this.wasActive === false && act && m.shiftIndex() >= 1) { O.shuttle.push(this.offPasses >= 3 ? 1 : 0); this.offPasses = 0; }
     this.wasActive = act;
