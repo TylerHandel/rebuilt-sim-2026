@@ -150,6 +150,18 @@ export class OpponentAI {
         vz += (oz / od) * k + side * (ox / od) * k * 0.6;
       }
     }
+    // never close on the other robot fast enough to count as a ram (G416)
+    {
+      const P = this.player;
+      const px = P.pos.x - r.pos.x, pz = P.pos.z - r.pos.z;
+      const pd = Math.hypot(px, pz);
+      const closing = pd > 1e-3 ? (vx * px + vz * pz) / pd : 0;
+      const cap = pd < 1.4 ? 1.2 : pd < 2.4 ? 2.0 : Infinity;
+      if (closing > cap) {
+        const k = (closing - cap) / pd;
+        vx -= px * k; vz -= pz * k;
+      }
+    }
     cmd.vx = vx; cmd.vz = vz;
     let heading = null;
     if (face === 'travel') { if (sp > 0.3) heading = Math.atan2(-vz, vx); }
