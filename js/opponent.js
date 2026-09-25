@@ -24,21 +24,21 @@ export const OPP_ORDER = ['off', 'scorer', 'defense', 'hybrid'];
 
 // Trainable strategy parameters: range searched by the trainer and the hand-tuned default
 export const BRAIN_SPEC = {
-  fill: { min: 0.25, max: 1.0, def: 0.85, desc: 'fraction of the hopper (up to 60 FUEL) collected before a cycle' },
-  cycleTime: { min: 5, max: 24, def: 14, desc: 's of collecting before it scores what it has while its HUB is active' },
-  stageMargin: { min: 0, max: 6, def: 2, desc: 's of slack when heading in to stage before its HUB turns active' },
-  topUp: { min: 2, max: 14, def: 6, desc: 'tops up its hopper if its HUB stays inactive this much longer than the trip back (s)' },
-  spotFx: { min: 1.6, max: 3.7, def: 2.7, desc: 'shooting spot distance from its ALLIANCE WALL (m)' },
-  spotZ: { min: 0.7, max: 2.6, def: 0.9, desc: 'minimum sideways offset of the shooting spot from the HUB (m)' },
-  collectSpeed: { min: 0.3, max: 1.0, def: 0.7, desc: 'speed among FUEL (fraction of top speed)' },
-  density: { min: 0, max: 0.8, def: 0.35, desc: 'preference for dense FUEL clusters over the nearest FUEL' },
-  ownZone: { min: -1, max: 2, def: 0.4, desc: 'preference for FUEL in its own ALLIANCE ZONE (m)' },
-  intakeDist: { min: 1.0, max: 4.0, def: 2.5, desc: 'distance from the target FUEL at which the intake drops (m)' },
-  pinLimit: { min: 0.8, max: 2.9, def: 1.8, desc: 's it holds a PIN before backing off' },
-  pushSpeed: { min: 0.3, max: 1.0, def: 0.6, desc: 'approach speed when shoving (fraction of top speed)' },
-  blockLead: { min: 0.4, max: 2.5, def: 1.4, desc: 'how far toward its HUB ahead of the other robot it blocks (m)' },
-  engage: { min: -1.5, max: 3, def: 0, desc: 'starts shoving once the other robot is this close to its ALLIANCE ZONE (m)' },
-  hybridLoad: { min: 0, max: 1, def: 0, desc: 'Hybrid only goes to defend once its hopper is at least this full' },
+  fill: { min: 0.25, max: 1.0, def: 0.85, group: 'Scoring', label: 'Cycle fill', unit: '%', desc: 'fraction of the hopper (up to 60 FUEL) collected before a cycle' },
+  cycleTime: { min: 5, max: 24, def: 14, group: 'Scoring', label: 'Max collect time', unit: 's', desc: 's of collecting before it scores what it has while its HUB is active' },
+  stageMargin: { min: 0, max: 6, def: 2, group: 'Scoring', label: 'Stage early by', unit: 's', desc: 's of slack when heading in to stage before its HUB turns active' },
+  topUp: { min: 2, max: 14, def: 6, group: 'Scoring', label: 'Top-up window', unit: 's', desc: 'tops up its hopper if its HUB stays inactive this much longer than the trip back (s)' },
+  spotFx: { min: 1.6, max: 3.7, def: 2.7, group: 'Scoring', label: 'Shot distance from wall', unit: 'm', desc: 'shooting spot distance from its ALLIANCE WALL (m)' },
+  spotZ: { min: 0.7, max: 2.6, def: 0.9, group: 'Scoring', label: 'Shot side offset', unit: 'm', desc: 'minimum sideways offset of the shooting spot from the HUB (m)' },
+  collectSpeed: { min: 0.3, max: 1.0, def: 0.7, group: 'Collecting', label: 'Speed through FUEL', unit: '%', desc: 'speed among FUEL (fraction of top speed)' },
+  density: { min: 0, max: 0.8, def: 0.35, group: 'Collecting', label: 'Cluster preference', unit: '', desc: 'preference for dense FUEL clusters over the nearest FUEL' },
+  ownZone: { min: -1, max: 2, def: 0.4, group: 'Collecting', label: 'Own-zone FUEL bonus', unit: 'm', desc: 'preference for FUEL in its own ALLIANCE ZONE (m)' },
+  intakeDist: { min: 1.0, max: 4.0, def: 2.5, group: 'Collecting', label: 'Intake drop distance', unit: 'm', desc: 'distance from the target FUEL at which the intake drops (m)' },
+  pinLimit: { min: 0.8, max: 2.9, def: 1.8, group: 'Defense', label: 'Pin hold time', unit: 's', desc: 's it holds a PIN before backing off' },
+  pushSpeed: { min: 0.3, max: 1.0, def: 0.6, group: 'Defense', label: 'Shove speed', unit: '%', desc: 'approach speed when shoving (fraction of top speed)' },
+  blockLead: { min: 0.4, max: 2.5, def: 1.4, group: 'Defense', label: 'Block lead', unit: 'm', desc: 'how far toward its HUB ahead of the other robot it blocks (m)' },
+  engage: { min: -1.5, max: 3, def: 0, group: 'Defense', label: 'Engage distance', unit: 'm', desc: 'starts shoving once the other robot is this close to its ALLIANCE ZONE (m)' },
+  hybridLoad: { min: 0, max: 1, def: 0, group: 'Hybrid', label: 'Load before defending', unit: '%', desc: 'Hybrid only goes to defend once its hopper is at least this full' },
 };
 export const DEFAULT_BRAIN = Object.fromEntries(Object.entries(BRAIN_SPEC).map(([k, v]) => [k, v.def]));
 
@@ -50,8 +50,9 @@ export const OPP_SKILLS = {
   regional: { name: 'Regional', speed: 0.8, load: 0.65, noise: 1.7, hesitate: 1.0, sotm: true, think: 0.35, lag: 0.45, brain: { fill: 0.5, collectSpeed: 0.5, pinLimit: 2.4 }, desc: 'A solid district/regional robot.' },
   champs: { name: 'Champs', speed: 1.0, load: 1.0, noise: 1.0, hesitate: 0, sotm: true, think: 0.2, lag: 0.25, brain: {}, desc: 'Full speed, full hoppers, tight cycles, clean defense (hand-tuned strategy).' },
   trained: { name: 'Trained (self-play)', speed: 1.0, load: 1.0, noise: 1.0, hesitate: 0, sotm: true, think: 0.2, lag: 0.25, brain: null, desc: 'Champs-level robot running the strategy learned by AI-vs-AI self-play (tools/train.mjs).' },
+  mine: { name: 'Your trained AI', speed: 1.0, load: 1.0, noise: 1.0, hesitate: 0, sotm: true, think: 0.2, lag: 0.25, brain: {}, desc: 'Champs-level robot running the brain you trained in Training mode and AI Tuning (saved in this browser).' },
 };
-export const SKILL_ORDER = ['rookie', 'regional', 'champs', 'trained'];
+export const SKILL_ORDER = ['rookie', 'regional', 'champs', 'trained', 'mine'];
 
 export function brainFor(skill, override = null) {
   const sk = OPP_SKILLS[skill] || OPP_SKILLS.regional;

@@ -3,7 +3,7 @@
 A single-player, single-match FRC simulator for the 2026 game **REBUILT**, in the spirit of MoSimulator / CloSimulator.
 It runs in the browser (Three.js rendering + Rapier physics), works with an Xbox controller, and simulates **all 504 FUEL**.
 Play solo, or against an AI opponent robot (PvE), and build your own autos in the Auto Editor.
-The AI can also drive your robot, so you can watch AI-vs-AI matches, and its strategy can be trained by self-play.
+The AI can also drive your robot, so you can watch AI-vs-AI matches. Its strategy can be trained by self-play, or by playing Training matches against it, where it also learns from how you drive. You can run defense drills against it, and fine-tune and export its values from the AI Tuning screen.
 
 ## Run it
 
@@ -69,6 +69,41 @@ Set **Your robot driven by** to one of the AI strategies (and **Your AI skill**)
 - Pair it with an opponent to watch AI vs AI.
 - Cameras and pause still work.
 
+## Training mode: teach the AI by playing it
+
+Set **Match type** to *Training (AI learns)*. You play against **Your trained AI**, a Champs-level robot whose strategy ("brain") is saved in your browser. It learns two ways:
+
+- **From results.** Each Training match, the AI plays a slightly different version of its brain: variation A, then its mirror image, variation B, in the next match. After each pair it moves toward whichever did better against you. The results screen explains what it tried and which values changed. **Exploration** in AI Tuning sets how different the variations are.
+- **From your driving.** In every match you drive, the game measures the same decisions the brain makes: where you shoot from, how full you get before a cycle, how long you collect, how early you get back for your HUB, how fast you drive through FUEL, how far away you drop the intake, how long you hold a pin, how fast you shove, where you block and when you engage. When you out-drive the AI (win the match, or beat its average in a defense drill), it copies part of your style. **Copy my style** in AI Tuning sets how much.
+
+### Your role: Score or Defense
+
+**Your role** can be *Score* (win the match) or *Defense (hold the AI down)*.
+
+In Defense, the opponent always plays Scorer, and your goal is to minimize the points it scores. Fouls you commit count as its points.
+- The HUD shows the AI's running score and your target: its average across your earlier drills.
+- The results show the points you held it to.
+- In Training, the AI learns to score through your defense, rewarded by its own points. When you hold it under its average, it copies your defensive style (pin time, shove speed, block position, engage distance) for when it plays defense itself.
+
+### AI Tuning: see, adjust and export the values
+
+**AI TUNING** in the main menu lists every brain value of Your trained AI. Each value is on a slider (controller or mouse), next to three reference values:
+- the hand-tuned (Champs) value;
+- the shipped **Trained** value;
+- what your driving measured, with its sample count.
+
+It also shows the training record and the learning settings. Buttons:
+- Blend toward my driving.
+- Reset to the shipped or the hand-tuned brain.
+- Clear my driving data, or reset the record.
+- Export, copy JSON, and import.
+
+**Exporting into the main version.** When the values are where you want them, press *Export trainedBrain.js*. It downloads a drop-in `js/trainedBrain.js`, plus a `.json` copy. Replace the repo's `js/trainedBrain.js` with the download and commit it. The **Trained** skill level then uses your brain for everyone. You can also:
+- keep training it headless: `npm run train -- --from rebuilt-ai-brain.json`;
+- import it on another browser.
+
+Pick **Your trained AI** as the opponent skill (or as *Your AI skill* in watch mode) to play or watch it without exploration.
+
 ## Self-play training
 
 The AI's strategy lives in a small set of numbers, its "brain". The trainer (`tools/train.mjs`) tunes them by having AI robots play full matches against each other. The brain covers:
@@ -96,6 +131,7 @@ npm install                                   # three + rapier for Node (the bro
 npm run train                                 # 10 generations, about 45 min on 4 cores
 npm run train -- --gens 30 --pop 12 --scenarios 6 --resume   # longer run, continuing from the last result
 npm run train -- --quick                      # smoke test, nothing saved
+npm run train -- --from rebuilt-ai-brain.json # continue from a brain exported in AI Tuning
 npm run match -- --a hybrid:trained:4414 --b defense:champs:2910   # one headless match
 ```
 
@@ -111,6 +147,7 @@ Each side of `npm run match` is `strategy:skill:robot`. Training options:
 | `--seed` | Random seed |
 | `--sigma` | Initial step size |
 | `--resume` | Continue from the last trained brain |
+| `--from FILE` | Start from an exported brain (`.json` or `trainedBrain.js`) |
 | `--no-save` | Don't write the result |
 | `--force` | Save even if validation didn't show an improvement |
 
@@ -236,7 +273,9 @@ js/auto.js                  autonomous routines and starting positions
 js/customAutos.js           saved custom autos (Auto Editor) -> auto steps
 js/editor.js                Auto Editor screen
 js/opponent.js              robot AI (Scorer / Defense / Hybrid): skill handicaps + trainable brain
-js/trainedBrain.js          brain learned by self-play (written by tools/train.mjs)
+js/trainedBrain.js          shipped "Trained" brain (written by tools/train.mjs or exported from AI Tuning)
+js/learning.js              Training mode: learning from matches vs you and from your driving
+js/tuning.js, js/brainFile.js   AI Tuning screen; trainedBrain.js export/import format
 js/game.js                  one match: robots, autos, AIs, rules (shared by browser and trainer)
 js/nav.js                   grid A* path planning around field structures
 js/rules.js                 robot-to-robot contact rules (G403, G415, G416, G418, G420)
