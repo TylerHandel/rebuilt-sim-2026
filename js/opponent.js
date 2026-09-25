@@ -279,7 +279,7 @@ export class OpponentAI {
     const f = r.forward();
     const toP = { x: P.pos.x - r.pos.x, z: P.pos.z - r.pos.z };
     const dP = Math.hypot(toP.x, toP.z);
-    const playerAhead = dP < 1.5 && (toP.x * f.x + toP.z * f.z) / dP > 0.3;
+    const playerAhead = dP < 2.2 && (toP.x * f.x + toP.z * f.z) / dP > -0.1;
     r.cmd.intake = d < 2.5 && !playerAhead && r.stored.length < this.maxLoad && !this._hubFuelNear();
     this.label = `Collecting (${r.stored.length}/${r.capacity()})`;
   }
@@ -320,8 +320,8 @@ export class OpponentAI {
     const faceP = Math.atan2(-(P.pos.z - r.pos.z), P.pos.x - r.pos.x);
     const face = r.cfg.intake.latched ? faceP + Math.PI : faceP;
     const endGame = m.phaseTime >= TIMING.teleop - TIMING.endgame;
-    if (endGame && towerProtected(this.player)) {
-      // G420: stay clear of a robot at its TOWER in END GAME
+    if (endGame && towerProtected(this.player, 1.0)) {
+      // G420: stay clear of a robot at (or being pushed toward) its TOWER in END GAME
       this._drive(P.pos.x + away.x * 2.2, P.pos.z + away.z * 2.2, { face });
       this.label = 'Holding off (TOWER)';
       return;

@@ -69,13 +69,13 @@ function intakePoly(r) {
   return rectPoly(r, ic.reach / 2 + 0.01, ic.width / 2, r.halfL + ic.reach / 2 - 0.01);
 }
 
-// Is the robot touching its own TOWER (or hanging on it)?
-export function towerProtected(r) {
+// Is the robot touching its own TOWER (or hanging on it)? `pad` widens the check.
+export function towerProtected(r, pad = 0.05) {
   if (r.climbState && r.climbState !== 'none') return true;
   const t = towerRect(r.alliance);
   const T = [
-    { x: t.x - t.hx - 0.05, z: t.z - t.hz - 0.05 }, { x: t.x + t.hx + 0.05, z: t.z - t.hz - 0.05 },
-    { x: t.x + t.hx + 0.05, z: t.z + t.hz + 0.05 }, { x: t.x - t.hx - 0.05, z: t.z + t.hz + 0.05 },
+    { x: t.x - t.hx - pad, z: t.z - t.hz - pad }, { x: t.x + t.hx + pad, z: t.z - t.hz - pad },
+    { x: t.x + t.hx + pad, z: t.z + t.hz + pad }, { x: t.x - t.hx - pad, z: t.z + t.hz + pad },
   ];
   return polysOverlap(bumperPoly(r), T);
 }
