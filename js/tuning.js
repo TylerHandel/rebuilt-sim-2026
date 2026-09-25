@@ -22,6 +22,7 @@ const ROWS = [...KEYS, 'explore', 'imitate', ...BUTTONS.map((b) => b[0])];
 export function fmtValue(k, v) {
   if (v === null || v === undefined) return '—';
   const u = BRAIN_SPEC[k].unit;
+  if (u === 'switch') return v >= 0.5 ? 'On' : 'Off';
   return u === '%' ? `${Math.round(v * 100)}%` : `${(+v).toFixed(2)}${u ? ' ' + u : ''}`;
 }
 

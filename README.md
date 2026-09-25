@@ -51,9 +51,15 @@ Set **Opponent (PvE)** in the main menu to put an AI robot on the other alliance
 
 | Strategy | What it does |
 |---|---|
-| Scorer | Runs its own cycles. It collects FUEL (avoiding your ALLIANCE ZONE), stages in its ALLIANCE ZONE while its HUB is inactive, then shoots on the move when the HUB turns active. |
-| Defense | Blocks the lane between you and your HUB and pushes you while you shoot. It backs off 72 in before a PIN becomes a foul, keeps its intake from reaching into your frame, and leaves you alone at your TOWER in END GAME. |
+| Scorer | Runs its own cycles. It collects FUEL (never in your ALLIANCE ZONE) and shoots on the move once back in its zone. During its off shifts it **shuttles**: it keeps collecting in the NEUTRAL ZONE and passes the surplus into its own zone, then heads home just before its HUB turns active and picks up that stockpile. |
+| Defense | Tries to **keep you out of your zone**. It guards the BUMP or TRENCH lane you'd use to get in and **rams** you back when you come close. If you get in, it shoves you off your shot. It backs off 72 in before a PIN becomes a foul, and leaves you alone at your TOWER in END GAME. |
 | Hybrid | Shift-aware. It defends during the SHIFTS when only your HUB is active and scores the rest of the time. |
+
+How the Scorer handles time and traffic:
+- If its own zone has too little FUEL left to be worth picking through, it goes to the NEUTRAL ZONE.
+- It measures its own collection rate. If its HUB's active window won't last long enough to fill up, travel and shoot, it scores the partial load it has. It also heads in with any load just before its HUB activates.
+- Turret robots (4414, 8793) shoot while collecting inside their zone. The 2910 can't, because its shooter is fixed to the chassis.
+- If you block it on the way to its zone, it goes around at first. Once it stops gaining ground (you're mirroring it), it drives straight through you.
 
 **Opponent skill** sets its speed, how carefully it collects, how much of its hopper it uses, its shooting accuracy, how long it hesitates between cycles, its reaction time on defense and its pin discipline:
 - **Rookie:** slow, small loads, misses more, stops to shoot, and holds pins too long, so it draws G418 fouls.
@@ -74,7 +80,7 @@ Set **Your robot driven by** to one of the AI strategies (and **Your AI skill**)
 Set **Match type** to *Training (AI learns)*. You play against **Your trained AI**, a Champs-level robot whose strategy ("brain") is saved in your browser. It learns two ways:
 
 - **From results.** Each Training match, the AI plays a slightly different version of its brain: variation A, then its mirror image, variation B, in the next match. After each pair it moves toward whichever did better against you. The results screen explains what it tried and which values changed. **Exploration** in AI Tuning sets how different the variations are.
-- **From your driving.** In every match you drive, the game measures the same decisions the brain makes: where you shoot from, how full you get before a cycle, how long you collect, how early you get back for your HUB, how fast you drive through FUEL, how far away you drop the intake, how long you hold a pin, how fast you shove, where you block and when you engage. When you out-drive the AI (win the match, or beat its average in a defense drill), it copies part of your style. **Copy my style** in AI Tuning sets how much.
+- **From your driving.** In every match you drive, the game measures the same decisions the brain makes: where you shoot from, how full you get before a cycle, how long you collect, how early you get back for your HUB, how fast you drive through FUEL, how far away you drop the intake, whether you shuttle FUEL in your off shifts and how much you keep, how long you hold a pin, how fast you shove or ram, where you block and when you engage. When you out-drive the AI (win the match, or beat its average in a defense drill), it copies part of your style. **Copy my style** in AI Tuning sets how much.
 
 ### Your role: Score or Defense
 
@@ -215,7 +221,7 @@ None of the three climbed, so each defaults to *no climber*. The **Climber add-o
 **Robot-to-robot rules** apply when an opponent is on the field. Both robots are held to them, and foul points go to the other alliance:
 - **G403** (MAJOR): in AUTO, contacting an opponent while your BUMPERS are fully across the CENTER LINE.
 - **G415** (MINOR): a deployed over-the-bumper intake reaching inside the opponent's FRAME PERIMETER, i.e. hitting them intake-first with the intake down.
-- **G416** (MAJOR): high-speed ramming (over about 3.3 m/s closing speed, most of it yours), treated as a damage risk. Robots here can't tip over, so G417 never triggers.
+- Ramming, even at full speed, is legal. High-speed contact isn't called in competition, and robots here can't tip over.
 - **G418** (MINOR): PINNING an opponent against a FIELD element for more than 3 s, plus another MINOR for every further 3 s. The count resets when the robots are 72 in apart. The HUD shows the pin count for either robot.
 - **G420** (MAJOR): in END GAME, contacting an opponent that is touching its TOWER or climbing.
 
@@ -278,7 +284,7 @@ js/learning.js              Training mode: learning from matches vs you and from
 js/tuning.js, js/brainFile.js   AI Tuning screen; trainedBrain.js export/import format
 js/game.js                  one match: robots, autos, AIs, rules (shared by browser and trainer)
 js/nav.js                   grid A* path planning around field structures
-js/rules.js                 robot-to-robot contact rules (G403, G415, G416, G418, G420)
+js/rules.js                 robot-to-robot contact rules (G403, G415, G418, G420)
 js/input.js                 Xbox controller (Gamepad API) + keyboard
 js/cameras.js, js/ui.js     cameras, menus and HUD
 js/main.js                  game loop

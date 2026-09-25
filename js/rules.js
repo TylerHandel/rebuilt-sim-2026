@@ -2,19 +2,17 @@
 //   G403 (MAJOR) AUTO: contacting an opponent while fully across the CENTER LINE.
 //   G415 (MINOR) a COMPONENT outside the FRAME PERIMETER (a deployed over-the-bumper intake)
 //                reaching inside an opponent's FRAME PERIMETER.
-//   G416 (MAJOR) high-speed ramming, treated as an attempt to damage. (G417 tipping can't
-//                happen here: robots are kept flat.)
 //   G418 (MINOR) PINNING an opponent against a FIELD element for more than 3 s, plus another
 //                MINOR for every further 3 s. The count resets once the ROBOTS are 72 in apart.
 //   G420 (MAJOR) END GAME: contacting an opponent that is touching its own TOWER or climbing.
+// Ramming, even at full speed, is legal: it isn't called in competition, and robots here
+// can't tip over.
 import { TIMING, IN } from './constants.js';
 import { obstacleAt, towerRect } from './nav.js';
 
 export const PIN_LIMIT = 3;
 export const PIN_RESET = 72 * IN;
 const CONTACT_GAP = 0.03;
-const RAM_CLOSING = 3.3; // m/s closing speed
-export const RAM_AGGRESSOR = 2.6; // m/s of that from the rammer
 
 // ---------------------------------------------------------------- 2D polygon helpers
 function rectPoly(r, hl, hw, ox = 0) {
@@ -103,7 +101,7 @@ export class RobotRules {
     const k = A.alliance < B.alliance ? `${A.alliance}|${B.alliance}` : `${B.alliance}|${A.alliance}`;
     let st = this.pairs.get(k);
     if (!st) {
-      st = { contact: false, noContactT: 99, gap: 99, prevV: new Map(), pin: new Map(), g415: new Map(), episode: { g403: false, g416: false, g420: new Map() } };
+      st = { contact: false, noContactT: 99, gap: 99, prevV: new Map(), pin: new Map(), g415: new Map(), episode: { g403: false, g420: new Map() } };
       this.pairs.set(k, st);
     }
     return st;
@@ -134,12 +132,10 @@ export class RobotRules {
     const gap = polyGap(bumperPoly(A), bumperPoly(B));
     st.gap = gap;
     const contact = gap < CONTACT_GAP;
-    const onset = contact && !st.contact;
     if (contact) st.noContactT = 0; else st.noContactT += dt;
     // a contact "episode" ends after half a second apart
     if (st.noContactT > 0.5) {
       st.episode.g403 = false;
-      st.episode.g416 = false;
       st.episode.g420.clear();
     }
     let dx = B.pos.x - A.pos.x, dz = B.pos.z - A.pos.z;
@@ -147,19 +143,6 @@ export class RobotRules {
     dx /= dd; dz /= dd;
 
     if (live) {
-      // ---- G416 high-speed ram (use pre-impact velocities)
-      if (onset && !st.episode.g416) {
-        const va = st.prevV.get(A) || A.vel, vb = st.prevV.get(B) || B.vel;
-        const ca = va.x * dx + va.z * dz; // A toward B
-        const cb = -(vb.x * dx + vb.z * dz); // B toward A
-        if (ca + cb > RAM_CLOSING) {
-          const X = ca >= cb ? A : B;
-          if (Math.max(ca, cb) > RAM_AGGRESSOR) {
-            st.episode.g416 = true;
-            m.addFoul(X.alliance, 'major', 'G416', 'High-speed ram into an opponent ROBOT (damage risk)');
-          }
-        }
-      }
       // ---- G403 AUTO: contact while fully across the CENTER LINE
       if (m.isAuto && contact && !st.episode.g403) {
         for (const X of [A, B]) {

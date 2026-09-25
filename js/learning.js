@@ -16,7 +16,7 @@ const KEY = 'rebuiltSim.learner';
 export const KEYS = Object.keys(BRAIN_SPEC);
 const DEFENSE_KEYS = ['pinLimit', 'pushSpeed', 'blockLead', 'engage'];
 // samples needed before a measurement of your driving is trusted
-const MIN_SAMPLES = { spotFx: 3, spotZ: 3, fill: 2, cycleTime: 2, stageMargin: 1, collectSpeed: 20, intakeDist: 4, pinLimit: 2, pushSpeed: 2, blockLead: 12, engage: 2 };
+const MIN_SAMPLES = { spotFx: 3, spotZ: 3, fill: 2, cycleTime: 2, stageMargin: 1, collectSpeed: 20, intakeDist: 4, pinLimit: 2, pushSpeed: 2, blockLead: 12, engage: 2, shuttle: 2, shuttleKeep: 2 };
 export const EXPLORE_LEVELS = [[0, 'Off'], [0.04, 'Small'], [0.08, 'Medium'], [0.14, 'Large']];
 export const IMITATE_LEVELS = [[0, 'Off'], [0.15, 'A little'], [0.3, 'Some'], [0.5, 'A lot']];
 
@@ -237,6 +237,10 @@ export class DrivingRecorder {
     this.prevIntake = false;
     this.pinMax = 0;
     this.wasContact = false;
+    this.wasActive = null;
+    this.offPasses = 0;
+    this.lastPasses = 0;
+    this.passBurstT = -99;
   }
 
   step(dt) {
@@ -265,6 +269,19 @@ export class DrivingRecorder {
       this.lastShotT = t;
     }
     if (this.inBurst && t - this.lastShotT > 1.0) { this.inBurst = false; this.lastBurstEnd = t; }
+
+    // ---- shuttling: do you pass FUEL into your zone during your off shifts, and how much do
+    // you keep in the hopper when you do?
+    const act = m.hubActive(own);
+    const passed = r.stats.passes - this.lastPasses;
+    this.lastPasses = r.stats.passes;
+    if (!act && passed > 0) { this.offPasses += passed; this.passBurstT = t; }
+    if (!act && this.passBurstT > 0 && t - this.passBurstT > 1.0) {
+      O.shuttleKeep.push(r.stored.length / Math.max(1, r.capacity()));
+      this.passBurstT = -99;
+    }
+    if (this.wasActive === false && act && m.shiftIndex() >= 1) { O.shuttle.push(this.offPasses >= 3 ? 1 : 0); this.offPasses = 0; }
+    this.wasActive = act;
 
     // ---- staging: how early you got back while your HUB was about to turn active
     const inZone = r.lastInZone;

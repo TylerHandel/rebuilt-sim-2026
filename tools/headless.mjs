@@ -44,7 +44,8 @@ export function matchSettings(a, b, allianceA = BLUE) {
 // Every match gets a fresh physics world: with 504 FUEL the simulation is chaotic, and state
 // left over from an earlier match (contact caches, body order) would make identical inputs
 // play out differently. Fresh world + seeded randomness = the same match every time.
-export async function runMatch(a, b, { allianceA = BLUE, seed = 1 } = {}) {
+// trace(game, stepIndex) is called every physics step (for tests / analysis)
+export async function runMatch(a, b, { allianceA = BLUE, seed = 1, trace = null } = {}) {
   const realRandom = Math.random;
   const world = await createWorld();
   // seed after building the world: THREE draws Math.random for object UUIDs, and the field's
@@ -56,13 +57,14 @@ export async function runMatch(a, b, { allianceA = BLUE, seed = 1 } = {}) {
     let step = 0;
     while (!m.over && step < 30000) {
       stepGame(game, world, PHYSICS_DT);
+      if (trace) trace(game, step);
       if (++step % 2 === 0) frameGame(game, 2 * PHYSICS_DT);
     }
     const A = allianceA, B = other(allianceA);
     const side = (al, r) => ({
       total: m.total(al), fuel: m.fuelPoints(al), autoFuel: m.score[al].autoFuel,
       fouls: m.score[al].fouls.map((f) => f.rule), foulPtsGiven: m.score[al].fouls.reduce((s, f) => s + f.pts, 0),
-      shots: r.stats.shots, intaked: r.stats.intaked,
+      shots: r.stats.shots, intaked: r.stats.intaked, passes: r.stats.passes,
     });
     return { a: side(A, game.robot), b: side(B, game.opp.robot), margin: m.total(A) - m.total(B) };
   } finally {

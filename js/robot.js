@@ -123,7 +123,7 @@ export class Robot {
     this.climbTarget = this.climberCfg ? this.climberCfg.maxLevel : 0;
     this.climbLevel = 0;
     this.climbTime = 0;
-    this.stats = { shots: 0, intaked: 0 };
+    this.stats = { shots: 0, intaked: 0, passes: 0 };
     this.lastInZone = false;
     this.preview = null;
   }
@@ -297,8 +297,9 @@ export class Robot {
     }
     // nearest corner of our ALLIANCE ZONE (away from the HUB)
     const s = this.alliance === BLUE ? 1 : -1;
-    const x = s * (-HALF_L + 1.35);
-    const zc = [HALF_W - 1.25, -HALF_W + 1.25];
+    // aimed well inside the corner so long lobs that scatter or bounce stay on the FIELD (G405)
+    const x = s * (-HALF_L + 1.7);
+    const zc = [HALF_W - 1.8, -HALF_W + 1.8];
     const z = Math.abs(this.pos.z - zc[0]) < Math.abs(this.pos.z - zc[1]) ? zc[0] : zc[1];
     return { mode: 'pass', x, z, table: this.passTable, inZone };
   }
@@ -436,6 +437,7 @@ export class Robot {
     this.fuel.launch(b, exit, vel, { by: 'robot', alliance: this.alliance, legal: this.lastInZone, t, ignoreRobot: 0.35, spin: true });
     this.flywheel *= 1 - sh.shotDrop;
     this.stats.shots++;
+    if (s.mode === 'pass') this.stats.passes++;
   }
 
   // ------------------------------------------------------------------ climbing (optional add-on)

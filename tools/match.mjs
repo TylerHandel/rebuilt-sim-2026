@@ -12,5 +12,5 @@ const b = side(arg('b', 'scorer:champs:2910'));
 const seed = +arg('seed', 1);
 const t0 = performance.now();
 const r = await runMatch(a, b, { allianceA: args.includes('--red') ? RED : BLUE, seed });
-const fmt = (s, x) => `${s.strategy}/${s.skill}/${s.robot}: ${x.total} pts (FUEL ${x.fuel}, launched ${x.shots}, fouls ${x.fouls.join(' ') || 'none'})`;
+const fmt = (s, x) => `${s.strategy}/${s.skill}/${s.robot}: ${x.total} pts (FUEL ${x.fuel}, launched ${x.shots} incl. ${x.passes} passes, fouls ${x.fouls.join(' ') || 'none'})`;
 console.log(`A ${fmt(a, r.a)}\nB ${fmt(b, r.b)}\nmargin ${r.margin > 0 ? '+' : ''}${r.margin} · ${((performance.now() - t0) / 1000).toFixed(1)} s`);
