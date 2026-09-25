@@ -7,8 +7,11 @@ It runs in the browser (Three.js rendering + Rapier physics), works with an Xbox
 
 Requires Python 3 (already on macOS) and a modern browser (Chrome, Edge or Safari). The 3D and physics libraries load from a CDN, so you need an internet connection the first time.
 
-- **macOS:** double-click `start.command`, or
-- run `python3 serve.py --open` in this folder and it opens `http://localhost:8765/`.
+- **Windows:** install Python 3 from python.org (tick "Add python.exe to PATH"), then double-click `start.bat`.
+- **macOS:** double-click `start.command`.
+- **Any system:** run `python3 serve.py --open` (Windows: `py serve.py --open`) in this folder and it opens `http://localhost:8765/`.
+
+Keep the server window open while you play; close it to stop.
 
 ES modules won't load from `file://`, so always use `serve.py` instead of opening `index.html` directly.
 
@@ -126,7 +129,8 @@ js/auto.js                  autonomous routines and starting positions
 js/input.js                 Xbox controller (Gamepad API) + keyboard
 js/cameras.js, js/ui.js     cameras, menus and HUD
 js/main.js                  game loop
-serve.py, start.command     local server / launcher
+serve.py                    local server
+start.bat / start.command   double-click launchers (Windows / macOS)
 ```
 
 To tune a robot, edit `js/robotConfigs.js`: speed, capacity, BPS, hood range, exit speed and accuracy.

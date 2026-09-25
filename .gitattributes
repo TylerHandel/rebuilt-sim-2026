@@ -1,0 +1,2 @@
+# keep Windows line endings in the batch launcher (also in GitHub ZIP downloads)
+*.bat -text
