@@ -19,6 +19,13 @@ export class CameraRig {
     this.alliance = BLUE;
     this.ds = 1;
     this.snap = true;
+    this.flip = false; // turned around 180 degrees (right stick click)
+  }
+
+  toggleFlip() {
+    this.flip = !this.flip;
+    this.snap = true;
+    return this.flip;
   }
 
   setMode(m) {
@@ -74,6 +81,8 @@ export class CameraRig {
         break;
       }
     }
+    // turned around: the same shot from the other side of what it looks at
+    if (this.flip && this.mode !== 'overhead') { p.x = 2 * l.x - p.x; p.z = 2 * l.z - p.z; }
     if (this.snap) {
       this.pos.copy(p);
       this.look.copy(l);
@@ -85,7 +94,7 @@ export class CameraRig {
     }
     cam.position.copy(this.pos);
     // overhead: keep "downfield" pointing up on screen
-    if (this.mode === 'overhead') cam.up.set(s, 0, 0);
+    if (this.mode === 'overhead') cam.up.set(this.flip ? -s : s, 0, 0);
     else cam.up.set(0, 1, 0);
     cam.lookAt(this.look);
     if (cam.fov !== fov) {

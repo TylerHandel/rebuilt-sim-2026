@@ -92,6 +92,7 @@ const CONTROLS = [
   ['Climb / cancel / lower (add-on)', 'A', 'C'],
   ['Climb level up / down', 'D-pad ↑ / ↓', '↑ / ↓'],
   ['Camera', 'D-pad ← / →', '[ / ]'],
+  ['Turn camera around 180°', 'Right stick click', 'T'],
   ['Toggle field / robot-relative', 'B', 'B'],
   ['Slow mode (hold)', 'Left stick click', 'X'],
   ['Pause', 'Menu (☰)', 'Esc'],

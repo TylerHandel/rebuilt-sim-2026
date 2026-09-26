@@ -87,20 +87,22 @@ export const ROBOTS = {
     // Netted hopper over the Dye Rotor: printed stadium pieces funnel FUEL onto the rotor, which
     // spins, carrying it round (its Dolphin Fin sweeps the load) into a hook of passive rollers
     // that steers it to the feeder at the center column; the feeder wheels lift it up a ramp into
-    // the turret. Chamfered back corners. Walls and the top plate end at wallTop; above that a
-    // net springs up (net.h) once the hopper is out.
+    // the turret. Chamfered back corners. The walls run all the way up (wallTop), where the top
+    // plate carries the turret; a net covers the rest of the top, and it stretches: past the
+    // stated 88 the load bulges it up (dome: its height at the middle; pinned at the edges, the
+    // top plate from x0 back, and round the turret), as far as there's room over the robot.
     bay: {
-      // top: the net's (FUEL piles up to it once the net is up; it clears the TRENCH arm)
-      x0: -0.305, x1: 0.317, hw: 0.376, top: 0.56, chamfer: 0.12, wallTop: 0.41,
+      x0: -0.305, x1: 0.317, hw: 0.376, top: 0.53, chamfer: 0.12, wallTop: 0.53,
+      dome: { h: 0.27, x0: -0.165, cx: -0.02, cz: 0, rHole: 0.2 },
       floor: { a: 0.105, b: 0, lo: 0.105, hi: 0.105 },
       funnel: { slope: 0.4, cap: 0.1 },
       // the intake box's ramp: up from the main floor to a ridge over the front bumper, then down
       // to the roller at the front of the box (lift: ball center over a steep ramp)
       ramp: { x: 0.4, y: 0.19, fwd: 1.05, lo: 0.02, lift: 0.03 },
-      net: { h: 0.152, folded: 0.012, collar: 0.235 },
       column: { x: -0.02, z: 0, r: 0.12, y1: 0.41 },
       obstacles: [
-        { x: -0.02, z: 0, r: 0.12, y0: 0.1, y1: 1 }, // center column and turret
+        { x: -0.02, z: 0, r: 0.12, y0: 0.1, y1: 1 }, // center column
+        { x: -0.02, z: 0, r: 0.16, y0: 0.42, y1: 1 }, // the shooter, down inside the turret ring
       ],
       // drag: how the spinning platter carries FUEL along; grip: the Dolphin Fin (rim, from finR0)
       drive: 'rotor', rotor: { x: -0.02, z: 0, y: 0.105, r: 0.285, grip: 40, drag: 4, finR0: 0.175, spin: 14.1, idle: -0.6 },

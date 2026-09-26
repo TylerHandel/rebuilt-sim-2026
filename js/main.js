@@ -183,7 +183,8 @@ function driverCommand(inp, dt) {
   }
   game.slow = inp.held.ls;
   const scale = game.slow ? 0.4 : 1;
-  const s = settings.alliance === BLUE ? 1 : -1;
+  // field-relative: stick up is away from the camera, so it flips when the camera turns around
+  const s = (settings.alliance === BLUE ? 1 : -1) * (rig.flip ? -1 : 1);
   let vx, vz;
   if (game.fieldRelative) {
     vx = s * up * d.maxSpeed * scale;
@@ -210,6 +211,7 @@ function handleGameInput(inp, dt) {
   if (p.start) { ui.show('pause'); return; }
   if (p.left) ui.camName(rig.cycle(-1));
   if (p.right) ui.camName(rig.cycle(1));
+  if (p.rs) ui.toast(rig.toggleFlip() ? 'Camera turned around' : 'Camera facing forward', 'info');
   if (p.b) { game.fieldRelative = !game.fieldRelative; ui.toast(game.fieldRelative ? 'Field-relative drive' : 'Robot-relative drive', 'info'); }
   if (r.climberCfg) {
     if (p.up) r.climbTarget = Math.min(r.climberCfg.maxLevel, r.climbTarget + 1);
