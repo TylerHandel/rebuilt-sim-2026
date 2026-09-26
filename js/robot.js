@@ -99,7 +99,7 @@ export class Robot {
     // extending hopper section: a real collider that slides out with the hopper
     const st = this.cfg.storage;
     this.hopperCollider = null;
-    if (st.extLen) {
+    if (st.extLen && !st.inside) {
       this.hopperHalfH = (this.height - 0.17) / 2;
       this.hopperCollider = world.createCollider(
         RAPIER.ColliderDesc.cuboid(st.extLen / 2, this.hopperHalfH, cfg.frame.width / 2 - 0.02)
@@ -213,7 +213,10 @@ export class Robot {
   maxCapacity() { return this.cfg.storage.capacity; }
 
   // front of the hopper right now (an extending hopper moves it forward)
-  bayFront() { return this.cfg.bay.x1 + (this.cfg.storage.extLen || 0) * this.hopperDeploy; }
+  bayFront() {
+    const st = this.cfg.storage, ext = st.extLen || 0;
+    return st.inside ? this.cfg.bay.x1 - ext * (1 - this.hopperDeploy) : this.cfg.bay.x1 + ext * this.hopperDeploy;
+  }
 
   // preloaded FUEL, dropped loosely into the hopper
   loadFuel(balls) {
@@ -241,6 +244,7 @@ export class Robot {
     const need = Math.min(1, Math.max(0, (this.stored.length - st.retracted) / (st.capacity - st.retracted)));
     want = Math.max(want, need);
     if (on || want < this.hopperDeploy) this.hopperDeploy = approach(this.hopperDeploy, want, dt / 0.45);
+    if (!this.hopperCollider) return;
     // collider follows the sliding section; it only hits field structures once clear of them
     const out = this.hopperDeploy * st.extLen;
     const fx = this.cfg.frame.length / 2 - st.extLen / 2 + out;
@@ -626,7 +630,7 @@ export class Robot {
     }
     if (!best) return false;
     if (sh.type === 'fixed') this.lane++;
-    const via = f.via.map(([x, y]) => new THREE.Vector3(x, y, laneZ));
+    const via = f.via.map(([x, y, z]) => new THREE.Vector3(x, y, z ?? laneZ));
     const end = sh.type === 'fixed'
       ? () => new THREE.Vector3(sh.exit.x, sh.exit.y, laneZ)
       : () => new THREE.Vector3(sh.turretPos.x + Math.cos(this.turretYaw) * sh.exitRadius, sh.exitY, sh.turretPos.z - Math.sin(this.turretYaw) * sh.exitRadius);
