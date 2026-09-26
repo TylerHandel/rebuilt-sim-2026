@@ -431,9 +431,10 @@ function build2910(cfg, alliance) {
   const hood = new THREE.Group();
   hood.position.set(-0.02, drumY, 0);
   tower.add(hood);
-  // the hood arc runs from the front-top of the drum (30deg) over to the back (139deg)
-  const arc0 = 0.53, arcLen = 1.9;
-  const hoodShell = new THREE.Mesh(new THREE.CylinderGeometry(hoodR, hoodR, W - 0.1, 28, 1, true, arc0 + Math.PI / 2, arcLen), std(0x2a2d33, 0.45, 0.55, { side: THREE.DoubleSide }));
+  // the hood only covers the exit side: a polycarbonate arc on ribs from just past the top of the
+  // drum (70deg) back to where FUEL leaves (139deg), so the drum stays in view
+  const arc0 = 1.22, arcLen = 1.21;
+  const hoodShell = new THREE.Mesh(new THREE.CylinderGeometry(hoodR, hoodR, W - 0.1, 20, 1, true, arc0 + Math.PI / 2, arcLen), M.polyTint);
   hoodShell.rotation.x = Math.PI / 2;
   hood.add(hoodShell);
   for (let i = 0; i < 5; i++) {
@@ -443,7 +444,7 @@ function build2910(cfg, alliance) {
     hood.add(rib);
   }
   const hoodRollers = [];
-  for (const a of [0.95, 1.45, 1.95]) hoodRollers.push(cylZ(0.016, W - 0.12, M.alu, hood, Math.cos(a) * (hoodR - 0.02), Math.sin(a) * (hoodR - 0.02), 0, 12));
+  for (const a of [1.45, 1.95]) hoodRollers.push(cylZ(0.016, W - 0.12, M.alu, hood, Math.cos(a) * (hoodR - 0.02), Math.sin(a) * (hoodR - 0.02), 0, 12));
   // compliant indexer wheels feeding the drum + inclined powered floor
   const indexer = wheelStack(tower, W - 0.1, 0.03, 8, M.compliant, 0.085, 0.25, 0, 0.022);
   const feeder = new THREE.Group();
