@@ -44,9 +44,10 @@ export const FUEL = {
   neutralMax: 408,
   // quadratic drag coefficient k = 0.5*rho*Cd*A/m  (Cd~0.47 sphere)
   dragK: (0.5 * 1.225 * 0.47 * Math.PI * ((5.91 * IN) / 2) ** 2) / 0.215,
-  rollDecel: 0.9,          // carpet rolling resistance (m/s^2)
+  rollDecel: 0.35,         // carpet rolling resistance (m/s^2)
   restitution: 0.45,
-  friction: 0.6,
+  friction: 0.35,          // foam on foam / field elements (low so FUEL slides off walls and rolls on)
+  angularDamping: 0.05,
 };
 
 // ---------------------------------------------------------------- ZONES
@@ -65,6 +66,8 @@ export const HUB = {
   netTop: 3.25,                     // net structure in the back of the HUB
   netLean: 0.55,
   exitOffsets: [-0.46, -0.16, 0.16, 0.46], // 4 exits into the NEUTRAL ZONE
+  exitHeight: 0.10,                 // bottom of the FUEL as it leaves an exit (m above the carpet)
+  exitSpeed: [1.5, 3.0],            // m/s off the exit ramps
   scoreGrace: 3.0,                  // FUEL assessed up to 3s after deactivation
   targetHeight: 1.95,               // aim point (center of opening)
 };
