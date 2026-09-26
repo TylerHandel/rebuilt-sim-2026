@@ -41,23 +41,24 @@ export function customSelection(routine, side) {
 // the DEPOT. Plans are in absolute blue coordinates (not mirrored). Robot BUMPERS may reach
 // past the CENTER LINE, never fully across it.
 export const BEST_AUTOS = {
-  // 127 AUTO FUEL on average: two sweeps, the second along the line nearest the CENTER LINE
-  2910: { start: 'rightTrench', preload: 'move', trips: [
-    { out: 'bump', fx: 7.5, a: 1.71, b: 5.19, speed: 0.55, home: 'bump', shootAt: [2.68, 5.73] },
-    { out: 'trench', fx: 8.04, a: 5.91, b: 2.16, speed: 0.68, home: 'bump', shootAt: [3.08, 1.99] },
+  // 121 AUTO FUEL on average: three trips, working in toward the CENTER LINE
+  2910: { start: 'leftTrench', preload: 'stand', trips: [
+    { out: 'trench', fx: 7.53, a: 6.44, b: 3.36, speed: 0.46, home: 'bump', shootAt: [2.31, 1.5] },
+    { out: 'trench', fx: 7.88, a: 2.02, b: 6.7, speed: 0.57, home: 'trench', shootAt: [2.74, 6.2] },
+    { out: 'trench', fx: 8.13, a: 6.09, b: 4.7, speed: 0.84, home: 'bump', shootAt: [3.21, 6.48] },
   ] },
-  // 143: its 88-FUEL hopper sweeps the line nearest the CENTER LINE, then a second pass
+  // 152: its 88-FUEL hopper sweeps the line nearest the CENTER LINE, then a second long pass
   4414: { start: 'rightTrench', preload: 'stand', trips: [
     { out: 'trench', fx: 8.4, a: 2.32, b: 6.7, speed: 0.53, home: 'bump', shootAt: [2.21, 5.46] },
-    { out: 'bump', fx: 7.45, a: 6.65, b: 4.52, speed: 0.46, home: 'trench', shootAt: [2.95, 5.72] },
+    { out: 'bump', fx: 7.32, a: 6.65, b: 3.95, speed: 0.47, home: 'bump', shootAt: [2.95, 5.72] },
   ] },
-  // 63: clears the DEPOT while shooting, then short slow passes (it only holds 12) with a trip
-  // home to shoot after each, and a last sweep back through the DEPOT
+  // 66: clears the DEPOT while shooting, then short slow passes (it only holds 12 and intakes
+  // slowly) with a trip home to shoot after each
   8793: { start: 'leftTrench', preload: 'move', trips: [
-    { depot: true, speed: 0.58 },
-    { out: 'bump', fx: 7.41, a: 6.59, b: 5.75, speed: 0.37, home: 'bump', shootAt: [2.46, 6.05] },
-    { out: 'trench', fx: 8.63, a: 6.5, b: 5.11, speed: 0.57, home: 'trench', shootAt: [3.37, 5.47] },
-    { depot: true, speed: 0.33 },
+    { depot: true, speed: 0.44 },
+    { out: 'trench', fx: 8.15, a: 6.16, b: 5.18, speed: 0.42, home: 'trench', shootAt: [2.3, 6.2] },
+    { out: 'bump', fx: 8.07, a: 6.04, b: 5.16, speed: 0.44, home: 'trench', shootAt: [3.38, 5.58] },
+    { out: 'bump', fx: 8.23, a: 5.79, b: 4.67, speed: 0.72, home: 'bump', shootAt: [2.78, 5.92] },
   ] },
 };
 
