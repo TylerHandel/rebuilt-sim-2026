@@ -63,6 +63,46 @@ export const BEST_AUTOS = {
   ] },
 };
 
+// The same plan run from the other side of the field. DEPOT runs are dropped (there's only
+// one DEPOT, on the left).
+const FLIP_START = { leftTrench: 'rightTrench', rightTrench: 'leftTrench', leftBump: 'rightBump', rightBump: 'leftBump', hub: 'hub' };
+export function mirrorPlan(plan) {
+  return {
+    ...plan,
+    start: FLIP_START[plan.start],
+    trips: plan.trips.filter((t) => !t.depot).map((t) => ({ ...t, a: FIELD_W - t.a, b: FIELD_W - t.b, shootAt: [t.shootAt[0], FIELD_W - t.shootAt[1]] })),
+  };
+}
+
+// Starting spots for one ALLIANCE's robots, so no two start on top of each other. entries (in
+// driver station order): { robot (key), auto, start, plan? }. Each gets the spot it wants if
+// it's free; a 'best' plan runs mirrored if only the other side is free; otherwise the nearest
+// free spot. Custom autos start where they were drawn. Returns [{ start, plan }].
+export function assignStarts(entries) {
+  const taken = new Set();
+  const nearest = (fy) => START_ORDER.reduce((a, k) => (Math.abs(START_POSITIONS[k].fy - fy) < Math.abs(START_POSITIONS[a].fy - fy) ? k : a));
+  const out = entries.map((e) => {
+    const custom = getCustom(e.auto);
+    if (custom) { taken.add(nearest(custom.startFy)); return { start: null, plan: null, custom: true }; }
+    return null;
+  });
+  entries.forEach((e, i) => {
+    if (out[i]) return;
+    const plan = e.auto === 'best' ? e.plan || BEST_AUTOS[e.robot] : null;
+    const tries = plan ? [[plan.start, plan], [FLIP_START[plan.start], mirrorPlan(plan)]] : [[e.start, null]];
+    let pick = tries.find(([k]) => !taken.has(k));
+    if (!pick) {
+      // nothing it planned for is free: the nearest free spot (a plan then drives over to its lane)
+      const want = START_POSITIONS[tries[0][0]].fy;
+      const free = START_ORDER.filter((k) => !taken.has(k)).sort((a, b) => Math.abs(START_POSITIONS[a].fy - want) - Math.abs(START_POSITIONS[b].fy - want));
+      pick = [free[0] || tries[0][0], plan];
+    }
+    taken.add(pick[0]);
+    out[i] = { start: pick[0], plan: pick[1] };
+  });
+  return out;
+}
+
 // Lanes to and from the NEUTRAL ZONE on the right side (low fy); mirrored for the left
 const ROUTE_FY = { trench: 0.64, bump: HUB.fy - HUB.size / 2 - BUMP.width / 2 };
 

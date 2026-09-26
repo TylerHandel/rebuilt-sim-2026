@@ -78,10 +78,16 @@ export function opponentAuto(strategy) {
 }
 
 export class OpponentAI {
-  // foe: the other alliance's robot (or null when it has the field to itself)
-  constructor({ robot, foe = null, match, fuel, rules, strategy, skill, brain = null }) {
+  // foes: the other alliance's robots (foe: just one); mates: the rest of its own alliance.
+  // this.foe is the opponent it's paying attention to right now: the one it defends, or else
+  // the nearest.
+  constructor({ robot, foe = null, foes = null, mates = [], match, fuel, rules, strategy, skill, brain = null }) {
     this.robot = robot;
-    this.foe = foe;
+    this.foes = foes || (foe ? [foe] : []);
+    this.mates = mates;
+    this.others = [...this.foes, ...this.mates];
+    this.foe = this.foes[0] || null;
+    this.focusT = 0;
     this.match = match;
     this.fuel = fuel;
     this.rules = rules;
@@ -125,6 +131,7 @@ export class OpponentAI {
     this.t += dt;
     this.dt = dt;
     this.rethink = false;
+    this._pickFocus(dt);
     const F = this.foe;
     if (F) {
       this.seen.push({ t: this.t, x: F.pos.x, z: F.pos.z });
@@ -157,9 +164,9 @@ export class OpponentAI {
     else this._score(dt);
     this._smooth(dt);
 
-    // stuck detection (pushing against the other robot isn't being stuck)
+    // stuck detection (pushing against another robot isn't being stuck)
     const want = Math.hypot(cmd.vx, cmd.vz), have = Math.hypot(r.vel.x, r.vel.z);
-    const pushing = F && this.rules.inContact(r, F);
+    const pushing = this.others.some((o) => (this.foes.includes(o) ? this.rules.inContact(r, o) : Math.hypot(o.pos.x - r.pos.x, o.pos.z - r.pos.z) < r.halfL + o.halfL + 0.15));
     if (want > 1.0 && have < 0.15 && !pushing) this.stuckT += dt; else this.stuckT = Math.max(0, this.stuckT - dt);
     if (this.stuckT > 1.2) {
       this.stuckT = 0;
@@ -170,6 +177,24 @@ export class OpponentAI {
       this.ball = null;
       this.path = null;
     }
+  }
+
+  // Which opponent to watch: a defender sticks with the biggest threat (loaded, near or in its
+  // zone) for a while; otherwise the nearest one
+  _pickFocus(dt) {
+    const r = this.robot;
+    if (this.foes.length < 2) { this.foe = this.foes[0] || null; return; }
+    const defending = this.strategy === 'defense' || this.strategy === 'hybrid';
+    const dist = (o) => Math.hypot(o.pos.x - r.pos.x, o.pos.z - r.pos.z);
+    let pick;
+    if (defending) {
+      this.focusT -= dt;
+      if (this.focusT > 0 && this.foe) return;
+      this.focusT = 2.5;
+      const threat = (o) => o.stored.length + (o.lastInZone ? 25 : 0) - 3 * dist(o);
+      pick = this.foes.reduce((a, b) => (threat(b) > threat(a) ? b : a));
+    } else pick = this.foes.reduce((a, b) => (dist(b) < dist(a) ? b : a));
+    if (pick !== this.foe) { this.foe = pick; this.seen = []; }
   }
 
   // Smooth driving while shooting or passing: cap the speed and limit acceleration and turning
@@ -204,9 +229,9 @@ export class OpponentAI {
   _drive(x, z, { speed = 1, face = 'travel', arrive = 0.08, avoid = false } = {}) {
     const r = this.robot, cmd = r.cmd, d = r.cfg.drive;
     this.replanT -= this.dt;
-    const P = this.foe;
     if (!this.path || !this.goal || this.replanT <= 0 || Math.hypot(this.goal.x - x, this.goal.z - z) > 0.3) {
-      const circles = P && avoid && Math.hypot(P.pos.x - r.pos.x, P.pos.z - r.pos.z) < 5 ? [{ x: P.pos.x, z: P.pos.z, r: Math.max(P.halfL, P.halfW) + 0.1 }] : null;
+      const near = avoid ? this.others.filter((P) => Math.hypot(P.pos.x - r.pos.x, P.pos.z - r.pos.z) < 5) : [];
+      const circles = near.length ? near.map((P) => ({ x: P.pos.x, z: P.pos.z, r: Math.max(P.halfL, P.halfW) + 0.1 })) : null;
       this.path = this.nav.plan(r.pos.x, r.pos.z, x, z, circles);
       this.goal = { x, z };
       this.replanT = 0.3;
@@ -221,16 +246,18 @@ export class OpponentAI {
     const dx = next.x - r.pos.x, dz = next.z - r.pos.z;
     const dn = Math.hypot(dx, dz) || 1;
     let vx = (dx / dn) * sp, vz = (dz / dn) * sp;
-    if (avoid && P) {
-      // steer around the other robot
-      const ox = r.pos.x - P.pos.x, oz = r.pos.z - P.pos.z;
-      const od = Math.hypot(ox, oz);
-      const R = 1.4;
-      if (od < R && od > 1e-3) {
-        const k = ((R - od) / R) * vmax * 0.8;
-        const side = (ox * dz - oz * dx) > 0 ? 1 : -1; // go around on the side we're already on
-        vx += (ox / od) * k + side * (-oz / od) * k * 0.6;
-        vz += (oz / od) * k + side * (ox / od) * k * 0.6;
+    if (avoid) {
+      // steer around the other robots
+      for (const P of this.others) {
+        const ox = r.pos.x - P.pos.x, oz = r.pos.z - P.pos.z;
+        const od = Math.hypot(ox, oz);
+        const R = 1.4;
+        if (od < R && od > 1e-3) {
+          const k = ((R - od) / R) * vmax * 0.8;
+          const side = (ox * dz - oz * dx) > 0 ? 1 : -1; // go around on the side we're already on
+          vx += (ox / od) * k + side * (-oz / od) * k * 0.6;
+          vz += (oz / od) * k + side * (ox / od) * k * 0.6;
+        }
       }
     }
     cmd.vx = vx; cmd.vz = vz;
@@ -354,8 +381,7 @@ export class OpponentAI {
     }
     // heading in to score: go around a blocker at first, then drive straight through it.
     // "blocked" = a robot is close and we haven't gained 0.3 m on home for a while
-    const F = this.foe;
-    const dF = F ? Math.hypot(F.pos.x - r.pos.x, F.pos.z - r.pos.z) : Infinity;
+    const dF = this.others.reduce((a, o) => Math.min(a, Math.hypot(o.pos.x - r.pos.x, o.pos.z - r.pos.z)), Infinity);
     const toHome = Math.hypot(home.x - r.pos.x, home.z - r.pos.z);
     if (!this.progress || toHome < this.progress.d - 0.3 || dF > 3 || toHome < 0.8) this.progress = { d: toHome, t: this.t };
     const bully = this.t - this.progress.t > B.pushThrough;
@@ -428,16 +454,16 @@ export class OpponentAI {
   }
 
   _foeAhead() {
-    const r = this.robot, P = this.foe;
-    if (!P) return false;
-    const f = r.forward();
-    const toP = { x: P.pos.x - r.pos.x, z: P.pos.z - r.pos.z };
-    const dP = Math.hypot(toP.x, toP.z);
-    return dP < 2.2 && (toP.x * f.x + toP.z * f.z) / dP > -0.1;
+    const r = this.robot, f = r.forward();
+    return this.others.some((P) => {
+      const toP = { x: P.pos.x - r.pos.x, z: P.pos.z - r.pos.z };
+      const dP = Math.hypot(toP.x, toP.z);
+      return dP < 2.2 && (toP.x * f.x + toP.z * f.z) / dP > -0.1;
+    });
   }
 
   _pickBall({ feed = false } = {}) {
-    const r = this.robot, P = this.foe, B = this.brain, m = this.match;
+    const r = this.robot, B = this.brain, m = this.match;
     const oppZone = other(this.own);
     const active = m.hubActive(this.own) || this._inGrace();
     const lineX = Field.allianceLineX(this.own);
@@ -463,7 +489,7 @@ export class OpponentAI {
       const p = b.pos;
       const d = Math.hypot(p.x - r.pos.x, p.z - r.pos.z);
       let c = d - B.density * Math.min(bins.get(k), 8);
-      if (P && Math.hypot(p.x - P.pos.x, p.z - P.pos.z) < 1.3) c += 2.5;
+      for (const P of this.others) if (Math.hypot(p.x - P.pos.x, p.z - P.pos.z) < 1.3) c += 2.5; // leave it to them
       // stealing from the opponent's zone counts twice: one fewer for them, one more for us
       if (Field.inAllianceZone(oppZone, p.x)) c -= B.steal;
       if (feed) {

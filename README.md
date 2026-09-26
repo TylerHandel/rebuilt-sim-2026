@@ -49,9 +49,24 @@ Flywheels stay spun up for 1.5 s after you release the trigger, so stop-and-go s
 
 Every robot shoots on the move: the solver leads the target by the robot's velocity, including air drag.
 
+## The menu
+
+The home screen has three ways to play, plus the tools:
+
+| | |
+|---|---|
+| **Practice** | Just your robot, the FUEL and the clock. Pick a robot, its auto, start and preload. |
+| **1 v 1** | You against one AI robot on the other ALLIANCE: its robot, strategy and skill. **More options** holds the driver station, Training mode, the defense drill and watch mode. |
+| **3 v 3** | Two full ALLIANCES. Each of the six slots (Blue 1–3, Red 1–3) takes a robot (◀ ▶ on the slot), and **Edit** (A) sets who drives it (**You**, **AI Scorer**, **AI Defense**, **AI Hybrid** or **Empty**), its auto, its start and its AI skill. One slot can be you; with none, you watch the AIs play. |
+| Auto Editor · AI Tuning · Controls · Settings | Settings has your human player, the climber add-on, the starting camera and the shot preview line. |
+
+Every page works from the controller: D-pad / stick to move, ◀ ▶ to change, A to select, B to go back (Esc on the keyboard). **Menu (☰)** opens the highlighted mode, or starts the match from its page.
+
+In 3 v 3, robots on an ALLIANCE never start on the same spot: each gets the one it asks for if it's free, a *Best for this robot* auto runs mirrored to the other side if only that side is free, and otherwise it takes the nearest free spot. The AIs play as a team: each one watches every robot on the field, drives around teammates as well as opponents, leaves FUEL a teammate is already near, and a defender picks the opposing robot that's the biggest threat (most FUEL, closest to scoring) and sticks with it. The HUD lists every other robot (what it's doing and how much FUEL it holds), and the results show each robot's launched, passed and intaked FUEL.
+
 ## PvE: AI opponent
 
-Set **Opponent (PvE)** in the main menu to put an AI robot on the other alliance. It can drive any of the three robots (**Opponent robot**), scores into its own HUB, and has its own HUMAN PLAYER, who throws when its HUB is active. Its AUTO FUEL counts toward which HUB goes inactive first.
+In **1 v 1** an AI robot plays the other ALLIANCE (in **3 v 3**, up to five of them). It can drive any of the three robots, scores into its own HUB, and has its own HUMAN PLAYER, who throws when its HUB is active. Its AUTO FUEL counts toward which HUB goes inactive first.
 
 | Strategy | What it does |
 |---|---|
@@ -66,7 +81,7 @@ How the Scorer handles time and traffic:
 - While shooting or passing on the move, it drives smoothly: capped speed, limited acceleration and turning. This lets the turret, hood and flywheel settle so the shot actually releases (a shot only fires when aim, flywheel speed and hood are all on target).
 - If you block it on the way to its zone, it goes around at first. Once it stops gaining ground (you're mirroring it), it drives straight through you.
 
-**Opponent skill** sets its speed, how carefully it collects, how much of its hopper it uses, its shooting accuracy, how long it hesitates between cycles, its reaction time on defense and its pin discipline:
+**Skill** sets its speed, how carefully it collects, how much of its hopper it uses, its shooting accuracy, how long it hesitates between cycles, its reaction time on defense and its pin discipline:
 - **Rookie:** slow, small loads, misses more, stops to shoot, and holds pins too long, so it draws G418 fouls.
 - **Regional:** a solid district/regional robot.
 - **Champs:** full speed, full hoppers, tight cycles and clean defense, using the hand-tuned strategy.
@@ -76,20 +91,18 @@ In AUTO the AI runs a normal routine. Scorer and Hybrid run their robot's *Best 
 
 ### Watch AI vs AI
 
-Set **Your robot driven by** to one of the AI strategies (and **Your AI skill**) to let the AI drive your robot in TELEOP. Your AUTO routine still runs first.
-- Pair it with an opponent to watch AI vs AI.
-- Cameras and pause still work.
+In 1 v 1, set **Your robot driven by** (under More options) to one of the AI strategies (and **Its AI skill**) to let the AI drive your robot in TELEOP. Your AUTO routine still runs first. In 3 v 3, set every slot to an AI to watch two full alliances. Cameras and pause still work.
 
 ## Training mode: teach the AI by playing it
 
-Set **Match type** to *Training (AI learns)*. You play against **Your trained AI**, a Champs-level robot whose strategy ("brain") is saved in your browser. It learns two ways:
+In 1 v 1, set **Match type** (under More options) to *Training (AI learns)*. You play against **Your trained AI**, a Champs-level robot whose strategy ("brain") is saved in your browser. It learns two ways:
 
 - **From results.** Each Training match, the AI plays a slightly different version of its brain: variation A, then its mirror image, variation B, in the next match. After each pair it moves toward whichever did better against you. The results screen explains what it tried and which values changed. **Exploration** in AI Tuning sets how different the variations are.
 - **From your driving.** In every match you drive, the game measures the same decisions the brain makes: where you shoot from, how full you get before a cycle, how long you collect, how early you get back for your HUB, how fast you drive through FUEL, how far away you drop the intake, whether you shuttle FUEL in your off shifts and how much you keep, how long you hold a pin, how fast you shove or ram, where you block and when you engage. When you out-drive the AI (win the match, or beat its average in a defense drill), it copies part of your style. **Copy my style** in AI Tuning sets how much.
 
 ### Your role: Score or Defense
 
-**Your role** can be *Score* (win the match) or *Defense (hold the AI down)*.
+**Your role** (1 v 1, under More options) can be *Score* (win the match) or *Defense drill*.
 
 In Defense, the opponent always plays Scorer, and your goal is to minimize the points it scores. Fouls you commit count as its points.
 - The HUD shows the AI's running score and your target: its average across your earlier drills.
@@ -256,29 +269,26 @@ The other routines are mirrored automatically for the red alliance and for left/
 
 ## Auto Editor
 
-**AUTO EDITOR** in the main menu is a simplified PathPlanner. It shows a top-down view of your half of the field (drawn as blue, with the ALLIANCE WALL on the left).
-- Drag the START box along the ROBOT STARTING LINE, and place waypoints for the path.
-- For each waypoint, set what happens on the way there: intake on/off, shooting (off, shoot on the move once in the ALLIANCE ZONE, or shoot/pass anywhere) and max speed.
-- Also set what happens when the robot arrives: drive through, stop, stop and shoot until empty, or wait 1–3 s. Optionally shoot the preload first.
-- The panel shows an estimated run time against the 20 s AUTO. Waypoints past the CENTER LINE turn red as a G403 warning.
+**AUTO EDITOR** in the main menu is a simplified PathPlanner. The field (your half, ALLIANCE WALL on the left) is on the left; the settings are on the right; a bar along the bottom always shows the controls for what you're doing (for the controller or for the keyboard and mouse, whichever you're using).
 
-Autos save automatically in the browser (localStorage) and appear in the **Auto routine** menu marked with ✎. **Test in a match** starts a match with the auto straight away.
+- **Field:** drag the START box along the ROBOT STARTING LINE and place waypoints for the path. A label at the cursor says what A / Enter / a click does there (add waypoint 3, pick up waypoint 2, move START…). Arrows on the path show the direction; a legend under the field explains the colors (drive, intake, shoot, both, dashed = shoots or passes anywhere, thicker = faster). Waypoints past the CENTER LINE turn red as a G403 warning.
+- **Settings, grouped:** *Auto* (which auto you're editing, the robot, New / Copy / Mirror / Rename / Delete), *Start* (starting spot, shoot the preload first), *Waypoint N* (on the way here: intake, shoot, speed; when it gets here: keep driving, stop, stop and shoot it all, wait 1–3 s), and *Path*, a list of every waypoint to jump to. The focused setting's description shows below them.
+- **Time:** a bar at the top shows the estimated run time against the 20 s AUTO. **Test ▶** starts a match with the auto straight away; **Done** goes back.
+
+Stick for the field, D-pad for the settings: whichever you touched last is active (outlined). Autos save automatically in the browser (localStorage) and appear in every **Auto routine** menu marked with ✎.
 - Red alliance runs the path rotated automatically.
 - With a custom auto selected, **Starting position** switches to *As drawn* / *Mirrored left ↔ right*.
-- **Mirror left ↔ right** in the editor flips the saved path.
 
-| Editor action | Xbox controller | Mouse / keyboard |
-|---|---|---|
-| Move cursor | Left stick (hold LS click for fine) | Mouse / W A S D |
-| Add waypoint / grab / drop | A | Click (drag to move) / Enter |
-| Delete waypoint | X | Right-click / G |
-| Previous / next waypoint | LB / RB | F / R |
-| Shooting on the way | D-pad ◀ ▶ | [ / ] |
-| Speed | D-pad ▲ ▼ | ↑ / ↓ |
-| Intake on the way | Right stick click | T |
-| At-waypoint action | View (⧉) | Backspace |
-| Settings panel (auto list, start, mirror, test…) | Y, then D-pad + A | Click / H |
-| Done | B or Menu (☰) | Esc |
+| Editor action | Xbox controller | Keyboard | Mouse |
+|---|---|---|---|
+| Move the cursor | Left stick (hold LS click for fine) | W A S D | — |
+| Add a waypoint / pick up / drop | A | Enter | Click, drag to move |
+| Delete the waypoint | X | Delete | Right-click |
+| Previous / next waypoint | LB / RB | F / R | Click it in *Path* |
+| Choose a setting / change it | D-pad ▲▼ / ◀▶ | ↑↓ / ←→ | Click its ◀ / ▶ side |
+| Press the focused button | A | Enter | Click |
+| Test in a match | Y | H | Test ▶ |
+| Back to the field / done | B · Menu (☰) | Esc | Done |
 
 ## Real CAD
 

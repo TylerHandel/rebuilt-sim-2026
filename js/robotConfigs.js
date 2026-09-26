@@ -71,7 +71,7 @@ export const ROBOTS = {
     teamName: 'HighTide',
     robotName: 'RIPCURRENT',
     archetype: 'Dye Rotor',
-    blurb: 'Extending hopper holds 85+ FUEL. A Dye Rotor single-streams FUEL into a fast turret shooter with precomputed shoot-on-the-move.',
+    blurb: 'Extending hopper holds 88 FUEL, about 110 with its net stretched. A Dye Rotor single-streams FUEL into a fast turret shooter with precomputed shoot-on-the-move.',
     frame: { length: 25.0 * IN, width: 32.0 * IN },
     height: 21.75 * IN,
     mass: 60,

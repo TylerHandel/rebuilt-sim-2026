@@ -86,7 +86,8 @@ const ui = new UI(settings, {
 ui.editor = new AutoEditor({
   settings, field,
   onClose: () => ui.show('menu'),
-  onTest: (key) => { settings.auto = key; ui._changed(); startMatch(); },
+  // test an auto on your own robot (a 3v3 lineup would put other robots in its way)
+  onTest: (key) => { settings.auto = key; if (settings.matchMode === '3v3') settings.matchMode = 'practice'; ui._changed(); startMatch(); },
 });
 const learner = new Learner();
 ui.tuning = new TuningScreen({ learner, onClose: () => ui.show('menu') });
@@ -95,7 +96,7 @@ $('loading').classList.add('hidden');
 
 function onEvent(type, d) {
   if (!game) return;
-  const me = settings.alliance;
+  const me = game.me;
   switch (type) {
     case 'phase':
       if (d.phase === 'auto') ui.bigMessage('AUTO', 1.2);
@@ -133,10 +134,15 @@ function onEvent(type, d) {
   }
 }
 
-// Settings the match actually uses: Training mode and the Defense role adjust the opponent,
-// and "Your trained AI" robots get their brain from the learner.
+// Settings the match actually uses: Training mode and the Defense role (1 v 1 only) adjust the
+// opponent, and "Your trained AI" robots get their brain from the learner.
 function matchSettings() {
   const eff = { ...settings };
+  eff.mineBrain = learner.brain;
+  if (settings.matchMode !== '1v1') {
+    eff.opponent = 'off';
+    return { eff, cand: null, training: false, role: 'score' };
+  }
   const role = settings.role === 'defense' ? 'defense' : 'score';
   const training = settings.mode === 'training';
   if (role === 'defense') eff.opponent = 'scorer'; // you defend, it scores
@@ -158,10 +164,9 @@ function startMatch() {
   game.role = role;
   game.defenseTarget = learner.defenseAverage();
   game.training = training ? { cand, number: learner.s.matches + 1 } : null;
-  game.recorder = eff.driver === 'human' ? new DrivingRecorder(game) : null;
-  const alliance = settings.alliance;
-  rig.alliance = alliance;
-  rig.ds = settings.ds;
+  game.recorder = game.you && game.you.human ? new DrivingRecorder(game) : null;
+  rig.alliance = game.me;
+  rig.ds = settings.matchMode === '3v3' ? (game.you ? game.you.entry.station : 1) : settings.ds;
   rig.setMode(settings.camera);
   ui.camName(CAMERA_NAMES[rig.mode]);
   resultsShown = false;
@@ -184,7 +189,7 @@ function driverCommand(inp, dt) {
   game.slow = inp.held.ls;
   const scale = game.slow ? 0.4 : 1;
   // field-relative: stick up is away from the camera, so it flips when the camera turns around
-  const s = (settings.alliance === BLUE ? 1 : -1) * (rig.flip ? -1 : 1);
+  const s = (game.me === BLUE ? 1 : -1) * (rig.flip ? -1 : 1);
   let vx, vz;
   if (game.fieldRelative) {
     vx = s * up * d.maxSpeed * scale;

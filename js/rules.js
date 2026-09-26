@@ -1,4 +1,5 @@
-// ROBOT-to-ROBOT rules, checked every physics step for each pair of opposing ROBOTS.
+// ROBOT-to-ROBOT rules, checked every physics step for each pair of opposing ROBOTS (any
+// number per ALLIANCE).
 //   G403 (MAJOR) AUTO: contacting an opponent while fully across the CENTER LINE.
 //   G415 (MINOR) a COMPONENT outside the FRAME PERIMETER (a deployed over-the-bumper intake)
 //                reaching inside an opponent's FRAME PERIMETER.
@@ -98,7 +99,7 @@ export class RobotRules {
   }
 
   _state(A, B) {
-    const k = A.alliance < B.alliance ? `${A.alliance}|${B.alliance}` : `${B.alliance}|${A.alliance}`;
+    const k = A.uid < B.uid ? `${A.uid}|${B.uid}` : `${B.uid}|${A.uid}`;
     let st = this.pairs.get(k);
     if (!st) {
       st = { contact: false, noContactT: 99, gap: 99, prevV: new Map(), pin: new Map(), g415: new Map(), episode: { g403: false, g420: new Map() } };
