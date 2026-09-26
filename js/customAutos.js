@@ -8,14 +8,14 @@ const KEY = 'rebuiltSim.customAutos';
 export const CUSTOM_PREFIX = 'custom:';
 
 export const SHOOT_MODES = [
-  ['off', 'Off'],
-  ['hub', 'Shoot on the move (in zone)'],
-  ['always', 'Shoot / pass always'],
+  ['off', "Don't shoot"],
+  ['hub', 'Once in our zone'],
+  ['always', 'Anywhere (pass)'],
 ];
 export const ARRIVE_ACTIONS = [
-  ['none', 'Drive through'],
+  ['none', 'Keep driving'],
   ['stop', 'Stop'],
-  ['shoot', 'Stop & shoot until empty'],
+  ['shoot', 'Stop and shoot it all'],
   ['wait1', 'Wait 1 s'],
   ['wait2', 'Wait 2 s'],
   ['wait3', 'Wait 3 s'],

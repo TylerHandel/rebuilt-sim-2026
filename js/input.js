@@ -8,7 +8,7 @@ const KEYMAP = {
   Enter: 'a', Space: 'rt', ShiftLeft: 'lt', ShiftRight: 'lt', KeyF: 'lb', KeyR: 'rb',
   KeyC: 'a', KeyB: 'b', KeyG: 'x', KeyH: 'y', Escape: 'start', KeyP: 'start', Backspace: 'back',
   ArrowUp: 'up', ArrowDown: 'down', BracketLeft: 'left', BracketRight: 'right', KeyV: 'right',
-  KeyT: 'rs', KeyX: 'ls',
+  KeyT: 'rs', KeyX: 'ls', Delete: 'x',
 };
 
 function deadband(v, d = 0.1) {
@@ -105,6 +105,24 @@ export class Input {
         r.on = true;
       } else r.on = false;
       this.repeat[d] = r;
+    }
+    // the D-pad (and arrow keys) alone, with the same repeat: for screens where the stick does
+    // something else (the Auto Editor's cursor)
+    const pad4 = {
+      up: s.held.up, down: s.held.down,
+      left: s.held.left || k.has('ArrowLeft'), right: s.held.right || k.has('ArrowRight'),
+    };
+    s.dpad = {};
+    for (const d of Object.keys(pad4)) {
+      const key = 'dp' + d;
+      const r = this.repeat[key] || { t: 0, on: false };
+      s.dpad[d] = false;
+      if (pad4[d]) {
+        if (!r.on) { s.dpad[d] = true; r.t = 0.38; }
+        else { r.t -= dt; if (r.t <= 0) { s.dpad[d] = true; r.t = 0.12; } }
+        r.on = true;
+      } else r.on = false;
+      this.repeat[key] = r;
     }
     this.state = s;
     s.source = this.lastSource;

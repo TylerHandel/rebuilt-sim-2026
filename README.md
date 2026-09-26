@@ -269,29 +269,26 @@ The other routines are mirrored automatically for the red alliance and for left/
 
 ## Auto Editor
 
-**AUTO EDITOR** in the main menu is a simplified PathPlanner. It shows a top-down view of your half of the field (drawn as blue, with the ALLIANCE WALL on the left).
-- Drag the START box along the ROBOT STARTING LINE, and place waypoints for the path.
-- For each waypoint, set what happens on the way there: intake on/off, shooting (off, shoot on the move once in the ALLIANCE ZONE, or shoot/pass anywhere) and max speed.
-- Also set what happens when the robot arrives: drive through, stop, stop and shoot until empty, or wait 1–3 s. Optionally shoot the preload first.
-- The panel shows an estimated run time against the 20 s AUTO. Waypoints past the CENTER LINE turn red as a G403 warning.
+**AUTO EDITOR** in the main menu is a simplified PathPlanner. The field (your half, ALLIANCE WALL on the left) is on the left; the settings are on the right; a bar along the bottom always shows the controls for what you're doing (for the controller or for the keyboard and mouse, whichever you're using).
 
-Autos save automatically in the browser (localStorage) and appear in the **Auto routine** menu marked with ✎. **Test in a match** starts a match with the auto straight away.
+- **Field:** drag the START box along the ROBOT STARTING LINE and place waypoints for the path. A label at the cursor says what A / Enter / a click does there (add waypoint 3, pick up waypoint 2, move START…). Arrows on the path show the direction; a legend under the field explains the colors (drive, intake, shoot, both, dashed = shoots or passes anywhere, thicker = faster). Waypoints past the CENTER LINE turn red as a G403 warning.
+- **Settings, grouped:** *Auto* (which auto you're editing, the robot, New / Copy / Mirror / Rename / Delete), *Start* (starting spot, shoot the preload first), *Waypoint N* (on the way here: intake, shoot, speed; when it gets here: keep driving, stop, stop and shoot it all, wait 1–3 s), and *Path*, a list of every waypoint to jump to. The focused setting's description shows below them.
+- **Time:** a bar at the top shows the estimated run time against the 20 s AUTO. **Test ▶** starts a match with the auto straight away; **Done** goes back.
+
+Stick for the field, D-pad for the settings: whichever you touched last is active (outlined). Autos save automatically in the browser (localStorage) and appear in every **Auto routine** menu marked with ✎.
 - Red alliance runs the path rotated automatically.
 - With a custom auto selected, **Starting position** switches to *As drawn* / *Mirrored left ↔ right*.
-- **Mirror left ↔ right** in the editor flips the saved path.
 
-| Editor action | Xbox controller | Mouse / keyboard |
-|---|---|---|
-| Move cursor | Left stick (hold LS click for fine) | Mouse / W A S D |
-| Add waypoint / grab / drop | A | Click (drag to move) / Enter |
-| Delete waypoint | X | Right-click / G |
-| Previous / next waypoint | LB / RB | F / R |
-| Shooting on the way | D-pad ◀ ▶ | [ / ] |
-| Speed | D-pad ▲ ▼ | ↑ / ↓ |
-| Intake on the way | Right stick click | T |
-| At-waypoint action | View (⧉) | Backspace |
-| Settings panel (auto list, start, mirror, test…) | Y, then D-pad + A | Click / H |
-| Done | B or Menu (☰) | Esc |
+| Editor action | Xbox controller | Keyboard | Mouse |
+|---|---|---|---|
+| Move the cursor | Left stick (hold LS click for fine) | W A S D | — |
+| Add a waypoint / pick up / drop | A | Enter | Click, drag to move |
+| Delete the waypoint | X | Delete | Right-click |
+| Previous / next waypoint | LB / RB | F / R | Click it in *Path* |
+| Choose a setting / change it | D-pad ▲▼ / ◀▶ | ↑↓ / ←→ | Click its ◀ / ▶ side |
+| Press the focused button | A | Enter | Click |
+| Test in a match | Y | H | Test ▶ |
+| Back to the field / done | B · Menu (☰) | Esc | Done |
 
 ## Real CAD
 
