@@ -39,7 +39,7 @@ export class FuelManager {
         RAPIER.RigidBodyDesc.dynamic()
           .setTranslation(0, -10 - i * 0.2, 0)
           .setCcdEnabled(true)
-          .setAngularDamping(0.4)
+          .setAngularDamping(FUEL.angularDamping)
           .setCanSleep(true),
       );
       const col = world.createCollider(
@@ -167,11 +167,15 @@ export class FuelManager {
       }
       const grounded = b.pos.y < R + 0.012 && Math.abs(vy) < 0.35;
       if (grounded) {
+        // carpet rolling resistance: slow the roll and the spin together. (Forcing the spin to
+        // v/R here would fight the contact solver, which rolls the ball about its slightly
+        // sunken contact point, and bleed off speed every step.)
         const hs = Math.hypot(vx, vz);
         const dec = FUEL.rollDecel * dt;
-        if (hs <= dec + 0.01) { vx = 0; vz = 0; }
-        else { vx *= (hs - dec) / hs; vz *= (hs - dec) / hs; }
-        body.setAngvel({ x: vz / R, y: 0, z: -vx / R }, false);
+        const f = hs <= dec + 0.01 ? 0 : (hs - dec) / hs;
+        vx *= f; vz *= f;
+        const w = body.angvel();
+        body.setAngvel({ x: w.x * f, y: w.y * f, z: w.z * f }, false);
       }
       body.setLinvel({ x: vx, y: vy, z: vz }, false);
     }
@@ -284,8 +288,10 @@ export class FuelManager {
     const z = c.z + s * off;
     const base = Math.sign(off) * (Math.abs(off) > 0.3 ? 0.55 : 0.18);
     const ang = base + rand(-0.4, 0.4);
-    const sp = rand(1.6, 3.4);
-    this.launch(b, { x, y: R + 0.1, z }, { x: s * Math.cos(ang) * sp, y: rand(0, 0.6), z: s * Math.sin(ang) * sp }, { hubFresh: true, t });
+    const sp = rand(HUB.exitSpeed[0], HUB.exitSpeed[1]);
+    // leaves the exit ramp level or slightly downward (no pop-up), already rolling
+    this.launch(b, { x, y: HUB.exitHeight + R, z }, { x: s * Math.cos(ang) * sp, y: rand(-0.3, 0), z: s * Math.sin(ang) * sp }, { hubFresh: true, t });
+    b.body.setAngvel({ x: (s * Math.sin(ang) * sp) / R, y: 0, z: -(s * Math.cos(ang) * sp) / R }, true);
     b.inFlight = false;
   }
 

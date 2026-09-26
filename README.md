@@ -186,7 +186,7 @@ None of the three climbed, so each defaults to *no climber*. The **Climber add-o
 
 **Field** (2026 Game Manual section 5 plus the official AprilTag layout):
 - 651.2 × 317.7 in field.
-- HUBS: 47 in, with a 41.7 in hex opening at 72 in, a net in the back, and 4 exits into the NEUTRAL ZONE.
+- HUBS: 47 in, with a 41.7 in hex opening at 72 in and a 58.4 in wide net 10.3 in behind them (from the GE-26300 drawing). FUEL leaves through a 35.6 in wide opening in the NEUTRAL ZONE face, 30.1 in off the carpet, and drops onto the field.
 - BUMPS: 73 × 44.4 × 6.5 in with 15° ramps.
 - TRENCHES: 22.25 in clearance.
 - TOWERS: rungs at 27, 45 and 63 in.
@@ -265,6 +265,10 @@ Autos save automatically in the browser (localStorage) and appear in the **Auto 
 | At-waypoint action | View (⧉) | Backspace |
 | Settings panel (auto list, start, mirror, test…) | Y, then D-pad + A | Click / H |
 | Done | B or Menu (☰) | Esc |
+
+## Real CAD
+
+Field or robot CAD can replace the drawn models. Export glTF (.glb) from Onshape, or convert STEP with `python3 tools/cad2glb.py in.step out.glb`. Put the files in `cad/` and list them in `cad/manifest.json` (see `cad/README.md`). Physics still uses the colliders built from the game manual dimensions.
 
 ## Project layout
 
