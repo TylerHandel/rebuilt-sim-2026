@@ -63,11 +63,19 @@ export const HUB = {
   hexR: (41.7 * IN) / 2,            // 41.7in hexagonal opening (circumradius)
   funnelBottomY: 1.42,
   funnelBottomR: 0.36,
-  netTop: 3.25,                     // net structure in the back of the HUB
-  netLean: 0.55,
-  exitOffsets: [-0.46, -0.16, 0.16, 0.46], // 4 exits into the NEUTRAL ZONE
-  exitHeight: 0.10,                 // bottom of the FUEL as it leaves an exit (m above the carpet)
-  exitSpeed: [1.5, 3.0],            // m/s off the exit ramps
+  // NET behind the HUB (GE-26300 sheet 4): 58.41in wide, 49.75in to 120.36in off the carpet,
+  // 10.26in behind the HUB's NEUTRAL ZONE face
+  netTop: 120.36 * IN,
+  netBottom: 49.75 * IN,
+  netOut: 10.26 * IN,
+  netWidth: 58.41 * IN,
+  // FUEL leaves through one opening in the NEUTRAL ZONE face: 47in - 2 x 5.72in wide, its bottom
+  // edge 30.13in off the carpet (top of the 30in rear bottom panel, GE-26306), off the HUB ramps
+  exitWidth: (47 - 2 * 5.72) * IN,
+  exitTop: 38.88 * IN,
+  exitOffsets: [-0.34, -0.11, 0.11, 0.34], // 4 FUEL lanes across that opening
+  exitHeight: 30.13 * IN,           // bottom of the FUEL as it leaves the opening (m above the carpet)
+  exitSpeed: [1.0, 2.2],            // m/s off the exit ramps
   scoreGrace: 3.0,                  // FUEL assessed up to 3s after deactivation
   targetHeight: 1.95,               // aim point (center of opening)
 };
