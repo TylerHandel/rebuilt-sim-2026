@@ -88,6 +88,20 @@ export class Robot {
         world.createCollider(w, this.body);
       }
     }
+    // extending hopper section: a real collider that slides out with the hopper
+    const st = this.cfg.storage;
+    this.hopperCollider = null;
+    if (st.extLen) {
+      this.hopperHalfH = (this.height - 0.17) / 2;
+      this.hopperCollider = world.createCollider(
+        RAPIER.ColliderDesc.cuboid(st.extLen / 2, this.hopperHalfH, cfg.frame.width / 2 - 0.02)
+          .setTranslation(cfg.frame.length / 2 - st.extLen / 2, 0.17 + this.hopperHalfH, 0)
+          .setMass(0.5)
+          .setFriction(0.05).setRestitution(0.1)
+          .setCollisionGroups(0),
+        this.body,
+      );
+    }
     // deployed intake roller (pushes FUEL it cannot swallow)
     const ic = this.cfg.intake;
     this.intakeCollider = world.createCollider(
@@ -175,8 +189,35 @@ export class Robot {
     return { x: this.vel.x + this.omega * (p.z - this.pos.z), z: this.vel.z - this.omega * (p.x - this.pos.x) };
   }
 
+  // how much FUEL fits right now (an extending hopper holds more when it's out)
   capacity() {
-    return this.cfg.storage.capacity;
+    const st = this.cfg.storage;
+    if (!st.extLen) return st.capacity;
+    return Math.floor(st.retracted + (st.capacity - st.retracted) * this.hopperDeploy + 1e-6);
+  }
+
+  maxCapacity() { return this.cfg.storage.capacity; }
+
+  _hopper(dt, on) {
+    const st = this.cfg.storage;
+    if (!st.extLen) return;
+    // 'latched' hoppers come out with the intake at the start and stay out; 'intake' hoppers
+    // follow the intake. Either way the hopper can't close on FUEL that needs the room.
+    let want = st.extend === 'latched' ? (this.hopperDeploy > 0.02 || this.intakeDeploy > 0.3 ? 1 : 0) : this.intakeDeploy;
+    const need = Math.min(1, Math.max(0, (this.stored.length - st.retracted) / (st.capacity - st.retracted)));
+    want = Math.max(want, need);
+    if (on || want < this.hopperDeploy) this.hopperDeploy = approach(this.hopperDeploy, want, dt / 0.45);
+    // collider follows the sliding section; it only hits field structures once clear of them
+    const out = this.hopperDeploy * st.extLen;
+    const fx = this.cfg.frame.length / 2 - st.extLen / 2 + out;
+    this.hopperCollider.setTranslationWrtParent({ x: fx, y: 0.17 + this.hopperHalfH, z: 0 });
+    let g = 0;
+    if (this.hopperDeploy > 0.05) {
+      const tip = this.cfg.frame.length / 2 + out, hw = this.cfg.frame.width / 2;
+      const clear = [[tip, hw], [tip, -hw], [tip, 0]].every(([lx, lz]) => { const p = this.localToWorld(lx, 0, lz); return !obstacleAt(p.x, p.z, 0); });
+      g = groups(GROUP.ROBOT, GROUP.BALL | GROUP.ROBOT | GROUP.ROBOT_BARRIER | (clear ? GROUP.STATIC : 0));
+    }
+    this.hopperCollider.setCollisionGroups(g);
   }
 
   // ------------------------------------------------------------------ fixed-step control (before world.step)
@@ -235,7 +276,7 @@ export class Robot {
     if (this.cfg.key === '2910' && on && (this.cmd.shoot || this.cmd.pass) && !this.cmd.intake) want = false;
     if (on && this.cmd.outtake) want = true;
     this.intakeDeploy = approach(this.intakeDeploy, want ? 1 : 0, dt / ic.deployTime);
-    if (this.intakeDeploy > 0.3 && this.hopperDeploy < 1 && on) this.hopperDeploy = approach(this.hopperDeploy, 1, dt / 0.4);
+    this._hopper(dt, on);
     const deployed = this.intakeDeploy > 0.85;
     // An intake that deploys into a structure (e.g. 4414 at the Hub start) would jam the robot,
     // so it only collides with field structures once it is clear of them.
@@ -560,8 +601,9 @@ export class Robot {
     const m = this.model;
     const n = Math.min(this.stored.length, m.stored.length);
     const mat = new THREE.Matrix4();
+    const extShift = (m.extLen || 0) * this.hopperDeploy;
     for (let i = 0; i < n; i++) {
-      mat.makeTranslation(m.stored[i].x, m.stored[i].y, m.stored[i].z);
+      mat.makeTranslation(m.stored[i].x + (m.stored[i].ext ? extShift : 0), m.stored[i].y, m.stored[i].z);
       m.storedMesh.setMatrixAt(i, mat);
     }
     m.storedMesh.count = n;

@@ -112,7 +112,7 @@ export class OpponentAI {
     this.seen = []; // where the other robot was, for the defender's reaction lag
     this.rate = 2.5; // FUEL per second it has been collecting at (learned as it plays)
     this.cycleStart = null;
-    const cap = robot.capacity();
+    const cap = robot.maxCapacity();
     robot.noiseScale = this.skill.noise;
     this.maxLoad = cap < 20 ? cap : Math.max(10, Math.round(this.skill.load * cap));
     this.fillTarget = cap < 20 ? cap : Math.min(this.maxLoad, Math.max(8, Math.round(this.brain.fill * Math.min(cap, 60))));

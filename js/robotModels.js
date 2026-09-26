@@ -1,29 +1,47 @@
 // Robot 3D models built from primitives. Local frame: +X = robot front (intake side),
 // +Z = robot right, Y = up, origin on the floor at the robot center.
+//
+// Each builder returns { root, anim(state, dt), stored[], modules[], extLen }:
+//   stored   - FUEL positions shown in the robot (filled in order); entries flagged ext:true sit
+//              in the extending part of the hopper and slide out with it
+//   modules  - swerve modules { pivot, wheel } animated by robot.js
+//   extLen   - how far (m) the hopper extension slides out at full deploy (0 if none)
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { IN, FUEL } from './constants.js';
 import { BUMPER_T } from './robotConfigs.js';
 import { ALLIANCE_COLOR_CSS } from './field.js';
 
-const BUMP_Y0 = 0.055, BUMP_Y1 = 0.16;
+export const BUMP_Y0 = 0.055, BUMP_Y1 = 0.16;
+const lerp = THREE.MathUtils.lerp;
 
+// ------------------------------------------------------------------ materials
 function std(color, rough = 0.55, metal = 0.2, extra = {}) {
   return new THREE.MeshStandardMaterial({ color, roughness: rough, metalness: metal, ...extra });
 }
 const M = {
-  alu: std(0xaeb3bb, 0.35, 0.85),
-  darkAlu: std(0x3a3e46, 0.45, 0.7),
-  black: std(0x15161a, 0.7, 0.2),
-  wheel: std(0x101012, 0.9, 0.0),
-  tread: std(0x1c1c1c, 0.95, 0.0),
-  poly: new THREE.MeshPhysicalMaterial({ color: 0xcfe3ff, transparent: true, opacity: 0.22, roughness: 0.08, depthWrite: false, side: THREE.DoubleSide }),
-  tintPoly: new THREE.MeshPhysicalMaterial({ color: 0x8fa3b8, transparent: true, opacity: 0.3, roughness: 0.1, depthWrite: false, side: THREE.DoubleSide }),
-  green: std(0x39b54a, 0.6, 0.1),
-  compliant: std(0x2a2a2a, 0.9, 0.0),
-  yellowWheel: std(0xd8c21a, 0.6, 0.1),
+  alu: std(0xb4b9c1, 0.32, 0.85),
+  aluDark: std(0x4a4f58, 0.4, 0.75),
+  anodBlack: std(0x1d1f24, 0.45, 0.55),
+  black: std(0x131417, 0.7, 0.15),
+  tread: std(0x0e0e10, 0.95, 0.0),
+  hubGrey: std(0x6b7078, 0.4, 0.7),
+  kraken: std(0x22252b, 0.35, 0.6),
+  krakenRing: std(0xc9ccd2, 0.3, 0.9),
+  poly: new THREE.MeshPhysicalMaterial({ color: 0xdbe8f7, transparent: true, opacity: 0.18, roughness: 0.05, depthWrite: false, side: THREE.DoubleSide }),
+  polyTint: new THREE.MeshPhysicalMaterial({ color: 0x9fb2c6, transparent: true, opacity: 0.26, roughness: 0.08, depthWrite: false, side: THREE.DoubleSide }),
+  compliant: std(0x2b2b2e, 0.9, 0.0),
+  green: std(0x3fae49, 0.6, 0.1),
+  orangeWheel: std(0xe0782a, 0.7, 0.05),
+  blueWheel: std(0x2d6fd6, 0.7, 0.05),
   copper: std(0xb87333, 0.35, 0.9),
-  led: std(0xffffff, 0.3, 0, { emissive: 0xffffff, emissiveIntensity: 1.2 }),
+  battery: std(0x1a1a1a, 0.8, 0.05),
+  red: std(0xc62828, 0.5, 0.1),
+  rioGrey: std(0x9ea3aa, 0.4, 0.5),
+  radioWhite: std(0xe8e8e8, 0.6, 0.0),
+  lens: std(0x1e2b3c, 0.1, 0.8, { emissive: 0x0b1a33 }),
+  led: std(0x39ff6a, 0.3, 0, { emissive: 0x39ff6a, emissiveIntensity: 1.1 }),
+  polyBelt: std(0x3a3d42, 0.8, 0.0),
 };
 
 function mesh(geo, mat, parent, x = 0, y = 0, z = 0) {
@@ -35,308 +53,483 @@ function mesh(geo, mat, parent, x = 0, y = 0, z = 0) {
   return m;
 }
 const bx = (w, h, d, mat, parent, x, y, z) => mesh(new THREE.BoxGeometry(w, h, d), mat, parent, x, y, z);
-// cylinder whose axis is along local Z
-function cylZ(r, len, mat, parent, x, y, z, segs = 18) {
+const rbx = (w, h, d, r, mat, parent, x, y, z) => mesh(new RoundedBoxGeometry(w, h, d, 2, r), mat, parent, x, y, z);
+// cylinder with its axis along local Z
+function cylZ(r, len, mat, parent, x, y, z, segs = 20) {
   const m = mesh(new THREE.CylinderGeometry(r, r, len, segs), mat, parent, x, y, z);
   m.rotation.x = Math.PI / 2;
   return m;
 }
+function cylX(r, len, mat, parent, x, y, z, segs = 20) {
+  const m = mesh(new THREE.CylinderGeometry(r, r, len, segs), mat, parent, x, y, z);
+  m.rotation.z = Math.PI / 2;
+  return m;
+}
+const cylY = (r, len, mat, parent, x, y, z, segs = 20) => mesh(new THREE.CylinderGeometry(r, r, len, segs), mat, parent, x, y, z);
 
-function bumperTexture(number, alliance, lengthM) {
+// ------------------------------------------------------------------ parts library
+// 2x1 aluminum tube between two points in the XZ plane at height y (runs along X or Z)
+function tube(parent, x0, z0, x1, z1, y, mat = M.alu, w = 1 * IN, h = 2 * IN) {
+  const len = Math.hypot(x1 - x0, z1 - z0);
+  const m = rbx(len, h, w, 0.003, mat, parent, (x0 + x1) / 2, y, (z0 + z1) / 2);
+  m.rotation.y = -Math.atan2(z1 - z0, x1 - x0);
+  return m;
+}
+
+// flat plate with round lightening pockets, lying in the XY plane (thickness along Z)
+function pocketPlate(parent, w, h, t, mat, holes = [], x = 0, y = 0, z = 0) {
+  const s = new THREE.Shape();
+  const r = Math.min(0.012, w / 6, h / 6);
+  s.moveTo(-w / 2 + r, -h / 2);
+  s.lineTo(w / 2 - r, -h / 2); s.quadraticCurveTo(w / 2, -h / 2, w / 2, -h / 2 + r);
+  s.lineTo(w / 2, h / 2 - r); s.quadraticCurveTo(w / 2, h / 2, w / 2 - r, h / 2);
+  s.lineTo(-w / 2 + r, h / 2); s.quadraticCurveTo(-w / 2, h / 2, -w / 2, h / 2 - r);
+  s.lineTo(-w / 2, -h / 2 + r); s.quadraticCurveTo(-w / 2, -h / 2, -w / 2 + r, -h / 2);
+  for (const [hx, hy, hr] of holes) { const p = new THREE.Path(); p.absarc(hx, hy, hr, 0, Math.PI * 2, true); s.holes.push(p); }
+  const g = new THREE.ExtrudeGeometry(s, { depth: t, bevelEnabled: false, curveSegments: 12 });
+  g.translate(0, 0, -t / 2);
+  return mesh(g, mat, parent, x, y, z);
+}
+
+// Kraken X60 (or X44 when small) motor, axis along Y by default
+function kraken(parent, x, y, z, small = false, axis = 'y') {
+  const g = new THREE.Group();
+  g.position.set(x, y, z);
+  parent.add(g);
+  const r = small ? 0.026 : 0.03, len = small ? 0.055 : 0.07;
+  cylY(r, len, M.kraken, g, 0, 0, 0, 18);
+  cylY(r * 1.02, 0.008, M.krakenRing, g, 0, len / 2 - 0.004, 0, 18);
+  bx(0.014, len * 0.8, 0.02, M.kraken, g, r, 0, 0); // controller bump
+  if (axis === 'x') g.rotation.z = Math.PI / 2;
+  if (axis === 'z') g.rotation.x = Math.PI / 2;
+  return g;
+}
+
+// MK5n-style swerve module: square top plate, two motors on top, 4in wheel underneath
+function swerveModule(parent, x, z) {
+  const g = new THREE.Group();
+  g.position.set(x, 0, z);
+  parent.add(g);
+  rbx(0.118, 0.008, 0.118, 0.004, M.anodBlack, g, 0, 0.158, 0);
+  cylY(0.056, 0.035, M.aluDark, g, 0, 0.135, 0, 28); // steering bearing housing
+  kraken(g, -0.028, 0.2, 0.028);
+  kraken(g, 0.028, 0.2, -0.028);
+  bx(0.028, 0.012, 0.028, M.red, g, 0.035, 0.168, 0.035); // CANcoder
+  const pivot = new THREE.Group();
+  g.add(pivot);
+  // fork
+  for (const s of [-1, 1]) bx(0.05, 0.075, 0.008, M.aluDark, pivot, 0, 0.09, s * 0.03);
+  const wheel = new THREE.Group();
+  wheel.position.set(0, 0.0508, 0);
+  pivot.add(wheel);
+  // robot.js spins the wheel with wheel.rotation.y, so the axle is this group's local Y
+  const spin = new THREE.Group();
+  spin.rotation.x = Math.PI / 2;
+  const tire = new THREE.Mesh(new THREE.CylinderGeometry(0.0508, 0.0508, 0.038, 24), M.tread);
+  tire.castShadow = true;
+  const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.04, 16), M.hubGrey);
+  spin.add(tire, hub);
+  // tread nubs so the spin is visible
+  for (let i = 0; i < 6; i++) {
+    const n = new THREE.Mesh(new THREE.BoxGeometry(0.008, 0.04, 0.006), M.hubGrey);
+    const a = (i * Math.PI) / 3;
+    n.position.set(Math.cos(a) * 0.02, 0, Math.sin(a) * 0.02);
+    spin.add(n);
+  }
+  wheel.add(spin);
+  return { pivot, wheel: spin };
+}
+
+// Frame outline (frame perimeter) in robot XZ, counter-clockwise seen from above
+function frameOutline(L, W, chamferBack = 0) {
+  const c = chamferBack;
+  const pts = [[L / 2, W / 2], [L / 2, -W / 2]];
+  if (c > 0) pts.push([-L / 2 + c, -W / 2], [-L / 2, -W / 2 + c], [-L / 2, W / 2 - c], [-L / 2 + c, W / 2]);
+  else pts.push([-L / 2, -W / 2], [-L / 2, W / 2]);
+  return pts;
+}
+
+function bumperTexture(number, alliance) {
   const c = document.createElement('canvas');
   c.width = 512;
-  c.height = 96;
+  c.height = 128;
   const g = c.getContext('2d');
-  g.fillStyle = ALLIANCE_COLOR_CSS[alliance];
-  g.fillRect(0, 0, c.width, c.height);
-  // fabric texture
-  for (let i = 0; i < 700; i++) {
-    g.fillStyle = `rgba(0,0,0,${Math.random() * 0.08})`;
-    g.fillRect(Math.random() * 512, Math.random() * 96, 2, 2);
-  }
+  g.clearRect(0, 0, c.width, c.height);
   g.fillStyle = '#ffffff';
-  const fontPx = Math.min(78, 78 * (lengthM / 0.7));
-  g.font = `900 ${fontPx}px "Arial Black", Arial, sans-serif`;
+  g.font = '900 104px "Arial Black", Arial, sans-serif';
   g.textAlign = 'center';
   g.textBaseline = 'middle';
-  g.fillText(String(number), 256, 52);
+  g.fillText(String(number), 256, 68);
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
   return t;
 }
 
+// One continuous, round-edged bumper around the whole frame perimeter (chamfers included),
+// with the team number on every straight side
 function addBumpers(root, cfg, alliance, chamferBack = 0) {
   const L = cfg.frame.length, W = cfg.frame.width, T = BUMPER_T;
-  const h = BUMP_Y1 - BUMP_Y0, yc = (BUMP_Y0 + BUMP_Y1) / 2;
-  const plain = std(ALLIANCE_COLOR_CSS[alliance], 0.85, 0.0);
-  const seg = (len, x, z, rotY, withText) => {
-    const geo = new RoundedBoxGeometry(len, h, T, 3, 0.03);
-    const mats = [plain, plain, plain, plain, plain, plain];
-    if (withText) {
-      const tm = std(0xffffff, 0.85, 0, { map: bumperTexture(cfg.team, alliance, len) });
-      mats[4] = tm; // +z face
-      mats[5] = tm; // -z face (seen mirrored from inside; fine)
-    }
-    const m = new THREE.Mesh(geo, mats);
-    m.position.set(x, yc, z);
-    m.rotation.y = rotY;
-    m.castShadow = true;
-    m.receiveShadow = true;
-    root.add(m);
-  };
-  const outerW = W + 2 * T;
-  // front and back (run along Z)
-  seg(outerW, L / 2 + T / 2, 0, Math.PI / 2, true);
-  seg(outerW - 2 * chamferBack, -L / 2 - T / 2, 0, -Math.PI / 2, true);
-  // sides (run along X)
-  seg(L - chamferBack, -chamferBack / 2, W / 2 + T / 2, 0, true);
-  seg(L - chamferBack, -chamferBack / 2, -W / 2 - T / 2, Math.PI, true);
-  if (chamferBack > 0) {
-    for (const s of [-1, 1]) {
-      const len = Math.SQRT2 * chamferBack + T * 0.6;
-      const geo = new RoundedBoxGeometry(len, h, T, 3, 0.03);
-      const m = new THREE.Mesh(geo, plain);
-      m.position.set(-L / 2 + chamferBack / 2 - T * 0.35, yc, s * (W / 2 - chamferBack / 2 + T * 0.35));
-      m.rotation.y = s * Math.PI / 4;
-      m.castShadow = true;
-      root.add(m);
-    }
+  const h = BUMP_Y1 - BUMP_Y0;
+  const bevel = Math.min(0.02, h / 2 - 0.004);
+  const outline = frameOutline(L, W, chamferBack);
+  // shape space: (u, v) = (x, -z); after rotateX(-90deg) shape v -> world -z, depth -> +y
+  const P = outline.map(([x, z]) => new THREE.Vector2(x, -z));
+  let area = 0;
+  for (let i = 0; i < P.length; i++) { const a = P[i], b = P[(i + 1) % P.length]; area += a.x * b.y - b.x * a.y; }
+  if (area < 0) P.reverse();
+  const n = P.length;
+  const rOut = T - bevel; // the bevel adds the rest of the thickness
+  const shape = new THREE.Shape();
+  for (let i = 0; i < n; i++) {
+    const p = P[i], a = P[(i - 1 + n) % n], b = P[(i + 1) % n];
+    const d0 = new THREE.Vector2().subVectors(p, a).normalize(), d1 = new THREE.Vector2().subVectors(b, p).normalize();
+    let a0 = Math.atan2(-d0.x, d0.y), a1 = Math.atan2(-d1.x, d1.y); // outward normals (CCW polygon)
+    if (a1 < a0) a1 += Math.PI * 2;
+    const sx = p.x + rOut * Math.cos(a0), sy = p.y + rOut * Math.sin(a0);
+    if (i === 0) shape.moveTo(sx, sy); else shape.lineTo(sx, sy);
+    shape.absarc(p.x, p.y, rOut, a0, a1, false);
   }
+  shape.closePath();
+  const hole = new THREE.Path();
+  const inset = 0.004;
+  const HP = P.map((p) => p.clone().multiplyScalar(1 - inset / Math.max(L, W)));
+  hole.moveTo(HP[0].x, HP[0].y);
+  for (let i = HP.length - 1; i >= 1; i--) hole.lineTo(HP[i].x, HP[i].y);
+  hole.closePath();
+  shape.holes.push(hole);
+  const geo = new THREE.ExtrudeGeometry(shape, {
+    depth: h - 2 * bevel, bevelEnabled: true, bevelThickness: bevel, bevelSize: bevel, bevelSegments: 4, curveSegments: 10,
+  });
+  geo.rotateX(-Math.PI / 2);
+  geo.translate(0, BUMP_Y0 + bevel, 0);
+  geo.computeVertexNormals();
+  const fabric = std(ALLIANCE_COLOR_CSS[alliance], 0.88, 0.0);
+  const ring = mesh(geo, fabric, root, 0, 0, 0);
+  ring.name = 'bumper';
+  // team numbers on each straight side
+  const tex = bumperTexture(cfg.team, alliance);
+  const numMat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 });
+  const yc = (BUMP_Y0 + BUMP_Y1) / 2;
+  const sides = [
+    { x: L / 2 + T + 0.002, z: 0, ry: Math.PI / 2, len: W },
+    { x: -L / 2 - T - 0.002, z: 0, ry: -Math.PI / 2, len: W - 2 * chamferBack },
+    { x: -chamferBack / 2, z: W / 2 + T + 0.002, ry: 0, len: L - chamferBack },
+    { x: -chamferBack / 2, z: -W / 2 - T - 0.002, ry: Math.PI, len: L - chamferBack },
+  ];
+  for (const sd of sides) {
+    const w = Math.min(0.42, sd.len * 0.8), hh = w / 4;
+    const pl = new THREE.Mesh(new THREE.PlaneGeometry(w, Math.min(hh, h * 0.85)), numMat);
+    pl.position.set(sd.x, yc, sd.z);
+    pl.rotation.y = sd.ry;
+    root.add(pl);
+  }
+  return ring;
 }
 
 function addDrivebase(root, cfg, chamferBack = 0) {
   const L = cfg.frame.length, W = cfg.frame.width;
-  const frameMat = std(cfg.colors.frame, 0.45, 0.6);
-  const t = 0.05;
-  // perimeter tubes (2x1)
-  bx(L, 0.025, t, frameMat, root, -chamferBack / 2 * 0, 0.075, W / 2 - t / 2);
-  bx(L, 0.025, t, frameMat, root, 0, 0.075, -W / 2 + t / 2);
-  bx(t, 0.025, W - 2 * chamferBack, frameMat, root, L / 2 - t / 2, 0.075, 0);
-  bx(t, 0.025, W - 2 * chamferBack, frameMat, root, -L / 2 + t / 2, 0.075, 0);
-  // bellypan
-  bx(L - 0.04, 0.006, W - 0.04, M.darkAlu, root, 0, 0.05, 0);
-  // swerve modules
-  const mods = [];
-  const inset = 0.075;
-  for (const sx of [1, -1]) {
-    for (const sz of [1, -1]) {
-      const g = new THREE.Group();
-      g.position.set(sx * (L / 2 - inset), 0, sz * (W / 2 - inset));
-      root.add(g);
-      bx(0.1, 0.05, 0.1, M.darkAlu, g, 0, 0.115, 0);
-      const wheelPivot = new THREE.Group();
-      g.add(wheelPivot);
-      const wheel = cylZ(0.0508, 0.038, M.wheel, wheelPivot, 0, 0.0508, 0, 20);
-      const motor = mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.08, 14), M.black, g, 0.0, 0.18, 0.0);
-      motor.castShadow = true;
-      mods.push({ pivot: wheelPivot, wheel });
-    }
+  const frameMat = std(cfg.colors.frame, 0.4, 0.65);
+  const y = 0.085;
+  const outline = frameOutline(L, W, chamferBack);
+  for (let i = 0; i < outline.length; i++) {
+    const [x0, z0] = outline[i], [x1, z1] = outline[(i + 1) % outline.length];
+    // pull each tube 0.5in inside the perimeter
+    const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2, k = 0.0127 / Math.max(1e-6, Math.hypot(cx, cz));
+    tube(root, x0 - x0 * k * 0.9, z0 - z0 * k * 0.9, x1 - x1 * k * 0.9, z1 - z1 * k * 0.9, y, frameMat);
   }
-  return mods;
+  // cross tubes + bellypan
+  tube(root, -L / 2 + 0.16, -W / 2 + 0.03, -L / 2 + 0.16, W / 2 - 0.03, y, frameMat);
+  tube(root, L / 2 - 0.16, -W / 2 + 0.03, L / 2 - 0.16, W / 2 - 0.03, y, frameMat);
+  rbx(L - 0.05, 0.004, W - 0.05, 0.002, M.aluDark, root, 0, 0.057, 0);
+  const modules = [];
+  const inset = 0.075;
+  for (const sx of [1, -1]) for (const sz of [1, -1]) modules.push(swerveModule(root, sx * (L / 2 - inset), sz * (W / 2 - inset)));
+  return modules;
 }
 
-function storedGrid(xs, zs, ys) {
+// battery, roboRIO, PDH, radio on the bellypan
+function addElectronics(parent, x, z, rot = 0) {
+  const g = new THREE.Group();
+  g.position.set(x, 0.06, z);
+  g.rotation.y = rot;
+  parent.add(g);
+  rbx(0.18, 0.17, 0.077, 0.006, M.battery, g, 0, 0.085, 0);
+  cylY(0.006, 0.02, M.red, g, 0.05, 0.18, 0.02, 8);
+  cylY(0.006, 0.02, M.black, g, -0.05, 0.18, 0.02, 8);
+  rbx(0.14, 0.03, 0.1, 0.005, M.rioGrey, g, 0, 0.015, 0.1); // roboRIO
+  rbx(0.14, 0.04, 0.09, 0.005, M.anodBlack, g, 0, 0.02, -0.1); // PDH
+  bx(0.02, 0.006, 0.06, M.red, g, 0, 0.042, -0.1);
+  rbx(0.1, 0.03, 0.06, 0.008, M.radioWhite, g, 0.12, 0.015, 0.1); // radio
+  return g;
+}
+
+function limelight(parent, x, y, z, ry = 0) {
+  const g = new THREE.Group();
+  g.position.set(x, y, z);
+  g.rotation.y = ry;
+  parent.add(g);
+  rbx(0.03, 0.06, 0.1, 0.006, M.anodBlack, g, 0, 0, 0);
+  const lens = mesh(new THREE.CircleGeometry(0.014, 16), M.lens, g, 0.0155, 0, 0);
+  lens.rotation.y = Math.PI / 2;
+  for (const s of [-1, 1]) { const l = mesh(new THREE.CircleGeometry(0.006, 10), M.led, g, 0.0155, 0, s * 0.03); l.rotation.y = Math.PI / 2; }
+  return g;
+}
+
+// polycarbonate panel with aluminum angle along its top edge; lies in the XY plane
+function polyWall(parent, w, h, x, y, z, ry = 0, mat = M.poly, edgeMat = M.alu) {
+  const g = new THREE.Group();
+  g.position.set(x, y, z);
+  g.rotation.y = ry;
+  parent.add(g);
+  const p = mesh(new THREE.PlaneGeometry(w, h), mat, g, 0, 0, 0);
+  p.castShadow = false;
+  rbx(w, 0.016, 0.016, 0.002, edgeMat, g, 0, h / 2, 0);
+  rbx(0.016, h, 0.012, 0.002, edgeMat, g, -w / 2, 0, 0);
+  rbx(0.016, h, 0.012, 0.002, edgeMat, g, w / 2, 0, 0);
+  return g;
+}
+
+// row of shooter wheels on a shaft along Z
+function wheelStack(parent, len, r, n, wheelMat, x, y, z, width = 0.02) {
+  const g = new THREE.Group();
+  g.position.set(x, y, z);
+  parent.add(g);
+  cylZ(0.006, len, M.alu, g, 0, 0, 0, 8);
+  for (let i = 0; i < n; i++) {
+    const zz = -len / 2 + (i + 0.5) * (len / n);
+    cylZ(r, width, wheelMat, g, 0, 0, zz, 20);
+  }
+  return g;
+}
+
+function storedGrid(xs, zs, ys, ext = false) {
   const out = [];
-  for (const y of ys) for (const x of xs) for (const z of zs) out.push(new THREE.Vector3(x, y, z));
+  for (const y of ys) for (const x of xs) for (const z of zs) { const v = new THREE.Vector3(x, y, z); v.ext = ext; out.push(v); }
   return out;
 }
 
 // ============================================================ 2910 Re•Blitz
+// Dumper: huge one-piece hopper over most of the robot, a 4-wide drum shooter with an
+// adjustable hood across the back (fixed to the chassis), slap-down intake at the front.
+// The hopper front wall slides forward with the intake to open up more room.
 function build2910(cfg, alliance) {
   const root = new THREE.Group();
-  const L = cfg.frame.length, W = cfg.frame.width;
+  const L = cfg.frame.length, W = cfg.frame.width, H = cfg.height;
   addBumpers(root, cfg, alliance);
   const modules = addDrivebase(root, cfg);
-  const plate = std(0x8e939b, 0.35, 0.85);
-  const purple = std(cfg.colors.accent, 0.5, 0.3);
+  addElectronics(root, 0.02, 0, 0);
+  const plate = std(0x8f949c, 0.35, 0.85);
+  const purple = std(cfg.colors.accent, 0.45, 0.35);
+  const green = std(cfg.colors.trim, 0.5, 0.2);
+  const extLen = cfg.storage.extLen;
 
-  // Shooter tower at the back: thick billet side plates, 4" drum + hood rollers, launching forward
+  // ---- shooter tower at the back: pocketed billet side plates, drum + hood
   const tower = new THREE.Group();
-  tower.position.set(-L / 2 + 0.11, 0, 0);
+  tower.position.set(-L / 2 + 0.1, 0, 0);
   root.add(tower);
+  const holes = [[-0.04, -0.12, 0.025], [0.04, -0.12, 0.025], [-0.04, 0.0, 0.02], [0.05, 0.02, 0.018], [0, 0.12, 0.018]];
   for (const s of [-1, 1]) {
-    const sp = bx(0.2, 0.46, 0.015, plate, tower, 0, 0.3, s * (W / 2 - 0.03));
-    sp.castShadow = true;
+    pocketPlate(tower, 0.19, H - 0.14, 0.0127, plate, holes, 0, 0.14 + (H - 0.14) / 2, s * (W / 2 - 0.03));
+    kraken(tower, -0.02, 0.44, s * (W / 2 + 0.01), false, 'z');
   }
-  const drum = cylZ(0.0508, W - 0.08, M.alu, tower, -0.02, 0.44, 0, 24);
+  const drum = wheelStack(tower, W - 0.09, 0.0508, 4, M.green, -0.02, 0.44, 0, (W - 0.12) / 4);
   const hood = new THREE.Group();
   hood.position.set(-0.02, 0.44, 0);
   tower.add(hood);
-  const hoodShell = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, W - 0.1, 20, 1, true, Math.PI * 0.05, Math.PI * 0.6), std(0x2a2d33, 0.5, 0.5, { side: THREE.DoubleSide }));
+  const hoodShell = new THREE.Mesh(new THREE.CylinderGeometry(0.125, 0.125, W - 0.1, 24, 1, true, Math.PI * 0.05, Math.PI * 0.62), std(0x2a2d33, 0.45, 0.55, { side: THREE.DoubleSide }));
   hoodShell.rotation.x = Math.PI / 2;
   hood.add(hoodShell);
+  for (let i = 0; i < 5; i++) {
+    const rib = new THREE.Mesh(new THREE.TorusGeometry(0.125, 0.004, 4, 20, Math.PI * 0.62), purple);
+    rib.rotation.z = Math.PI * 0.05;
+    rib.position.z = -W / 2 + 0.06 + i * ((W - 0.12) / 4);
+    hood.add(rib);
+  }
   const hoodRollers = [];
   for (let i = 0; i < 3; i++) {
-    const a = 0.35 + i * 0.5;
-    hoodRollers.push(cylZ(0.019, W - 0.1, M.alu, hood, -Math.cos(a) * 0.1, Math.sin(a) * 0.1, 0, 12));
+    const a = 0.45 + i * 0.5;
+    hoodRollers.push(cylZ(0.018, W - 0.12, M.alu, hood, -Math.cos(a) * 0.1, Math.sin(a) * 0.1, 0, 12));
   }
-  // flywheel (overdriven mass) on one side
-  const fly = cylZ(0.076, 0.03, M.copper, tower, -0.02, 0.44, W / 2 - 0.06, 24);
-  // backing board and inclined powered feeder floor (15 deg) with rollers
-  bx(0.01, 0.3, W - 0.08, std(0xdddddd, 0.3, 0.1), tower, -0.09, 0.25, 0);
+  // compliant indexer wheels feeding the drum + inclined powered floor
+  const indexer = wheelStack(tower, W - 0.1, 0.03, 8, M.compliant, 0.07, 0.3, 0, 0.022);
   const feeder = new THREE.Group();
-  feeder.position.set(0.05, 0.1, 0);
+  feeder.position.set(0.06, 0.1, 0);
   feeder.rotation.z = 0.26;
   root.add(feeder);
   const feedRollers = [];
-  for (let i = 0; i < 10; i++) feedRollers.push(cylZ(0.016, W - 0.08, M.alu, feeder, 0.3 - i * 0.05, 0, 0, 10));
-  // compliant indexing wheels
-  for (let i = 0; i < 9; i++) cylZ(0.028, 0.02, M.compliant, tower, 0.05, 0.3, -W / 2 + 0.08 + i * ((W - 0.16) / 8), 12);
+  for (let i = 0; i < 9; i++) feedRollers.push(cylZ(0.016, W - 0.1, M.alu, feeder, 0.32 - i * 0.05, 0, 0, 10));
+  mesh(new THREE.PlaneGeometry(0.46, W - 0.1), M.polyBelt, feeder, 0.1, -0.017, 0).rotation.x = -Math.PI / 2;
 
-  // Hopper: one-piece light-tinted polycarbonate hopper, slides forward on deploy
+  // ---- one-piece hopper (tinted polycarbonate on an aluminum frame)
   const hopper = new THREE.Group();
   root.add(hopper);
-  const hL = 0.62, hH = 0.36, hY = 0.2;
-  const hx0 = 0.05;
-  for (const s of [-1, 1]) bx(hL, hH, 0.006, M.tintPoly, hopper, hx0, hY + hH / 2, s * (W / 2 - 0.01));
-  bx(0.006, hH, W - 0.02, M.tintPoly, hopper, hx0 + hL / 2, hY + hH / 2, 0);
-  bx(hL, 0.006, W - 0.02, M.tintPoly, hopper, hx0, hY + hH, 0); // closed top
-  bx(hL, 0.02, 0.025, M.alu, hopper, hx0, hY + hH, W / 2 - 0.01);
-  bx(hL, 0.02, 0.025, M.alu, hopper, hx0, hY + hH, -W / 2 + 0.01);
-  bx(0.025, 0.013, W, M.alu, hopper, hx0 + hL / 2, hY + hH, 0);
-
-  // Slap-down intake: pivot at the front top of the frame
-  const intake = new THREE.Group();
-  intake.position.set(L / 2 - 0.04, 0.24, 0);
-  root.add(intake);
-  const armLen = 0.36;
+  const hY = 0.17, hH = H - hY - 0.01;
+  const hBack = -L / 2 + 0.2, hFront = L / 2 - 0.02;
+  const hMid = (hBack + hFront) / 2, hLen = hFront - hBack;
+  for (const s of [-1, 1]) polyWall(hopper, hLen, hH, hMid, hY + hH / 2, s * (W / 2 - 0.012), 0, M.polyTint, green);
+  // sliding front section: telescoping side panels + front wall ride out with the intake
+  const front = new THREE.Group();
+  root.add(front);
   for (const s of [-1, 1]) {
-    const arm = bx(armLen, 0.05, 0.015, plate, intake, armLen / 2, 0, s * (cfg.intake.width / 2 + 0.01));
+    polyWall(front, extLen + 0.04, hH * 0.85, hFront - extLen / 2 + 0.02, hY + hH * 0.85 / 2, s * (W / 2 - 0.028), 0, M.polyTint, M.alu);
+    tube(root, hFront - 0.28, s * (W / 2 - 0.05), hFront - 0.02, s * (W / 2 - 0.05), hY + hH - 0.02, M.aluDark, 0.012, 0.012); // slide rail
+  }
+  polyWall(front, W - 0.06, hH * 0.85, hFront + 0.02, hY + hH * 0.85 / 2, 0, Math.PI / 2, M.polyTint, M.alu);
+  limelight(root, L / 2 - 0.03, H - 0.05, W / 2 - 0.12);
+  limelight(root, -L / 2 + 0.02, H - 0.03, -W / 2 + 0.12, Math.PI);
+
+  // ---- slap-down intake: pivots at the front of the frame, arms fold up over the hopper
+  const intake = new THREE.Group();
+  intake.position.set(L / 2 - 0.035, 0.24, 0);
+  root.add(intake);
+  const armLen = 0.33;
+  for (const s of [-1, 1]) {
+    pocketPlate(intake, armLen + 0.04, 0.055, 0.0095, plate, [[-0.08, 0, 0.012], [0.04, 0, 0.012]], armLen / 2, 0, s * (cfg.intake.width / 2 + 0.012));
+    kraken(intake, 0.02, 0, s * (cfg.intake.width / 2 + 0.04), true, 'z');
   }
   const intakeRollers = [
-    cylZ(0.0254, cfg.intake.width, std(0x9ad0ff, 0.3, 0.1, { transparent: true, opacity: 0.85 }), intake, armLen, 0, 0, 16),
-    cylZ(0.016, cfg.intake.width, M.alu, intake, armLen - 0.07, -0.05, 0, 12),
-    cylZ(0.016, cfg.intake.width, M.alu, intake, armLen - 0.13, -0.08, 0, 12),
+    wheelStack(intake, cfg.intake.width, 0.03, 8, M.orangeWheel, armLen, 0, 0, 0.03),
+    wheelStack(intake, cfg.intake.width, 0.022, 6, M.compliant, armLen - 0.09, -0.035, 0, 0.025),
   ];
-  bx(0.05, 0.05, cfg.intake.width + 0.04, M.darkAlu, intake, armLen - 0.02, 0.05, 0); // 2x2 bash bar
-  // Limelight 4 on the front
-  bx(0.06, 0.05, 0.1, M.black, root, L / 2 - 0.05, 0.5, 0);
-  mesh(new THREE.CircleGeometry(0.018, 16), std(0x223344, 0.1, 0.6, { emissive: 0x113355 }), root, L / 2 - 0.019, 0.5, 0).rotation.y = Math.PI / 2;
+  rbx(0.05, 0.05, cfg.intake.width + 0.04, 0.004, purple, intake, armLen - 0.02, 0.05, 0);
 
-  const stored = storedGrid([-0.14, 0.01, 0.16, 0.31], [-0.225, -0.075, 0.075, 0.225], [0.2, 0.34, 0.47]);
-  // plus the deployed hopper extension row
-  for (const y of [0.24, 0.38]) for (const z of [-0.225, -0.075, 0.075, 0.225]) stored.push(new THREE.Vector3(0.44, y, z));
-  // plus balls pre-staged in the tower
-  for (const z of [-0.19, -0.063, 0.063, 0.19]) stored.push(new THREE.Vector3(-0.19, 0.3, z));
+  // ---- FUEL inside: main hopper, then the extension, then the tower
+  const stored = storedGrid([-0.13, 0.02, 0.17, 0.3], [-0.225, -0.075, 0.075, 0.225], [0.2, 0.34, 0.47]);
+  stored.push(...storedGrid([0.28, 0.43], [-0.225, -0.075, 0.075, 0.225], [0.22, 0.36], true).map((v) => { v.x -= extLen; return v; }));
+  for (const z of [-0.19, -0.063, 0.063, 0.19]) stored.push(new THREE.Vector3(-0.2, 0.3, z));
 
   const anim = (st, dt) => {
-    // intake pivot: 0 = stowed (up), 1 = deployed (down, over the bumper)
-    intake.rotation.z = THREE.MathUtils.lerp(2.3, -0.42, st.intakeDeploy);
-    const roll = st.intakeSpeed * dt * 40;
-    for (const r of intakeRollers) r.rotation.y += roll;
-    hopper.position.x = THREE.MathUtils.lerp(-0.1, 0.02, st.hopperDeploy);
-    drum.rotation.y -= st.flywheel * dt * 6;
-    fly.rotation.y -= st.flywheel * dt * 6;
+    // intake: 0 = stowed (arms up, leaning back over the hopper), 1 = deployed over the bumper
+    intake.rotation.z = lerp(2.0, -0.45, st.intakeDeploy);
+    for (const r of intakeRollers) r.rotation.z += st.intakeSpeed * dt * 40;
+    front.position.x = (st.hopperDeploy - 1) * extLen; // slides out by extLen
+    drum.rotation.z -= st.flywheel * dt * 6;
     for (const r of hoodRollers) r.rotation.y += st.flywheel * dt * 8;
+    indexer.rotation.z -= st.feeding * dt * 25;
     for (const r of feedRollers) r.rotation.y -= st.feeding * dt * 30;
     hood.rotation.z = (st.hoodDeg - 58) * Math.PI / 180 * 0.6;
   };
-  return { root, anim, stored, modules, shooterLocal: null };
+  return { root, anim, stored, modules, extLen };
 }
 
 // ============================================================ 4414 RIPCURRENT
+// Dye Rotor: a wide, chamfer-backed robot whose polycarbonate hopper sits on the frame; the
+// front section telescopes out 12in with the latched over-bumper intake. A rotating finned
+// disc (the Dye Rotor) single-streams FUEL into a turret with a hooded 3in flywheel.
 function build4414(cfg, alliance) {
   const root = new THREE.Group();
-  const L = cfg.frame.length, W = cfg.frame.width;
+  const L = cfg.frame.length, W = cfg.frame.width, H = cfg.height;
   const chamfer = 0.12;
+  const extLen = cfg.storage.extLen;
   addBumpers(root, cfg, alliance, chamfer);
-  const modules = addDrivebase(root, cfg, 0);
-  const teal = std(cfg.colors.accent, 0.4, 0.4);
+  const modules = addDrivebase(root, cfg, chamfer);
+  const teal = std(cfg.colors.accent, 0.4, 0.45);
+  const orange = std(cfg.colors.trim, 0.45, 0.3);
   const plate = std(0x9aa0a8, 0.35, 0.85);
+  addElectronics(root, -L / 2 + 0.2, W / 2 - 0.14, Math.PI / 2);
 
-  // Hopper walls rise from the structural bumpers; the front section extends with the intake
-  const hH = 0.4, hY = 0.16;
-  const back = new THREE.Group();
-  root.add(back);
+  // ---- fixed hopper walls on the frame (angled at the chamfers)
+  const hY = 0.17, hH = H - hY - 0.02;
+  const wallZ = W / 2 - 0.012;
+  for (const s of [-1, 1]) polyWall(root, L - chamfer - 0.02, hH, chamfer / 2 - 0.01, hY + hH / 2, s * wallZ, 0, M.poly, teal);
+  polyWall(root, W - 2 * chamfer, hH, -L / 2 + 0.012, hY + hH / 2, 0, Math.PI / 2, M.poly, teal);
   for (const s of [-1, 1]) {
-    bx(L - chamfer, hH, 0.004, M.poly, back, -chamfer / 2, hY + hH / 2, s * (W / 2 + 0.01));
-    bx(L - chamfer, 0.02, 0.02, teal, back, -chamfer / 2, hY + hH, s * (W / 2 + 0.01));
+    const cw = Math.SQRT2 * chamfer;
+    polyWall(root, cw, hH, -L / 2 + chamfer / 2, hY + hH / 2, s * (W / 2 - chamfer / 2), s * Math.PI / 4, M.poly, teal);
   }
-  bx(0.004, hH, W - 2 * chamfer, M.poly, back, -L / 2 - 0.01, hY + hH / 2, 0);
+  // ---- telescoping front extension: nested walls on rails
   const ext = new THREE.Group();
   root.add(ext);
-  const extL = 0.3;
   for (const s of [-1, 1]) {
-    bx(extL, hH, 0.004, M.poly, ext, L / 2 + extL / 2 - 0.05, hY + hH / 2, s * (W / 2 + 0.03));
-    bx(extL, 0.02, 0.02, teal, ext, L / 2 + extL / 2 - 0.05, hY + hH, s * (W / 2 + 0.03));
+    polyWall(ext, extLen + 0.06, hH * 0.9, L / 2 - extLen / 2 - 0.03, hY + hH * 0.45, s * (wallZ - 0.018), 0, M.polyTint, M.alu);
+    tube(root, L / 2 - 0.34, s * (wallZ - 0.035), L / 2 - 0.02, s * (wallZ - 0.035), hY + hH - 0.03, M.aluDark, 0.014, 0.014);
   }
-  bx(0.004, hH * 0.55, W + 0.06, M.poly, ext, L / 2 + extL - 0.05, hY + hH * 0.72, 0);
-  bx(0.02, 0.02, W + 0.06, teal, ext, L / 2 + extL - 0.05, hY + hH, 0);
+  polyWall(ext, W - 0.07, hH * 0.55, L / 2, hY + hH * 0.28, 0, Math.PI / 2, M.polyTint, M.alu);
+  rbx(0.02, 0.02, W - 0.05, 0.003, orange, ext, L / 2, hY + hH * 0.56, 0);
 
-  // Dye Rotor: large rotating disc with fins, "dolphin fin" ramp and center shrink-wrap cone
+  // ---- Dye Rotor
   const rotor = new THREE.Group();
-  rotor.position.set(-0.04, 0.1, 0);
+  rotor.position.set(-0.03, 0.105, 0);
   root.add(rotor);
-  const rotorR = Math.min(L, W) / 2 - 0.03;
-  mesh(new THREE.CylinderGeometry(rotorR, rotorR, 0.012, 40), std(0xe8e8e8, 0.5, 0.1), rotor, 0, 0, 0);
-  mesh(new THREE.ConeGeometry(0.13, 0.22, 24), std(0xdadfe6, 0.4, 0.2), rotor, 0, 0.12, 0);
+  const rotorR = Math.min(L, W) / 2 - 0.035;
+  mesh(new THREE.CylinderGeometry(rotorR, rotorR, 0.01, 48), std(0xe9ebef, 0.5, 0.1), rotor, 0, 0, 0);
+  mesh(new THREE.ConeGeometry(0.12, 0.2, 28), std(0xd8dde4, 0.4, 0.2), rotor, 0, 0.11, 0);
   for (let i = 0; i < 6; i++) {
     const a = (i * Math.PI) / 3;
-    const fin = bx(rotorR - 0.12, 0.08, 0.012, teal, rotor, Math.cos(a) * (rotorR / 2 + 0.05), 0.05, Math.sin(a) * (rotorR / 2 + 0.05));
-    fin.rotation.y = -a;
+    const fin = new THREE.Mesh(new THREE.BoxGeometry(rotorR - 0.11, 0.07, 0.01), teal);
+    fin.position.set(Math.cos(a) * (rotorR / 2 + 0.055), 0.04, Math.sin(a) * (rotorR / 2 + 0.055));
+    fin.rotation.y = -a + 0.35; // swept fins
+    fin.castShadow = true;
+    rotor.add(fin);
   }
-  // Kicker / feeder stack at the back of the rotor
-  bx(0.08, 0.3, 0.12, plate, root, -L / 2 + 0.1, 0.3, 0);
-  cylZ(0.038, 0.1, std(0xdddd55, 0.6), root, -L / 2 + 0.1, 0.36, 0, 16);
+  kraken(root, -0.03, 0.07, 0, true); // rotor drive under the disc
+  // kicker feeding the turret
+  bx(0.07, 0.24, 0.1, plate, root, -L / 2 + 0.11, 0.3, 0);
+  const kicker = wheelStack(root, 0.09, 0.028, 2, M.compliant, -L / 2 + 0.11, 0.38, 0, 0.03);
 
-  // Turret with hooded 3" flywheel shooter (4x Kraken X44)
+  // ---- turret with the hooded 3in flywheel
   const turret = new THREE.Group();
-  turret.position.set(cfg.shooter.turretPos.x, 0.4, cfg.shooter.turretPos.z);
+  turret.position.set(cfg.shooter.turretPos.x, 0.42, cfg.shooter.turretPos.z);
   root.add(turret);
-  mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.03, 32), std(0x2b2f36, 0.4, 0.6), turret, 0, 0, 0);
+  mesh(new THREE.CylinderGeometry(0.135, 0.135, 0.025, 40), std(0x2b2f36, 0.4, 0.6), turret, 0, 0, 0);
+  mesh(new THREE.TorusGeometry(0.135, 0.006, 6, 48), orange, turret, 0, 0.004, 0).rotation.x = Math.PI / 2; // gear ring
   const body = new THREE.Group();
   turret.add(body);
-  for (const s of [-1, 1]) {
-    const side = bx(0.24, 0.13, 0.012, plate, body, 0, 0.08, s * 0.07);
-  }
-  const fly = cylZ(0.038, 0.12, M.copper, body, -0.02, 0.07, 0, 20);
+  for (const s of [-1, 1]) pocketPlate(body, 0.24, 0.13, 0.008, plate, [[-0.05, 0.0, 0.022], [0.06, 0.0, 0.018]], 0, 0.08, s * 0.068);
+  const fly = wheelStack(body, 0.12, 0.038, 3, M.blueWheel, -0.02, 0.07, 0, 0.03);
   const hood = new THREE.Group();
   hood.position.set(-0.02, 0.07, 0);
   body.add(hood);
-  const hoodShell = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.13, 16, 1, true, 0, Math.PI * 0.55), std(0x1e2126, 0.5, 0.4, { side: THREE.DoubleSide }));
+  const hoodShell = new THREE.Mesh(new THREE.CylinderGeometry(0.095, 0.095, 0.13, 18, 1, true, 0, Math.PI * 0.55), std(0x1e2126, 0.45, 0.45, { side: THREE.DoubleSide }));
   hoodShell.rotation.x = Math.PI / 2;
   hood.add(hoodShell);
-  for (let i = 0; i < 4; i++) {
-    const m = mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.05, 12), M.black, body, -0.1, 0.07, -0.045 + i * 0.03);
-  }
-  // Intake: over-bumper, deploys at match start and latches down
+  for (let i = 0; i < 4; i++) kraken(body, -0.1, 0.07, -0.045 + i * 0.03, true, 'z').scale.setScalar(0.7);
+  limelight(body, 0.1, 0.14, 0, 0);
+
+  // ---- over-bumper intake (deploys at match start and latches down)
   const intake = new THREE.Group();
-  intake.position.set(L / 2 - 0.02, 0.2, 0);
+  intake.position.set(L / 2 - 0.02, 0.21, 0);
   root.add(intake);
   const armLen = 0.36;
-  for (const s of [-1, 1]) bx(armLen, 0.045, 0.012, M.alu, intake, armLen / 2, 0, s * (cfg.intake.width / 2 + 0.02));
+  for (const s of [-1, 1]) pocketPlate(intake, armLen + 0.04, 0.05, 0.008, M.alu, [[-0.1, 0, 0.012], [0.05, 0, 0.012]], armLen / 2, 0, s * (cfg.intake.width / 2 + 0.02));
   const intakeRollers = [
-    cylZ(0.038, cfg.intake.width, std(0xcfe8ff, 0.3, 0.1, { transparent: true, opacity: 0.8 }), intake, armLen, 0, 0, 18),
-    cylZ(0.019, cfg.intake.width, M.alu, intake, armLen - 0.09, -0.07, 0, 12),
+    wheelStack(intake, cfg.intake.width, 0.038, 1, std(0xcfe8ff, 0.3, 0.1, { transparent: true, opacity: 0.8 }), armLen, 0, 0, cfg.intake.width - 0.02),
+    wheelStack(intake, cfg.intake.width, 0.024, 8, M.compliant, armLen - 0.1, -0.06, 0, 0.025),
   ];
-  bx(0.07, 0.03, cfg.intake.width + 0.05, std(0xaeb3bb, 0.3, 0.9), intake, armLen - 0.02, 0.05, 0);
+  rbx(0.07, 0.03, cfg.intake.width + 0.05, 0.004, M.alu, intake, armLen - 0.02, 0.05, 0);
+  kraken(intake, 0.03, 0, cfg.intake.width / 2 + 0.05, true, 'z');
 
+  // ---- FUEL: on the rotor, then in the extension
   const stored = [];
-  for (const y of [0.2, 0.34, 0.48]) {
-    for (let ix = 0; ix < 6; ix++) {
+  for (const y of [0.18, 0.32, 0.46]) {
+    for (let ix = 0; ix < 5; ix++) {
       for (let iz = 0; iz < 6; iz++) {
-        const x = -0.28 + ix * 0.15, z = -0.375 + iz * 0.15;
-        if (Math.hypot(x - cfg.shooter.turretPos.x, z) < 0.16 && y > 0.3) continue;
+        const x = -0.27 + ix * 0.15, z = -0.375 + iz * 0.15;
+        if (Math.hypot(x - cfg.shooter.turretPos.x, z) < 0.17 && y > 0.3) continue;
         if (x < -L / 2 + 0.05 && Math.abs(z) > W / 2 - chamfer) continue;
         stored.push(new THREE.Vector3(x, y, z));
       }
     }
   }
   stored.sort((a, b) => a.y - b.y || Math.hypot(a.x, a.z) - Math.hypot(b.x, b.z));
+  stored.push(...storedGrid([L / 2 - extLen + 0.08, L / 2 - extLen + 0.22], [-0.375, -0.225, -0.075, 0.075, 0.225, 0.375], [0.2, 0.34], true));
 
   const anim = (st, dt) => {
-    intake.rotation.z = THREE.MathUtils.lerp(2.3, -0.4, st.intakeDeploy);
-    for (const r of intakeRollers) r.rotation.y += st.intakeSpeed * dt * 35;
-    ext.position.x = THREE.MathUtils.lerp(-0.26, 0, st.hopperDeploy);
+    intake.rotation.z = lerp(2.05, -0.4, st.intakeDeploy);
+    for (const r of intakeRollers) r.rotation.z += st.intakeSpeed * dt * 35;
+    ext.position.x = (st.hopperDeploy - 1) * extLen;
     rotor.rotation.y += (st.feeding > 0 ? 7 : 0.6) * dt; // agitates slowly, spins fast when firing
+    kicker.rotation.z -= st.feeding * dt * 30;
     turret.rotation.y = st.turretYaw;
-    fly.rotation.y -= st.flywheel * dt * 10;
+    fly.rotation.z -= st.flywheel * dt * 10;
     hood.rotation.z = (st.hoodDeg - 62) * Math.PI / 180 * 0.8;
   };
-  return { root, anim, stored, modules };
+  return { root, anim, stored, modules, extLen };
 }
 
 // ============================================================ 8793 Hopperless
+// Low, open robot: wide multi-roller intake -> funnel conveyor of compliant wheels -> big
+// bearing-ring turret carrying a hooded flywheel shooter. Holds only the FUEL in its path.
 function build8793(cfg, alliance) {
   const root = new THREE.Group();
   const L = cfg.frame.length, W = cfg.frame.width;
@@ -344,12 +537,13 @@ function build8793(cfg, alliance) {
   const modules = addDrivebase(root, cfg);
   const orange = std(cfg.colors.accent, 0.45, 0.35);
   const plate = std(0x2a2c31, 0.5, 0.6);
+  addElectronics(root, -0.12, -W / 2 + 0.2, Math.PI / 2);
 
-  // electronics / top plate
-  bx(L - 0.1, 0.01, W - 0.1, std(0x1b1c20, 0.6, 0.4), root, -0.02, 0.17, 0);
-  for (const s of [-1, 1]) bx(L * 0.5, 0.012, 0.18, orange, root, -0.12, 0.178, s * (W / 2 - 0.14));
+  // electronics deck
+  rbx(L - 0.12, 0.008, W - 0.12, 0.003, std(0x1b1c20, 0.6, 0.4), root, -0.02, 0.172, 0);
+  for (const s of [-1, 1]) rbx(L * 0.45, 0.01, 0.16, 0.003, orange, root, -0.14, 0.18, s * (W / 2 - 0.14));
 
-  // Conveyor V2: funnel of compliant wheels from the intake back to the turret
+  // conveyor: funnel of compliant wheels from the intake back to the turret
   const conv = new THREE.Group();
   conv.position.set(0.1, 0.19, 0);
   root.add(conv);
@@ -357,64 +551,58 @@ function build8793(cfg, alliance) {
   for (let row = 0; row < 3; row++) {
     const w = W - 0.18 - row * 0.1;
     const n = 6 - row;
-    for (let i = 0; i < n; i++) {
-      const z = -w / 2 + (i + 0.5) * (w / n);
-      const m = cylZ(0.035, 0.03, M.compliant, conv, 0.12 - row * 0.1, 0.02 + row * 0.03, z, 14);
-      convWheels.push(m);
-    }
-    cylZ(0.008, w, M.alu, conv, 0.12 - row * 0.1, 0.02 + row * 0.03, 0, 8);
+    const stack = wheelStack(conv, w, 0.035, n, M.compliant, 0.12 - row * 0.1, 0.02 + row * 0.03, 0, 0.03);
+    convWheels.push(stack);
   }
-  for (const s of [-1, 1]) bx(0.34, 0.1, 0.008, plate, conv, 0.02, 0.05, s * (W / 2 - 0.08));
+  for (const s of [-1, 1]) pocketPlate(conv, 0.36, 0.12, 0.006, orange, [[-0.1, 0, 0.025], [0.02, 0, 0.025], [0.13, 0, 0.02]], 0.02, 0.05, s * (W / 2 - 0.08));
+  kraken(conv, 0.02, 0.05, W / 2 - 0.05, true, 'z');
 
-  // Turret: big round bearing plate at the back with the hooded flywheel shooter
+  // turret: big bearing ring at the back with the hooded shooter
   const turret = new THREE.Group();
   turret.position.set(cfg.shooter.turretPos.x, 0.25, cfg.shooter.turretPos.z);
   root.add(turret);
-  mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.025, 40), std(0x2a2d33, 0.45, 0.5), turret, 0, 0, 0);
-  mesh(new THREE.TorusGeometry(0.215, 0.008, 6, 40), M.alu, turret, 0, 0.014, 0).rotation.x = Math.PI / 2;
+  mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.02, 48), std(0x2a2d33, 0.45, 0.5), turret, 0, 0, 0);
+  mesh(new THREE.TorusGeometry(0.215, 0.009, 8, 60), M.alu, turret, 0, 0.012, 0).rotation.x = Math.PI / 2;
   const body = new THREE.Group();
   turret.add(body);
-  for (const s of [-1, 1]) {
-    const sp = bx(0.3, 0.2, 0.012, orange, body, 0.0, 0.11, s * 0.1);
-  }
-  const fly = cylZ(0.05, 0.16, M.yellowWheel, body, 0.02, 0.1, 0, 22);
+  for (const s of [-1, 1]) pocketPlate(body, 0.3, 0.2, 0.008, orange, [[-0.09, 0.02, 0.03], [0.02, -0.03, 0.03], [0.1, 0.04, 0.025]], 0, 0.11, s * 0.1);
+  const fly = wheelStack(body, 0.16, 0.05, 2, M.orangeWheel, 0.02, 0.1, 0, 0.05);
   const hood = new THREE.Group();
   hood.position.set(0.02, 0.1, 0);
   body.add(hood);
-  const hoodShell = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.19, 18, 1, true, 0, Math.PI * 0.6), std(0x1b1d22, 0.45, 0.5, { side: THREE.DoubleSide }));
+  const hoodShell = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.19, 20, 1, true, 0, Math.PI * 0.6), std(0x1b1d22, 0.45, 0.5, { side: THREE.DoubleSide }));
   hoodShell.rotation.x = Math.PI / 2;
   hood.add(hoodShell);
   for (let i = 0; i < 5; i++) cylZ(0.022, 0.03, M.compliant, hood, -Math.cos(0.5 + i * 0.3) * 0.12, Math.sin(0.5 + i * 0.3) * 0.12, 0, 10);
-  // LED strip on the turret
-  for (let i = 0; i < 7; i++) mesh(new THREE.SphereGeometry(0.008, 8, 6), M.led, body, 0.09 + i * 0.012, 0.16, 0.107);
-  bx(0.05, 0.06, 0.08, M.black, body, -0.14, 0.2, 0); // camera
+  for (const s of [-1, 1]) kraken(body, 0.02, 0.1, s * 0.13, false, 'z');
+  for (let i = 0; i < 7; i++) mesh(new THREE.SphereGeometry(0.007, 8, 6), M.led, body, 0.09 + i * 0.012, 0.16, 0.108);
+  limelight(body, -0.15, 0.2, 0, Math.PI);
 
-  // Intake V3: multi-roller over-bumper intake at the front
+  // Intake V3: multi-roller over-bumper intake
   const intake = new THREE.Group();
   intake.position.set(L / 2 - 0.03, 0.2, 0);
   root.add(intake);
   const armLen = 0.33;
-  for (const s of [-1, 1]) {
-    const arm = bx(armLen, 0.07, 0.012, plate, intake, armLen / 2, -0.01, s * (cfg.intake.width / 2 + 0.02));
-  }
+  for (const s of [-1, 1]) pocketPlate(intake, armLen + 0.04, 0.07, 0.008, plate, [[-0.1, 0, 0.018], [0.02, 0, 0.018], [0.12, 0, 0.015]], armLen / 2, -0.01, s * (cfg.intake.width / 2 + 0.02));
   const intakeRollers = [];
-  for (let i = 0; i < 3; i++) intakeRollers.push(cylZ(0.024, cfg.intake.width, M.black, intake, armLen - i * 0.075, -0.02 + i * 0.03, 0, 14));
-  for (let i = 0; i < 7; i++) cylZ(0.035, 0.025, M.compliant, intake, armLen - 0.19, 0.03, -cfg.intake.width / 2 + 0.05 + i * ((cfg.intake.width - 0.1) / 6), 12);
+  for (let i = 0; i < 3; i++) intakeRollers.push(wheelStack(intake, cfg.intake.width, 0.024, 1, M.black, armLen - i * 0.075, -0.02 + i * 0.03, 0, cfg.intake.width - 0.02));
+  wheelStack(intake, cfg.intake.width - 0.06, 0.035, 7, M.compliant, armLen - 0.19, 0.03, 0, 0.025);
+  kraken(intake, 0.03, 0, cfg.intake.width / 2 + 0.05, true, 'z');
 
-  // FUEL held in the ball path (intake -> conveyor -> turret)
+  // FUEL in the ball path (intake -> conveyor -> turret)
   const stored = [];
   const path = [[0.33, 0.13], [0.26, 0.16], [0.19, 0.2], [0.12, 0.24], [0.05, 0.28], [-0.02, 0.32]];
   for (let i = path.length - 1; i >= 0; i--) for (const z of [-0.08, 0.08]) stored.push(new THREE.Vector3(path[i][0] - 0.1, path[i][1] + 0.06, z));
 
   const anim = (st, dt) => {
-    intake.rotation.z = THREE.MathUtils.lerp(2.2, -0.35, st.intakeDeploy);
-    for (const r of intakeRollers) r.rotation.y += st.intakeSpeed * dt * 40;
-    for (const w of convWheels) w.rotation.y += (st.intakeSpeed + st.feeding) * dt * 25;
+    intake.rotation.z = lerp(2.0, -0.35, st.intakeDeploy);
+    for (const r of intakeRollers) r.rotation.z += st.intakeSpeed * dt * 40;
+    for (const w of convWheels) w.rotation.z += (st.intakeSpeed + st.feeding) * dt * 25;
     turret.rotation.y = st.turretYaw;
-    fly.rotation.y -= st.flywheel * dt * 8;
+    fly.rotation.z -= st.flywheel * dt * 8;
     hood.rotation.z = (st.hoodDeg - 62) * Math.PI / 180 * 0.8;
   };
-  return { root, anim, stored, modules };
+  return { root, anim, stored, modules, extLen: 0 };
 }
 
 export function buildRobotModel(cfg, alliance) {
@@ -432,9 +620,8 @@ export function buildRobotModel(cfg, alliance) {
   m.root.add(inst);
   m.storedMesh = inst;
   m.root.traverse((o) => {
-    if (o.isMesh) o.castShadow = true;
+    if (o.isMesh && o.material !== M.poly && o.material !== M.polyTint) o.castShadow = true;
   });
-  // add a subtle climber visual if equipped
   return m;
 }
 

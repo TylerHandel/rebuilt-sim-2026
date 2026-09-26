@@ -263,7 +263,7 @@ export class DrivingRecorder {
         this.inBurst = true;
         O.spotFx.push(Math.abs(r.pos.x - wallX));
         O.spotZ.push(Math.abs(r.pos.z));
-        const cap = r.capacity();
+        const cap = r.maxCapacity();
         O.fill.push((r.stored.length + fired) / (cap < 20 ? cap : Math.min(cap, 60)));
         if (this.lastBurstEnd !== null && m.hubActive(own)) O.cycleTime.push(t - this.lastBurstEnd);
       }
