@@ -153,8 +153,9 @@ export class Hopper {
         const r = s.rotor;
         const spin = env.feeding ? r.spin : r.idle;
         const ux = spin * (p.z - r.z), uz = -spin * (p.x - r.x);
-        fx += 25 * (ux - v.x);
-        fz += 25 * (uz - v.z);
+        const k = r.grip ?? 25;
+        fx += k * (ux - v.x);
+        fz += k * (uz - v.z);
       } else if (s.drive === 'belt') {
         // compliant conveyor wheels grip the FUEL: carry it up to the turret, or hold it
         const b = s.floor.b, n = Math.hypot(1, b);

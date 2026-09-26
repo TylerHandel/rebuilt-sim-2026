@@ -25,14 +25,16 @@ export const ROBOTS = {
     height: 21.5 * IN,
     mass: 61,
     drive: { maxSpeed: 4.3, maxAccel: 9.5, maxOmega: 8.5, maxAlpha: 32 },
-    intake: { width: 25.5 * IN, reach: 11 * IN, rate: 26, deployTime: 0.35, side: 'front', latched: false },
-    // one-piece hopper whose front slides out with the intake (40 FUEL retracted, 58 out)
-    storage: { capacity: 58, retracted: 40, extLen: 0.25, extend: 'intake' },
+    // slap-down intake from 2910's CAD: its 2in roller reaches ~7.8in past the bumper
+    intake: { width: 25.5 * IN, reach: 7.8 * IN, rate: 26, deployTime: 0.35, side: 'front', latched: false },
+    // stowed, the intake stands up in the front of the hopper; deployed, that room holds FUEL
+    // (40 FUEL stowed, 58 deployed). inside: the hopper grows within the frame
+    storage: { capacity: 58, retracted: 40, extLen: 0.1, extend: 'intake', inside: true },
     // the hopper as the FUEL sees it (robot frame: x forward, y up, z to the side; meters).
     // Powered floor rollers slope down to the back, where compliant indexer wheels lift FUEL
     // into the drum.
     bay: {
-      x0: -0.143, x1: 0.323, hw: 0.33, top: 0.54,
+      x0: -0.143, x1: 0.323, hw: 0.33, top: 0.6, // a full hopper heaps above the walls
       floor: { a: 0.1, b: 0.266, lo: 0.09, hi: 0.17 },
       drive: 'floor', driveSpeed: 1.8,
       feed: { x: -0.09, via: [[-0.17, 0.3]] },
@@ -63,23 +65,23 @@ export const ROBOTS = {
     height: 21.75 * IN,
     mass: 60,
     drive: { maxSpeed: 4.0, maxAccel: 9.0, maxOmega: 8.0, maxAlpha: 30 },
-    intake: { width: 30 * IN, reach: 12 * IN, rate: 30, deployTime: 0.4, side: 'front', latched: true },
-    // hopper front telescopes out 12in with the latched intake (58 FUEL retracted, 88 out)
-    storage: { capacity: 88, retracted: 58, extLen: 0.3, extend: 'latched' },
-    // Netted hopper over the Dye Rotor: printed stadium terraces funnel FUEL into the rotor's
-    // pockets; it carries each one around to the Dolphin Fin at the back, up a roller ramp to the
-    // feeder wheels and into the turret. The back corners are chamfered.
+    // the intake is a box that slides out on racks (extLen) with its roller at the lip
+    intake: { width: 30 * IN, reach: 0.27 + 0.035 - 3.25 * IN, rate: 30, deployTime: 0.4, side: 'front', latched: true },
+    // the intake box is also the hopper's extension (58 FUEL retracted, 88 out)
+    storage: { capacity: 88, retracted: 58, extLen: 0.27, extend: 'latched' },
+    // Netted hopper over the Dye Rotor: printed stadium pieces funnel FUEL onto the rotating floor,
+    // which carries it around to the Dolphin Fin beside the center column; a ramp of passive
+    // rollers climbs the column to the feeder wheels and the turret on top. Chamfered back corners.
     bay: {
-      x0: -0.305, x1: 0.317, hw: 0.376, top: 0.53, extTop: 0.49, chamfer: 0.12,
+      x0: -0.305, x1: 0.317, hw: 0.376, top: 0.53, extTop: 0.47, chamfer: 0.12,
       floor: { a: 0.105, b: 0, lo: 0.105, hi: 0.105 },
       funnel: { slope: 0.4, cap: 0.1 },
+      column: { x: -0.1, z: 0, r: 0.12, y1: 0.41 },
       obstacles: [
-        { x: -0.03, z: 0, r: 0.06, y0: 0.1, y1: 0.165 },         // rotor hub
-        { x: -0.1, z: 0, r: 0.15, y0: 0.405, y1: 1 },            // turret
-        { box: [-0.305, -0.16, 0.265, 0.43, -0.09, 0.09] },      // ramp cover
+        { x: -0.1, z: 0, r: 0.12, y0: 0.1, y1: 1 }, // center column and turret
       ],
-      drive: 'rotor', rotor: { x: -0.03, z: 0, y: 0.105, r: 0.27, pockets: 9, spin: 14.1, idle: -0.6 },
-      feed: { x: -0.2, z: 0, via: [[-0.26, 0.24], [-0.2, 0.39], [-0.1, 0.47]] },
+      drive: 'rotor', rotor: { x: -0.02, z: 0, y: 0.105, r: 0.285, grip: 10, spin: 14.1, idle: -0.6 },
+      feed: { x: -0.08, z: 0.2, via: [[-0.06, 0.25, 0.2], [-0.12, 0.34, 0.17], [-0.1, 0.46, 0]] },
     },
     shooter: {
       type: 'turret',

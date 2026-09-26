@@ -41,16 +41,23 @@ export function customSelection(routine, side) {
 // the DEPOT. Plans are in absolute blue coordinates (not mirrored). Robot BUMPERS may reach
 // past the CENTER LINE, never fully across it.
 export const BEST_AUTOS = {
+  // 127 AUTO FUEL on average: two sweeps, the second along the line nearest the CENTER LINE
   2910: { start: 'rightTrench', preload: 'move', trips: [
-    { out: 'trench', fx: 7.55, a: 1.4, b: 6.5, speed: 0.55, home: 'trench', shootAt: [2.6, 6.2] },
-    { out: 'trench', fx: 8.05, a: 6.6, b: 1.5, speed: 0.55, home: 'trench', shootAt: [2.6, 1.9] },
+    { out: 'bump', fx: 7.5, a: 1.71, b: 5.19, speed: 0.55, home: 'bump', shootAt: [2.68, 5.73] },
+    { out: 'trench', fx: 8.04, a: 5.91, b: 2.16, speed: 0.68, home: 'bump', shootAt: [3.08, 1.99] },
   ] },
-  4414: { start: 'rightTrench', preload: 'move', trips: [
-    { out: 'trench', fx: 7.6, a: 1.4, b: 6.5, speed: 0.5, home: 'trench', shootAt: [2.6, 6.2] },
+  // 143: its 88-FUEL hopper sweeps the line nearest the CENTER LINE, then a second pass
+  4414: { start: 'rightTrench', preload: 'stand', trips: [
+    { out: 'trench', fx: 8.4, a: 2.32, b: 6.7, speed: 0.53, home: 'bump', shootAt: [2.21, 5.46] },
+    { out: 'bump', fx: 7.45, a: 6.65, b: 4.52, speed: 0.46, home: 'trench', shootAt: [2.95, 5.72] },
   ] },
-  8793: { start: 'leftBump', preload: 'move', trips: [
-    { depot: true, speed: 0.35 },
-    { out: 'bump', fx: 7.7, a: 6.2, b: 5.0, speed: 0.3, home: 'bump', shootAt: [3.0, 5.6] },
+  // 63: clears the DEPOT while shooting, then short slow passes (it only holds 12) with a trip
+  // home to shoot after each, and a last sweep back through the DEPOT
+  8793: { start: 'leftTrench', preload: 'move', trips: [
+    { depot: true, speed: 0.58 },
+    { out: 'bump', fx: 7.41, a: 6.59, b: 5.75, speed: 0.37, home: 'bump', shootAt: [2.46, 6.05] },
+    { out: 'trench', fx: 8.63, a: 6.5, b: 5.11, speed: 0.57, home: 'trench', shootAt: [3.37, 5.47] },
+    { depot: true, speed: 0.33 },
   ] },
 };
 
