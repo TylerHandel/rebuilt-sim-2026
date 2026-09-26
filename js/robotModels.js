@@ -466,9 +466,10 @@ function build2910(cfg, alliance) {
   // deploys (the stowed intake stands just behind the front wall)
   const front = new THREE.Group();
   root.add(front);
+  const rails = [];
   for (const s of [-1, 1]) {
     polyWall(front, extLen + 0.04, hH * 0.85, hFront - extLen / 2 + 0.02, hY + hH * 0.85 / 2, s * (W / 2 - 0.028), 0, M.polyTint, M.alu);
-    tube(root, hFront - 0.28, s * (W / 2 - 0.05), hFront - 0.02, s * (W / 2 - 0.05), hY + hH - 0.02, M.aluDark, 0.012, 0.012); // slide rail
+    rails.push(tube(root, hFront - 0.28, s * (W / 2 - 0.05), hFront - 0.02, s * (W / 2 - 0.05), hY + hH - 0.02, M.aluDark, 0.012, 0.012)); // slide rail
   }
   // front wall stops short of the floor: the intake feeds FUEL in through the slot under it
   const slot = 0.2, fwH = hH * 0.85 - slot;
@@ -484,6 +485,13 @@ function build2910(cfg, alliance) {
   };
   lid(hopper, hBack, hFront, hY + hH, W - 0.03);
   lid(front, hFront - extLen + 0.02, hFront + 0.02, hY + hH * 0.85, W - 0.06);
+  // their "R2 Hopper" assembly: side, top and front panels that sit over the shooter when stowed
+  // and slide out along the slotted rails as the intake deploys; replaces the drawn hopper
+  const drawnFront = [...front.children];
+  cadPart(front, 'robots/2910-hopper.glb', () => {
+    hopper.visible = false;
+    for (const c of [...drawnFront, ...rails]) c.visible = false;
+  });
   limelight(root, hFront - 0.3, H + 0.01, W / 2 - 0.03);
   limelight(root, -L / 2 + 0.02, H - 0.03, -W / 2 + 0.12, Math.PI);
 

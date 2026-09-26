@@ -37,6 +37,8 @@ Playing Field"). Its GLB export is in meters, Z-up, with the blue alliance on +X
 DID=dfb391aac173a4555d00a5b5 WID=3dc64f602735252892b0e47b tools/onshape-export.sh /tmp/r2910.glb 6c654da4eb6b1710fb0900bd
 node tools/extract-part.mjs /tmp/r2910.glb cad/robots/2910-intake.glb "Pivoting Intake Assembly" -0.273 0.170
 node tools/extract-part.mjs /tmp/r2910.glb cad/robots/2910-shooter.glb "32 - R2 Shooter & Feeder" 0 0
+node tools/extract-part.mjs /tmp/r2910.glb cad/robots/2910-hopper.glb "62 - R2 Hopper" 0 0
 ```
+`robots/2910-hopper.glb` is their "R2 Hopper": its side, top and front panels sit over the shooter when stowed and slide out along the slotted rails as the intake deploys (0.25 m, `storage.extLen`). The slots allow up to ~0.48 m; the travel isn't in the export.
 `robots/2910-shooter.glb` is their "Shooter & Feeder": the powered floor, the roller ramp that indexes FUEL up under the rollered hood, and the drum at the back. It's static (origin at the robot center) and replaces the drawn tower once it loads.
 

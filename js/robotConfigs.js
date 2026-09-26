@@ -27,14 +27,14 @@ export const ROBOTS = {
     drive: { maxSpeed: 4.3, maxAccel: 9.5, maxOmega: 8.5, maxAlpha: 32 },
     // slap-down intake from 2910's CAD: its 2in roller reaches ~7.8in past the bumper
     intake: { width: 25.5 * IN, reach: 7.8 * IN, rate: 26, deployTime: 0.35, side: 'front', latched: false },
-    // one-piece hopper whose front panels expand out over the intake as it deploys
-    // (40 FUEL stowed, 58 deployed)
-    storage: { capacity: 58, retracted: 40, extLen: 0.2, extend: 'intake' },
+    // one-piece hopper (their CAD): its panels sit over the shooter when stowed and slide out
+    // along slotted rails as the intake deploys (40 FUEL stowed, 58 deployed)
+    storage: { capacity: 58, retracted: 40, extLen: 0.25, extend: 'intake' },
     // the hopper as the FUEL sees it (robot frame: x forward, y up, z to the side; meters).
     // Powered floor rollers slope down to the back, where compliant indexer wheels lift FUEL
     // into the drum.
     bay: {
-      x0: -0.143, x1: 0.323, hw: 0.33, top: 0.53, extTop: 0.47, // under the lids
+      x0: -0.143, x1: 0.323, hw: 0.33, top: 0.53, extTop: 0.5, // under the hopper top (their CAD)
       floor: { a: 0.1, b: 0.266, lo: 0.09, hi: 0.17 },
       drive: 'floor', driveSpeed: 1.8,
       // up the roller ramp at the back of the hopper, under the hood to the drum (their CAD)
