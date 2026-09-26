@@ -24,6 +24,7 @@ export class Hopper {
     this.list = [];
     this.front = spec.x1;
     this.quiet = 0;
+    this.finAngle = 0; // Dye Rotor: where the Dolphin Fin is (robot frame, about +y)
   }
 
   clear() {
@@ -114,7 +115,8 @@ export class Hopper {
     return out.copy(pts[pts.length - 1]);
   }
 
-  // env: acc {x, z} robot acceleration in the robot frame, w yaw rate, alpha yaw acceleration,
+  // env: acc {x, y, z} robot acceleration and g gravity, both in the (tilted) robot frame, w yaw
+  // rate, alpha yaw acceleration,
   // feeding / intaking (mechanisms running), feedPoint (Vector3) where the shooter takes FUEL
   step(dt, env) {
     const s = this.spec;
@@ -129,10 +131,16 @@ export class Hopper {
       e.v.copy(e.p).sub(e.prev).divideScalar(dt);
       if (e.tr.t >= e.tr.T) e.tr.onDone(e);
     }
+    let spin = 0;
+    if (s.drive === 'rotor') {
+      spin = env.feeding ? s.rotor.spin : s.rotor.idle;
+      this.finAngle = (this.finAngle + spin * dt) % (2 * Math.PI);
+    }
     const w = env.w || 0, al = env.alpha || 0;
-    const ax = env.acc.x, az = env.acc.z;
+    const ax = env.acc.x, az = env.acc.z, ay = env.acc.y || 0;
+    const gx = env.g ? env.g.x : 0, gy = env.g ? env.g.y : -G, gz = env.g ? env.g.z : 0;
     const running = env.feeding || env.intaking;
-    const still = Math.abs(w) < 0.05 && Math.hypot(ax, az) < 0.3 && !running && !list.some((e) => e.tr);
+    const still = Math.abs(w) < 0.05 && Math.hypot(ax, az) < 0.3 && !running && !spin && !list.some((e) => e.tr);
     if (still && this.quiet > 0.4) return;
 
     let maxV = 0;
@@ -140,22 +148,28 @@ export class Hopper {
       if (e.tr) continue;
       const p = e.p, v = e.v;
       // gravity and the robot frame's pseudo-forces (it accelerates and turns under the FUEL)
-      let fx = -ax + w * w * p.x - 2 * w * v.z - al * p.z;
-      let fy = -G;
-      let fz = -az + w * w * p.z + 2 * w * v.x + al * p.x;
+      let fx = gx - ax + w * w * p.x - 2 * w * v.z - al * p.z;
+      let fy = gy - ay;
+      let fz = gz - az + w * w * p.z + 2 * w * v.x + al * p.x;
       const onFloor = p.y - R_WALL - this.floorAt(p.x, p.z) < 0.02;
       if (s.drive === 'floor' && onFloor) {
         // powered floor rollers carry FUEL back to the indexer
         const target = env.feeding ? -s.driveSpeed : env.intaking ? -0.5 : null;
         if (target !== null) fx += 12 * (target - v.x);
-      } else if (s.drive === 'rotor' && onFloor && Math.hypot(p.x - s.rotor.x, p.z - s.rotor.z) < s.rotor.r - 0.02) {
-        // FUEL in the rotor's pockets rides around with it
-        const r = s.rotor;
-        const spin = env.feeding ? r.spin : r.idle;
-        const ux = spin * (p.z - r.z), uz = -spin * (p.x - r.x);
-        const k = r.grip ?? 25;
-        fx += k * (ux - v.x);
-        fz += k * (uz - v.z);
+      } else if (s.drive === 'rotor' && onFloor) {
+        // the Dolphin Fin sweeps round over the still floor: it pushes the FUEL touching its
+        // leading face, and that FUEL pushes the rest along
+        const r = s.rotor, dx = p.x - r.x, dz = p.z - r.z, d = Math.hypot(dx, dz);
+        if (d < r.r && d > 0.05 && spin) {
+          const th = Math.atan2(-dz, dx); // same sense as the fin: direction (cos, 0, -sin)
+          let gap = (spin > 0 ? th - this.finAngle : this.finAngle - th) % (2 * Math.PI);
+          if (gap < 0) gap += 2 * Math.PI;
+          if (gap < R / d + 0.08) {
+            const ux = -Math.sin(th) * spin * d, uz = -Math.cos(th) * spin * d;
+            fx += (r.grip ?? 40) * (ux - v.x);
+            fz += (r.grip ?? 40) * (uz - v.z);
+          }
+        }
       } else if (s.drive === 'belt') {
         // compliant conveyor wheels grip the FUEL: carry it up to the turret, or hold it
         const b = s.floor.b, n = Math.hypot(1, b);

@@ -11,7 +11,7 @@ import { MeshoptSimplifier } from 'meshoptimizer';
 
 const [src, dst, name, py, pz] = process.argv.slice(2);
 if (!pz) { console.log('usage: node tools/extract-part.mjs robot.glb out.glb "<subassembly name>" <pivot y> <pivot z>'); process.exit(1); }
-const DROP = /screw|bolt|nut\b|washer|rivet|spacer|chain|belt|tensioner|bearing|gear|sprocket|kraken|motor|plug|collar|pin\b|hub|insert|pulley|retaining|wcp-0982|^9\d{4}a/i;
+const DROP = /screw|bolt|nut\b|washer|rivet|spacer|chain|belt|tensioner|bearing|gear|sprocket|kraken|motor|plug|collar|pin\b|hub|insert|pulley|retaining|wcp-0982|^9\d{4}a|^fuel\b/i; // FUEL: the game has its own
 const io = new NodeIO().registerExtensions(ALL_EXTENSIONS);
 const doc = await io.read(src);
 const root = doc.getRoot();

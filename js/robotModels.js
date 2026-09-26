@@ -92,7 +92,7 @@ const M = {
   poly: new THREE.MeshPhysicalMaterial({ color: 0xa9c4dd, transparent: true, opacity: 0.26, roughness: 0.05, depthWrite: false, side: THREE.DoubleSide }),
   polyTint: new THREE.MeshPhysicalMaterial({ color: 0x8aa3bb, transparent: true, opacity: 0.32, roughness: 0.08, depthWrite: false, side: THREE.DoubleSide }),
   compliant: std(0x2b2b2e, 0.9, 0.0),
-  green: std(0x3fae49, 0.6, 0.1),
+  green: std(0x8ccf6a, 0.6, 0.1), // 2910's drum wheels
   orangeWheel: std(0xe0782a, 0.7, 0.05),
   blueWheel: std(0x2d6fd6, 0.7, 0.05),
   copper: std(0xb87333, 0.35, 0.9),
@@ -415,35 +415,38 @@ function build2910(cfg, alliance) {
   const green = std(cfg.colors.trim, 0.5, 0.2);
   const extLen = cfg.storage.extLen;
 
-  // ---- shooter tower at the back: pocketed billet side plates, drum + hood
+  // ---- shooter tower at the back: pocketed billet side plates, drum + hood. It fires out the
+  // back, away from the intake: FUEL comes up the front of the drum from the indexer, rides over
+  // the top under the hood and leaves at the back.
   const tower = new THREE.Group();
   tower.position.set(-L / 2 + 0.1, 0, 0);
   root.add(tower);
   const holes = [[-0.04, -0.12, 0.025], [0.04, -0.12, 0.025], [-0.04, 0.0, 0.02], [0.05, 0.02, 0.018], [0, 0.12, 0.018]];
+  const drumY = 0.37, hoodR = 0.17; // hood clears a FUEL (5.9in) squeezed on the 4in drum
   for (const s of [-1, 1]) {
     pocketPlate(tower, 0.19, H - 0.14, 0.0127, plate, holes, 0, 0.14 + (H - 0.14) / 2, s * (W / 2 - 0.03));
-    kraken(tower, -0.02, 0.44, s * (W / 2 + 0.01), false, 'z');
+    kraken(tower, -0.02, drumY, s * (W / 2 + 0.01), false, 'z');
   }
-  const drum = wheelStack(tower, W - 0.09, 0.0508, 4, M.green, -0.02, 0.44, 0, (W - 0.12) / 4);
+  const drum = wheelStack(tower, W - 0.09, 0.0508, 4, M.green, -0.02, drumY, 0, (W - 0.12) / 4);
   const hood = new THREE.Group();
-  hood.position.set(-0.02, 0.44, 0);
+  hood.position.set(-0.02, drumY, 0);
   tower.add(hood);
-  const hoodShell = new THREE.Mesh(new THREE.CylinderGeometry(0.125, 0.125, W - 0.1, 24, 1, true, Math.PI * 0.05, Math.PI * 0.62), std(0x2a2d33, 0.45, 0.55, { side: THREE.DoubleSide }));
+  // the hood only covers the exit side: a polycarbonate arc on ribs from just past the top of the
+  // drum (70deg) back to where FUEL leaves (139deg), so the drum stays in view
+  const arc0 = 1.22, arcLen = 1.21;
+  const hoodShell = new THREE.Mesh(new THREE.CylinderGeometry(hoodR, hoodR, W - 0.1, 20, 1, true, arc0 + Math.PI / 2, arcLen), M.polyTint);
   hoodShell.rotation.x = Math.PI / 2;
   hood.add(hoodShell);
   for (let i = 0; i < 5; i++) {
-    const rib = new THREE.Mesh(new THREE.TorusGeometry(0.125, 0.004, 4, 20, Math.PI * 0.62), purple);
-    rib.rotation.z = Math.PI * 0.05;
+    const rib = new THREE.Mesh(new THREE.TorusGeometry(hoodR + 0.004, 0.004, 4, 24, arcLen), purple);
+    rib.rotation.z = arc0;
     rib.position.z = -W / 2 + 0.06 + i * ((W - 0.12) / 4);
     hood.add(rib);
   }
   const hoodRollers = [];
-  for (let i = 0; i < 3; i++) {
-    const a = 0.45 + i * 0.5;
-    hoodRollers.push(cylZ(0.018, W - 0.12, M.alu, hood, -Math.cos(a) * 0.1, Math.sin(a) * 0.1, 0, 12));
-  }
+  for (const a of [1.45, 1.95]) hoodRollers.push(cylZ(0.016, W - 0.12, M.alu, hood, Math.cos(a) * (hoodR - 0.02), Math.sin(a) * (hoodR - 0.02), 0, 12));
   // compliant indexer wheels feeding the drum + inclined powered floor
-  const indexer = wheelStack(tower, W - 0.1, 0.03, 8, M.compliant, 0.07, 0.3, 0, 0.022);
+  const indexer = wheelStack(tower, W - 0.1, 0.03, 8, M.compliant, 0.085, 0.25, 0, 0.022);
   const feeder = new THREE.Group();
   feeder.position.set(0.06, 0.1, 0);
   feeder.rotation.z = 0.26;
@@ -459,13 +462,36 @@ function build2910(cfg, alliance) {
   const hBack = -L / 2 + 0.2, hFront = L / 2 - 0.02;
   const hMid = (hBack + hFront) / 2, hLen = hFront - hBack;
   for (const s of [-1, 1]) polyWall(hopper, hLen, hH, hMid, hY + hH / 2, s * (W / 2 - 0.012), 0, M.polyTint, green);
-  // front of the hopper: the stowed intake stands just behind this wall; deployed, it swings
-  // out through the slot at the bottom and its room fills with FUEL
+  // expanding front section: telescoping side panels + front wall ride out over the intake as it
+  // deploys (the stowed intake stands just behind the front wall)
   const front = new THREE.Group();
   root.add(front);
+  const rails = [];
+  for (const s of [-1, 1]) {
+    polyWall(front, extLen + 0.04, hH * 0.85, hFront - extLen / 2 + 0.02, hY + hH * 0.85 / 2, s * (W / 2 - 0.028), 0, M.polyTint, M.alu);
+    rails.push(tube(root, hFront - 0.28, s * (W / 2 - 0.05), hFront - 0.02, s * (W / 2 - 0.05), hY + hH - 0.02, M.aluDark, 0.012, 0.012)); // slide rail
+  }
   // front wall stops short of the floor: the intake feeds FUEL in through the slot under it
   const slot = 0.2, fwH = hH * 0.85 - slot;
   polyWall(front, W - 0.06, fwH, hFront + 0.02, hY + slot + fwH / 2, 0, Math.PI / 2, M.polyTint, M.alu);
+  // clear lids: one over the fixed hopper, and one on the expanding section, nested just under it
+  const lid = (parent, x0, x1, y, w) => {
+    const m = mesh(new THREE.PlaneGeometry(x1 - x0, w), M.polyTint, parent, (x0 + x1) / 2, y, 0);
+    m.rotation.x = -Math.PI / 2;
+    m.castShadow = false;
+    for (const s of [-1, 1]) rbx(x1 - x0, 0.012, 0.016, 0.002, M.alu, parent, (x0 + x1) / 2, y, s * w / 2);
+    rbx(0.016, 0.012, w, 0.002, M.alu, parent, x1, y, 0);
+    return m;
+  };
+  lid(hopper, hBack, hFront, hY + hH, W - 0.03);
+  lid(front, hFront - extLen + 0.02, hFront + 0.02, hY + hH * 0.85, W - 0.06);
+  // their "R2 Hopper" assembly: side, top and front panels that sit over the shooter when stowed
+  // and slide out along the slotted rails as the intake deploys; replaces the drawn hopper
+  const drawnFront = [...front.children];
+  cadPart(front, 'robots/2910-hopper.glb', () => {
+    hopper.visible = false;
+    for (const c of [...drawnFront, ...rails]) c.visible = false;
+  });
   limelight(root, hFront - 0.3, H + 0.01, W / 2 - 0.03);
   limelight(root, -L / 2 + 0.02, H - 0.03, -W / 2 + 0.12, Math.PI);
 
@@ -487,6 +513,9 @@ function build2910(cfg, alliance) {
   cadIntake.position.set(INTAKE_2910.pivot[0], INTAKE_2910.pivot[1], 0);
   root.add(cadIntake);
   cadPart(cadIntake, 'robots/2910-intake.glb', () => { intake.visible = false; });
+  // their "Shooter & Feeder" assembly: powered floor, the roller ramp that indexes FUEL up under
+  // the rollered hood, and the drum at the back; it replaces the drawn tower and floor
+  cadPart(root, 'robots/2910-shooter.glb', () => { tower.visible = false; feeder.visible = false; });
 
   // ---- FUEL inside: main hopper, then the extension, then the tower
   const stored = storedGrid([-0.13, 0.02, 0.17, 0.3], [-0.225, -0.075, 0.075, 0.225], [0.2, 0.34, 0.47]);
@@ -498,11 +527,12 @@ function build2910(cfg, alliance) {
     intake.rotation.z = lerp(STOWED, deploy, st.intakeDeploy);
     for (const r of intakeRollers) r.rotation.z += st.intakeSpeed * dt * 40;
     cadIntake.rotation.z = lerp(0, INTAKE_2910.swing, st.intakeDeploy);
+    front.position.x = st.hopperDeploy * extLen; // the hopper expands with the intake
     drum.rotation.z -= st.flywheel * dt * 6;
     for (const r of hoodRollers) r.rotation.y += st.flywheel * dt * 8;
     indexer.rotation.z -= st.feeding * dt * 25;
     for (const r of feedRollers) r.rotation.y -= st.feeding * dt * 30;
-    hood.rotation.z = (st.hoodDeg - 58) * Math.PI / 180 * 0.6;
+    hood.rotation.z = -(st.hoodDeg - 58) * Math.PI / 180 * 0.4; // a higher shot tips the exit up
   };
   return { root, anim, stored, modules, extLen };
 }
@@ -592,20 +622,28 @@ function build4414(cfg, alliance) {
   extNetGeo.rotateX(-Math.PI / 2);
   mesh(extNetGeo, M.net, ext, 0, hY + hH * 0.9 - 0.06, 0).castShadow = false;
 
-  // ---- Dye Rotor: a low, wide rotating floor inside a ring wall. FUEL falls onto it and rides
-  // around to the Dolphin Fin beside the center column, which lifts it onto a ramp of passive
-  // rollers climbing the column to the feeder wheels and the turret on top. Printed "stadium"
-  // pieces fill the corners and funnel FUEL down onto the rotor.
+  // ---- Dye Rotor: a low, wide floor inside a ring wall. FUEL falls onto it, and the Dolphin
+  // Fin sweeps round over it, pushing FUEL to the center column, where a ramp of passive rollers
+  // climbs to the feeder wheels and the turret on top. Printed "stadium" pieces fill the corners
+  // and funnel FUEL down onto the floor.
   const bay = cfg.bay, rs = bay.rotor;
   const dark = std(0x33373d, 0.55, 0.4);
+  // the floor stays still; the Dolphin Fin on its arm is what turns
+  const plateMat = new THREE.MeshStandardMaterial({ color: 0xb4bac2, map: rotorTexture(), roughness: 0.5, metalness: 0.3 });
+  const floorPlate = mesh(new THREE.CylinderGeometry(rs.r, rs.r, 0.01, 64), [dark, plateMat, dark], root, rs.x, rs.y - 0.005, rs.z);
+  floorPlate.receiveShadow = true;
   const rotor = new THREE.Group();
   rotor.position.set(rs.x, rs.y, rs.z);
   root.add(rotor);
-  const plateMat = new THREE.MeshStandardMaterial({ color: 0xb4bac2, map: rotorTexture(), roughness: 0.5, metalness: 0.3 });
-  const rotorPlate = mesh(new THREE.CylinderGeometry(rs.r, rs.r, 0.01, 64), [dark, plateMat, dark], rotor, 0, -0.005, 0);
-  rotorPlate.receiveShadow = true;
-  const bigGear = mesh(new THREE.TorusGeometry(0.12, 0.008, 6, 48), dark, rotor, 0, -0.02, 0);
-  bigGear.rotation.x = Math.PI / 2;
+  mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.03, 24), dark, rotor, 0, 0.015, 0);
+  bx(rs.r - 0.06, 0.025, 0.02, dark, rotor, (rs.r + 0.04) / 2, 0.0125, 0); // arm
+  // Dolphin Fin at the outer end of the arm: a curved blade that sweeps FUEL round and up
+  const finShape = new THREE.Shape();
+  const f0 = bay.column.r + 0.015; // the blade runs from just outside the column to the rim
+  finShape.moveTo(f0, 0); finShape.lineTo(rs.r - 0.005, 0); finShape.lineTo(rs.r - 0.005, 0.1);
+  finShape.quadraticCurveTo(rs.r - 0.03, 0.16, rs.r - 0.07, 0.14); finShape.quadraticCurveTo(f0 + 0.04, 0.06, f0, 0);
+  const dolphin = mesh(new THREE.ExtrudeGeometry(finShape, { depth: 0.012, bevelEnabled: true, bevelThickness: 0.003, bevelSize: 0.003, bevelSegments: 2 }), teal, rotor, 0, 0, -0.006);
+  dolphin.castShadow = true;
   // fixed ring wall around the rotor, on standoffs
   const ringMat = new THREE.MeshPhysicalMaterial({ color: 0x2e3238, transparent: true, opacity: 0.55, roughness: 0.3, depthWrite: false, side: THREE.DoubleSide });
   mesh(new THREE.CylinderGeometry(rs.r + 0.01, rs.r + 0.01, 0.1, 64, 1, true), ringMat, root, rs.x, rs.y + 0.05, rs.z).castShadow = false;
@@ -620,11 +658,6 @@ function build4414(cfg, alliance) {
   mesh(new THREE.CylinderGeometry(col.r + 0.035, col.r + 0.035, 0.012, 40), dark, root, col.x, col.y1, col.z);
   const wrap = mesh(new THREE.CylinderGeometry(col.r + 0.06, col.r + 0.015, 0.16, 32, 1, true, Math.PI * 0.2, Math.PI * 1.1), ringMat, root, col.x, rs.y + 0.1, col.z);
   wrap.castShadow = false;
-  // Dolphin Fin: scoops FUEL off the rotor at the side of the column
-  const finShape = new THREE.Shape();
-  finShape.moveTo(0, 0); finShape.quadraticCurveTo(0.07, 0.01, 0.1, 0.1); finShape.quadraticCurveTo(0.05, 0.07, -0.04, 0.08); finShape.lineTo(0, 0);
-  const dolphin = mesh(new THREE.ExtrudeGeometry(finShape, { depth: 0.01, bevelEnabled: false }), teal, root, col.x + 0.02, rs.y, col.z + col.r + 0.07);
-  dolphin.rotation.y = Math.PI / 2;
   // ramp of passive rollers climbing the column, then the feeder wheels
   const rampRollers = [];
   const up = new THREE.Vector3(0, 1, 0);
@@ -703,9 +736,11 @@ function build4414(cfg, alliance) {
   const anim = (st, dt) => {
     // the intake box slides out on its racks (and stays out)
     ext.position.x = st.hopperDeploy * extLen;
-    for (const r of intakeRollers) r.rotation.z += st.intakeSpeed * dt * 35;
-    // ~2.25 rev/s when feeding; otherwise turns slowly backward to agitate the load
-    rotor.rotation.y += (st.feeding > 0 ? cfg.bay.rotor.spin : cfg.bay.rotor.idle) * dt;
+    intakeRollers[0].rotation.y -= st.intakeSpeed * dt * 35; // cylinder along z: spin about its axis
+    intakeRollers[1].rotation.z -= st.intakeSpeed * dt * 35;
+    // the Dolphin Fin: ~2.25 rev/s when feeding, otherwise slowly backward to agitate the load
+    // (its angle comes from the hopper physics, so the fin and the FUEL it pushes agree)
+    rotor.rotation.y = st.rotorAngle ?? 0;
     kicker.rotation.z -= st.feeding * dt * 30;
     omniV.rotation.x -= st.feeding * dt * 30;
     for (const r of rampRollers) r.rotateY(-st.feeding * dt * 20);

@@ -171,12 +171,12 @@ A match takes about 30 s of CPU, so more cores train faster.
 | Capacity | 58 FUEL | 88 FUEL (extending hopper) | 12 (only the ball path) |
 | Shooter | 4-wide drum, adjustable hood, **fixed to the chassis** (whole robot turns to aim) | Single-stream 3" flywheel on a **turret**, adjustable hood | Hooded flywheel on a **turret** |
 | Rate | 32 FUEL/s | 18 FUEL/s | 13 FUEL/s |
-| Intake | 26 FUEL/s, slap-down (7.8 in reach) | 30 FUEL/s, sliding box (latched out) | 14 FUEL/s |
+| Intake | as fast as it drives through FUEL (~110/s at full speed), slap-down (7.8 in reach) | as fast as it drives through FUEL (~140/s), sliding box (latched out) | 14 FUEL/s |
 | Fits under TRENCH | yes | yes | yes |
 | Climber | none | none | none |
 
 Sources:
-- 2910: the Re•Blitz tech binder and their public Onshape CAD. The intake you see is their "Pivoting Intake Assembly", and its reach (7.8 in past the BUMPER) comes from that CAD.
+- 2910: the Re•Blitz tech binder and their public Onshape CAD. The intake, shooter and hopper you see are their "Pivoting Intake Assembly", "Shooter & Feeder" and "R2 Hopper" (its panels slide out along slotted rails as the intake deploys): a roller ramp indexes FUEL up under the rollered hood to the drum, which fires out the back. The intake's reach (7.8 in past the BUMPER) comes from that CAD. Colors follow the CAD: raw aluminum, grey plates, light green drum wheels, and clear lids over the fixed and expanding hopper.
 - 4414: the 2026 tech binder (2026.team4414.com) and its CAD renders: the sliding box intake on racks, the Dye Rotor, the smoked hopper with its teal truss frame.
 - 8793: your team CAD (Intake V3, Conveyor V2, Turret, Shooter).
 
@@ -228,13 +228,13 @@ None of the three climbed, so each defaults to *no climber*. The **Climber add-o
 - **G418** (MINOR): PINNING an opponent against a FIELD element for more than 3 s, plus another MINOR for every further 3 s. The count resets when the robots are 72 in apart. The HUD shows the pin count for either robot.
 - **G420** (MAJOR): in END GAME, contacting an opponent that is touching its TOWER or climbing.
 
-Robots push each other with realistic traction (mass × acceleration limit), so heavier or faster-accelerating robots win shoving matches.
+Robots push each other with realistic traction (mass × acceleration limit), so heavier or faster-accelerating robots win shoving matches. Robots ride on their wheels and can pitch and roll: they tilt going up a BUMP, over a DEPOT barrier or onto a jammed pile of FUEL (the bumpers are rounded so a pile can lift them), and the FUEL in the hopper feels the tilt.
 
 **FUEL in the robots** (nothing teleports):
 - **Intake:** the rollers grab FUEL (still a physics ball) and drag it up the intake arm, over the BUMPER and in through the slot under the hopper wall, at the robot's intake rate. FUEL the rollers let go of before it's over the BUMPER drops back onto the carpet.
 - **Hopper:** held FUEL is simulated in the robot's own frame with a lighter solver: gravity, soft ball-to-ball contact (foam squashes), the walls, floors and internal parts, and the robot's own motion, so the load piles up, slides back when you accelerate and sloshes when you spin. Each robot's mechanisms move it:
   - 2910's powered floor rolls FUEL back to the indexer.
-  - 4414's Dye Rotor, a wide rotating floor, carries FUEL around to the Dolphin Fin beside the center column. From there FUEL climbs a spiral of passive rollers to the feeder wheels and the turret on top. Printed "stadium" pieces funnel FUEL onto the rotor, and when it isn't feeding the rotor turns slowly backward to agitate the load.
+  - 4414's Dye Rotor: the Dolphin Fin sweeps round over a still floor, pushing FUEL to the center column. FUEL climbs a spiral of passive rollers to the feeder wheels and the turret on top. Printed "stadium" pieces funnel FUEL onto the floor, and when it isn't feeding the fin turns slowly backward to agitate the load.
   - 8793's conveyor carries FUEL up to its turret and holds it there.
 - **Shooter:** FUEL travels the feed path to the flywheel and leaves from the exit at the same rate (BPS) and with the same shot model as before. A FUEL that reaches the wheels while the shot isn't lined up waits there.
 

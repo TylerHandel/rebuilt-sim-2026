@@ -41,10 +41,11 @@ export function customSelection(routine, side) {
 // the DEPOT. Plans are in absolute blue coordinates (not mirrored). Robot BUMPERS may reach
 // past the CENTER LINE, never fully across it.
 export const BEST_AUTOS = {
-  // 121 AUTO FUEL on average: three trips, working in toward the CENTER LINE
+  // 110 AUTO FUEL on average: three trips, working in toward the CENTER LINE (it turns its back
+  // to the HUB to shoot)
   2910: { start: 'leftTrench', preload: 'stand', trips: [
-    { out: 'trench', fx: 7.53, a: 6.44, b: 3.36, speed: 0.46, home: 'bump', shootAt: [2.31, 1.5] },
-    { out: 'trench', fx: 7.88, a: 2.02, b: 6.7, speed: 0.57, home: 'trench', shootAt: [2.74, 6.2] },
+    { out: 'trench', fx: 7.53, a: 6.44, b: 3.36, speed: 0.42, home: 'bump', shootAt: [2.31, 1.5] },
+    { out: 'trench', fx: 7.88, a: 2.02, b: 6.7, speed: 0.52, home: 'trench', shootAt: [2.74, 6.2] },
     { out: 'trench', fx: 8.13, a: 6.09, b: 4.7, speed: 0.84, home: 'bump', shootAt: [3.21, 6.48] },
   ] },
   // 152: its 88-FUEL hopper sweeps the line nearest the CENTER LINE, then a second long pass

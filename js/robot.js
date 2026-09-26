@@ -16,7 +16,7 @@ const R = FUEL.radius;
 // FUEL the intake has grabbed is held by the rollers: it still hits field structures, but not
 // this robot, other FUEL, or the floor features the robot is driving over
 const CAPTURED_GROUPS = groups(GROUP.BALL, GROUP.STATIC);
-const INTAKE_SPEED = 3.5; // m/s the rollers pull FUEL in
+const INTAKE_SPEED = 3.5; // m/s the rollers pull FUEL in (cfg.intake.pull overrides)
 const FEED_SPEED = 7;     // m/s up the feed path into the shooter
 const CLIMB_LIFT = [0, 0.16, 0.74, 1.2]; // body lift to satisfy LEVEL 1/2/3 criteria
 
@@ -45,6 +45,8 @@ export class Robot {
 
     // ---- shot tables (hub + pass), built from the drag model
     const sh = cfg.shooter;
+    // a fixed shooter fires along the robot's heading, or straight out the back (2910)
+    this.aimOffset = sh.type === 'fixed' && sh.facing === 'back' ? Math.PI : 0;
     const h0 = sh.type === 'fixed' ? sh.exit.y : sh.exitY;
     this.hubTable = new ShotTable({
       h0, Ht: HUB.targetHeight, hoodMin: sh.hoodMin, hoodMax: sh.hoodMax, speedMax: sh.speedMax, mode: 'hub',
@@ -60,16 +62,19 @@ export class Robot {
   _createBody() {
     const { world } = this.physics;
     const cfg = this.cfg;
+    // free to pitch and roll: it rides up BUMPS, over DEPOT barriers and onto jammed FUEL on
+    // its wheels (the drive only commands the horizontal velocity and the yaw rate)
     const desc = RAPIER.RigidBodyDesc.dynamic()
-      .enabledRotations(false, true, false)
       .setCcdEnabled(true)
       .setCanSleep(false)
       .setLinearDamping(0)
-      .setAngularDamping(0);
+      .setAngularDamping(1.5);
     this.body = world.createRigidBody(desc);
     const robotGroups = groups(GROUP.ROBOT, GROUP.STATIC | GROUP.TERRAIN | GROUP.BALL | GROUP.ROBOT_BARRIER | GROUP.ROBOT);
     const y0 = 0.055, y1 = 0.16;
-    const bumper = RAPIER.ColliderDesc.cuboid(this.halfL, (y1 - y0) / 2, this.halfW)
+    // rounded like a real bumper, so a pile of FUEL can lift it rather than stop it dead
+    const br = 0.03;
+    const bumper = RAPIER.ColliderDesc.roundCuboid(this.halfL - br, (y1 - y0) / 2 - br, this.halfW - br, br)
       .setTranslation(0, (y0 + y1) / 2, 0)
       .setMass(cfg.mass * 0.55)
       .setFriction(0.05).setFrictionCombineRule(RAPIER.CoefficientCombineRule.Min)
@@ -92,14 +97,14 @@ export class Robot {
           .setMass(cfg.mass * 0.0125)
           .setFriction(0).setFrictionCombineRule(RAPIER.CoefficientCombineRule.Min)
           .setRestitution(0)
-          .setCollisionGroups(groups(GROUP.WHEEL, GROUP.STATIC | GROUP.TERRAIN | GROUP.ROBOT_BARRIER));
+          .setCollisionGroups(groups(GROUP.WHEEL, GROUP.STATIC | GROUP.TERRAIN | GROUP.ROBOT_BARRIER | GROUP.BALL));
         world.createCollider(w, this.body);
       }
     }
     // extending hopper section: a real collider that slides out with the hopper
     const st = this.cfg.storage;
     this.hopperCollider = null;
-    if (st.extLen && !st.inside) {
+    if (st.extLen) {
       this.hopperHalfH = (this.height - 0.17) / 2;
       this.hopperCollider = world.createCollider(
         RAPIER.ColliderDesc.cuboid(st.extLen / 2, this.hopperHalfH, cfg.frame.width / 2 - 0.02)
@@ -163,6 +168,7 @@ export class Robot {
     this.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
     this.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
     this.yaw = yaw;
+    this.quat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
     this.pos = new THREE.Vector3(x, 0, z);
     this.vel = new THREE.Vector3();
     this.omega = 0;
@@ -213,10 +219,7 @@ export class Robot {
   maxCapacity() { return this.cfg.storage.capacity; }
 
   // front of the hopper right now (an extending hopper moves it forward)
-  bayFront() {
-    const st = this.cfg.storage, ext = st.extLen || 0;
-    return st.inside ? this.cfg.bay.x1 - ext * (1 - this.hopperDeploy) : this.cfg.bay.x1 + ext * this.hopperDeploy;
-  }
+  bayFront() { return this.cfg.bay.x1 + (this.cfg.storage.extLen || 0) * this.hopperDeploy; }
 
   // preloaded FUEL, dropped loosely into the hopper
   loadFuel(balls) {
@@ -287,7 +290,7 @@ export class Robot {
     this.body.setLinvel({ x: lv.x + dvx, y: lv.y, z: lv.z + dvz }, true);
     const av = this.body.angvel();
     const w = approach(av.y, tw, d.maxAlpha * dt);
-    this.body.setAngvel({ x: 0, y: w, z: 0 }, true);
+    this.body.setAngvel({ x: av.x, y: w, z: av.z }, true); // pitch and roll are the physics'
     this._guideCaptured(dt);
   }
 
@@ -318,7 +321,7 @@ export class Robot {
       const tx = up ? path.lipX : path.entryX, ty = up ? path.liftY : path.entryY;
       let vx = tx - lx, vy = ty - ly, vz = cap.z - lz;
       const dist = Math.hypot(vx, vy, vz) || 1;
-      const sp = Math.min(INTAKE_SPEED, dist / (2 * dt));
+      const sp = Math.min(this.cfg.intake.pull ?? INTAKE_SPEED, dist / (2 * dt));
       vx *= sp / dist; vy *= sp / dist; vz *= sp / dist;
       // robot point velocity + the pull, in world axes
       b.body.setLinvel({
@@ -334,7 +337,10 @@ export class Robot {
     const tr = this.body.translation();
     const q = this.body.rotation();
     this.pos.set(tr.x, tr.y, tr.z);
-    this.yaw = 2 * Math.atan2(q.y, q.w);
+    this.quat.set(q.x, q.y, q.z, q.w);
+    // heading of the (possibly tilted) body's forward axis
+    const fx = 1 - 2 * (q.y * q.y + q.z * q.z), fz = 2 * (q.x * q.z - q.w * q.y);
+    this.yaw = Math.atan2(-fz, fx);
     const lv = this.body.linvel();
     this.vel.set(lv.x, 0, lv.z);
     this.omega = this.body.angvel().y;
@@ -356,11 +362,14 @@ export class Robot {
     }
     this.prevVel = { x: this.vel.x, z: this.vel.z };
     this.prevOmega = this.omega;
-    const acc = this.worldToLocalVec(ax, az);
+    // the robot's acceleration and gravity, in the (tilted) robot frame
+    const qi = this.quat.clone().invert();
+    const acc = new THREE.Vector3(ax, 0, az).applyQuaternion(qi);
+    const g = new THREE.Vector3(0, -9.81, 0).applyQuaternion(qi);
     const f = this.cfg.bay.feed;
     this.hopper.front = this.bayFront();
     this.hopper.step(dt, {
-      acc, w: this.omega, alpha,
+      acc, g, w: this.omega, alpha,
       feeding: this.feeding > 0,
       intaking: this.intakeSpeed > 0,
       feedPoint: new THREE.Vector3(f.x, 0, f.z ?? 0),
@@ -392,7 +401,7 @@ export class Robot {
     const running = on && this.cmd.intake && deployed;
     this.intakeSpeed = on && this.cmd.outtake ? -1 : running ? 1 : 0;
     if (running && this.stored.length + this.captured.length < this.capacity()) {
-      this.intakeTokens = Math.min(4, this.intakeTokens + ic.rate * dt);
+      this.intakeTokens = Math.min(Math.max(4, 2 * ic.rate * dt), this.intakeTokens + ic.rate * dt);
       const front = this.halfL - 0.04;
       const reach = this.halfL + ic.reach + R + 0.02;
       const hw = ic.width / 2 + 0.02;
@@ -534,10 +543,12 @@ export class Robot {
       let exit, lv;
       if (sh.type === 'fixed') {
         // The drum sits on the robot's centerline, so once aimed the shot line passes through the
-        // robot center. Solve from a point that does not move when the chassis rotates.
+        // robot center. Solve from a point that does not move when the chassis rotates: the exit's
+        // distance along the shot line (a back-facing drum's exit is toward the target).
         const dx = tgt.x - this.pos.x, dz = tgt.z - this.pos.z;
         const dd = Math.hypot(dx, dz) || 1;
-        exit = new THREE.Vector3(this.pos.x + (dx / dd) * sh.exit.x, this.pos.y + sh.exit.y, this.pos.z + (dz / dd) * sh.exit.x);
+        const along = this.aimOffset ? -sh.exit.x : sh.exit.x;
+        exit = new THREE.Vector3(this.pos.x + (dx / dd) * along, this.pos.y + sh.exit.y, this.pos.z + (dz / dd) * along);
         lv = { x: this.vel.x, z: this.vel.z };
       } else {
         // FUEL leaves the hood exitRadius in front of the turret axis, along the shot line
@@ -554,7 +565,7 @@ export class Robot {
         this.hoodDeg = approach(this.hoodDeg, sol.theta / DEG, 260 * dt);
         let aimErr;
         if (sh.type === 'fixed') {
-          aimErr = wrapAngle(sol.psi - this.yaw);
+          aimErr = wrapAngle(sol.psi - this.yaw - this.aimOffset);
           if (wantShoot) {
             // chassis heading controller: time-optimal profile (no overshoot) + feed-forward on
             // how fast the aim direction moves while driving
@@ -648,7 +659,7 @@ export class Robot {
     this.hopper.remove(e);
     this._unstore(b);
     const exit = this.localToWorld(e.p.x, e.p.y, e.p.z);
-    let psi = sh.type === 'fixed' ? this.yaw : this.yaw + this.turretYaw;
+    let psi = sh.type === 'fixed' ? this.yaw + this.aimOffset : this.yaw + this.turretYaw;
     const k = this.noiseScale ?? 1; // AI skill: extra scatter for weaker drivers
     psi += gauss() * sh.yawSigma * k * DEG;
     const th = this.hoodDeg * DEG + gauss() * sh.angleSigma * k * DEG;
@@ -702,6 +713,7 @@ export class Robot {
     if (dist < 0.03 && Math.abs(eyaw) < 2 * DEG && this.vel.length() < 0.12) {
       this.climbState = 'climbing';
       this.climbTime = 0;
+      this.body.setRotation(yawQuat(this.yaw), true);
       this.body.setBodyType(RAPIER.RigidBodyType.KinematicPositionBased, true);
       this.climbBase = { x: this.pos.x, y: this.pos.y, z: this.pos.z };
       return { vx: 0, vz: 0, omega: 0 };
@@ -751,29 +763,10 @@ export class Robot {
   _syncVisual(dt) {
     const v = this.visual;
     const f = this.field;
-    // visual pitch/roll from the terrain under the wheels (physics body stays level)
-    let pitch = 0, roll = 0;
-    if (this.climbState === 'none' && f) {
-      const L = this.cfg.frame.length / 2 - 0.075, W = this.cfg.frame.width / 2 - 0.075;
-      const h = (lx, lz) => { const p = this.localToWorld(lx, 0, lz); return f.terrainHeight(p.x, p.z); };
-      const hf = Math.max(h(L, W), h(L, -W)), hb = Math.max(h(-L, W), h(-L, -W));
-      const hr = Math.max(h(L, W), h(-L, W)), hl = Math.max(h(L, -W), h(-L, -W));
-      pitch = Math.atan2(hf - hb, 2 * L);
-      roll = Math.atan2(hr - hl, 2 * W);
-    } else if (this.climbState !== 'none') {
-      pitch = -Math.min(0.12, this.climbLift * 0.15);
-    }
+    // the model follows the body, tilt and all (climbing leans it back a little on the hooks)
     v.position.copy(this.pos);
-    if (this.climbState === 'none' && f) {
-      const L = this.cfg.frame.length / 2 - 0.075, W = this.cfg.frame.width / 2 - 0.075;
-      const hs = [[L, W], [L, -W], [-L, W], [-L, -W]].map(([a, b]) => { const p = this.localToWorld(a, 0, b); return f.terrainHeight(p.x, p.z); });
-      const hmax = Math.max(...hs), havg = (hs[0] + hs[1] + hs[2] + hs[3]) / 4;
-      v.position.y = havg + Math.max(0, this.pos.y - hmax);
-    }
-    v.rotation.set(0, 0, 0);
-    v.rotateY(this.yaw);
-    v.rotateZ(pitch);
-    v.rotateX(-roll);
+    v.quaternion.copy(this.quat);
+    if (this.climbState !== 'none') v.rotateZ(-Math.min(0.12, this.climbLift * 0.15));
     // stored FUEL
     const m = this.model;
     const list = this.hopper.list;
@@ -795,6 +788,7 @@ export class Robot {
       feeding: this.feeding,
       hoodDeg: this.hoodDeg,
       turretYaw: this.turretYaw,
+      rotorAngle: this.hopper.finAngle,
     }, dt);
     // swerve module steering to match the motion
     const lv = this.worldToLocalVec(this.vel.x, this.vel.z);
@@ -818,7 +812,7 @@ export class Robot {
   previewPoints() {
     if (!this.preview) return null;
     const { exit, lv, sol } = this.preview;
-    const psi = this.cfg.shooter.type === 'fixed' ? this.yaw : this.yaw + this.turretYaw;
+    const psi = this.cfg.shooter.type === 'fixed' ? this.yaw + this.aimOffset : this.yaw + this.turretYaw;
     const v = this.flywheel > 0.5 ? Math.max(this.flywheel, 0) : sol.v;
     const th = this.hoodDeg * DEG;
     return trajectoryPoints(exit, {
