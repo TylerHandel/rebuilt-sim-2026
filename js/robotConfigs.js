@@ -34,7 +34,7 @@ export const ROBOTS = {
     // Powered floor rollers slope down to the back, where compliant indexer wheels lift FUEL
     // into the drum.
     bay: {
-      x0: -0.143, x1: 0.323, hw: 0.33, top: 0.6, // a full hopper heaps above the walls
+      x0: -0.143, x1: 0.323, hw: 0.33, top: 0.53, extTop: 0.47, // under the lids
       floor: { a: 0.1, b: 0.266, lo: 0.09, hi: 0.17 },
       drive: 'floor', driveSpeed: 1.8,
       feed: { x: -0.09, via: [[-0.17, 0.3]] },
@@ -52,7 +52,7 @@ export const ROBOTS = {
     },
     climber: null,
     stats: { Capacity: 58, 'Shot rate': '32 BPS', Aiming: 'Chassis', 'Top speed': '14.1 ft/s', Trench: 'Yes' },
-    colors: { frame: 0x2d3038, accent: 0x6a1b9a, trim: 0x39b54a },
+    colors: { frame: 0xb9bec5, accent: 0x5c6168, trim: 0xc6cbd1 }, // raw aluminum, grey plates (their CAD)
   },
   4414: {
     key: '4414',
@@ -98,7 +98,7 @@ export const ROBOTS = {
     },
     climber: null,
     stats: { Capacity: 88, 'Shot rate': '18 BPS', Aiming: 'Turret', 'Top speed': '13.1 ft/s', Trench: 'Yes' },
-    colors: { frame: 0x22262d, accent: 0x0fa3b1, trim: 0xf28c28 },
+    colors: { frame: 0x22262d, accent: 0x0fa3b1, trim: 0x2b2f36 }, // black / carbon with the teal truss
   },
   8793: {
     key: '8793',

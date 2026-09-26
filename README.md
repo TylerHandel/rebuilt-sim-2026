@@ -176,7 +176,7 @@ A match takes about 30 s of CPU, so more cores train faster.
 | Climber | none | none | none |
 
 Sources:
-- 2910: the Re•Blitz tech binder and their public Onshape CAD. The intake you see is their "Pivoting Intake Assembly", and its reach (7.8 in past the BUMPER) comes from that CAD.
+- 2910: the Re•Blitz tech binder and their public Onshape CAD. The intake you see is their "Pivoting Intake Assembly", and its reach (7.8 in past the BUMPER) comes from that CAD. Colors follow the CAD: raw aluminum, grey plates, light green drum wheels, and clear lids over the fixed and expanding hopper.
 - 4414: the 2026 tech binder (2026.team4414.com) and its CAD renders: the sliding box intake on racks, the Dye Rotor, the smoked hopper with its teal truss frame.
 - 8793: your team CAD (Intake V3, Conveyor V2, Turret, Shooter).
 
@@ -228,7 +228,7 @@ None of the three climbed, so each defaults to *no climber*. The **Climber add-o
 - **G418** (MINOR): PINNING an opponent against a FIELD element for more than 3 s, plus another MINOR for every further 3 s. The count resets when the robots are 72 in apart. The HUD shows the pin count for either robot.
 - **G420** (MAJOR): in END GAME, contacting an opponent that is touching its TOWER or climbing.
 
-Robots push each other with realistic traction (mass × acceleration limit), so heavier or faster-accelerating robots win shoving matches.
+Robots push each other with realistic traction (mass × acceleration limit), so heavier or faster-accelerating robots win shoving matches. Robots ride on their wheels and can pitch and roll: they tilt going up a BUMP, over a DEPOT barrier or onto a jammed pile of FUEL (the bumpers are rounded so a pile can lift them), and the FUEL in the hopper feels the tilt.
 
 **FUEL in the robots** (nothing teleports):
 - **Intake:** the rollers grab FUEL (still a physics ball) and drag it up the intake arm, over the BUMPER and in through the slot under the hopper wall, at the robot's intake rate. FUEL the rollers let go of before it's over the BUMPER drops back onto the carpet.

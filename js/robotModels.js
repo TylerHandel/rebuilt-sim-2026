@@ -92,7 +92,7 @@ const M = {
   poly: new THREE.MeshPhysicalMaterial({ color: 0xa9c4dd, transparent: true, opacity: 0.26, roughness: 0.05, depthWrite: false, side: THREE.DoubleSide }),
   polyTint: new THREE.MeshPhysicalMaterial({ color: 0x8aa3bb, transparent: true, opacity: 0.32, roughness: 0.08, depthWrite: false, side: THREE.DoubleSide }),
   compliant: std(0x2b2b2e, 0.9, 0.0),
-  green: std(0x3fae49, 0.6, 0.1),
+  green: std(0x8ccf6a, 0.6, 0.1), // 2910's drum wheels
   orangeWheel: std(0xe0782a, 0.7, 0.05),
   blueWheel: std(0x2d6fd6, 0.7, 0.05),
   copper: std(0xb87333, 0.35, 0.9),
@@ -470,6 +470,17 @@ function build2910(cfg, alliance) {
   // front wall stops short of the floor: the intake feeds FUEL in through the slot under it
   const slot = 0.2, fwH = hH * 0.85 - slot;
   polyWall(front, W - 0.06, fwH, hFront + 0.02, hY + slot + fwH / 2, 0, Math.PI / 2, M.polyTint, M.alu);
+  // clear lids: one over the fixed hopper, and one on the expanding section, nested just under it
+  const lid = (parent, x0, x1, y, w) => {
+    const m = mesh(new THREE.PlaneGeometry(x1 - x0, w), M.polyTint, parent, (x0 + x1) / 2, y, 0);
+    m.rotation.x = -Math.PI / 2;
+    m.castShadow = false;
+    for (const s of [-1, 1]) rbx(x1 - x0, 0.012, 0.016, 0.002, M.alu, parent, (x0 + x1) / 2, y, s * w / 2);
+    rbx(0.016, 0.012, w, 0.002, M.alu, parent, x1, y, 0);
+    return m;
+  };
+  lid(hopper, hBack, hFront, hY + hH, W - 0.03);
+  lid(front, hFront - extLen + 0.02, hFront + 0.02, hY + hH * 0.85, W - 0.06);
   limelight(root, hFront - 0.3, H + 0.01, W / 2 - 0.03);
   limelight(root, -L / 2 + 0.02, H - 0.03, -W / 2 + 0.12, Math.PI);
 

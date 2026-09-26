@@ -115,7 +115,8 @@ export class Hopper {
     return out.copy(pts[pts.length - 1]);
   }
 
-  // env: acc {x, z} robot acceleration in the robot frame, w yaw rate, alpha yaw acceleration,
+  // env: acc {x, y, z} robot acceleration and g gravity, both in the (tilted) robot frame, w yaw
+  // rate, alpha yaw acceleration,
   // feeding / intaking (mechanisms running), feedPoint (Vector3) where the shooter takes FUEL
   step(dt, env) {
     const s = this.spec;
@@ -136,7 +137,8 @@ export class Hopper {
       this.finAngle = (this.finAngle + spin * dt) % (2 * Math.PI);
     }
     const w = env.w || 0, al = env.alpha || 0;
-    const ax = env.acc.x, az = env.acc.z;
+    const ax = env.acc.x, az = env.acc.z, ay = env.acc.y || 0;
+    const gx = env.g ? env.g.x : 0, gy = env.g ? env.g.y : -G, gz = env.g ? env.g.z : 0;
     const running = env.feeding || env.intaking;
     const still = Math.abs(w) < 0.05 && Math.hypot(ax, az) < 0.3 && !running && !spin && !list.some((e) => e.tr);
     if (still && this.quiet > 0.4) return;
@@ -146,9 +148,9 @@ export class Hopper {
       if (e.tr) continue;
       const p = e.p, v = e.v;
       // gravity and the robot frame's pseudo-forces (it accelerates and turns under the FUEL)
-      let fx = -ax + w * w * p.x - 2 * w * v.z - al * p.z;
-      let fy = -G;
-      let fz = -az + w * w * p.z + 2 * w * v.x + al * p.x;
+      let fx = gx - ax + w * w * p.x - 2 * w * v.z - al * p.z;
+      let fy = gy - ay;
+      let fz = gz - az + w * w * p.z + 2 * w * v.x + al * p.x;
       const onFloor = p.y - R_WALL - this.floorAt(p.x, p.z) < 0.02;
       if (s.drive === 'floor' && onFloor) {
         // powered floor rollers carry FUEL back to the indexer

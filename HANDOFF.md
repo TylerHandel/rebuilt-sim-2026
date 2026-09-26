@@ -50,6 +50,10 @@ For a new Claude Code session. The latest work is on branch `claude/physical-fue
 - `BEST_AUTOS` in `js/auto.js` holds one plan per robot. Plans are in absolute blue coordinates and consist of trips (neutral-zone sweeps or depot runs). The `best` routine is now the menu default and the AI's AUTO.
 - `tools/auto-search.mjs` finds the plans: random plans, then tweaks, each scored with `tools/auto-eval.mjs` against the other robots on both alliances. Rerun it after changing robots or physics.
 
+## Done: tilting robots and real colors
+- The robot body is free to pitch and roll (angular damping 1.5). The drive commands only the horizontal velocity and yaw rate, the wheels also collide with FUEL, and the bumper is a rounded cuboid, so robots tilt over BUMPS, DEPOT barriers and FUEL piles. The yaw comes from the full quaternion. The model follows the body's rotation. The hopper solver gets gravity and acceleration in the tilted frame.
+- Colors follow the real robots: 2910 in raw aluminum with grey plates and light green drum wheels (their CAD), and 4414 in black and carbon with the teal truss (binder renders). 8793 is unchanged (no source yet). 2910 has clear lids over the fixed hopper and the expanding section.
+
 ## Other open items
 - The HUB and BUMP sizes were checked against the drawing. All element positions were checked against the field CAD. The TRENCH, TOWER, DEPOT and OUTPOST *sizes* still come from the game manual, so compare them with the drawing pages above or measure them in the CAD. Note that the Block CAD bounding box puts the inside edge of the fixed TRENCH about 8 cm closer to the guardrail than `TRENCH.width` does.
 - Optional: a longer AI self-play training run, `npm run train -- --gens 30 --pop 12 --scenarios 6 --resume`.
