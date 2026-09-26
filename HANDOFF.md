@@ -1,4 +1,4 @@
-# Handoff: pull the real field CAD from Onshape
+# Handoff
 
 For a new Claude Code session. Work on branch `main-aogjl4`, and commit and push there. Don't open a PR unless asked.
 
@@ -30,39 +30,17 @@ For a new Claude Code session. Work on branch `main-aogjl4`, and commit and push
 
   Render pages with `pip install pymupdf`.
 
-## The task: real field CAD
-**Onshape document** 8a691e28680da30504859fce, workspace c6aa636fb23edb3f1e272fb1. It is public, but model exports need API keys.
-
-| Element | Element id |
-|---|---|
-| Full field ("FE-2026: REBUILT™ Playing Field") | f4e47c668796f504844c94a0 |
-| Simplified ("Block CAD") | 5e2b2310531e01f25fd97afd |
-| Carpet part studio | 0dd2e12e8cfc4635c3f8fb96 |
-
-**Keys:** the environment should provide `ONSHAPE_ACCESS_KEY` and `ONSHAPE_SECRET_KEY`. Authenticate with HTTP Basic, `-u "$ONSHAPE_ACCESS_KEY:$ONSHAPE_SECRET_KEY"`. Never print the keys, write them to a file, or commit them. If they are missing, tell the user to add them in the environment settings (cloud environment menu → Edit) and start a new session.
-
-**Steps:**
-1. Test access: `GET https://cad.onshape.com/api/v6/assemblies/d/<did>/w/<wid>/e/<eid>` should return 200.
-2. Export a GLB. Either way below works:
-   - Synchronous glTF: `GET /api/v6/assemblies/d/<did>/w/<wid>/e/<eid>/gltf`. If that isn't offered for assemblies, use the translation route instead.
-   - Translation: `POST /api/v6/assemblies/d/<did>/w/<wid>/e/<eid>/translations` with body `{"formatName":"GLTF","storeInDocument":false,"resolution":"medium"}`. Poll `GET /api/translations/<id>` until `requestState` is `DONE`, then download `GET /api/documents/d/<did>/externaldata/<resultExternalDataIds[0]>`. You can use `"formatName":"STEP"` and convert with `tools/cad2glb.py` instead.
-3. Start with Block CAD, which is lighter. Try the full field only if it stays under about 50 MB. Otherwise export per element (HUB, TOWER, TRENCH, BUMP, DEPOT, OUTPOST) or lower the resolution. GitHub rejects files over 100 MB.
-4. Save the result under `cad/field/` and add an entry to `cad/manifest.json` with `kind: "field"`.
-5. Line the model up with the game:
-   - The origin is the field center.
-   - The blue alliance wall is at −X and Y is up.
-   - The blue HUB center is at about x = −3.645, z = 0.
-   - Set `scale` to 0.001 for meters (m) or 0.0254 for inches, and `rotationDeg` (Z-up needs [-90, 0, 0]). Set `position` so the HUBs, BUMPs and TRENCHes sit on top of the physics colliders.
-6. Verify in the browser with Playwright:
-   - Use Chromium at `/opt/pw-browsers/chromium-1194/chrome-linux/chrome`.
-   - Serve with `python3 serve.py 8765`.
-   - Take screenshots and check that the CAD overlays the colliders and that the console shows no errors.
-   - For a debug view, set `__sim.rig.mode = 'free'` and move `__sim.camera`.
-7. Check that the frame rate stays reasonable. If the mesh is too heavy, decimate it with trimesh or use Block CAD.
-8. Commit, push, and update `README.md` (it has a CAD section).
+## Done: real field CAD
+- `cad/field/field.glb` is the full official field (element f4e47c668796f504844c94a0 in Onshape document 8a691e28680da30504859fce, workspace c6aa636fb23edb3f1e272fb1). The raw export has 2.8M triangles. `tools/slim-glb.mjs` drops FUEL, carpet, tape and hardware, then simplifies and merges the meshes, which leaves 357k triangles in 26 meshes (12 MB).
+- To refresh it, run `tools/onshape-export.sh` (needs `ONSHAPE_ACCESS_KEY` and `ONSHAPE_SECRET_KEY`), then `tools/slim-glb.mjs`. The README's "Real CAD" section has the commands.
+- Alignment: the GLB is in meters, Z-up, with blue at +X. The manifest uses `scale: 1`, `rotationDeg: [-90, 0, 180]` and `position: [0, 0, 0]`. The HUB, BUMP, TRENCH and alliance walls land on the colliders to within about 2 cm.
+- The CAD showed that the TOWER, OUTPOST and DEPOT were misplaced in `js/constants.js`. The TOWER is centered on AprilTag 31, not between 31 and 32, and the OUTPOST on tag 29, not between 29 and 30. Both were 0.22 m off. The DEPOT center is at fy 5.965. All three are fixed.
+- Bleachers, HUMAN PLAYERS, HUB lights and CHUTE DOORS are marked `userData.keepWithCad` and are still drawn on top of the CAD.
+- Browser check: the game makes 264 draw calls with the CAD, against 474 with the drawn field, and 580k triangles in view against 204k. There were no console errors.
+- Playwright in this container: Chromium doesn't trust the proxy CA, so route `cdn.jsdelivr.net` to `node_modules` (`npm i` installs three and rapier) and stub Google Fonts.
 
 ## Other open items
-- Only the HUB and BUMP have been checked against the drawing. The TRENCH, TOWER, DEPOT and OUTPOST sizes in `js/constants.js` come from the game manual. Compare them with the drawing pages above.
+- The HUB and BUMP sizes were checked against the drawing. All element positions were checked against the field CAD. The TRENCH, TOWER, DEPOT and OUTPOST *sizes* still come from the game manual, so compare them with the drawing pages above or measure them in the CAD. Note that the Block CAD bounding box puts the inside edge of the fixed TRENCH about 8 cm closer to the guardrail than `TRENCH.width` does.
 - Optional: a longer AI self-play training run, `npm run train -- --gens 30 --pop 12 --scenarios 6 --resume`.
 
 ## Gotchas

@@ -412,7 +412,7 @@ export class Field {
       // light bars along the top edges
       const lightMat = new THREE.MeshStandardMaterial({ color: 0x222222, emissive: ALLIANCE_COLOR[alliance], emissiveIntensity: 0, roughness: 0.4 });
       for (const [w, d, px, pz] of [[HUB.size, 0.04, 0, hs], [HUB.size, 0.04, 0, -hs], [0.04, HUB.size, hs, 0], [0.04, HUB.size, -hs, 0]]) {
-        box(w + 0.01, 0.05, d + 0.01, lightMat, px, deckY - 0.03, pz, hub, false);
+        box(w + 0.01, 0.05, d + 0.01, lightMat, px, deckY - 0.03, pz, hub, false).userData.keepWithCad = true;
       }
       // angled top light bars following the rim
       for (let k = 0; k < 6; k++) {
@@ -423,6 +423,7 @@ export class Field {
         const bar = new THREE.Mesh(new THREE.BoxGeometry(len, 0.025, 0.025), lightMat);
         bar.position.copy(a).add(b).multiplyScalar(0.5);
         bar.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), b.clone().sub(a).normalize());
+        bar.userData.keepWithCad = true; // HUB state lights stay on top of the CAD
         hub.add(bar);
       }
 
@@ -679,6 +680,7 @@ export class Field {
       const door = new THREE.Mesh(new THREE.BoxGeometry(0.02, OUTPOST.upperH + 0.02, OUTPOST.upperW), new THREE.MeshStandardMaterial({ color: 0xf5f5f5, roughness: 0.7 }));
       door.position.set(-0.03, OUTPOST.upperH / 2, 0);
       chute.add(door);
+      door.userData.keepWithCad = true; // shows the chute state
       // chute slots for the 24/25 staged FUEL (5 wide x 5 deep)
       const slots = [];
       const r = FUEL.radius;
@@ -707,6 +709,7 @@ export class Field {
       for (const m of [torso, head, leg, arm]) { m.castShadow = true; hp.add(m); }
       hp.position.set(wallX - 1.25, 0, zc - 0.55);
       hp.rotation.y = 0;
+      hp.userData.keepWithCad = true; // not in the field CAD
       grp.add(hp);
 
       this.outposts[alliance] = {
@@ -732,7 +735,7 @@ export class Field {
     const standMat = new THREE.MeshStandardMaterial({ color: 0x1a1d24, roughness: 1 });
     for (const s of [1, -1]) {
       for (let i = 0; i < 4; i++) {
-        box(FIELD_L + 8, 0.6, 1.2, standMat, 0, 0.3 + i * 0.6, s * (HALF_W + 3.2 + i * 1.2), this.group, false);
+        box(FIELD_L + 8, 0.6, 1.2, standMat, 0, 0.3 + i * 0.6, s * (HALF_W + 3.2 + i * 1.2), this.group, false).userData.keepWithCad = true;
       }
     }
     // scoring table

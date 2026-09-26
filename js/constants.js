@@ -99,7 +99,7 @@ export const TRENCH = {
 
 // ---------------------------------------------------------------- TOWER
 export const TOWER = {
-  fy: (3.7457126 + 4.1775126) / 2, // centered between TOWER WALL AprilTags 31/32
+  fy: 3.7457126, // centered on TOWER WALL AprilTag 31 (official field CAD, FE-2026)
   width: 49.25 * IN,
   depth: 45.0 * IN,
   height: 78.25 * IN,
@@ -120,7 +120,7 @@ TOWER.uprightFx = TOWER.baseDepth - TOWER.uprightDeep / 2 - 0.02;
 
 // ---------------------------------------------------------------- DEPOT
 export const DEPOT = {
-  fy: 6.0,
+  fy: 5.965, // center, from the official field CAD (FE-2026)
   width: 42.0 * IN,
   depth: 27.0 * IN,
   barrierW: 3.0 * IN,
@@ -129,7 +129,7 @@ export const DEPOT = {
 
 // ---------------------------------------------------------------- OUTPOST
 export const OUTPOST = {
-  fy: (0.6659626 + 1.0977626) / 2, // centered between OUTPOST AprilTags 29/30
+  fy: 0.6659626, // centered on OUTPOST AprilTag 29 (official field CAD, FE-2026)
   upperW: 31.8 * IN,
   upperH: 7.0 * IN,
   upperY: 28.1 * IN,

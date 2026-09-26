@@ -20,6 +20,7 @@ export async function loadCadModels(scene, field) {
     try {
       const gltf = await loader.loadAsync('cad/' + e.file);
       const obj = gltf.scene;
+      obj.userData.cad = e.file;
       // CAD is usually Z-up in mm; the game is Y-up in m
       const s = e.scale ?? 0.001;
       obj.scale.setScalar(s);
@@ -36,11 +37,16 @@ export async function loadCadModels(scene, field) {
       });
       scene.add(obj);
       loaded.push(e.file);
-      // a whole-field model replaces the drawn field (the carpet stays)
-      if (e.kind === 'field') for (const c of field.group.children) if (!c.userData.floor) c.visible = false;
+      // a whole-field model replaces the drawn field (the carpet, bleachers, HUMAN PLAYERS, HUB lights and OUTPOST doors stay)
+      if (e.kind === 'field') hideDrawnField(field.group);
     } catch (err) {
       console.warn('CAD model failed to load:', e.file, err);
     }
   }
   return loaded;
+}
+
+function hideDrawnField(group) {
+  const keep = (o) => { for (; o && o !== group; o = o.parent) if (o.userData.floor || o.userData.keepWithCad) return true; return false; };
+  group.traverse((o) => { if ((o.isMesh || o.isSprite) && !keep(o)) o.visible = false; });
 }

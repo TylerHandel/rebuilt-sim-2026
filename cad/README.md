@@ -3,6 +3,12 @@
 Put CAD exports in this folder and list them in `manifest.json`. The game loads them at startup.
 Physics always uses the colliders built from the game-manual dimensions in `js/field.js`; CAD is visual.
 
+## The field
+`field/field.glb` is the official field CAD (Onshape document 8a691e28680da30504859fce, "FE-2026: REBUILT
+Playing Field"). Its GLB export is in meters, Z-up, with the blue alliance on +X. The manifest entry's
+`rotationDeg: [-90, 0, 180]` maps that to the game's axes: Y-up, blue at −X. Refresh it with
+`tools/onshape-export.sh` and then `tools/slim-glb.mjs` (see the main README).
+
 ## Getting the files
 - **Onshape** (FIRST field, team robots): right-click the assembly tab → Export → **glTF (.glb)**, or STEP.
 - **STEP**: convert here with `python3 tools/cad2glb.py cad/field/field.step cad/field/field.glb`
@@ -22,3 +28,5 @@ Physics always uses the colliders built from the game-manual dimensions in `js/f
 - `rotationDeg`: converts CAD axes to the game's (Y up); `[-90, 0, 0]` suits Z-up CAD.
 - `position`: meters; the game's origin is the field center, blue alliance wall at −X.
 - `color` (optional): one color for the whole model if the export has none.
+- `enabled` (optional): `false` skips the model.
+- Drawn meshes flagged `userData.keepWithCad` (bleachers, HUMAN PLAYERS, HUB lights, CHUTE DOORS) stay visible under a `"field"` model.
