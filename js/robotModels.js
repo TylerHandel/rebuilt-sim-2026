@@ -505,6 +505,9 @@ function build2910(cfg, alliance) {
   cadIntake.position.set(INTAKE_2910.pivot[0], INTAKE_2910.pivot[1], 0);
   root.add(cadIntake);
   cadPart(cadIntake, 'robots/2910-intake.glb', () => { intake.visible = false; });
+  // their "Shooter & Feeder" assembly: powered floor, the roller ramp that indexes FUEL up under
+  // the rollered hood, and the drum at the back; it replaces the drawn tower and floor
+  cadPart(root, 'robots/2910-shooter.glb', () => { tower.visible = false; feeder.visible = false; });
 
   // ---- FUEL inside: main hopper, then the extension, then the tower
   const stored = storedGrid([-0.13, 0.02, 0.17, 0.3], [-0.225, -0.075, 0.075, 0.225], [0.2, 0.34, 0.47]);

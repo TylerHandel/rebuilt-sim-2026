@@ -37,14 +37,14 @@ export const ROBOTS = {
       x0: -0.143, x1: 0.323, hw: 0.33, top: 0.53, extTop: 0.47, // under the lids
       floor: { a: 0.1, b: 0.266, lo: 0.09, hi: 0.17 },
       drive: 'floor', driveSpeed: 1.8,
-      // indexer, up the front of the drum, over the top under the hood
-      feed: { x: -0.09, via: [[-0.16, 0.25], [-0.16, 0.42], [-0.26, 0.5]] },
+      // up the roller ramp at the back of the hopper, under the hood to the drum (their CAD)
+      feed: { x: -0.09, via: [[-0.1, 0.25], [-0.12, 0.38], [-0.2, 0.44]] },
     },
     shooter: {
       type: 'fixed',
       facing: 'back', // the drum at the back fires away from the intake
       lanes: [-0.19, -0.063, 0.063, 0.19],
-      exit: { x: -0.35, y: 0.46 }, // where FUEL leaves the hood, at the back of the drum
+      exit: { x: -0.34, y: 0.5 }, // where FUEL leaves the hood, over the back of the drum (their CAD)
       bps: 32,
       hoodMin: 42, hoodMax: 74,
       speedMax: 17,

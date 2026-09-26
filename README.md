@@ -176,7 +176,7 @@ A match takes about 30 s of CPU, so more cores train faster.
 | Climber | none | none | none |
 
 Sources:
-- 2910: the Re•Blitz tech binder and their public Onshape CAD. The intake you see is their "Pivoting Intake Assembly", and its reach (7.8 in past the BUMPER) comes from that CAD. Colors follow the CAD: raw aluminum, grey plates, light green drum wheels, and clear lids over the fixed and expanding hopper.
+- 2910: the Re•Blitz tech binder and their public Onshape CAD. The intake and the shooter you see are their "Pivoting Intake Assembly" and "Shooter & Feeder": a roller ramp indexes FUEL up under the rollered hood to the drum, which fires out the back. The intake's reach (7.8 in past the BUMPER) comes from that CAD. Colors follow the CAD: raw aluminum, grey plates, light green drum wheels, and clear lids over the fixed and expanding hopper.
 - 4414: the 2026 tech binder (2026.team4414.com) and its CAD renders: the sliding box intake on racks, the Dye Rotor, the smoked hopper with its teal truss frame.
 - 8793: your team CAD (Intake V3, Conveyor V2, Turret, Shooter).
 
