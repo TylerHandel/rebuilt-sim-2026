@@ -11,7 +11,7 @@ import { fmtValue } from './tuning.js';
 const $ = (id) => document.getElementById(id);
 
 export const DEFAULT_SETTINGS = {
-  robot: '2910', alliance: BLUE, ds: 1, start: 'rightTrench', preload: 8, auto: 'sweep',
+  robot: '2910', alliance: BLUE, ds: 1, start: 'rightTrench', preload: 8, auto: 'best',
   hp: 'manual', climber: 'none', camera: 'driver', preview: 'on',
   opponent: 'off', oppRobot: '4414', oppSkill: 'regional', customSide: 'drawn',
   driver: 'human', driverSkill: 'trained', mode: 'normal', role: 'score',
@@ -37,7 +37,9 @@ const OPTIONS = [
     key: (s) => (isCustom(s.auto) ? 'customSide' : 'start'),
     label: 'Starting position',
     values: (s) => (isCustom(s.auto) ? [['drawn', 'As drawn in editor'], ['mirror', 'Mirrored left ↔ right']] : START_ORDER.map((k) => [k, START_POSITIONS[k].name])),
-    descFn: (s) => (isCustom(s.auto) ? 'Custom autos start where you placed them in the Auto Editor; mirror to run it from the other side.' : 'BUMPERS overlap the ROBOT STARTING LINE without touching a BUMP (G303).'),
+    descFn: (s) => (isCustom(s.auto) ? 'Custom autos start where you placed them in the Auto Editor; mirror to run it from the other side.'
+      : s.auto === 'best' ? 'Best for this robot picks its own starting position; this setting applies to the other routines.'
+        : 'BUMPERS overlap the ROBOT STARTING LINE without touching a BUMP (G303).'),
   },
   { key: 'preload', label: 'Preloaded FUEL', values: [0, 1, 2, 3, 4, 5, 6, 7, 8].map((n) => [n, String(n)]), desc: 'Up to 8 FUEL may be preloaded. Unused preload FUEL is staged in the NEUTRAL ZONE.' },
   {

@@ -33,6 +33,7 @@ export async function loadCadModels(scene, field) {
           o.castShadow = true;
           o.receiveShadow = true;
           if (o.material && e.color) o.material = new THREE.MeshStandardMaterial({ color: e.color, roughness: 0.6, metalness: 0.2 });
+          else if (o.material && o.material.transparent && o.material.opacity < 0.7) tintClear(o.material);
         }
       });
       scene.add(obj);
@@ -48,5 +49,15 @@ export async function loadCadModels(scene, field) {
 
 function hideDrawnField(group) {
   const keep = (o) => { for (; o && o !== group; o = o.parent) if (o.userData.floor || o.userData.keepWithCad) return true; return false; };
-  group.traverse((o) => { if ((o.isMesh || o.isSprite) && !keep(o)) o.visible = false; });
+  group.traverse((o) => {
+    if ((o.isMesh || o.isSprite) && !keep(o)) o.visible = false;
+    if (o.userData.cadOnly) o.visible = true;
+  });
+}
+
+// clear CAD parts (polycarbonate) get a light tint so they read as panels, not holes
+function tintClear(m) {
+  m.color.lerp(new THREE.Color(0x9fbbd6), 0.5);
+  m.opacity = Math.max(m.opacity, 0.22);
+  m.depthWrite = false;
 }

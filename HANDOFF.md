@@ -1,6 +1,6 @@
 # Handoff
 
-For a new Claude Code session. Work on branch `main-aogjl4`, and commit and push there. Don't open a PR unless asked.
+For a new Claude Code session. The latest work is on branch `claude/physical-fuel-handling`, which is built on the field CAD work. Don't open a PR unless asked.
 
 ## The project in brief
 - An FRC 2026 REBUILT single-player browser simulator built on Three.js and Rapier. The libraries load from a CDN, so there's no build step. Run it with `python3 serve.py --open`.
@@ -38,6 +38,17 @@ For a new Claude Code session. Work on branch `main-aogjl4`, and commit and push
 - Bleachers, HUMAN PLAYERS, HUB lights and CHUTE DOORS are marked `userData.keepWithCad` and are still drawn on top of the CAD.
 - Browser check: the game makes 264 draw calls with the CAD, against 474 with the drawn field, and 580k triangles in view against 204k. There were no console errors.
 - Playwright in this container: Chromium doesn't trust the proxy CA, so route `cdn.jsdelivr.net` to `node_modules` (`npm i` installs three and rapier) and stub Google Fonts.
+
+## Done: physical FUEL handling (no teleporting)
+- **Intake** (`Robot._intake`, `_guideCaptured`, `_settleCaptured`): a ball in the intake zone is "captured". It stays a Rapier body but only collides with STATIC. Each step its velocity is set to carry it up the arm to just over the bumper, then into the hopper. When it gets there it becomes a hopper ball. The intake rate is still capped by `cfg.intake.rate`. The phase is sticky (`cap.over`); without that, 8793's low hopper entry made balls hover.
+- **Hopper** (`js/hopper.js`): held balls are position-based particles in the robot frame. Each robot's `cfg.bay` in `js/robotConfigs.js` gives the box, floor (sloped, with a funnel for 4414), top, chamfer, obstacles and mechanism (`floor` / `rotor` / `belt`) and feed path. `robot.stored` still lists the held balls, so the AI and UI are unchanged.
+- **Shooter** (`Robot._startFeed`, `_fire`): the same bps timer starts a ball up the feed path, and it launches from the exit with the old shot model. If the shot isn't `ready` when it arrives, it waits at the wheels.
+- **Checks:** the shooting rate matched the old code (32.1 / 17.9 / 13.6 bps vs 32.3 / 18.1 / 13.6), with the same HUB accuracy. So did the intake (same counts, first ball about 0.1 s later). Use `tools/intake-test.mjs` and `tools/bench.mjs`.
+- 4414's Dye Rotor was rebuilt after the real one (see the 4414 tech binder and Chief Delphi thread). The hopper extensions really extend, intake arms reach the rated reach, polycarbonate is tinted, and the HUB lights sit on the real diffusers (`HUB.lightY0/1`).
+
+## Done: best AUTO per robot
+- `BEST_AUTOS` in `js/auto.js` holds one plan per robot. Plans are in absolute blue coordinates and consist of trips (neutral-zone sweeps or depot runs). The `best` routine is now the menu default and the AI's AUTO.
+- `tools/auto-search.mjs` finds the plans: random plans, then tweaks, each scored with `tools/auto-eval.mjs` against the other robots on both alliances. Rerun it after changing robots or physics.
 
 ## Other open items
 - The HUB and BUMP sizes were checked against the drawing. All element positions were checked against the field CAD. The TRENCH, TOWER, DEPOT and OUTPOST *sizes* still come from the game manual, so compare them with the drawing pages above or measure them in the CAD. Note that the Block CAD bounding box puts the inside edge of the fixed TRENCH about 8 cm closer to the guardrail than `TRENCH.width` does.

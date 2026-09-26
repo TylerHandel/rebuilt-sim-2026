@@ -20,7 +20,7 @@ function initMaterials() {
   mats.diamond = new THREE.MeshStandardMaterial({ color: 0x9aa0a8, roughness: 0.3, metalness: 0.9 });
   mats.white = new THREE.MeshStandardMaterial({ color: 0xeeeeee, roughness: 0.5 });
   mats.poly = new THREE.MeshPhysicalMaterial({
-    color: 0xdfe9f5, transparent: true, opacity: 0.16, roughness: 0.05, metalness: 0, depthWrite: false, side: THREE.DoubleSide,
+    color: 0xaec7de, transparent: true, opacity: 0.24, roughness: 0.05, metalness: 0, depthWrite: false, side: THREE.DoubleSide, // lightly tinted
   });
   mats.funnel = new THREE.MeshStandardMaterial({
     color: 0xf2f4f7, transparent: true, opacity: 0.72, roughness: 0.4, side: THREE.DoubleSide,
@@ -412,7 +412,16 @@ export class Field {
       // light bars along the top edges
       const lightMat = new THREE.MeshStandardMaterial({ color: 0x222222, emissive: ALLIANCE_COLOR[alliance], emissiveIntensity: 0, roughness: 0.4 });
       for (const [w, d, px, pz] of [[HUB.size, 0.04, 0, hs], [HUB.size, 0.04, 0, -hs], [0.04, HUB.size, hs, 0], [0.04, HUB.size, -hs, 0]]) {
-        box(w + 0.01, 0.05, d + 0.01, lightMat, px, deckY - 0.03, pz, hub, false).userData.keepWithCad = true;
+        box(w + 0.01, 0.05, d + 0.01, lightMat, px, deckY - 0.03, pz, hub, false);
+      }
+      // the real LED diffusers wrap the HUB below its roof (GE-26309/10/11); with the field CAD
+      // shown these glow on top of it
+      const dy = (HUB.lightY0 + HUB.lightY1) / 2, dh = HUB.lightY1 - HUB.lightY0, o = hs + 0.012;
+      for (const [w, d, px, pz] of [[HUB.size - 0.02, 0.012, 0, o], [HUB.size - 0.02, 0.012, 0, -o], [0.012, HUB.size - 0.02, o, 0], [0.012, HUB.size - 0.02, -o, 0]]) {
+        const m = box(w, dh, d, lightMat, px, dy, pz, hub, false);
+        m.userData.keepWithCad = true;
+        m.userData.cadOnly = true; // shown by cadModels.js when the field CAD loads
+        m.visible = false;
       }
       // angled top light bars following the rim
       for (let k = 0; k < 6; k++) {
@@ -423,7 +432,6 @@ export class Field {
         const bar = new THREE.Mesh(new THREE.BoxGeometry(len, 0.025, 0.025), lightMat);
         bar.position.copy(a).add(b).multiplyScalar(0.5);
         bar.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), b.clone().sub(a).normalize());
-        bar.userData.keepWithCad = true; // HUB state lights stay on top of the CAD
         hub.add(bar);
       }
 

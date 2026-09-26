@@ -78,6 +78,9 @@ export const HUB = {
   exitSpeed: [1.0, 2.2],            // m/s off the exit ramps
   scoreGrace: 3.0,                  // FUEL assessed up to 3s after deactivation
   targetHeight: 1.95,               // aim point (center of opening)
+  // LED light diffusers around the top of the HUB box (field CAD, GE-26309/10/11)
+  lightY0: 1.275,
+  lightY1: 1.51,
 };
 
 // ---------------------------------------------------------------- BUMP

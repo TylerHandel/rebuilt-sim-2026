@@ -4,7 +4,8 @@
 //    4-FUEL-wide drum shooter with adjustable hood fixed to the chassis — the whole robot turns
 //    to aim; 30+ BPS (34 sustained). No climber ("Won't: Climb").
 //  - 4414 HighTide "RIPCURRENT" (tech binder): 25x32in swerve (7.67:1), over-bumper intake,
-//    extending hopper (85+ under the TRENCH), Dye Rotor feeding a single-stream turret shooter
+//    extending hopper (85+ under the TRENCH), a Dye Rotor (pocketed rotor, as in a paintball
+//    loader) feeding a single-stream turret shooter
 //    (3in flywheel, adjustable hood), precomputed shoot-on-the-move. No climber listed.
 //  - 8793 Pumpkin Bots (team CAD): hopperless — Intake V3 -> Conveyor V2 -> Turret -> Shooter.
 //    Low profile for the TRENCH. No climber in the assembly.
@@ -27,6 +28,15 @@ export const ROBOTS = {
     intake: { width: 25.5 * IN, reach: 11 * IN, rate: 26, deployTime: 0.35, side: 'front', latched: false },
     // one-piece hopper whose front slides out with the intake (40 FUEL retracted, 58 out)
     storage: { capacity: 58, retracted: 40, extLen: 0.25, extend: 'intake' },
+    // the hopper as the FUEL sees it (robot frame: x forward, y up, z to the side; meters).
+    // Powered floor rollers slope down to the back, where compliant indexer wheels lift FUEL
+    // into the drum.
+    bay: {
+      x0: -0.143, x1: 0.323, hw: 0.33, top: 0.54,
+      floor: { a: 0.1, b: 0.266, lo: 0.09, hi: 0.17 },
+      drive: 'floor', driveSpeed: 1.8,
+      feed: { x: -0.09, via: [[-0.17, 0.3]] },
+    },
     shooter: {
       type: 'fixed',
       lanes: [-0.19, -0.063, 0.063, 0.19],
@@ -56,6 +66,21 @@ export const ROBOTS = {
     intake: { width: 30 * IN, reach: 12 * IN, rate: 30, deployTime: 0.4, side: 'front', latched: true },
     // hopper front telescopes out 12in with the latched intake (58 FUEL retracted, 88 out)
     storage: { capacity: 88, retracted: 58, extLen: 0.3, extend: 'latched' },
+    // Netted hopper over the Dye Rotor: printed stadium terraces funnel FUEL into the rotor's
+    // pockets; it carries each one around to the Dolphin Fin at the back, up a roller ramp to the
+    // feeder wheels and into the turret. The back corners are chamfered.
+    bay: {
+      x0: -0.305, x1: 0.317, hw: 0.376, top: 0.53, extTop: 0.49, chamfer: 0.12,
+      floor: { a: 0.105, b: 0, lo: 0.105, hi: 0.105 },
+      funnel: { slope: 0.4, cap: 0.1 },
+      obstacles: [
+        { x: -0.03, z: 0, r: 0.06, y0: 0.1, y1: 0.165 },         // rotor hub
+        { x: -0.1, z: 0, r: 0.15, y0: 0.405, y1: 1 },            // turret
+        { box: [-0.305, -0.16, 0.265, 0.43, -0.09, 0.09] },      // ramp cover
+      ],
+      drive: 'rotor', rotor: { x: -0.03, z: 0, y: 0.105, r: 0.27, pockets: 9, spin: 14.1, idle: -0.6 },
+      feed: { x: -0.2, z: 0, via: [[-0.26, 0.24], [-0.2, 0.39], [-0.1, 0.47]] },
+    },
     shooter: {
       type: 'turret',
       turretPos: { x: -0.1, z: 0.0 },
@@ -86,6 +111,13 @@ export const ROBOTS = {
     drive: { maxSpeed: 4.5, maxAccel: 10.0, maxOmega: 9.0, maxAlpha: 34 },
     intake: { width: 26 * IN, reach: 10 * IN, rate: 14, deployTime: 0.3, side: 'front', latched: false },
     storage: { capacity: 12 },
+    // no hopper: two lanes on the conveyor that climbs from the intake to the turret
+    bay: {
+      x0: -0.13, x1: 0.3, hw: 0.16, above: 0.26,
+      floor: { a: 0.24, b: -0.543, lo: 0.115, hi: 0.28 },
+      drive: 'belt', driveSpeed: 1.4,
+      feed: { x: -0.08, via: [[-0.12, 0.42]] },
+    },
     shooter: {
       type: 'turret',
       turretPos: { x: -0.12, z: 0.0 },
@@ -115,6 +147,7 @@ export const CLIMBER_OPTIONS = {
 };
 
 export const AUTO_ROUTINES = {
+  best: { name: 'Best for this robot', desc: 'The highest-scoring AUTO found for the selected robot (its own start position, NEUTRAL ZONE sweeps and DEPOT runs).' },
   none: { name: 'No auto', desc: 'Robot sits still.' },
   preload: { name: 'Score preload', desc: 'Spin up and shoot the preloaded FUEL from the start line.' },
   depot: { name: 'Preload + Depot', desc: 'Shoot the preload, collect the 24 FUEL in the DEPOT, drive back and shoot.' },

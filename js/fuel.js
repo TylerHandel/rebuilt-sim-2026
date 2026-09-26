@@ -1,6 +1,7 @@
-// All 504 FUEL. Each ball is a Rapier rigid body while it is on the FIELD; FUEL held by a
-// ROBOT, inside a HUB, in an OUTPOST CHUTE or waiting to be returned by field staff has
-// its body disabled and is drawn (or hidden) separately.
+// All 504 FUEL. Each ball is a Rapier rigid body while it is on the FIELD (including while an
+// intake is pulling it in); FUEL held by a ROBOT (simulated by the robot's Hopper), inside a
+// HUB, in an OUTPOST CHUTE or waiting to be returned by field staff has its body disabled and
+// is drawn (or hidden) separately.
 import * as THREE from 'three';
 import { RAPIER } from './physics.js';
 import { FUEL, HUB, HALF_L, HALF_W, BLUE, RED, GROUP, groups, PHYSICS_DT } from './constants.js';
@@ -66,7 +67,7 @@ export class FuelManager {
     this.hubQueue = [];
     this.outQueue = [];
     this.exitBusy = { blue: [0, 0, 0, 0], red: [0, 0, 0, 0] };
-    for (const b of this.balls) this._disable(b, 'off');
+    for (const b of this.balls) { this._disable(b, 'off'); b.captor = null; b.hop = null; }
     let i = 0;
     const next = () => this.balls[i++];
     const neutralCount = Math.min(FUEL.neutralMax, FUEL.total - 2 * FUEL.perDepot - 2 * FUEL.perChute - preload);

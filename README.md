@@ -70,7 +70,7 @@ How the Scorer handles time and traffic:
 - **Champs:** full speed, full hoppers, tight cycles and clean defense, using the hand-tuned strategy.
 - **Trained (self-play):** Champs-level driving, using the strategy learned by AI-vs-AI self-play (see below).
 
-In AUTO the AI runs a normal routine. Scorer and Hybrid do a Neutral Zone sweep. Defense starts beside its HUB, shoots its preload and drives over its BUMP to wait at mid-field, on its side of the CENTER LINE, ready for TELEOP.
+In AUTO the AI runs a normal routine. Scorer and Hybrid run their robot's *Best for this robot* AUTO. Defense starts beside its HUB, shoots its preload and drives over its BUMP to wait at mid-field, on its side of the CENTER LINE, ready for TELEOP.
 
 ### Watch AI vs AI
 
@@ -230,9 +230,19 @@ None of the three climbed, so each defaults to *no climber*. The **Climber add-o
 
 Robots push each other with realistic traction (mass × acceleration limit), so heavier or faster-accelerating robots win shoving matches.
 
+**FUEL in the robots** (nothing teleports):
+- **Intake:** the rollers grab FUEL (still a physics ball) and drag it up the intake arm, over the BUMPER and in through the slot under the hopper wall, at the robot's intake rate. FUEL the rollers let go of before it's over the BUMPER drops back onto the carpet.
+- **Hopper:** held FUEL is simulated in the robot's own frame with a lighter solver: gravity, soft ball-to-ball contact (foam squashes), the walls, floors and internal parts, and the robot's own motion, so the load piles up, slides back when you accelerate and sloshes when you spin. Each robot's mechanisms move it:
+  - 2910's powered floor rolls FUEL back to the indexer.
+  - 4414's Dye Rotor (a pocketed rotor, like a paintball loader's) carries FUEL around to the Dolphin Fin and up a roller ramp to the turret. Printed "stadium" terraces funnel FUEL into the pockets, and when it isn't feeding the rotor turns slowly backward to agitate the load.
+  - 8793's conveyor carries FUEL up to its turret and holds it there.
+- **Shooter:** FUEL travels the feed path to the flywheel and leaves from the exit at the same rate (BPS) and with the same shot model as before. A FUEL that reaches the wheels while the shot isn't lined up waits there.
+
 ## Auto routines
 
-Each routine is mirrored automatically for the red alliance and for left/right starting positions:
+**Best for this robot** runs the highest-scoring AUTO found for the selected robot, with its own starting position (see BEST_AUTOS in `js/auto.js`). `tools/auto-search.mjs` finds these plans: it plays candidate plans headless against the other robots' best AUTOs on both alliances and keeps whichever scores the most AUTO FUEL. BUMPERS may reach past the CENTER LINE but never fully cross it, since G403 is only a foul for contact made fully across it. The AI runs this AUTO too.
+
+The other routines are mirrored automatically for the red alliance and for left/right starting positions:
 - Score preload
 - Preload + Depot
 - Neutral Zone sweep: out through the TRENCH, back over the BUMP, shooting on the move
@@ -290,6 +300,7 @@ js/ballistics.js            drag-aware trajectory model, shot tables, shoot-on-t
 js/robotConfigs.js          the three robots' specs
 js/robotModels.js           3D models
 js/robot.js                 swerve drive, intake, storage, turret/chassis aiming, shooter, climber
+js/hopper.js                FUEL inside a robot: hopper physics, mechanisms, feed paths
 js/match.js                 match timing, HUB shifts, scoring, fouls
 js/humanPlayer.js           OUTPOST human player
 js/auto.js                  autonomous routines and starting positions
@@ -308,6 +319,8 @@ js/main.js                  game loop
 serve.py                    local server
 tools/train.mjs             self-play trainer (Node); tools/match.mjs runs one headless match
 tools/headless.mjs          headless match runner; tools/node-env.mjs + resolve-hook.mjs load the game in Node
+tools/auto-search.mjs       finds each robot's best AUTO (tools/auto-eval.mjs, auto-worker.mjs)
+tools/bench.mjs, tools/intake-test.mjs   regression checks: AI matches, and a straight-line intake run
 start.bat / start.command   double-click launchers (Windows / macOS)
 ```
 

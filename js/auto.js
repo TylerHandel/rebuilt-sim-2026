@@ -2,7 +2,7 @@
 // runs one of these pre-programmed routines. Waypoints are in BLUE field coordinates
 // (fx from the blue ALLIANCE WALL, fy from the blue drivers' right) and are mirrored for
 // the red ALLIANCE and for left-side starts.
-import { FIELD_W, ALLIANCE_ZONE_DEPTH, HUB, DEPOT, fw } from './constants.js';
+import { FIELD_W, ALLIANCE_ZONE_DEPTH, HALF_L, HUB, DEPOT, BUMP, fw } from './constants.js';
 import { clamp, wrapAngle } from './util.js';
 import { getCustom, customSteps } from './customAutos.js';
 
@@ -33,11 +33,37 @@ export function customSelection(routine, side) {
   return auto ? { auto, mirror: side === 'mirror' } : null;
 }
 
+// The best AUTO found for each robot (tools/auto-search.mjs plays candidates headless against
+// each opponent and keeps the one that scores the most AUTO FUEL). Blue field coordinates,
+// A trip either sweeps one line
+// of the NEUTRAL ZONE FUEL (out through a TRENCH or over a BUMP, sweep from fy a to b along
+// fx, home the same way on that side, shooting once back in the ALLIANCE ZONE), or clears
+// the DEPOT. Plans are in absolute blue coordinates (not mirrored). Robot BUMPERS may reach
+// past the CENTER LINE, never fully across it.
+export const BEST_AUTOS = {
+  2910: { start: 'rightTrench', preload: 'move', trips: [
+    { out: 'trench', fx: 7.55, a: 1.4, b: 6.5, speed: 0.55, home: 'trench', shootAt: [2.6, 6.2] },
+    { out: 'trench', fx: 8.05, a: 6.6, b: 1.5, speed: 0.55, home: 'trench', shootAt: [2.6, 1.9] },
+  ] },
+  4414: { start: 'rightTrench', preload: 'move', trips: [
+    { out: 'trench', fx: 7.6, a: 1.4, b: 6.5, speed: 0.5, home: 'trench', shootAt: [2.6, 6.2] },
+  ] },
+  8793: { start: 'leftBump', preload: 'move', trips: [
+    { depot: true, speed: 0.35 },
+    { out: 'bump', fx: 7.7, a: 6.2, b: 5.0, speed: 0.3, home: 'bump', shootAt: [3.0, 5.6] },
+  ] },
+};
+
+// Lanes to and from the NEUTRAL ZONE on the right side (low fy); mirrored for the left
+const ROUTE_FY = { trench: 0.64, bump: HUB.fy - HUB.size / 2 - BUMP.width / 2 };
+
 export class AutoRunner {
-  constructor(robot, routine, startKey, alliance, custom = null) {
+  constructor(robot, routine, startKey, alliance, custom = null, plan = null) {
     this.robot = robot;
     this.alliance = alliance;
-    this.left = !custom && START_POSITIONS[startKey].fy > FIELD_W / 2 + 0.01;
+    this.plan = plan || (routine === 'best' ? BEST_AUTOS[robot.cfg.key] : null);
+    // built-in routines are authored for right-side starts and mirrored; plans are absolute
+    this.left = !custom && !this.plan && START_POSITIONS[startKey].fy > FIELD_W / 2 + 0.01;
     this.steps = custom ? customSteps(custom.auto, custom.mirror, robot.cfg.drive.maxSpeed) : this._build(routine);
     this.i = 0;
     this.stepT = 0;
@@ -63,6 +89,7 @@ export class AutoRunner {
       steps.push({ type: 'drive', pts: [[6.3, 3.0], [5.2, 2.55], [3.3, 2.4]], intake: small, shoot: small ? true : 'hub', speed: back ? 0.9 : 1.0 });
       steps.push({ type: 'shoot', timeout: 2.5 });
     };
+    if (routine === 'best' && this.plan) return this._planSteps(this.plan);
     switch (routine) {
       case 'preload':
         shootPreload();
@@ -99,6 +126,39 @@ export class AutoRunner {
         break;
       default:
         break;
+    }
+    return steps;
+  }
+
+  // Steps for a BEST_AUTOS-style plan (see above)
+  _planSteps(plan) {
+    const r = this.robot;
+    const small = r.cfg.storage.capacity < 20;
+    const bps = r.cfg.shooter.bps;
+    const maxFx = HALF_L + r.halfW - 0.08; // BUMPERS past the CENTER LINE but not fully across
+    const steps = [];
+    const lane = (kind, fy) => (fy > FIELD_W / 2 ? FIELD_W - ROUTE_FY[kind] : ROUTE_FY[kind]);
+    const shootAll = () => steps.push({ type: 'shoot', timeout: r.cfg.storage.capacity / bps + 1.2 });
+    if (plan.preload === 'stand') steps.push({ type: 'shoot', timeout: 1.5 });
+    let first = plan.preload !== 'stand';
+    for (const trip of plan.trips) {
+      if (trip.depot) {
+        // along the ALLIANCE WALL through the DEPOT, intake and shooter both running
+        const dfy = DEPOT.fy, dx = r.halfL + r.cfg.intake.reach + 0.04;
+        steps.push({ type: 'drive', pts: [[2.4, dfy - 1.0], [dx + 0.3, dfy - 0.7]], intake: true, shoot: 'hub', speed: 1.0 });
+        steps.push({ type: 'drive', pts: [[dx, dfy - 0.45], [dx, dfy + 0.5]], intake: true, shoot: 'hub', speed: trip.speed ?? 0.35, face: Math.PI / 2 });
+        steps.push({ type: 'drive', pts: [[2.2, dfy]], intake: true, shoot: 'hub', speed: 0.6 });
+        if (!small) shootAll();
+        first = false;
+        continue;
+      }
+      const fx = Math.min(trip.fx, maxFx);
+      const outY = lane(trip.out, trip.a), homeY = lane(trip.home, trip.b);
+      steps.push({ type: 'drive', pts: [[3.1, outY], [5.9, outY], [fx - 0.35, trip.a]], intake: true, shoot: first ? 'hub' : false, speed: 1.0 });
+      first = false;
+      steps.push({ type: 'drive', pts: [[fx, trip.a], [fx, trip.b]], intake: true, speed: trip.speed });
+      steps.push({ type: 'drive', pts: [[6.0, homeY], [3.2, homeY], trip.shootAt], intake: small, shoot: 'hub', speed: 1.0 });
+      shootAll();
     }
     return steps;
   }
