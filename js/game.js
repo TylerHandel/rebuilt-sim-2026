@@ -25,7 +25,7 @@ export function createGame(world, settings, { onEvent = () => {}, prev = null } 
   robot.spawn(pose.x, pose.z, pose.yaw);
   const oppOn = settings.opponent && settings.opponent !== 'off';
   const pre = fuel.stage(settings.preload + (oppOn ? 8 : 0));
-  robot.stored.push(...pre.slice(0, settings.preload));
+  robot.loadFuel(pre.slice(0, settings.preload));
   const aiDriven = settings.driver && settings.driver !== 'human';
   const hp = new HumanPlayer({ alliance, field, fuel, match });
   hp.auto = settings.hp === 'auto' || aiDriven;
@@ -39,7 +39,7 @@ export function createGame(world, settings, { onEvent = () => {}, prev = null } 
     const plan = opponentAuto(settings.opponent);
     const op = startPose(plan.start, orobot, oa);
     orobot.spawn(op.x, op.z, op.yaw);
-    orobot.stored.push(...pre.slice(settings.preload));
+    orobot.loadFuel(pre.slice(settings.preload));
     const ohp = new HumanPlayer({ alliance: oa, field, fuel, match });
     ohp.auto = true;
     opp = {
