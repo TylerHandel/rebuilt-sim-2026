@@ -234,7 +234,7 @@ Robots push each other with realistic traction (mass × acceleration limit), so 
 - **Intake:** the rollers grab FUEL (still a physics ball) and drag it up the intake arm, over the BUMPER and in through the slot under the hopper wall, at the robot's intake rate. FUEL the rollers let go of before it's over the BUMPER drops back onto the carpet.
 - **Hopper:** held FUEL is simulated in the robot's own frame with a lighter solver: gravity, soft ball-to-ball contact (foam squashes), the walls, floors and internal parts, and the robot's own motion, so the load piles up, slides back when you accelerate and sloshes when you spin. Each robot's mechanisms move it:
   - 2910's powered floor rolls FUEL back to the indexer.
-  - 4414's Dye Rotor, a wide rotating floor, carries FUEL around to the Dolphin Fin beside the center column. From there FUEL climbs a spiral of passive rollers to the feeder wheels and the turret on top. Printed "stadium" pieces funnel FUEL onto the rotor, and when it isn't feeding the rotor turns slowly backward to agitate the load.
+  - 4414's Dye Rotor: the Dolphin Fin sweeps round over a still floor, pushing FUEL to the center column. FUEL climbs a spiral of passive rollers to the feeder wheels and the turret on top. Printed "stadium" pieces funnel FUEL onto the floor, and when it isn't feeding the fin turns slowly backward to agitate the load.
   - 8793's conveyor carries FUEL up to its turret and holds it there.
 - **Shooter:** FUEL travels the feed path to the flywheel and leaves from the exit at the same rate (BPS) and with the same shot model as before. A FUEL that reaches the wheels while the shot isn't lined up waits there.
 

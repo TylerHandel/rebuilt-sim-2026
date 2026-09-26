@@ -27,9 +27,9 @@ export const ROBOTS = {
     drive: { maxSpeed: 4.3, maxAccel: 9.5, maxOmega: 8.5, maxAlpha: 32 },
     // slap-down intake from 2910's CAD: its 2in roller reaches ~7.8in past the bumper
     intake: { width: 25.5 * IN, reach: 7.8 * IN, rate: 26, deployTime: 0.35, side: 'front', latched: false },
-    // stowed, the intake stands up in the front of the hopper; deployed, that room holds FUEL
-    // (40 FUEL stowed, 58 deployed). inside: the hopper grows within the frame
-    storage: { capacity: 58, retracted: 40, extLen: 0.1, extend: 'intake', inside: true },
+    // one-piece hopper whose front panels expand out over the intake as it deploys
+    // (40 FUEL stowed, 58 deployed)
+    storage: { capacity: 58, retracted: 40, extLen: 0.2, extend: 'intake' },
     // the hopper as the FUEL sees it (robot frame: x forward, y up, z to the side; meters).
     // Powered floor rollers slope down to the back, where compliant indexer wheels lift FUEL
     // into the drum.
@@ -69,23 +69,23 @@ export const ROBOTS = {
     intake: { width: 30 * IN, reach: 0.27 + 0.035 - 3.25 * IN, rate: 30, deployTime: 0.4, side: 'front', latched: true },
     // the intake box is also the hopper's extension (58 FUEL retracted, 88 out)
     storage: { capacity: 88, retracted: 58, extLen: 0.27, extend: 'latched' },
-    // Netted hopper over the Dye Rotor: printed stadium pieces funnel FUEL onto the rotating floor,
-    // which carries it around to the Dolphin Fin beside the center column; a ramp of passive
-    // rollers climbs the column to the feeder wheels and the turret on top. Chamfered back corners.
+    // Netted hopper over the Dye Rotor: printed stadium pieces funnel FUEL onto the floor, where
+    // the rotating Dolphin Fin sweeps it round to the center column; a ramp of passive rollers
+    // climbs the column to the feeder wheels and the turret on top. Chamfered back corners.
     bay: {
       x0: -0.305, x1: 0.317, hw: 0.376, top: 0.53, extTop: 0.47, chamfer: 0.12,
       floor: { a: 0.105, b: 0, lo: 0.105, hi: 0.105 },
       funnel: { slope: 0.4, cap: 0.1 },
-      column: { x: -0.1, z: 0, r: 0.12, y1: 0.41 },
+      column: { x: -0.02, z: 0, r: 0.12, y1: 0.41 },
       obstacles: [
-        { x: -0.1, z: 0, r: 0.12, y0: 0.1, y1: 1 }, // center column and turret
+        { x: -0.02, z: 0, r: 0.12, y0: 0.1, y1: 1 }, // center column and turret
       ],
-      drive: 'rotor', rotor: { x: -0.02, z: 0, y: 0.105, r: 0.285, grip: 10, spin: 14.1, idle: -0.6 },
-      feed: { x: -0.08, z: 0.2, via: [[-0.06, 0.25, 0.2], [-0.12, 0.34, 0.17], [-0.1, 0.46, 0]] },
+      drive: 'rotor', rotor: { x: -0.02, z: 0, y: 0.105, r: 0.285, grip: 40, spin: 14.1, idle: -0.6 },
+      feed: { x: -0.02, z: 0.21, via: [[0.0, 0.25, 0.2], [-0.04, 0.34, 0.17], [-0.02, 0.46, 0]] },
     },
     shooter: {
       type: 'turret',
-      turretPos: { x: -0.1, z: 0.0 },
+      turretPos: { x: -0.02, z: 0.0 }, // on the Dye Rotor's center column
       exitRadius: 0.1,
       exitY: 0.53,
       turretRange: 200, turretRate: 720,

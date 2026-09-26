@@ -99,7 +99,7 @@ export class Robot {
     // extending hopper section: a real collider that slides out with the hopper
     const st = this.cfg.storage;
     this.hopperCollider = null;
-    if (st.extLen && !st.inside) {
+    if (st.extLen) {
       this.hopperHalfH = (this.height - 0.17) / 2;
       this.hopperCollider = world.createCollider(
         RAPIER.ColliderDesc.cuboid(st.extLen / 2, this.hopperHalfH, cfg.frame.width / 2 - 0.02)
@@ -213,10 +213,7 @@ export class Robot {
   maxCapacity() { return this.cfg.storage.capacity; }
 
   // front of the hopper right now (an extending hopper moves it forward)
-  bayFront() {
-    const st = this.cfg.storage, ext = st.extLen || 0;
-    return st.inside ? this.cfg.bay.x1 - ext * (1 - this.hopperDeploy) : this.cfg.bay.x1 + ext * this.hopperDeploy;
-  }
+  bayFront() { return this.cfg.bay.x1 + (this.cfg.storage.extLen || 0) * this.hopperDeploy; }
 
   // preloaded FUEL, dropped loosely into the hopper
   loadFuel(balls) {
@@ -795,6 +792,7 @@ export class Robot {
       feeding: this.feeding,
       hoodDeg: this.hoodDeg,
       turretYaw: this.turretYaw,
+      rotorAngle: this.hopper.finAngle,
     }, dt);
     // swerve module steering to match the motion
     const lv = this.worldToLocalVec(this.vel.x, this.vel.z);

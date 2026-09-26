@@ -459,10 +459,14 @@ function build2910(cfg, alliance) {
   const hBack = -L / 2 + 0.2, hFront = L / 2 - 0.02;
   const hMid = (hBack + hFront) / 2, hLen = hFront - hBack;
   for (const s of [-1, 1]) polyWall(hopper, hLen, hH, hMid, hY + hH / 2, s * (W / 2 - 0.012), 0, M.polyTint, green);
-  // front of the hopper: the stowed intake stands just behind this wall; deployed, it swings
-  // out through the slot at the bottom and its room fills with FUEL
+  // expanding front section: telescoping side panels + front wall ride out over the intake as it
+  // deploys (the stowed intake stands just behind the front wall)
   const front = new THREE.Group();
   root.add(front);
+  for (const s of [-1, 1]) {
+    polyWall(front, extLen + 0.04, hH * 0.85, hFront - extLen / 2 + 0.02, hY + hH * 0.85 / 2, s * (W / 2 - 0.028), 0, M.polyTint, M.alu);
+    tube(root, hFront - 0.28, s * (W / 2 - 0.05), hFront - 0.02, s * (W / 2 - 0.05), hY + hH - 0.02, M.aluDark, 0.012, 0.012); // slide rail
+  }
   // front wall stops short of the floor: the intake feeds FUEL in through the slot under it
   const slot = 0.2, fwH = hH * 0.85 - slot;
   polyWall(front, W - 0.06, fwH, hFront + 0.02, hY + slot + fwH / 2, 0, Math.PI / 2, M.polyTint, M.alu);
@@ -498,6 +502,7 @@ function build2910(cfg, alliance) {
     intake.rotation.z = lerp(STOWED, deploy, st.intakeDeploy);
     for (const r of intakeRollers) r.rotation.z += st.intakeSpeed * dt * 40;
     cadIntake.rotation.z = lerp(0, INTAKE_2910.swing, st.intakeDeploy);
+    front.position.x = st.hopperDeploy * extLen; // the hopper expands with the intake
     drum.rotation.z -= st.flywheel * dt * 6;
     for (const r of hoodRollers) r.rotation.y += st.flywheel * dt * 8;
     indexer.rotation.z -= st.feeding * dt * 25;
@@ -592,20 +597,28 @@ function build4414(cfg, alliance) {
   extNetGeo.rotateX(-Math.PI / 2);
   mesh(extNetGeo, M.net, ext, 0, hY + hH * 0.9 - 0.06, 0).castShadow = false;
 
-  // ---- Dye Rotor: a low, wide rotating floor inside a ring wall. FUEL falls onto it and rides
-  // around to the Dolphin Fin beside the center column, which lifts it onto a ramp of passive
-  // rollers climbing the column to the feeder wheels and the turret on top. Printed "stadium"
-  // pieces fill the corners and funnel FUEL down onto the rotor.
+  // ---- Dye Rotor: a low, wide floor inside a ring wall. FUEL falls onto it, and the Dolphin
+  // Fin sweeps round over it, pushing FUEL to the center column, where a ramp of passive rollers
+  // climbs to the feeder wheels and the turret on top. Printed "stadium" pieces fill the corners
+  // and funnel FUEL down onto the floor.
   const bay = cfg.bay, rs = bay.rotor;
   const dark = std(0x33373d, 0.55, 0.4);
+  // the floor stays still; the Dolphin Fin on its arm is what turns
+  const plateMat = new THREE.MeshStandardMaterial({ color: 0xb4bac2, map: rotorTexture(), roughness: 0.5, metalness: 0.3 });
+  const floorPlate = mesh(new THREE.CylinderGeometry(rs.r, rs.r, 0.01, 64), [dark, plateMat, dark], root, rs.x, rs.y - 0.005, rs.z);
+  floorPlate.receiveShadow = true;
   const rotor = new THREE.Group();
   rotor.position.set(rs.x, rs.y, rs.z);
   root.add(rotor);
-  const plateMat = new THREE.MeshStandardMaterial({ color: 0xb4bac2, map: rotorTexture(), roughness: 0.5, metalness: 0.3 });
-  const rotorPlate = mesh(new THREE.CylinderGeometry(rs.r, rs.r, 0.01, 64), [dark, plateMat, dark], rotor, 0, -0.005, 0);
-  rotorPlate.receiveShadow = true;
-  const bigGear = mesh(new THREE.TorusGeometry(0.12, 0.008, 6, 48), dark, rotor, 0, -0.02, 0);
-  bigGear.rotation.x = Math.PI / 2;
+  mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.03, 24), dark, rotor, 0, 0.015, 0);
+  bx(rs.r - 0.06, 0.025, 0.02, dark, rotor, (rs.r + 0.04) / 2, 0.0125, 0); // arm
+  // Dolphin Fin at the outer end of the arm: a curved blade that sweeps FUEL round and up
+  const finShape = new THREE.Shape();
+  const f0 = bay.column.r + 0.015; // the blade runs from just outside the column to the rim
+  finShape.moveTo(f0, 0); finShape.lineTo(rs.r - 0.005, 0); finShape.lineTo(rs.r - 0.005, 0.1);
+  finShape.quadraticCurveTo(rs.r - 0.03, 0.16, rs.r - 0.07, 0.14); finShape.quadraticCurveTo(f0 + 0.04, 0.06, f0, 0);
+  const dolphin = mesh(new THREE.ExtrudeGeometry(finShape, { depth: 0.012, bevelEnabled: true, bevelThickness: 0.003, bevelSize: 0.003, bevelSegments: 2 }), teal, rotor, 0, 0, -0.006);
+  dolphin.castShadow = true;
   // fixed ring wall around the rotor, on standoffs
   const ringMat = new THREE.MeshPhysicalMaterial({ color: 0x2e3238, transparent: true, opacity: 0.55, roughness: 0.3, depthWrite: false, side: THREE.DoubleSide });
   mesh(new THREE.CylinderGeometry(rs.r + 0.01, rs.r + 0.01, 0.1, 64, 1, true), ringMat, root, rs.x, rs.y + 0.05, rs.z).castShadow = false;
@@ -620,11 +633,6 @@ function build4414(cfg, alliance) {
   mesh(new THREE.CylinderGeometry(col.r + 0.035, col.r + 0.035, 0.012, 40), dark, root, col.x, col.y1, col.z);
   const wrap = mesh(new THREE.CylinderGeometry(col.r + 0.06, col.r + 0.015, 0.16, 32, 1, true, Math.PI * 0.2, Math.PI * 1.1), ringMat, root, col.x, rs.y + 0.1, col.z);
   wrap.castShadow = false;
-  // Dolphin Fin: scoops FUEL off the rotor at the side of the column
-  const finShape = new THREE.Shape();
-  finShape.moveTo(0, 0); finShape.quadraticCurveTo(0.07, 0.01, 0.1, 0.1); finShape.quadraticCurveTo(0.05, 0.07, -0.04, 0.08); finShape.lineTo(0, 0);
-  const dolphin = mesh(new THREE.ExtrudeGeometry(finShape, { depth: 0.01, bevelEnabled: false }), teal, root, col.x + 0.02, rs.y, col.z + col.r + 0.07);
-  dolphin.rotation.y = Math.PI / 2;
   // ramp of passive rollers climbing the column, then the feeder wheels
   const rampRollers = [];
   const up = new THREE.Vector3(0, 1, 0);
@@ -703,9 +711,11 @@ function build4414(cfg, alliance) {
   const anim = (st, dt) => {
     // the intake box slides out on its racks (and stays out)
     ext.position.x = st.hopperDeploy * extLen;
-    for (const r of intakeRollers) r.rotation.z += st.intakeSpeed * dt * 35;
-    // ~2.25 rev/s when feeding; otherwise turns slowly backward to agitate the load
-    rotor.rotation.y += (st.feeding > 0 ? cfg.bay.rotor.spin : cfg.bay.rotor.idle) * dt;
+    intakeRollers[0].rotation.y -= st.intakeSpeed * dt * 35; // cylinder along z: spin about its axis
+    intakeRollers[1].rotation.z -= st.intakeSpeed * dt * 35;
+    // the Dolphin Fin: ~2.25 rev/s when feeding, otherwise slowly backward to agitate the load
+    // (its angle comes from the hopper physics, so the fin and the FUEL it pushes agree)
+    rotor.rotation.y = st.rotorAngle ?? 0;
     kicker.rotation.z -= st.feeding * dt * 30;
     omniV.rotation.x -= st.feeding * dt * 30;
     for (const r of rampRollers) r.rotateY(-st.feeding * dt * 20);
