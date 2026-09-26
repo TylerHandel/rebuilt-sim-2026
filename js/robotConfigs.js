@@ -26,7 +26,8 @@ export const ROBOTS = {
     mass: 61,
     drive: { maxSpeed: 4.3, maxAccel: 9.5, maxOmega: 8.5, maxAlpha: 32 },
     // slap-down intake from 2910's CAD: its 2in roller reaches ~7.8in past the bumper
-    intake: { width: 25.5 * IN, reach: 7.8 * IN, rate: 26, deployTime: 0.35, side: 'front', latched: false },
+    // rate: fast enough that driving through FUEL is the only limit; pull: roller surface speed
+    intake: { width: 25.5 * IN, reach: 7.8 * IN, rate: 200, pull: 5, deployTime: 0.35, side: 'front', latched: false },
     // one-piece hopper (their CAD): its panels sit over the shooter when stowed and slide out
     // along slotted rails as the intake deploys (40 FUEL stowed, 58 deployed)
     storage: { capacity: 58, retracted: 40, extLen: 0.25, extend: 'intake' },
@@ -68,7 +69,8 @@ export const ROBOTS = {
     mass: 60,
     drive: { maxSpeed: 4.0, maxAccel: 9.0, maxOmega: 8.0, maxAlpha: 30 },
     // the intake is a box that slides out on racks (extLen) with its roller at the lip
-    intake: { width: 30 * IN, reach: 0.27 + 0.035 - 3.25 * IN, rate: 30, deployTime: 0.4, side: 'front', latched: true },
+    // rate: fast enough that driving through FUEL is the only limit; pull: roller surface speed
+    intake: { width: 30 * IN, reach: 0.27 + 0.035 - 3.25 * IN, rate: 200, pull: 5, deployTime: 0.4, side: 'front', latched: true },
     // the intake box is also the hopper's extension (58 FUEL retracted, 88 out)
     storage: { capacity: 88, retracted: 58, extLen: 0.27, extend: 'latched' },
     // Netted hopper over the Dye Rotor: printed stadium pieces funnel FUEL onto the floor, where

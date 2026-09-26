@@ -171,7 +171,7 @@ A match takes about 30 s of CPU, so more cores train faster.
 | Capacity | 58 FUEL | 88 FUEL (extending hopper) | 12 (only the ball path) |
 | Shooter | 4-wide drum, adjustable hood, **fixed to the chassis** (whole robot turns to aim) | Single-stream 3" flywheel on a **turret**, adjustable hood | Hooded flywheel on a **turret** |
 | Rate | 32 FUEL/s | 18 FUEL/s | 13 FUEL/s |
-| Intake | 26 FUEL/s, slap-down (7.8 in reach) | 30 FUEL/s, sliding box (latched out) | 14 FUEL/s |
+| Intake | as fast as it drives through FUEL (~110/s at full speed), slap-down (7.8 in reach) | as fast as it drives through FUEL (~140/s), sliding box (latched out) | 14 FUEL/s |
 | Fits under TRENCH | yes | yes | yes |
 | Climber | none | none | none |
 

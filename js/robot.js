@@ -16,7 +16,7 @@ const R = FUEL.radius;
 // FUEL the intake has grabbed is held by the rollers: it still hits field structures, but not
 // this robot, other FUEL, or the floor features the robot is driving over
 const CAPTURED_GROUPS = groups(GROUP.BALL, GROUP.STATIC);
-const INTAKE_SPEED = 3.5; // m/s the rollers pull FUEL in
+const INTAKE_SPEED = 3.5; // m/s the rollers pull FUEL in (cfg.intake.pull overrides)
 const FEED_SPEED = 7;     // m/s up the feed path into the shooter
 const CLIMB_LIFT = [0, 0.16, 0.74, 1.2]; // body lift to satisfy LEVEL 1/2/3 criteria
 
@@ -321,7 +321,7 @@ export class Robot {
       const tx = up ? path.lipX : path.entryX, ty = up ? path.liftY : path.entryY;
       let vx = tx - lx, vy = ty - ly, vz = cap.z - lz;
       const dist = Math.hypot(vx, vy, vz) || 1;
-      const sp = Math.min(INTAKE_SPEED, dist / (2 * dt));
+      const sp = Math.min(this.cfg.intake.pull ?? INTAKE_SPEED, dist / (2 * dt));
       vx *= sp / dist; vy *= sp / dist; vz *= sp / dist;
       // robot point velocity + the pull, in world axes
       b.body.setLinvel({
@@ -401,7 +401,7 @@ export class Robot {
     const running = on && this.cmd.intake && deployed;
     this.intakeSpeed = on && this.cmd.outtake ? -1 : running ? 1 : 0;
     if (running && this.stored.length + this.captured.length < this.capacity()) {
-      this.intakeTokens = Math.min(4, this.intakeTokens + ic.rate * dt);
+      this.intakeTokens = Math.min(Math.max(4, 2 * ic.rate * dt), this.intakeTokens + ic.rate * dt);
       const front = this.halfL - 0.04;
       const reach = this.halfL + ic.reach + R + 0.02;
       const hw = ic.width / 2 + 0.02;
