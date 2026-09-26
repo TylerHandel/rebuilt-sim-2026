@@ -49,7 +49,10 @@ export async function loadCadModels(scene, field) {
 
 function hideDrawnField(group) {
   const keep = (o) => { for (; o && o !== group; o = o.parent) if (o.userData.floor || o.userData.keepWithCad) return true; return false; };
-  group.traverse((o) => { if ((o.isMesh || o.isSprite) && !keep(o)) o.visible = false; });
+  group.traverse((o) => {
+    if ((o.isMesh || o.isSprite) && !keep(o)) o.visible = false;
+    if (o.userData.cadOnly) o.visible = true;
+  });
 }
 
 // clear CAD parts (polycarbonate) get a light tint so they read as panels, not holes

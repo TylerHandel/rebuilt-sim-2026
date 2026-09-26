@@ -319,6 +319,9 @@ function intakeArm(cfg, px, py, rollerR) {
   return { armLen: Math.hypot(tx - px, py - ty), deploy: -Math.atan2(py - ty, tx - px) };
 }
 
+// stowed intakes stand nearly upright just in front of the hopper
+const STOWED = 1.4;
+
 // row of shooter wheels on a shaft along Z
 function wheelStack(parent, len, r, n, wheelMat, x, y, z, width = 0.02) {
   const g = new THREE.Group();
@@ -404,7 +407,9 @@ function build2910(cfg, alliance) {
     polyWall(front, extLen + 0.04, hH * 0.85, hFront - extLen / 2 + 0.02, hY + hH * 0.85 / 2, s * (W / 2 - 0.028), 0, M.polyTint, M.alu);
     tube(root, hFront - 0.28, s * (W / 2 - 0.05), hFront - 0.02, s * (W / 2 - 0.05), hY + hH - 0.02, M.aluDark, 0.012, 0.012); // slide rail
   }
-  polyWall(front, W - 0.06, hH * 0.85, hFront + 0.02, hY + hH * 0.85 / 2, 0, Math.PI / 2, M.polyTint, M.alu);
+  // front wall stops short of the floor: the intake feeds FUEL in through the slot under it
+  const slot = 0.2, fwH = hH * 0.85 - slot;
+  polyWall(front, W - 0.06, fwH, hFront + 0.02, hY + slot + fwH / 2, 0, Math.PI / 2, M.polyTint, M.alu);
   limelight(root, hFront - 0.3, H + 0.01, W / 2 - 0.03);
   limelight(root, -L / 2 + 0.02, H - 0.03, -W / 2 + 0.12, Math.PI);
 
@@ -429,8 +434,8 @@ function build2910(cfg, alliance) {
   for (const z of [-0.19, -0.063, 0.063, 0.19]) stored.push(new THREE.Vector3(-0.2, 0.3, z));
 
   const anim = (st, dt) => {
-    // intake: 0 = stowed (arms up, leaning back over the hopper), 1 = deployed over the bumper
-    intake.rotation.z = lerp(2.0, deploy, st.intakeDeploy);
+    // intake: 0 = stowed (arms up in front of the hopper), 1 = deployed over the bumper
+    intake.rotation.z = lerp(STOWED, deploy, st.intakeDeploy);
     for (const r of intakeRollers) r.rotation.z += st.intakeSpeed * dt * 40;
     front.position.x = st.hopperDeploy * extLen; // slides out by extLen
     drum.rotation.z -= st.flywheel * dt * 6;
@@ -475,8 +480,10 @@ function build4414(cfg, alliance) {
     polyWall(ext, extLen + 0.06, hH * 0.9, L / 2 - extLen / 2 - 0.03, hY + hH * 0.45, s * (wallZ - 0.018), 0, M.polyTint, M.alu);
     tube(root, L / 2 - 0.34, s * (wallZ - 0.035), L / 2 - 0.02, s * (wallZ - 0.035), hY + hH - 0.03, M.aluDark, 0.014, 0.014);
   }
-  polyWall(ext, W - 0.07, hH * 0.55, L / 2, hY + hH * 0.28, 0, Math.PI / 2, M.polyTint, M.alu);
-  rbx(0.02, 0.02, W - 0.05, 0.003, orange, ext, L / 2, hY + hH * 0.56, 0);
+  // front wall above the intake slot (FUEL comes in under it)
+  const slot = 0.2, fwH = hH * 0.9 - slot;
+  polyWall(ext, W - 0.07, fwH, L / 2, hY + slot + fwH / 2, 0, Math.PI / 2, M.polyTint, M.alu);
+  rbx(0.02, 0.02, W - 0.05, 0.003, orange, ext, L / 2, hY + slot, 0);
 
   // ---- net over the hopper (open around the turret), and over the extension
   const topY = hY + hH;
@@ -617,7 +624,7 @@ function build4414(cfg, alliance) {
   stored.push(...storedGrid([L / 2 - extLen + 0.08, L / 2 - extLen + 0.22], [-0.375, -0.225, -0.075, 0.075, 0.225, 0.375], [0.2, 0.34], true));
 
   const anim = (st, dt) => {
-    intake.rotation.z = lerp(2.05, deploy, st.intakeDeploy);
+    intake.rotation.z = lerp(STOWED, deploy, st.intakeDeploy);
     for (const r of intakeRollers) r.rotation.z += st.intakeSpeed * dt * 35;
     ext.position.x = st.hopperDeploy * extLen;
     // ~2.25 rev/s when feeding; otherwise turns slowly backward to agitate the load
@@ -699,7 +706,7 @@ function build8793(cfg, alliance) {
   for (let i = path.length - 1; i >= 0; i--) for (const z of [-0.08, 0.08]) stored.push(new THREE.Vector3(path[i][0] - 0.1, path[i][1] + 0.06, z));
 
   const anim = (st, dt) => {
-    intake.rotation.z = lerp(2.0, deploy, st.intakeDeploy);
+    intake.rotation.z = lerp(STOWED, deploy, st.intakeDeploy);
     for (const r of intakeRollers) r.rotation.z += st.intakeSpeed * dt * 40;
     for (const w of convWheels) w.rotation.z += (st.intakeSpeed + st.feeding) * dt * 25;
     turret.rotation.y = st.turretYaw;

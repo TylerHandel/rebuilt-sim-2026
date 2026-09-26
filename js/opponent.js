@@ -70,11 +70,11 @@ export function brainFor(skill, override = null) {
   return { ...DEFAULT_BRAIN, ...(sk.brain === null ? TRAINED_BRAIN : sk.brain), ...(override || {}) };
 }
 
-// AUTO routine the AI runs for each strategy
+// AUTO routine the AI runs for each strategy (scorers run their robot's best AUTO)
 export function opponentAuto(strategy) {
   // the defender starts beside its HUB (not behind it, where the driver station can't see it)
   // and ends AUTO waiting in the middle of the field
-  return strategy === 'defense' ? { routine: 'defendStage', start: 'rightBump' } : { routine: 'sweep', start: 'rightTrench' };
+  return strategy === 'defense' ? { routine: 'defendStage', start: 'rightBump' } : { routine: 'best', start: 'rightTrench' };
 }
 
 export class OpponentAI {

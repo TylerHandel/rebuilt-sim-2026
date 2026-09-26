@@ -3,7 +3,7 @@
 import { Robot } from './robot.js';
 import { Match } from './match.js';
 import { HumanPlayer } from './humanPlayer.js';
-import { AutoRunner, startPose, customSelection } from './auto.js';
+import { AutoRunner, startPose, customSelection, BEST_AUTOS } from './auto.js';
 import { OpponentAI, opponentAuto } from './opponent.js';
 import { RobotRules } from './rules.js';
 import { ROBOTS, CLIMBER_OPTIONS } from './robotConfigs.js';
@@ -21,7 +21,10 @@ export function createGame(world, settings, { onEvent = () => {}, prev = null } 
   fuel.match = match;
   const robot = new Robot({ cfg: ROBOTS[settings.robot] || ROBOTS['2910'], alliance, physics, scene, field, fuel, match, climber: CLIMBER_OPTIONS[settings.climber] || null });
   const custom = customSelection(settings.auto, settings.customSide);
-  const pose = startPose(settings.start, robot, alliance, custom);
+  // 'best' brings its own start position (settings.autoPlan overrides the plan, for searching)
+  const plan = settings.auto === 'best' ? settings.autoPlan || BEST_AUTOS[robot.cfg.key] : null;
+  const startKey = plan ? plan.start : settings.start;
+  const pose = startPose(startKey, robot, alliance, custom);
   robot.spawn(pose.x, pose.z, pose.yaw);
   const oppOn = settings.opponent && settings.opponent !== 'off';
   const pre = fuel.stage(settings.preload + (oppOn ? 8 : 0));
@@ -29,7 +32,7 @@ export function createGame(world, settings, { onEvent = () => {}, prev = null } 
   const aiDriven = settings.driver && settings.driver !== 'human';
   const hp = new HumanPlayer({ alliance, field, fuel, match });
   hp.auto = settings.hp === 'auto' || aiDriven;
-  const auto = new AutoRunner(robot, settings.auto, settings.start, alliance, custom);
+  const auto = new AutoRunner(robot, settings.auto, startKey, alliance, custom, plan);
   const rules = new RobotRules(match);
   const robots = [robot];
   let opp = null;
@@ -37,6 +40,8 @@ export function createGame(world, settings, { onEvent = () => {}, prev = null } 
     const oa = other(alliance);
     const orobot = new Robot({ cfg: ROBOTS[settings.oppRobot] || ROBOTS['4414'], alliance: oa, physics, scene, field, fuel, match, climber: null });
     const plan = opponentAuto(settings.opponent);
+    const oplan = plan.routine === 'best' ? settings.oppAutoPlan || BEST_AUTOS[orobot.cfg.key] : null;
+    if (oplan) plan.start = oplan.start;
     const op = startPose(plan.start, orobot, oa);
     orobot.spawn(op.x, op.z, op.yaw);
     orobot.loadFuel(pre.slice(settings.preload));
@@ -45,7 +50,7 @@ export function createGame(world, settings, { onEvent = () => {}, prev = null } 
     opp = {
       robot: orobot,
       hp: ohp,
-      auto: new AutoRunner(orobot, plan.routine, plan.start, oa),
+      auto: new AutoRunner(orobot, plan.routine, plan.start, oa, null, oplan),
       ai: new OpponentAI({ robot: orobot, foe: robot, match, fuel, rules, strategy: settings.opponent, skill: settings.oppSkill, brain: settings.oppBrain }),
     };
     robots.push(orobot);

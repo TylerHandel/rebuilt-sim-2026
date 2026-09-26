@@ -147,6 +147,7 @@ export const CLIMBER_OPTIONS = {
 };
 
 export const AUTO_ROUTINES = {
+  best: { name: 'Best for this robot', desc: 'The highest-scoring AUTO found for the selected robot (its own start position, NEUTRAL ZONE sweeps and DEPOT runs).' },
   none: { name: 'No auto', desc: 'Robot sits still.' },
   preload: { name: 'Score preload', desc: 'Spin up and shoot the preloaded FUEL from the start line.' },
   depot: { name: 'Preload + Depot', desc: 'Shoot the preload, collect the 24 FUEL in the DEPOT, drive back and shoot.' },
