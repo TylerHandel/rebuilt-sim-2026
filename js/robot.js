@@ -218,6 +218,13 @@ export class Robot {
 
   maxCapacity() { return this.cfg.storage.capacity; }
 
+  // how far forward the retracting intake arm reaches into the hopper (its roller)
+  _compactorX() {
+    const a = this.cfg.intake.arm;
+    const deg = a.stowDeg + (a.deployDeg - a.stowDeg) * this.intakeDeploy;
+    return a.x + a.len * Math.cos(deg * DEG);
+  }
+
   // front of the hopper right now (an extending hopper moves it forward)
   bayFront() { return this.cfg.bay.x1 + (this.cfg.storage.extLen || 0) * this.hopperDeploy; }
 
@@ -381,10 +388,13 @@ export class Robot {
     let want = on && this.cmd.intake;
     if (ic.latched && this.intakeDeploy >= 1) want = true; // latched down for the whole match
     if (this.forceDeploy) want = true;
-    // Re•Blitz retracts the intake while shooting to compress FUEL into the shooter
-    if (this.cfg.key === '2910' && on && (this.cmd.shoot || this.cmd.pass) && !this.cmd.intake) want = false;
+    // Re•Blitz retracts the intake while shooting to compact FUEL into the indexer
+    if (ic.compacts && on && (this.cmd.shoot || this.cmd.pass) && !this.cmd.intake) want = false;
     if (on && this.cmd.outtake) want = true;
-    this.intakeDeploy = approach(this.intakeDeploy, want ? 1 : 0, dt / ic.deployTime);
+    const next = approach(this.intakeDeploy, want ? 1 : 0, dt / (want ? ic.deployTime : ic.retractTime ?? ic.deployTime));
+    // a compacting intake pushes on the load as it comes in, and stalls while it can't squeeze more
+    if (!(ic.compacts && next < this.intakeDeploy && this.hopper.pressure > 0.025)) this.intakeDeploy = next;
+    this.hopper.wall = ic.compacts ? this._compactorX() : Infinity;
     this._hopper(dt, on);
     const deployed = this.intakeDeploy > 0.85;
     // An intake that deploys into a structure (e.g. 4414 at the Hub start) would jam the robot,

@@ -378,8 +378,8 @@ function cadPart(parent, file, onLoad) {
 
 // 2910's slap-down intake from their Onshape CAD (Re•Blitz top level assembly, "Pivoting Intake
 // Assembly"): pivot position in the robot frame, and how far it swings from stowed (as exported)
-// until its 2in roller is down at FUEL height, ~7.8in past the bumper
-const INTAKE_2910 = { pivot: [0.273, 0.17], swing: -2.234 };
+// until its 2in roller is down at FUEL height, ~7.8in past the bumper (cfg.intake.arm)
+const intake2910 = (cfg) => { const a = cfg.intake.arm; return { pivot: [a.x, a.y], swing: (a.deployDeg - a.stowDeg) * Math.PI / 180 }; };
 
 // row of shooter wheels on a shaft along Z
 function wheelStack(parent, len, r, n, wheelMat, x, y, z, width = 0.02) {
@@ -510,6 +510,7 @@ function build2910(cfg, alliance) {
   ];
   rbx(0.05, 0.05, cfg.intake.width + 0.04, 0.004, purple, intake, armLen - 0.02, 0.05, 0);
   const cadIntake = new THREE.Group();
+  const INTAKE_2910 = intake2910(cfg);
   cadIntake.position.set(INTAKE_2910.pivot[0], INTAKE_2910.pivot[1], 0);
   root.add(cadIntake);
   cadPart(cadIntake, 'robots/2910-intake.glb', () => { intake.visible = false; });

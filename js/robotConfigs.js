@@ -27,10 +27,16 @@ export const ROBOTS = {
     drive: { maxSpeed: 4.3, maxAccel: 9.5, maxOmega: 8.5, maxAlpha: 32 },
     // slap-down intake from 2910's CAD: its 2in roller reaches ~7.8in past the bumper
     // rate: fast enough that driving through FUEL is the only limit; pull: roller surface speed
-    intake: { width: 25.5 * IN, reach: 7.8 * IN, rate: 200, pull: 5, deployTime: 0.35, side: 'front', latched: false },
-    // one-piece hopper (their CAD): its panels sit over the shooter when stowed and slide out
-    // along slotted rails as the intake deploys (40 FUEL stowed, 58 deployed)
-    storage: { capacity: 58, retracted: 40, extLen: 0.25, extend: 'intake' },
+    // arm: the CAD intake's pivot and its 2in roller's reach and angle, stowed (as exported) and
+    // down on the carpet. While shooting it retracts slowly and pushes the load back into the
+    // indexer (compacts), stalling against the FUEL until there's room.
+    intake: {
+      width: 25.5 * IN, reach: 7.8 * IN, rate: 200, pull: 5, deployTime: 0.35, retractTime: 1.6, side: 'front', latched: false,
+      compacts: true, arm: { x: 0.273, y: 0.17, len: 0.338, stowDeg: 112.5, deployDeg: -15.5 },
+    },
+    // one-piece hopper (their CAD): its panels sit over the shooter at the start and slide out
+    // along slotted rails with the first intake, then stay out for the match (40 / 58 FUEL)
+    storage: { capacity: 58, retracted: 40, extLen: 0.25, extend: 'latched' },
     // the hopper as the FUEL sees it (robot frame: x forward, y up, z to the side; meters).
     // Powered floor rollers slope down to the back, where compliant indexer wheels lift FUEL
     // into the drum.

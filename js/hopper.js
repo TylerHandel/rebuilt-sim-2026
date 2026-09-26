@@ -23,6 +23,8 @@ export class Hopper {
     this.spec = spec;
     this.list = [];
     this.front = spec.x1;
+    this.wall = Infinity; // a mechanism sweeping in from the front (2910's intake compacting)
+    this.pressure = 0;    // how hard the load is squeezed (deepest ball overlap, m)
     this.quiet = 0;
     this.finAngle = 0; // Dye Rotor: where the Dolphin Fin is (robot frame, about +y)
   }
@@ -194,6 +196,7 @@ export class Hopper {
     // constraints: ball-ball contact, then the hopper around them
     list.sort((a, b) => a.p.x - b.p.x);
     const n = list.length;
+    let squeeze = 0;
     for (let it = 0; it < ITER; it++) {
       for (let i = 0; i < n; i++) {
         const a = list[i];
@@ -206,6 +209,7 @@ export class Hopper {
           if (d2 >= D_BALL * D_BALL) continue;
           if (a.tr && b.tr) continue;
           const d = Math.sqrt(d2) || 1e-4;
+          if (it === ITER - 1) squeeze = Math.max(squeeze, D_BALL - d);
           const corr = (D_BALL - d) / d;
           const ka = a.tr ? 0 : b.tr ? 1 : 0.5, kb = b.tr ? 0 : a.tr ? 1 : 0.5;
           const cx = dx * corr, cy = (d2 > 1e-8 ? dy : 1e-4) * corr, cz = dz * corr;
@@ -215,6 +219,7 @@ export class Hopper {
       }
       for (const e of list) if (!e.tr) this._bounds(e.p);
     }
+    this.pressure = squeeze;
 
     for (const e of list) {
       if (e.tr) continue;
@@ -229,7 +234,7 @@ export class Hopper {
 
   _bounds(p) {
     const s = this.spec;
-    p.x = clamp(p.x, s.x0 + R_WALL, this.front - R_WALL);
+    p.x = clamp(p.x, s.x0 + R_WALL, Math.min(this.front, this.wall) - R_WALL);
     p.z = clamp(p.z, -s.hw + R_WALL, s.hw - R_WALL);
     const fl = this.floorAt(p.x, p.z) + R_WALL;
     const top = this.topAt(p.x) - R_WALL;
