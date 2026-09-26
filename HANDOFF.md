@@ -54,6 +54,11 @@ For a new Claude Code session. The latest work is on branch `claude/physical-fue
 - The robot body is free to pitch and roll (angular damping 1.5). The drive commands only the horizontal velocity and yaw rate, the wheels also collide with FUEL, and the bumper is a rounded cuboid, so robots tilt over BUMPS, DEPOT barriers and FUEL piles. The yaw comes from the full quaternion. The model follows the body's rotation. The hopper solver gets gravity and acceleration in the tilted frame.
 - Colors follow the real robots: 2910 in raw aluminum with grey plates and light green drum wheels (their CAD), and 4414 in black and carbon with the teal truss (binder renders). 8793 is unchanged (no source yet). 2910 has clear lids over the fixed hopper and the expanding section.
 
+## Done: capacity from the model
+- Capacity is measured from each hopper's geometry (`measureCapacity` in `js/hopper.js`: pour n FUEL in, settle 2 s, largest n under 10 mm of extra squeeze, bisection, cached). `Robot.geoCap` holds retracted/extended; `capacity()` / `maxCapacity()` use it, and so do the UI robot cards, the AI and the AUTO timeouts. `storage.capacity` / `retracted` in the configs are only the teams' stated numbers now.
+- Today: 2910 44 → 63, 4414 61 → 92 (its ceiling is the raised net, 0.56 m, just under the TRENCH arm), 8793 12.
+- Captured FUEL enters on top of the pile by the entry (`Hopper.dropHeight`), and is pushed in once that spot is up to the top.
+
 ## Other open items
 - The HUB and BUMP sizes were checked against the drawing. All element positions were checked against the field CAD. The TRENCH, TOWER, DEPOT and OUTPOST *sizes* still come from the game manual, so compare them with the drawing pages above or measure them in the CAD. Note that the Block CAD bounding box puts the inside edge of the fixed TRENCH about 8 cm closer to the guardrail than `TRENCH.width` does.
 - Optional: a longer AI self-play training run, `npm run train -- --gens 30 --pop 12 --scenarios 6 --resume`.

@@ -1286,7 +1286,7 @@ export function buildRobotModel(cfg, alliance) {
   const r = FUEL.radius;
   const geo = new THREE.SphereGeometry(r, 14, 10);
   const mat = new THREE.MeshStandardMaterial({ color: 0xf4d23a, roughness: 0.75 });
-  const inst = new THREE.InstancedMesh(geo, mat, Math.max(m.stored.length, cfg.storage.capacity + 8));
+  const inst = new THREE.InstancedMesh(geo, mat, 260); // room for whatever the hopper holds
   inst.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   inst.frustumCulled = false;
   inst.castShadow = true;

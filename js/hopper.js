@@ -18,6 +18,38 @@ const G = 9.81;
 const ITER = 3;
 const MAX_SPEED = 5;
 
+// How much FUEL a hopper holds: pour n in, let it settle, and see whether the load fits without
+// squashing past what foam gives (SQUEEZE_MAX). Largest n that fits, by bisection. Seeded, and
+// cached per hopper, so it's the same every time.
+const SQUEEZE_MAX = 0.01;
+const capCache = new Map();
+export function measureCapacity(spec, front) {
+  const key = spec;
+  let per = capCache.get(key);
+  if (!per) { per = new Map(); capCache.set(key, per); }
+  const k = front.toFixed(3);
+  if (per.has(k)) return per.get(k);
+  const env = { acc: { x: 0, z: 0 }, w: 0, alpha: 0 };
+  const fits = (n) => {
+    let s = 12345;
+    const rng = () => ((s = (s * 16807) % 2147483647) / 2147483647);
+    const h = new Hopper(spec);
+    h.front = front;
+    h.fill(Array.from({ length: n }, () => ({})), rng);
+    let p = 0;
+    for (let i = 0; i < 240; i++) { h.step(1 / 120, env); if (i >= 210) p = Math.max(p, h.pressure); }
+    return p < SQUEEZE_MAX;
+  };
+  let lo = 1, hi = 8;
+  while (fits(hi) && hi < 400) { lo = hi; hi *= 2; }
+  while (hi - lo > 1) { const m = (lo + hi) >> 1; if (fits(m)) lo = m; else hi = m; }
+  per.set(k, lo);
+  return lo;
+}
+
+// the most a robot holds (hopper out)
+export const modelCapacity = (cfg) => measureCapacity(cfg.bay, cfg.bay.x1 + (cfg.storage.extLen || 0));
+
 // A Dye Rotor's hook: a fixed curved guide over the rotor, from its rim in to the feeder at the
 // center column (FUEL carried round runs into it and slides in along it). Points [x, z] in the
 // robot frame; angles about the rotor center in the fin's sense (direction (cos, 0, -sin)).
@@ -73,6 +105,17 @@ export class Hopper {
     return y;
   }
 
+  // Where a FUEL let in at (x, z) comes to rest: on the hopper floor, or on the FUEL already there
+  dropHeight(x, z) {
+    let y = this.floorAt(x, z) + R_WALL;
+    for (const e of this.list) {
+      if (e.tr) continue;
+      const dx = e.p.x - x, dz = e.p.z - z, h2 = dx * dx + dz * dz;
+      if (h2 < D_BALL * D_BALL) y = Math.max(y, e.p.y + Math.sqrt(D_BALL * D_BALL - h2));
+    }
+    return y;
+  }
+
   topAt(x) {
     const s = this.spec;
     if (s.above) return this.floorAt(x) + s.above;
@@ -96,7 +139,7 @@ export class Hopper {
   }
 
   // Drop FUEL in loosely (preload), back to front and bottom up, and let it settle
-  fill(balls) {
+  fill(balls, rng = Math.random) {
     const s = this.spec;
     const step = 2 * R * 0.97;
     const slots = [];
@@ -110,8 +153,8 @@ export class Hopper {
     }
     balls.forEach((b, i) => {
       const p = (slots[i] || slots[slots.length - 1] || new THREE.Vector3(0, 0.3, 0)).clone();
-      p.x += (Math.random() - 0.5) * 0.02;
-      p.z += (Math.random() - 0.5) * 0.02;
+      p.x += (rng() - 0.5) * 0.02;
+      p.z += (rng() - 0.5) * 0.02;
       this.add(b, p, new THREE.Vector3());
     });
     for (let i = 0; i < 30; i++) this.step(1 / 120, { acc: { x: 0, z: 0 }, w: 0, alpha: 0 });

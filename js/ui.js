@@ -7,6 +7,7 @@ import { loadAutos, isCustom, getCustom, CUSTOM_PREFIX } from './customAutos.js'
 import { OPP_STRATEGIES, OPP_ORDER, OPP_SKILLS, SKILL_ORDER, BRAIN_SPEC } from './opponent.js';
 import { PIN_LIMIT } from './rules.js';
 import { fmtValue } from './tuning.js';
+import { modelCapacity } from './hopper.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -136,7 +137,8 @@ export class UI {
     const s = this.s;
     const cards = ROBOT_ORDER.map((k) => {
       const r = ROBOTS[k];
-      const stats = Object.entries(r.stats).map(([a, b]) => `<tr><td class="muted">${a}</td><td>${b}</td></tr>`).join('');
+      // capacity: what the modeled hopper holds (measured), not the team's stated number
+      const stats = Object.entries({ Capacity: modelCapacity(r), ...r.stats }).map(([a, b]) => `<tr><td class="muted">${a}</td><td>${b}</td></tr>`).join('');
       return `<div class="rcard ${s.robot === k ? 'sel' : ''} ${this.focus === 0 && s.robot === k ? 'focus' : ''}" data-robot="${k}">
         <div class="num">${r.team}</div><div class="nm">${r.teamName} · ${r.robotName}</div>
         <div class="arch">${r.archetype}</div><div class="desc">${r.blurb}</div><table>${stats}</table></div>`;
