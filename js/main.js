@@ -5,6 +5,8 @@ import { FuelManager } from './fuel.js';
 import { OpponentAI } from './opponent.js';
 import { createGame, stepGame, frameGame } from './game.js';
 import { AutoEditor } from './editor.js';
+import { Learner, DrivingRecorder } from './learning.js';
+import { TuningScreen } from './tuning.js';
 import { Input } from './input.js';
 import { CameraRig, CAMERA_NAMES } from './cameras.js';
 import { UI, loadSettings } from './ui.js';
@@ -84,6 +86,8 @@ ui.editor = new AutoEditor({
   onClose: () => ui.show('menu'),
   onTest: (key) => { settings.auto = key; ui._changed(); startMatch(); },
 });
+const learner = new Learner();
+ui.tuning = new TuningScreen({ learner, onClose: () => ui.show('menu') });
 ui.show('menu');
 $('loading').classList.add('hidden');
 
@@ -127,9 +131,32 @@ function onEvent(type, d) {
   }
 }
 
+// Settings the match actually uses: Training mode and the Defense role adjust the opponent,
+// and "Your trained AI" robots get their brain from the learner.
+function matchSettings() {
+  const eff = { ...settings };
+  const role = settings.role === 'defense' ? 'defense' : 'score';
+  const training = settings.mode === 'training';
+  if (role === 'defense') eff.opponent = 'scorer'; // you defend, it scores
+  else if (training && eff.opponent === 'off') eff.opponent = 'hybrid';
+  let cand = null;
+  if (training) {
+    cand = learner.candidate(role);
+    eff.oppSkill = 'mine';
+    eff.oppBrain = cand.brain;
+  } else if (eff.oppSkill === 'mine') eff.oppBrain = learner.brain;
+  if (eff.driverSkill === 'mine') eff.driverBrain = learner.brain;
+  return { eff, cand, training, role };
+}
+
 function startMatch() {
-  game = createGame(world, settings, { onEvent, prev: game });
+  const { eff, cand, training, role } = matchSettings();
+  game = createGame(world, eff, { onEvent, prev: game });
   game.input = input;
+  game.role = role;
+  game.defenseTarget = learner.defenseAverage();
+  game.training = training ? { cand, number: learner.s.matches + 1 } : null;
+  game.recorder = eff.driver === 'human' ? new DrivingRecorder(game) : null;
   const alliance = settings.alliance;
   rig.alliance = alliance;
   rig.ds = settings.ds;
@@ -201,6 +228,21 @@ function handleGameInput(inp, dt) {
 
 function stepSim(dt) {
   stepGame(game, world, dt);
+  if (game.recorder) game.recorder.step(dt);
+}
+
+// final buzzer: remember how you drove, and let the AI learn from the match in Training mode
+function finishMatch() {
+  const obs = game.recorder ? game.recorder.finish() : null;
+  if (obs) learner.addDemo(obs);
+  if (game.training && game.opp) {
+    const me = game.robot.alliance, m = game.match;
+    game.learnSummary = learner.learn({
+      role: game.role, info: game.training.cand.info,
+      aiTotal: m.total(other(me)), humanTotal: m.total(me),
+      obs: game.settings.driver === 'human' ? obs : null,
+    });
+  }
 }
 
 // ------------------------------------------------------------------ main loop
@@ -240,6 +282,7 @@ function tick(dt, render) {
       frameGame(game, dt);
       if (game.match.over && !resultsShown) {
         resultsShown = true;
+        finishMatch();
         ui.showResults(game);
       }
     }
@@ -287,7 +330,7 @@ requestAnimationFrame(frame);
 
 // debugging / test handle: __sim.advance(seconds) steps the game without animation frames
 window.__sim = {
-  get game() { return game; }, fuel, field, physics, settings, THREE, renderer, scene, camera, ui, rig, startMatch,
+  get game() { return game; }, learner, fuel, field, physics, settings, THREE, renderer, scene, camera, ui, rig, startMatch,
   setInput(v) { debugInput = v; },
   // test hook: let an AI drive the player's robot (same as the "Your robot" menu option)
   autopilot(strategy = 'scorer', skill = 'champs') {

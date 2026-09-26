@@ -75,7 +75,7 @@ export function stepGame(game, world, dt) {
   else if (match.isTeleop && game.driver) Object.assign(robot.cmd, game.driver);
   else Object.assign(robot.cmd, IDLE_CMD);
   if (opp) {
-    if (match.isAuto) opp.auto.update(dt);
+    if (match.isAuto) { opp.auto.update(dt); opp.ai.label = 'AUTO routine'; }
     else opp.ai.update(dt);
   }
   for (const r of robots) r.preStep(dt);

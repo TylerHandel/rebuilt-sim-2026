@@ -115,6 +115,7 @@ export class Robot {
     this.enabled = false;
     this.cmd = { vx: 0, vz: 0, omega: 0, intake: false, outtake: false, shoot: false, pass: false };
     this.aimOverride = null;
+    this.passTarget = null;
     this.shot = null;
     this.status = 'Idle';
     this.feeding = 0;
@@ -123,7 +124,7 @@ export class Robot {
     this.climbTarget = this.climberCfg ? this.climberCfg.maxLevel : 0;
     this.climbLevel = 0;
     this.climbTime = 0;
-    this.stats = { shots: 0, intaked: 0 };
+    this.stats = { shots: 0, intaked: 0, passes: 0 };
     this.lastInZone = false;
     this.preview = null;
   }
@@ -295,10 +296,13 @@ export class Robot {
       const c = Field.hubCenter(this.alliance);
       return { mode: 'hub', x: c.x, z: c.z, table: this.hubTable, inZone };
     }
-    // nearest corner of our ALLIANCE ZONE (away from the HUB)
+    // an AI can pick where its passes land (feeding its own zone); otherwise the nearest
+    // corner of our ALLIANCE ZONE (away from the HUB)
+    if (this.passTarget) return { mode: 'pass', x: this.passTarget.x, z: this.passTarget.z, table: this.passTable, inZone };
     const s = this.alliance === BLUE ? 1 : -1;
-    const x = s * (-HALF_L + 1.35);
-    const zc = [HALF_W - 1.25, -HALF_W + 1.25];
+    // aimed well inside the corner so long lobs that scatter or bounce stay on the FIELD (G405)
+    const x = s * (-HALF_L + 1.7);
+    const zc = [HALF_W - 1.8, -HALF_W + 1.8];
     const z = Math.abs(this.pos.z - zc[0]) < Math.abs(this.pos.z - zc[1]) ? zc[0] : zc[1];
     return { mode: 'pass', x, z, table: this.passTable, inZone };
   }
@@ -386,6 +390,10 @@ export class Robot {
     if (!this.shot) this._lastPsi = undefined;
     if (!on) status = this.enabled ? status : 'Disabled';
 
+    // keep the flywheel at its last shot speed for a moment after the trigger is released, so
+    // stop-and-go shooting (or passing) doesn't have to spin up from scratch every time
+    if (setpoint > 0) { this.spinHold = setpoint; this.spinHoldT = t; }
+    else if (on && this.spinHold && t - this.spinHoldT < 1.5) setpoint = this.spinHold;
     // flywheel dynamics: torque-limited spin-up (0 -> max in spinTau*2), fast closed-loop
     // settle near the setpoint, slow coast-down
     const target = Math.min(setpoint, sh.speedMax);
@@ -436,6 +444,7 @@ export class Robot {
     this.fuel.launch(b, exit, vel, { by: 'robot', alliance: this.alliance, legal: this.lastInZone, t, ignoreRobot: 0.35, spin: true });
     this.flywheel *= 1 - sh.shotDrop;
     this.stats.shots++;
+    if (s.mode === 'pass') this.stats.passes++;
   }
 
   // ------------------------------------------------------------------ climbing (optional add-on)

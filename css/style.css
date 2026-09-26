@@ -67,6 +67,32 @@ canvas#view { position: fixed; inset: 0; width: 100vw; height: 100vh; display: b
 #pinWarn { position: absolute; top: 212px; left: 50%; transform: translateX(-50%); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 5px 14px; font-size: 14px; font-weight: 600; white-space: nowrap; }
 #pinWarn .bad { color: #ff6b6b; font-weight: 800; }
 #pinWarn .warn { color: var(--warn); font-weight: 800; }
+#trainBadge { position: absolute; top: 14px; left: 16px; background: rgba(155, 48, 255, .22); border: 1px solid rgba(190, 120, 255, .6); color: #ecdcff; border-radius: 6px; padding: 4px 10px; font-size: 12.5px; font-weight: 700; letter-spacing: .5px; }
+.winner .good { color: var(--ok); font-size: 20px; }
+.winner .bad { color: #ff6b6b; font-size: 20px; }
+.learnbox { background: rgba(155, 48, 255, .1); border: 1px solid rgba(190, 120, 255, .35); border-radius: 8px; padding: 8px 12px; font-size: 13px; line-height: 1.5; margin-bottom: 8px; }
+.learnbox .chg { color: var(--muted); margin-top: 4px; }
+.learnbox .chg b { color: var(--text); }
+.tuStats { font-size: 13px; color: var(--muted); margin-bottom: 8px; }
+.tuStats b { color: var(--text); }
+.tuHead, .tuRow { display: grid; grid-template-columns: 190px 1fr 250px; gap: 12px; align-items: center; }
+.tuHead { font-size: 12px; color: var(--muted); padding: 0 10px 4px; }
+.tuGroup { font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 16px; color: var(--muted); margin: 8px 0 3px; letter-spacing: .5px; }
+.tuRow { padding: 4px 10px; border-radius: 8px; border: 1px solid transparent; background: rgba(255,255,255,.03); margin-bottom: 3px; cursor: pointer; }
+.tuRow.focus { border-color: var(--blue); background: rgba(47,111,240,.12); }
+.tuLabel { font-size: 13px; }
+.tuSlider { position: relative; height: 20px; background: rgba(255,255,255,.07); border-radius: 5px; overflow: hidden; }
+.tuFill { position: absolute; left: 0; top: 0; bottom: 0; background: linear-gradient(90deg, rgba(47,111,240,.45), rgba(47,111,240,.8)); }
+.tuSlider i { position: absolute; top: 0; bottom: 0; width: 3px; margin-left: -1px; }
+.tuSlider i.mDef { background: #c7cdd8; }
+.tuSlider i.mShip { background: var(--fuel); }
+.tuSlider i.mYou { background: var(--ok); }
+.tuSlider b { position: absolute; right: 6px; top: 1px; font-size: 12.5px; }
+.tuRef { font-size: 12px; text-align: right; }
+.you { color: var(--ok); }
+.tuMsg { min-height: 20px; font-size: 13px; color: var(--ok); margin: 8px 0 4px; }
+.tuBtns { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.tuBtns .btn { grid-column: auto; }
 .ptitle { font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 19px; letter-spacing: .5px; margin-bottom: 6px; }
 .ptitle.small { font-size: 15px; margin-top: 8px; margin-bottom: 2px; color: var(--muted); }
 .rows > div { display: flex; justify-content: space-between; padding: 2px 0; border-bottom: 1px solid rgba(255,255,255,.05); }
@@ -168,5 +194,7 @@ kbd { background: rgba(255,255,255,.1); border-radius: 4px; padding: 1px 6px; fo
   #options { grid-template-columns: 1fr; }
   .btn, .optdesc { grid-column: span 1; }
   #hpPanel, #oppPanel { display: none; }
+  .tuHead, .tuRow { grid-template-columns: 1fr; gap: 3px; }
+  .tuBtns { grid-template-columns: 1fr; }
   .edMain { grid-template-columns: 1fr; }
 }

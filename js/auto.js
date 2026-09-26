@@ -91,6 +91,12 @@ export class AutoRunner {
         shootPreload();
         steps.push({ type: 'climb' });
         break;
+      case 'defendStage':
+        // shoot the preload, then over the BUMP to wait in the middle of the field, still on our
+        // side of the CENTER LINE (G403), ready to play defense when TELEOP starts
+        shootPreload();
+        steps.push({ type: 'drive', pts: [[3.3, 2.5], [5.9, 2.5], [6.9, 4.0]], intake: false, speed: 0.9 });
+        break;
       default:
         break;
     }

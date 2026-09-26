@@ -3,6 +3,7 @@
 //   npm run train                       # 10 generations, ~40 min on 4 cores
 //   npm run train -- --gens 30 --pop 12 --scenarios 6 --resume
 //   npm run train -- --quick            # smoke test
+//   npm run train -- --from rebuilt-ai-brain.json   # continue from a brain exported in-game
 //
 // Each generation samples candidate brains around the current mean (mirrored Gaussian noise
 // in normalized parameter space) and plays every candidate through the same seeded scenarios:
@@ -18,6 +19,7 @@ import { cpus } from 'node:os';
 import { BRAIN_SPEC, DEFAULT_BRAIN } from '../js/opponent.js';
 import { TRAINED_BRAIN } from '../js/trainedBrain.js';
 import { mulberry32 } from './headless.mjs';
+import { brainFileText, parseBrainText } from '../js/brainFile.js';
 
 // ------------------------------------------------------------------ options
 const args = process.argv.slice(2);
@@ -31,6 +33,7 @@ const VALID = opt('validate', QUICK ? 2 : 12);
 const WORKERS = Math.max(1, Math.min(opt('workers', cpus().length), POP + 1));
 const SEED = opt('seed', Date.now() % 1e9);
 const RESUME = flag('resume');
+const FROM = (() => { const i = args.indexOf('--from'); return i >= 0 ? args[i + 1] : null; })();
 const NO_SAVE = flag('no-save');
 const rng = mulberry32(SEED);
 
@@ -137,11 +140,16 @@ const fmtBrain = (b) => KEYS.map((k) => `${k}=${b[k]}`).join(' ');
 // ------------------------------------------------------------------ training loop
 const t0 = performance.now();
 const pool = new Pool(WORKERS);
-const start = RESUME ? TRAINED_BRAIN : DEFAULT_BRAIN;
+let fromBrain = null;
+if (FROM) {
+  fromBrain = parseBrainText(readFileSync(FROM, 'utf8'));
+  if (!fromBrain) { console.error(`${FROM} has no brain values`); process.exit(1); }
+}
+const start = fromBrain ? { ...DEFAULT_BRAIN, ...fromBrain } : RESUME ? TRAINED_BRAIN : DEFAULT_BRAIN;
 let mean = toX({ ...DEFAULT_BRAIN, ...start });
 let sigma = opt('sigma', 0.12);
 const league = [DEFAULT_BRAIN];
-if (RESUME) league.push(TRAINED_BRAIN);
+if (RESUME || fromBrain) league.push(start);
 const history = [];
 let matches = 0;
 console.log(`Self-play training: ${GENS} generations x (${POP} candidates + mean) x ${SCEN} scenarios, ${WORKERS} workers, seed ${SEED}`);
@@ -205,15 +213,13 @@ pool.close();
 
 // ------------------------------------------------------------------ save
 const minutes = Math.round((performance.now() - t0) / 60000);
-const info = { date: new Date().toISOString().slice(0, 10), generations: GENS, population: POP, scenariosPerGen: SCEN, matches, minutes, seed: SEED, resumed: RESUME, validation };
+const info = { source: 'tools/train.mjs self-play', from: FROM || (RESUME ? 'shipped trained brain' : 'hand-tuned brain'), date: new Date().toISOString().slice(0, 10), generations: GENS, population: POP, scenariosPerGen: SCEN, matches, minutes, seed: SEED, resumed: RESUME, validation };
 if (NO_SAVE || QUICK) {
   console.log(`\n(not saved: ${QUICK ? '--quick' : '--no-save'}) ${matches} matches in ${minutes} min`);
 } else if (validation.avgGain <= 0 && !flag('force')) {
   console.log(`\nNot saved: the trained brain did not beat the hand-tuned one on validation (use --force to save anyway).`);
 } else {
-  const body = KEYS.map((k) => `  ${k}: ${trained[k]}, // ${BRAIN_SPEC[k].desc}`).join('\n');
-  writeFileSync(new URL('../js/trainedBrain.js', import.meta.url),
-    `// Strategy learned by AI-vs-AI self-play. Written by tools/train.mjs; don't edit by hand.\nexport const TRAINED_BRAIN = {\n${body}\n};\n\nexport const TRAINING_INFO = ${JSON.stringify(info, null, 2)};\n`);
+  writeFileSync(new URL('../js/trainedBrain.js', import.meta.url), brainFileText(trained, info));
   const logUrl = new URL('./training-log.json', import.meta.url);
   const log = existsSync(logUrl) ? JSON.parse(readFileSync(logUrl, 'utf8')) : [];
   log.push({ ...info, history, trained });

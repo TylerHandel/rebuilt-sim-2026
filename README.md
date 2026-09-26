@@ -3,7 +3,7 @@
 A single-player, single-match FRC simulator for the 2026 game **REBUILT**, in the spirit of MoSimulator / CloSimulator.
 It runs in the browser (Three.js rendering + Rapier physics), works with an Xbox controller, and simulates **all 504 FUEL**.
 Play solo, or against an AI opponent robot (PvE), and build your own autos in the Auto Editor.
-The AI can also drive your robot, so you can watch AI-vs-AI matches, and its strategy can be trained by self-play.
+The AI can also drive your robot, so you can watch AI-vs-AI matches. Its strategy can be trained by self-play, or by playing Training matches against it, where it also learns from how you drive. You can run defense drills against it, and fine-tune and export its values from the AI Tuning screen.
 
 ## Run it
 
@@ -39,6 +39,8 @@ ES modules won't load from `file://`, so always use `serve.py` instead of openin
 | Pause | Menu (☰) | Esc |
 | Restart match | Hold View (⧉) for 1 s | Hold Backspace |
 
+Flywheels stay spun up for 1.5 s after you release the trigger, so stop-and-go shooting doesn't spin up from zero every time.
+
 **RT is context-aware:**
 - With your BUMPERS in your ALLIANCE ZONE, it targets your HUB.
 - Anywhere else it lobs FUEL into the nearest corner of your ALLIANCE ZONE, because scoring from outside is a MAJOR FOUL (G407).
@@ -51,9 +53,16 @@ Set **Opponent (PvE)** in the main menu to put an AI robot on the other alliance
 
 | Strategy | What it does |
 |---|---|
-| Scorer | Runs its own cycles. It collects FUEL (avoiding your ALLIANCE ZONE), stages in its ALLIANCE ZONE while its HUB is inactive, then shoots on the move when the HUB turns active. |
-| Defense | Blocks the lane between you and your HUB and pushes you while you shoot. It backs off 72 in before a PIN becomes a foul, keeps its intake from reaching into your frame, and leaves you alone at your TOWER in END GAME. |
+| Scorer | Runs its own cycles. It collects FUEL, and **steals** from your ALLIANCE ZONE when it's worth it (every FUEL taken counts twice: one fewer for you, one more for it), then shoots on the move once back in its zone. **Off shifts:** it has one goal, to get as much FUEL onto its side as possible. It collects in the NEUTRAL ZONE and passes everything into its own zone (turrets pass as they intake; the 2910 passes in batches), never over its HUB. Near the end of the shift it fills its hopper and heads home, then works through that stockpile when its HUB turns on. |
+| Defense | Tries to **keep you out of your zone**. It guards the BUMP or TRENCH lane you'd use to get in and **rams** you back when you come close. If you get in, it shoves you off your shot. It backs off 72 in before a PIN becomes a foul, and leaves you alone at your TOWER in END GAME. |
 | Hybrid | Shift-aware. It defends during the SHIFTS when only your HUB is active and scores the rest of the time. |
+
+How the Scorer handles time and traffic:
+- If its own zone has too little FUEL left to be worth picking through, it goes to the NEUTRAL ZONE.
+- It measures its own collection rate. If its HUB's active window won't last long enough to fill up, travel and shoot, it scores the partial load it has. It also heads in with any load just before its HUB activates.
+- Turret robots (4414, 8793) don't use a fixed shooting spot. Once inside their zone with the HUB active, they shoot from wherever they are while collecting. Outside the zone they head for the nearest point inside it. The 2910 still drives to a shooting spot, because its whole chassis has to turn to aim.
+- While shooting or passing on the move, it drives smoothly: capped speed, limited acceleration and turning. This lets the turret, hood and flywheel settle so the shot actually releases (a shot only fires when aim, flywheel speed and hood are all on target).
+- If you block it on the way to its zone, it goes around at first. Once it stops gaining ground (you're mirroring it), it drives straight through you.
 
 **Opponent skill** sets its speed, how carefully it collects, how much of its hopper it uses, its shooting accuracy, how long it hesitates between cycles, its reaction time on defense and its pin discipline:
 - **Rookie:** slow, small loads, misses more, stops to shoot, and holds pins too long, so it draws G418 fouls.
@@ -61,13 +70,48 @@ Set **Opponent (PvE)** in the main menu to put an AI robot on the other alliance
 - **Champs:** full speed, full hoppers, tight cycles and clean defense, using the hand-tuned strategy.
 - **Trained (self-play):** Champs-level driving, using the strategy learned by AI-vs-AI self-play (see below).
 
-In AUTO the AI runs a normal routine: a Neutral Zone sweep for Scorer and Hybrid, or preload only for Defense.
+In AUTO the AI runs a normal routine. Scorer and Hybrid do a Neutral Zone sweep. Defense starts beside its HUB, shoots its preload and drives over its BUMP to wait at mid-field, on its side of the CENTER LINE, ready for TELEOP.
 
 ### Watch AI vs AI
 
 Set **Your robot driven by** to one of the AI strategies (and **Your AI skill**) to let the AI drive your robot in TELEOP. Your AUTO routine still runs first.
 - Pair it with an opponent to watch AI vs AI.
 - Cameras and pause still work.
+
+## Training mode: teach the AI by playing it
+
+Set **Match type** to *Training (AI learns)*. You play against **Your trained AI**, a Champs-level robot whose strategy ("brain") is saved in your browser. It learns two ways:
+
+- **From results.** Each Training match, the AI plays a slightly different version of its brain: variation A, then its mirror image, variation B, in the next match. After each pair it moves toward whichever did better against you. The results screen explains what it tried and which values changed. **Exploration** in AI Tuning sets how different the variations are.
+- **From your driving.** In every match you drive, the game measures the same decisions the brain makes: where you shoot from, how full you get before a cycle, how long you collect, how early you get back for your HUB, how fast you drive through FUEL, how far away you drop the intake, whether you shuttle FUEL in your off shifts and how much you keep, how long you hold a pin, how fast you shove or ram, where you block and when you engage. When you out-drive the AI (win the match, or beat its average in a defense drill), it copies part of your style. **Copy my style** in AI Tuning sets how much.
+
+### Your role: Score or Defense
+
+**Your role** can be *Score* (win the match) or *Defense (hold the AI down)*.
+
+In Defense, the opponent always plays Scorer, and your goal is to minimize the points it scores. Fouls you commit count as its points.
+- The HUD shows the AI's running score and your target: its average across your earlier drills.
+- The results show the points you held it to.
+- In Training, the AI learns to score through your defense, rewarded by its own points. When you hold it under its average, it copies your defensive style (pin time, shove speed, block position, engage distance) for when it plays defense itself.
+
+### AI Tuning: see, adjust and export the values
+
+**AI TUNING** in the main menu lists every brain value of Your trained AI. Each value is on a slider (controller or mouse), next to three reference values:
+- the hand-tuned (Champs) value;
+- the shipped **Trained** value;
+- what your driving measured, with its sample count.
+
+It also shows the training record and the learning settings. Buttons:
+- Blend toward my driving.
+- Reset to the shipped or the hand-tuned brain.
+- Clear my driving data, or reset the record.
+- Export, copy JSON, and import.
+
+**Exporting into the main version.** When the values are where you want them, press *Export trainedBrain.js*. It downloads a drop-in `js/trainedBrain.js`, plus a `.json` copy. Replace the repo's `js/trainedBrain.js` with the download and commit it. The **Trained** skill level then uses your brain for everyone. You can also:
+- keep training it headless: `npm run train -- --from rebuilt-ai-brain.json`;
+- import it on another browser.
+
+Pick **Your trained AI** as the opponent skill (or as *Your AI skill* in watch mode) to play or watch it without exploration.
 
 ## Self-play training
 
@@ -96,6 +140,7 @@ npm install                                   # three + rapier for Node (the bro
 npm run train                                 # 10 generations, about 45 min on 4 cores
 npm run train -- --gens 30 --pop 12 --scenarios 6 --resume   # longer run, continuing from the last result
 npm run train -- --quick                      # smoke test, nothing saved
+npm run train -- --from rebuilt-ai-brain.json # continue from a brain exported in AI Tuning
 npm run match -- --a hybrid:trained:4414 --b defense:champs:2910   # one headless match
 ```
 
@@ -111,6 +156,7 @@ Each side of `npm run match` is `strategy:skill:robot`. Training options:
 | `--seed` | Random seed |
 | `--sigma` | Initial step size |
 | `--resume` | Continue from the last trained brain |
+| `--from FILE` | Start from an exported brain (`.json` or `trainedBrain.js`) |
 | `--no-save` | Don't write the result |
 | `--force` | Save even if validation didn't show an improvement |
 
@@ -178,7 +224,7 @@ None of the three climbed, so each defaults to *no climber*. The **Climber add-o
 **Robot-to-robot rules** apply when an opponent is on the field. Both robots are held to them, and foul points go to the other alliance:
 - **G403** (MAJOR): in AUTO, contacting an opponent while your BUMPERS are fully across the CENTER LINE.
 - **G415** (MINOR): a deployed over-the-bumper intake reaching inside the opponent's FRAME PERIMETER, i.e. hitting them intake-first with the intake down.
-- **G416** (MAJOR): high-speed ramming (over about 3.3 m/s closing speed, most of it yours), treated as a damage risk. Robots here can't tip over, so G417 never triggers.
+- Ramming, even at full speed, is legal. High-speed contact isn't called in competition, and robots here can't tip over.
 - **G418** (MINOR): PINNING an opponent against a FIELD element for more than 3 s, plus another MINOR for every further 3 s. The count resets when the robots are 72 in apart. The HUD shows the pin count for either robot.
 - **G420** (MAJOR): in END GAME, contacting an opponent that is touching its TOWER or climbing.
 
@@ -192,6 +238,7 @@ Each routine is mirrored automatically for the red alliance and for left/right s
 - Neutral Zone sweep: out through the TRENCH, back over the BUMP, shooting on the move
 - Double sweep
 - Preload + Climb L1 (needs the climber add-on)
+- Preload + defensive position: shoot the preload, then drive over the BUMP to mid-field to start TELEOP on defense
 
 ## Auto Editor
 
@@ -236,10 +283,12 @@ js/auto.js                  autonomous routines and starting positions
 js/customAutos.js           saved custom autos (Auto Editor) -> auto steps
 js/editor.js                Auto Editor screen
 js/opponent.js              robot AI (Scorer / Defense / Hybrid): skill handicaps + trainable brain
-js/trainedBrain.js          brain learned by self-play (written by tools/train.mjs)
+js/trainedBrain.js          shipped "Trained" brain (written by tools/train.mjs or exported from AI Tuning)
+js/learning.js              Training mode: learning from matches vs you and from your driving
+js/tuning.js, js/brainFile.js   AI Tuning screen; trainedBrain.js export/import format
 js/game.js                  one match: robots, autos, AIs, rules (shared by browser and trainer)
 js/nav.js                   grid A* path planning around field structures
-js/rules.js                 robot-to-robot contact rules (G403, G415, G416, G418, G420)
+js/rules.js                 robot-to-robot contact rules (G403, G415, G418, G420)
 js/input.js                 Xbox controller (Gamepad API) + keyboard
 js/cameras.js, js/ui.js     cameras, menus and HUD
 js/main.js                  game loop

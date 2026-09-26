@@ -4,8 +4,9 @@ import { START_POSITIONS, START_ORDER } from './auto.js';
 import { CAMERA_MODES, CAMERA_NAMES } from './cameras.js';
 import { DRIVER_STATIONS, TIMING, BLUE, RED, other } from './constants.js';
 import { loadAutos, isCustom, getCustom, CUSTOM_PREFIX } from './customAutos.js';
-import { OPP_STRATEGIES, OPP_ORDER, OPP_SKILLS, SKILL_ORDER } from './opponent.js';
+import { OPP_STRATEGIES, OPP_ORDER, OPP_SKILLS, SKILL_ORDER, BRAIN_SPEC } from './opponent.js';
 import { PIN_LIMIT } from './rules.js';
+import { fmtValue } from './tuning.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -13,7 +14,7 @@ export const DEFAULT_SETTINGS = {
   robot: '2910', alliance: BLUE, ds: 1, start: 'rightTrench', preload: 8, auto: 'sweep',
   hp: 'manual', climber: 'none', camera: 'driver', preview: 'on',
   opponent: 'off', oppRobot: '4414', oppSkill: 'regional', customSide: 'drawn',
-  driver: 'human', driverSkill: 'trained',
+  driver: 'human', driverSkill: 'trained', mode: 'normal', role: 'score',
 };
 
 export function loadSettings() {
@@ -48,6 +49,18 @@ const OPTIONS = [
   { key: 'climber', label: 'Climber add-on', values: [['none', 'None (as built)'], ['l1', 'Level 1 hook'], ['l3', 'Level 1-3 climber']], desc: 'None of these three robots climbed in 2026. Add a hypothetical climber to try the TOWER.' },
   { key: 'camera', label: 'Camera', values: CAMERA_MODES.map((m) => [m, CAMERA_NAMES[m]]) },
   { key: 'preview', label: 'Shot preview line', values: [['on', 'On'], ['off', 'Off']] },
+  {
+    key: 'mode', label: 'Match type', values: [['normal', 'Normal'], ['training', 'Training (AI learns)']],
+    descFn: (s) => (s.mode === 'training'
+      ? 'You play against "Your trained AI". Each match it tries a variation of its strategy and keeps what works against you; when you out-drive it, it copies part of your style. See AI TUNING for its values and export.'
+      : 'A regular match. Your driving is still recorded (AI TUNING shows it) so the AI can learn from it later.'),
+  },
+  {
+    key: 'role', label: 'Your role', values: [['score', 'Score (win the match)'], ['defense', 'Defense (hold the AI down)']],
+    descFn: (s) => (s.role === 'defense'
+      ? 'Defense drill: the opponent plays Scorer and your goal is to minimize the points it scores (fouls you commit count as its points). In Training, it learns to score through your defense and copies your defense when you hold it under its average.'
+      : 'Normal: score more than the other alliance.'),
+  },
   { key: 'opponent', label: 'Opponent (PvE)', values: OPP_ORDER.map((k) => [k, OPP_STRATEGIES[k].name]), descFn: (s) => OPP_STRATEGIES[s.opponent].desc },
   { key: 'oppRobot', label: 'Opponent robot', values: ROBOT_ORDER.map((k) => [k, `${ROBOTS[k].team} ${ROBOTS[k].archetype}`]), desc: 'The AI drives any of the three robots on the other alliance.' },
   { key: 'oppSkill', label: 'Opponent skill', values: SKILL_ORDER.map((k) => [k, OPP_SKILLS[k].name]), descFn: (s) => OPP_SKILLS[s.oppSkill].desc },
@@ -59,9 +72,10 @@ const OPTIONS = [
   { key: 'driverSkill', label: 'Your AI skill', values: SKILL_ORDER.map((k) => [k, OPP_SKILLS[k].name]), descFn: (s) => 'Only used in watch mode. ' + OPP_SKILLS[s.driverSkill].desc },
 ];
 
+const BRAIN_LABEL = (k) => BRAIN_SPEC[k].label;
 const optValues = (o, s) => (typeof o.values === 'function' ? o.values(s) : o.values);
 const optKey = (o, s) => (typeof o.key === 'function' ? o.key(s) : o.key);
-const MENU_BUTTONS = ['START MATCH', 'AUTO EDITOR', 'CONTROLS'];
+const MENU_BUTTONS = ['START MATCH', 'AUTO EDITOR', 'AI TUNING', 'CONTROLS'];
 
 const CONTROLS = [
   ['Drive (field-relative)', 'Left stick', 'W A S D'],
@@ -103,7 +117,9 @@ export class UI {
     $('results').classList.toggle('hidden', screen !== 'results');
     $('controls').classList.toggle('hidden', screen !== 'controls');
     $('editor').classList.toggle('hidden', screen !== 'editor');
-    $('hud').classList.toggle('hidden', screen === 'menu' || screen === 'editor');
+    $('tuning').classList.toggle('hidden', screen !== 'tuning');
+    $('hud').classList.toggle('hidden', screen === 'menu' || screen === 'editor' || screen === 'tuning');
+    if (screen === 'tuning') this.tuning.show();
     if (screen === 'menu') this.renderMenu();
     if (screen === 'editor') this.editor.show();
     if (screen === 'pause') this.renderPause();
@@ -172,7 +188,8 @@ export class UI {
     const N = OPTIONS.length;
     if (this.focus === N + 1) this.h.onStart();
     else if (this.focus === N + 2) this.show('editor');
-    else if (this.focus === N + 3) { this.prevScreen = 'menu'; this.show('controls'); }
+    else if (this.focus === N + 3) this.show('tuning');
+    else if (this.focus === N + 4) { this.prevScreen = 'menu'; this.show('controls'); }
   }
 
   renderPause() {
@@ -199,6 +216,10 @@ export class UI {
     const p = inp.pressed, n = inp.nav;
     if (this.screen === 'editor') {
       this.editor.handleInput(inp, dt);
+      return true;
+    }
+    if (this.screen === 'tuning') {
+      this.tuning.handleInput(inp);
       return true;
     }
     if (this.screen === 'menu') {
@@ -254,12 +275,22 @@ export class UI {
         <tr><td>FOUL points received</td><td>${s.foulPts}</td></tr></table></div>`;
     };
     const tb = m.total(BLUE), tr = m.total(RED);
-    const win = tb === tr ? 'TIE' : (tb > tr ? 'BLUE' : 'RED') + ' WINS';
+    const opp = other(me);
+    const defense = game.role === 'defense' && game.opp;
+    let win = tb === tr ? 'TIE' : (tb > tr ? 'BLUE' : 'RED') + ' WINS';
+    if (defense) {
+      const avg = game.defenseTarget;
+      const held = m.total(opp);
+      win = `Your defense held ${opp.toUpperCase()} to ${held} points` + (avg !== null && avg !== undefined ? ` <span class="${held < avg ? 'good' : 'bad'}">(${held < avg ? 'beat' : 'missed'} its average of ${avg})</span>` : '');
+    }
+    const T = game.learnSummary;
+    const learnHtml = T ? `<div class="ptitle small">AI training</div><div class="learnbox">${T.lines.map((l) => `<div>${l}</div>`).join('') || '<div>No change this match.</div>'}
+      ${T.changes.length ? `<div class="chg">${T.changes.slice(0, 6).map((c) => `${BRAIN_LABEL(c.k)} ${fmtValue(c.k, c.from)} → <b>${fmtValue(c.k, c.to)}</b>`).join(' · ')}</div>` : ''}</div>` : '';
     const r = game.robot;
     const s = m.score[me];
     const fouls = m.score[me].fouls;
     $('resHeading').textContent = 'Match Results';
-    $('resBody').innerHTML = `<div class="winner">${win}</div>
+    $('resBody').innerHTML = `<div class="winner">${win}</div>${learnHtml}
       <div class="resgrid">${col(BLUE)}<div class="vs">VS</div>${col(RED)}</div>
       <div class="stats">
         <div class="stat"><div class="sv">${s.autoFuel + s.teleFuel}</div><div class="sk">FUEL scored in active HUB</div></div>
@@ -267,7 +298,7 @@ export class UI {
         <div class="stat"><div class="sv">${r.stats.shots}</div><div class="sk">FUEL launched by robot</div></div>
         <div class="stat"><div class="sv">${r.stats.intaked}</div><div class="sk">FUEL intaked</div></div>
       </div>
-      ${game.opp ? `<div class="ptitle small">Opponent: ${game.opp.robot.cfg.team} ${game.opp.robot.cfg.archetype} · ${OPP_STRATEGIES[game.opp.ai.strategy].name} · ${OPP_SKILLS[this.s.oppSkill].name}</div>
+      ${game.opp ? `<div class="ptitle small">Opponent: ${game.opp.robot.cfg.team} ${game.opp.robot.cfg.archetype} · ${OPP_STRATEGIES[game.opp.ai.strategy].name} · ${OPP_SKILLS[game.settings.oppSkill].name}</div>
       <div class="foullist">Launched ${game.opp.robot.stats.shots} FUEL, intaked ${game.opp.robot.stats.intaked}. Fouls: ${m.score[other(me)].fouls.length ? m.score[other(me)].fouls.map((f) => `${f.rule} ${f.type.toUpperCase()} (+${f.pts} to you): ${f.desc}`).join('<br>') : 'none'}</div>` : ''}
       <div class="ptitle small">Your fouls (${fouls.length})</div>
       <div class="foullist">${fouls.length ? fouls.map((f) => `${f.rule} ${f.type.toUpperCase()} (+${f.pts} to ${other(me).toUpperCase()}): ${f.desc}`).join('<br>') : 'None — clean match!'}</div>`;
@@ -404,6 +435,12 @@ export class UI {
           : `Pin count ${mine.t.toFixed(1)} s — resets once you are 72 in away`;
       } else if (theirs.t > 0.5 && m.robotEnabled && theirs.active) pinTxt = `<span class="warn">PINNED ${theirs.t.toFixed(1)} s</span> — foul on the opponent at ${PIN_LIMIT * (theirs.fouls + 1)} s`;
     }
+    const tb = $('trainBadge');
+    let badge = '';
+    if (game.training) badge = `TRAINING #${game.training.number} · AI variation ${game.training.cand.info.sign > 0 ? 'A' : game.training.cand.info.sign < 0 ? 'B' : '—'}`;
+    if (game.role === 'defense' && op) badge += `${badge ? ' · ' : ''}DEFENSE: hold ${other(me).toUpperCase()} ${game.defenseTarget !== null && game.defenseTarget !== undefined ? `under ${game.defenseTarget}` : 'down'} — now ${m.total(other(me))}`;
+    tb.textContent = badge;
+    tb.classList.toggle('hidden', !badge);
     const pw = $('pinWarn');
     pw.innerHTML = pinTxt;
     pw.classList.toggle('hidden', !pinTxt);
