@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { RAPIER, yawQuat } from './physics.js';
 import {
-  BLUE, HALF_L, HALF_W, HUB, FUEL, TOWER, GROUP, groups, IN,
+  BLUE, RED, HALF_L, HALF_W, HUB, FUEL, TOWER, TRENCH, GROUP, groups, IN,
 } from './constants.js';
 import { BUMPER_T } from './robotConfigs.js';
 import { buildRobotModel, addClimberVisual, BUMP_Y1 } from './robotModels.js';
@@ -305,10 +305,11 @@ export class Robot {
   _intakePath(z) {
     const front = this.bayFront();
     // just over the bumper (an extended hopper already reaches out over it)
-    const entryX = Math.min(front - R - 0.02, this.halfL + 0.02);
+    const lip = this.cfg.intake.lip;
+    const entryX = lip?.entry ?? Math.min(front - R - 0.02, this.halfL + 0.02);
     const entryY = this.hopper.floorAt(entryX, z) + R + 0.015;
-    const lipX = this.halfL + 0.04;
-    return { lipX, entryX, entryY, liftY: Math.max(entryY, BUMP_Y1 + R + 0.025) };
+    const lipX = lip ? lip.x : this.halfL + 0.04;
+    return { lipX, entryX, entryY, liftY: Math.max(entryY, lip ? lip.y : BUMP_Y1 + R + 0.025) };
   }
 
   // The intake rollers drag grabbed FUEL up over the bumper and into the hopper
@@ -799,6 +800,7 @@ export class Robot {
       hoodDeg: this.hoodDeg,
       turretYaw: this.turretYaw,
       rotorAngle: this.hopper.finAngle,
+      headroom: this._headroom(),
     }, dt);
     // swerve module steering to match the motion
     const lv = this.worldToLocalVec(this.vel.x, this.vel.z);
@@ -812,6 +814,26 @@ export class Robot {
     if (m.climber) {
       m.climber.hook.position.y = 0.55 + (this.climbState === 'aligning' ? 0.25 : this.climbState !== 'none' ? Math.max(0, 0.25 - this.climbLift) : 0);
     }
+  }
+
+  // how much room there is over the robot (the TRENCH arm), from the robot's origin up
+  _headroom() {
+    const ext = this.halfL + (this.cfg.storage.extLen || 0) * this.hopperDeploy, r = Math.hypot(ext, this.halfW);
+    const zOpen = HALF_W - TRENCH.clearWidth;
+    if (Math.abs(this.pos.z) + r < zOpen) return Infinity;
+    for (const a of [BLUE, RED]) {
+      const hx = Field.hubCenter(a).x;
+      if (Math.abs(this.pos.x - hx) > r + TRENCH.armThick / 2) continue;
+      // any corner of the footprint past the arm's near edge, and the footprint spans the arm
+      let minX = Infinity, maxX = -Infinity, far = false;
+      for (const [lx, lz] of [[ext, this.halfW], [ext, -this.halfW], [-this.halfL, this.halfW], [-this.halfL, -this.halfW]]) {
+        const p = this.localToWorld(lx, 0, lz);
+        minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
+        if (Math.abs(p.z) > zOpen) far = true;
+      }
+      if (far && minX < hx + TRENCH.armThick / 2 && maxX > hx - TRENCH.armThick / 2) return TRENCH.clearHeight - this.pos.y;
+    }
+    return Infinity;
   }
 
   worldToLocalVec(x, z) {

@@ -76,22 +76,34 @@ export const ROBOTS = {
     drive: { maxSpeed: 4.0, maxAccel: 9.0, maxOmega: 8.0, maxAlpha: 30 },
     // the intake is a box that slides out on racks (extLen) with its roller at the lip
     // rate: fast enough that driving through FUEL is the only limit; pull: roller surface speed
-    intake: { width: 30 * IN, reach: 0.27 + 0.035 - 3.25 * IN, rate: 200, pull: 5, deployTime: 0.4, side: 'front', latched: true },
+    // lip: FUEL rides up the box's ramp to the ridge over the front bumper here, then drops in
+    // behind it at entry (robot frame, m)
+    intake: { width: 30 * IN, reach: 0.27 + 0.035 - 3.25 * IN, rate: 200, pull: 5, deployTime: 0.4, side: 'front', latched: true, lip: { x: 0.4, y: 0.29, entry: 0.35 } },
     // the intake box is also the hopper's extension (58 FUEL retracted, 88 out)
     storage: { capacity: 88, retracted: 58, extLen: 0.27, extend: 'latched' },
-    // Netted hopper over the Dye Rotor: printed stadium pieces funnel FUEL onto the floor, where
-    // the rotating Dolphin Fin sweeps it round to the center column; a ramp of passive rollers
-    // climbs the column to the feeder wheels and the turret on top. Chamfered back corners.
+    // Netted hopper over the Dye Rotor: printed stadium pieces funnel FUEL onto the rotor, which
+    // spins, carrying it round (its Dolphin Fin sweeps the load) into a hook of passive rollers
+    // that steers it to the feeder at the center column; the feeder wheels lift it up a ramp into
+    // the turret. Chamfered back corners. Walls and the top plate end at wallTop; above that a
+    // net springs up (net.h) once the hopper is out.
     bay: {
-      x0: -0.305, x1: 0.317, hw: 0.376, top: 0.53, extTop: 0.47, chamfer: 0.12,
+      x0: -0.305, x1: 0.317, hw: 0.376, top: 0.53, extTop: 0.47, chamfer: 0.12, wallTop: 0.41,
       floor: { a: 0.105, b: 0, lo: 0.105, hi: 0.105 },
       funnel: { slope: 0.4, cap: 0.1 },
+      // the intake box's ramp: up from the main floor to a ridge over the front bumper, then down
+      // to the roller at the front of the box (lift: ball center over a steep ramp)
+      ramp: { x: 0.4, y: 0.19, fwd: 1.05, lo: 0.02, lift: 0.03 },
+      net: { h: 0.2, folded: 0.012, collar: 0.235 },
       column: { x: -0.02, z: 0, r: 0.12, y1: 0.41 },
       obstacles: [
         { x: -0.02, z: 0, r: 0.12, y0: 0.1, y1: 1 }, // center column and turret
       ],
-      drive: 'rotor', rotor: { x: -0.02, z: 0, y: 0.105, r: 0.285, grip: 40, spin: 14.1, idle: -0.6 },
+      // drag: how the spinning platter carries FUEL along; grip: the Dolphin Fin (rim, from finR0)
+      drive: 'rotor', rotor: { x: -0.02, z: 0, y: 0.105, r: 0.285, grip: 40, drag: 4, finR0: 0.175, spin: 14.1, idle: -0.6 },
       feed: { x: -0.02, z: 0.21, via: [[0.0, 0.25, 0.2], [-0.04, 0.34, 0.17], [-0.02, 0.46, 0]] },
+      // hook over the rotor: from r0 at the rim (th0 upstream of the feed point) in to r1 by the
+      // column (th1 just past it), y0..y1 over the rotor, r its half thickness
+      hook: { r0: 0.27, r1: 0.15, th0: -1.15, th1: 0.25, y0: 0.1, y1: 0.2, r: 0.014 },
     },
     shooter: {
       type: 'turret',
@@ -108,7 +120,7 @@ export const ROBOTS = {
     },
     climber: null,
     stats: { Capacity: 88, 'Shot rate': '18 BPS', Aiming: 'Turret', 'Top speed': '13.1 ft/s', Trench: 'Yes' },
-    colors: { frame: 0x22262d, accent: 0x0fa3b1, trim: 0x2b2f36 }, // black / carbon with the teal truss
+    colors: { frame: 0x0fa3b1, accent: 0x0fa3b1, trim: 0x2b2f36 }, // teal drive rails and truss, black / carbon above
   },
   8793: {
     key: '8793',
