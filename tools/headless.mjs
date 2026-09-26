@@ -73,4 +73,30 @@ export async function runMatch(a, b, { allianceA = BLUE, seed = 1, trace = null 
   }
 }
 
+// Any match the menu can set up (settings as in ui.js, e.g. matchMode '3v3' with slots), played
+// headless. Returns both alliances' totals and every robot's stats.
+export async function runGame(settings, { seed = 1, trace = null } = {}) {
+  const realRandom = Math.random;
+  const world = await createWorld();
+  Math.random = mulberry32(seed);
+  try {
+    const game = createGame(world, { climber: 'none', preload: 8, hp: 'auto', ...settings });
+    const m = game.match;
+    let step = 0;
+    while (!m.over && step < 30000) {
+      stepGame(game, world, PHYSICS_DT);
+      if (trace) trace(game, step);
+      if (++step % 2 === 0) frameGame(game, 2 * PHYSICS_DT);
+    }
+    const total = (al) => ({ total: m.total(al), fuel: m.fuelPoints(al), autoFuel: m.score[al].autoFuel, fouls: m.score[al].fouls.map((f) => f.rule) });
+    return {
+      blue: total(BLUE), red: total(RED),
+      robots: game.units.map((u) => ({ alliance: u.robot.alliance, station: u.entry.station + 1, robot: u.robot.cfg.key, driver: u.entry.driver, start: u.entry.startKey, shots: u.robot.stats.shots, intaked: u.robot.stats.intaked, passes: u.robot.stats.passes })),
+    };
+  } finally {
+    Math.random = realRandom;
+    world.physics.world.free();
+  }
+}
+
 export { BLUE, RED };

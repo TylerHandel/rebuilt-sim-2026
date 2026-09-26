@@ -63,7 +63,18 @@ canvas#view { position: fixed; inset: 0; width: 100vw; height: 100vh; display: b
 #robotPanel { left: 14px; bottom: 14px; width: 270px; }
 #hpPanel { right: 14px; bottom: 14px; width: 220px; }
 #oppPanel { right: 14px; bottom: 214px; width: 220px; }
-#oppPanel .ptitle .small { font-size: 13px; font-family: Inter, sans-serif; font-weight: 500; }
+#oppPanel { width: 290px; bottom: auto; top: 48px; }
+#oppStrat { font-size: 12px; margin-top: 4px; }
+.orow { display: flex; align-items: center; gap: 7px; padding: 2px 0; border-bottom: 1px solid rgba(255,255,255,.05); font-size: 12.5px; }
+.orow .od { flex: 1; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.orow .of { font-variant-numeric: tabular-nums; font-weight: 600; }
+.dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; flex: none; margin-right: 4px; }
+.dot.blue { background: var(--blue); }
+.dot.red { background: var(--red); }
+.restable { width: 100%; border-collapse: collapse; font-size: 13px; margin: 6px 0 4px; }
+.restable th { text-align: left; color: var(--muted); font-weight: 600; padding: 3px 8px; border-bottom: 1px solid var(--line); }
+.restable td { padding: 3px 8px; border-bottom: 1px solid rgba(255,255,255,.05); }
+.restable td:nth-child(n+4), .restable th:nth-child(n+4) { text-align: right; font-variant-numeric: tabular-nums; }
 #pinWarn { position: absolute; top: 212px; left: 50%; transform: translateX(-50%); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 5px 14px; font-size: 14px; font-weight: 600; white-space: nowrap; }
 #pinWarn .bad { color: #ff6b6b; font-weight: 800; }
 #pinWarn .warn { color: var(--warn); font-weight: 800; }
@@ -137,7 +148,40 @@ canvas#view { position: fixed; inset: 0; width: 100vw; height: 100vh; display: b
 .tag { color: var(--muted); font-size: 14px; }
 .heading { font-family: 'Barlow Condensed', sans-serif; font-size: 34px; font-weight: 800; letter-spacing: 1px; margin-bottom: 12px; }
 
-#robotCards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 14px; }
+/* menu pages: a two-column grid; sections, cards, tiles, slots and big buttons span both */
+#options > .msec, #options > .cards, #options > .tiles, #options > .slot, #options > .toggle { grid-column: span 2; }
+.msec { font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 15px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); margin: 10px 0 0; padding-bottom: 3px; border-bottom: 1px solid var(--line); }
+.msec:first-child { margin-top: 0; }
+.crumb { font-size: 15px; font-weight: 700; letter-spacing: 1px; color: var(--muted); cursor: pointer; margin-right: 10px; vertical-align: middle; }
+.crumb:hover { color: var(--text); }
+.cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; border-radius: 14px; padding: 3px; }
+.cards.focus { box-shadow: 0 0 0 3px rgba(47,111,240,.55); }
+.tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; border-radius: 16px; padding: 3px; margin-bottom: 8px; }
+.tiles.focus .tile.sel { border-color: var(--fuel); box-shadow: 0 0 0 3px rgba(47,111,240,.55); }
+.tile { border: 2px solid var(--line); border-radius: 14px; padding: 22px 16px 18px; text-align: center; background: rgba(255,255,255,.03); cursor: pointer; transition: transform .12s, border-color .12s, background .12s; }
+.tile:hover { background: rgba(255,255,255,.06); }
+.tile.sel { border-color: rgba(244, 210, 58, .6); background: rgba(244, 210, 58, .07); transform: translateY(-2px); }
+.ticon { font-size: 34px; line-height: 1; color: var(--fuel); margin-bottom: 8px; }
+.tname { font-family: 'Barlow Condensed', sans-serif; font-weight: 800; font-size: 34px; letter-spacing: 2px; }
+.tline { color: var(--muted); font-size: 13px; margin-top: 2px; }
+.opt.sub { margin-left: 22px; border-left: 3px solid rgba(255,255,255,.12); border-radius: 0 8px 8px 0; }
+.toggle { text-align: center; padding: 6px; border-radius: 8px; border: 1px solid transparent; color: var(--muted); font-weight: 600; font-size: 13.5px; cursor: pointer; }
+.toggle.focus { border-color: var(--blue); background: rgba(47,111,240,.12); color: var(--text); }
+.slot { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 9px; border: 1px solid transparent; background: rgba(255,255,255,.03); cursor: pointer; border-left: 5px solid; }
+.slot.blue { border-left-color: var(--blue); }
+.slot.red { border-left-color: var(--red); }
+.slot.focus { border-color: var(--blue); background: rgba(47,111,240,.12); border-left-width: 5px; }
+.slot.red.focus { border-left-color: var(--red); }
+.slot.open { background: rgba(255,255,255,.07); }
+.slot .sn { font-family: 'Barlow Condensed', sans-serif; font-weight: 800; font-size: 20px; width: 30px; }
+.slot .sbody { flex: 1; display: flex; align-items: center; gap: 8px; font-size: 14px; }
+.slot .arr { color: var(--muted); font-size: 12px; padding: 0 2px; }
+.slot .sedit { color: var(--muted); font-size: 12.5px; font-weight: 600; }
+.stag { font-size: 11px; font-weight: 800; letter-spacing: .8px; text-transform: uppercase; padding: 2px 8px; border-radius: 99px; background: rgba(255,255,255,.1); min-width: 78px; text-align: center; }
+.stag.you { background: var(--fuel); color: #111; }
+.stag.defense { background: rgba(255, 107, 107, .25); }
+.stag.hybrid { background: rgba(190, 120, 255, .25); }
+.stag.empty { opacity: .5; }
 .rcard { border: 2px solid var(--line); border-radius: 12px; padding: 12px 14px; background: rgba(255,255,255,.03); cursor: pointer; transition: border-color .12s, transform .12s; }
 .rcard.sel { border-color: var(--fuel); background: rgba(244, 210, 58, .07); }
 .rcard.focus { box-shadow: 0 0 0 3px rgba(47,111,240,.55); }
@@ -190,8 +234,10 @@ kbd { background: rgba(255,255,255,.1); border-radius: 4px; padding: 1px 6px; fo
 .loadmsg { font-family: 'Barlow Condensed', sans-serif; font-size: 28px; letter-spacing: 2px; color: var(--muted); }
 
 @media (max-width: 760px) {
-  #robotCards { grid-template-columns: 1fr; }
+  .cards, .tiles { grid-template-columns: 1fr; }
   #options { grid-template-columns: 1fr; }
+  #options > .msec, #options > .cards, #options > .tiles, #options > .slot, #options > .toggle { grid-column: span 1; }
+  .opt.sub { margin-left: 10px; }
   .btn, .optdesc { grid-column: span 1; }
   #hpPanel, #oppPanel { display: none; }
   .tuHead, .tuRow { grid-template-columns: 1fr; gap: 3px; }

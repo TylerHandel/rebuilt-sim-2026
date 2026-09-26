@@ -63,6 +63,11 @@ For a new Claude Code session. The latest work is on branch `claude/physical-fue
 - Passes don't wait for a clean shot: a pass goes as soon as the flywheel is at 75% and the FUEL, launched from where it really leaves with the flywheel, hood and heading as they are right now (and the robot's own motion), would come down on our half, 1.2 m clear of the walls, without dropping into a HUB (`Robot._passLands`). HUB shots keep the strict spin/hood/aim check.
 - Right stick click (T) turns the camera around 180° (`CameraRig.flip`), and field-relative drive turns with it.
 
+## Done: menu and 3 v 3
+- The home screen has Practice, 1 v 1 and 3 v 3 (plus Auto Editor, AI Tuning, Controls, Settings). Each mode has its own page (`PAGES` in `js/ui.js`: sections, robot cards, options, 3 v 3 slot rows with an Edit accordion); options are `{ label, values, get, set, desc }`. `settings.matchMode` and `settings.slots` (six `{ robot, auto, start, driver, skill }`) are saved with the rest.
+- `createGame` builds any lineup from `matchEntries(settings)`: `game.units` (robot, auto, ai, entry), `game.me` (the side the camera/HUD take), `game.you` (your unit, if you're in the match), a human player per alliance (`game.hps`). `game.robot` / `game.opp` still work for 1 v 1 and the headless tools; `runGame(settings)` in `tools/headless.mjs` plays any lineup headless.
+- `assignStarts` (auto.js) keeps an alliance's robots on different start spots (mirroring a best plan, `mirrorPlan`, when only its other side is free). `RobotRules` keys its state per robot pair (`robot.uid`), and `OpponentAI` takes `foes` and `mates` (defenders lock onto the biggest threat; everyone avoids everyone).
+
 ## Other open items
 - The HUB and BUMP sizes were checked against the drawing. All element positions were checked against the field CAD. The TRENCH, TOWER, DEPOT and OUTPOST *sizes* still come from the game manual, so compare them with the drawing pages above or measure them in the CAD. Note that the Block CAD bounding box puts the inside edge of the fixed TRENCH about 8 cm closer to the guardrail than `TRENCH.width` does.
 - Optional: a longer AI self-play training run, `npm run train -- --gens 30 --pop 12 --scenarios 6 --resume`.

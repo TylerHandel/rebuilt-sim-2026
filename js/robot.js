@@ -20,6 +20,8 @@ const INTAKE_SPEED = 3.5; // m/s the rollers pull FUEL in (cfg.intake.pull overr
 const FEED_SPEED = 7;     // m/s up the feed path into the shooter
 const CLIMB_LIFT = [0, 0.16, 0.74, 1.2]; // body lift to satisfy LEVEL 1/2/3 criteria
 
+let robotCount = 0;
+
 export class Robot {
   constructor({ cfg, alliance, physics, scene, field, fuel, match, climber }) {
     this.cfg = cfg;
@@ -32,6 +34,7 @@ export class Robot {
     this.climberCfg = climber;
 
     const T = BUMPER_T;
+    this.uid = ++robotCount; // tells robots apart (two can share an alliance and a model)
     this.halfL = cfg.frame.length / 2 + T;
     this.halfW = cfg.frame.width / 2 + T;
     this.height = cfg.height;

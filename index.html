@@ -62,12 +62,9 @@
     </div>
 
     <div id="oppPanel" class="panel hidden">
-      <div class="ptitle"><span id="oppTitle">Opponent</span> <span id="oppStrat" class="muted small"></span></div>
-      <div class="rows">
-        <div><span class="k">Doing</span><span id="oppState" class="v">—</span></div>
-        <div><span class="k">FUEL</span><span id="oppFuel" class="v">0</span></div>
-        <div><span class="k">Fouls</span><span id="oppFouls" class="v">0</span></div>
-      </div>
+      <div class="ptitle"><span id="oppTitle">Other robots</span></div>
+      <div id="oppList"></div>
+      <div id="oppStrat" class="muted small"></div>
     </div>
     <div id="pinWarn" class="hidden"></div>
     <div id="trainBadge" class="hidden"></div>
@@ -81,11 +78,11 @@
   <!-- ============================== MENUS ============================== -->
   <div id="menu" class="overlay">
     <div class="menuBox">
-      <div class="brand">
+      <div class="brand" id="menuBrand">
         <div class="logo">REBUILT<span>2026</span></div>
-        <div class="tag">FRC match simulator · solo or vs. an AI opponent · Xbox controller ready</div>
+        <div class="tag">FRC match simulator · practice, 1 v 1 or full 3 v 3 alliances · Xbox controller ready</div>
       </div>
-      <div id="robotCards"></div>
+      <div class="heading hidden" id="menuTitle"></div>
       <div id="options"></div>
       <div class="menuFoot">
         <div id="padStatus" class="muted">Press any button on your Xbox controller to connect it</div>

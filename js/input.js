@@ -107,6 +107,7 @@ export class Input {
       this.repeat[d] = r;
     }
     this.state = s;
+    s.source = this.lastSource;
     return s;
   }
 
