@@ -64,7 +64,7 @@ function randomPlan(key) {
   }
   return { start, preload: pick(['move', 'move', 'stand']), trips };
 }
-function tweak(plan) {
+function tweak(key, plan) {
   const p = JSON.parse(JSON.stringify(plan));
   const t = pick(p.trips);
   const r = rng();
@@ -75,7 +75,7 @@ function tweak(plan) {
   else if (r < 0.8) t.out = t.out === 'trench' ? 'bump' : 'trench';
   else if (r < 0.9) t.home = t.home === 'trench' ? 'bump' : 'trench';
   else if (p.trips.length > 1 && rng() < 0.5) p.trips.pop();
-  else p.trips.push(randomTrip(p.trips.length ? 'x' : 'x', pick(['left', 'right'])));
+  else p.trips.push(randomTrip(key, pick(['left', 'right'])));
   return p;
 }
 
@@ -97,7 +97,7 @@ for (const key of ROBOT_KEYS) {
   for (const s of scored) if (!s.fouls.length && s.mean > top.mean) top = s;
   console.log(`${key} after random: ${top.mean.toFixed(1)} (min ${top.min})`);
   for (let round_ = 0; round_ < REFINE / 4; round_++) {
-    const kids = await Promise.all(Array.from({ length: 4 }, async () => { const plan = tweak(top.plan); return { plan, ...(await score(key, plan)) }; }));
+    const kids = await Promise.all(Array.from({ length: 4 }, async () => { const plan = tweak(key, top.plan); return { plan, ...(await score(key, plan)) }; }));
     for (const k of kids) if (!k.fouls.length && k.mean > top.mean) top = k;
   }
   best[key] = top.plan;
