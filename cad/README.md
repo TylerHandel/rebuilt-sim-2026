@@ -30,3 +30,11 @@ Playing Field"). Its GLB export is in meters, Z-up, with the blue alliance on +X
 - `color` (optional): one color for the whole model if the export has none.
 - `enabled` (optional): `false` skips the model.
 - Drawn meshes flagged `userData.keepWithCad` (bleachers, HUMAN PLAYERS, HUB lights, CHUTE DOORS) stay visible under a `"field"` model.
+
+## Robot parts
+`robots/2910-intake.glb` is 2910's "Pivoting Intake Assembly" from their public Re•Blitz Onshape document (dfb391aac173a4555d00a5b5). It's re-expressed in the robot model's frame with its origin on the intake pivot. `js/robotModels.js` loads it in the browser and swings it about that pivot; the drawn intake stays until it loads, and headless runs never load it. To rebuild it:
+```
+DID=dfb391aac173a4555d00a5b5 WID=3dc64f602735252892b0e47b tools/onshape-export.sh /tmp/r2910.glb 6c654da4eb6b1710fb0900bd
+node tools/extract-part.mjs /tmp/r2910.glb cad/robots/2910-intake.glb "Pivoting Intake Assembly" -0.273 0.170
+```
+
