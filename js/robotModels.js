@@ -1049,8 +1049,9 @@ function build4414(cfg, alliance) {
     }
   }
 
-  // ---- turret: bearing ring on the top plate; A-frame side plates carry the 3in flywheel low
-  // at the front, the hood backing, and the hood roller at the apex (belted at half speed)
+  // ---- turret: bearing ring in the top plate. The shooter hangs down inside the ring, with only
+  // the hood roller at the top of its A-frame above the plate: the 3in flywheel low at the back,
+  // the hood over it, and FUEL out past the apex roller toward the front (+x)
   const turret = new THREE.Group();
   turret.position.set(tx, wallTop, tz);
   root.add(turret);
@@ -1061,9 +1062,11 @@ function build4414(cfg, alliance) {
     for (let i = 0; i < 16; i++) { const a = (i / 16) * Math.PI * 2; tb.add(new THREE.Vector3(Math.cos(a) * 0.165, 0.008, Math.sin(a) * 0.165), up); }
     tb.done();
     // drum down into the column
-    mesh(new THREE.CylinderGeometry(0.118, 0.118, 0.1, 36, 1, true), std(0x23262b, 0.5, 0.4, { side: THREE.DoubleSide }), turret, 0, -0.045, 0);
+    mesh(new THREE.CylinderGeometry(0.118, 0.118, 0.16, 36, 1, true), std(0x23262b, 0.5, 0.4, { side: THREE.DoubleSide }), turret, 0, -0.075, 0);
   }
   const body = new THREE.Group();
+  body.position.y = -0.11;
+  body.rotation.y = Math.PI; // built with the flywheel at +x; it sits at the back of the shot
   turret.add(body);
   // A-frame side plates: a pocketed truss triangle each side
   const aframe = new THREE.Shape();
@@ -1078,7 +1081,7 @@ function build4414(cfg, alliance) {
   const afGeo = new THREE.ExtrudeGeometry(aframe, { depth: 0.006, bevelEnabled: false });
   afGeo.translate(0, 0.012, -0.003);
   for (const s of [-1, 1]) mesh(afGeo, blackAl, body, 0, 0, s * 0.078);
-  // 3in flywheel low at the front, hood backing over it, hood roller at the apex
+  // 3in flywheel low down, hood backing over it, hood roller at the apex
   const fly = wheelStack(body, 0.13, 0.038, 3, M.compliant, 0.075, 0.055, 0, 0.034);
   for (let i = 0; i < 3; i++) cylZ(0.021, 0.036, M.copper, fly, 0, 0, -0.043 + i * 0.043, 14);
   const hood = new THREE.Group();
@@ -1098,71 +1101,84 @@ function build4414(cfg, alliance) {
   // motors stacked vertically under the ring, inside the drum
   kraken(body, -0.06, -0.06, 0.035, false);
   kraken(body, -0.06, -0.06, -0.035, true);
-  limelight(body, -0.03, 0.035, 0.125, 0);
+  limelight(turret, 0.11, 0.036, 0.11, 0); // on the ring, looking where it shoots
   // cable chain to the turret
   const chain = mesh(new THREE.TorusGeometry(0.17, 0.008, 4, 24, Math.PI * 0.8), std(0x111214, 0.8, 0.05), turret, 0, 0.018, 0);
   chain.rotation.x = Math.PI / 2;
   chain.rotation.z = Math.PI * 0.6;
 
-  // ---- net: folded down on the walls at the start; springs up with the hopper, and squashes
-  // under the TRENCH arm
-  const net = bay.net;
+  // ---- net over the top: pinned to the wall tops, the top plate's front edge and the turret
+  // ring. It drapes over the load and stretches up where the FUEL bulges it (the hopper physics
+  // lets the load bulge it as far as bay.dome allows)
   const netMat = new THREE.MeshStandardMaterial({ map: fineNetTexture(), transparent: true, depthWrite: false, side: THREE.DoubleSide, roughness: 0.9, color: 0x15171a });
-  const netParts = [];
-  const netWall = (parent, x0, z0, x1, z1, uvLen) => {
-    const len = Math.hypot(x1 - x0, z1 - z0);
-    uvLen = uvLen ?? len;
-    const g = new THREE.PlaneGeometry(1, 1);
-    g.translate(0, 0.5, 0);
-    const uv = g.attributes.uv;
-    for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * uvLen, uv.getY(i) * net.h);
-    const m = mesh(g, netMat, parent, (x0 + x1) / 2, wallTop, (z0 + z1) / 2);
-    m.rotation.y = -Math.atan2(z1 - z0, x1 - x0);
-    m.scale.x = len;
-    m.castShadow = false;
-    m.userData.net = true;
-    netParts.push(m);
-    return m;
-  };
-  for (let i = 1; i < wallPts.length - 2; i++) netWall(root, ...wallPts[i], ...wallPts[i + 1]);
-  const netFrontX = xF - 0.006; // stowed
-  const netSides = [-1, 1].map((s) => netWall(root, cx, s * wallZ, netFrontX, s * wallZ, netFrontX + extLen - cx));
-  netWall(ext, netFrontX, -bw, netFrontX, bw);
-  // top: a net over the hopper, open round the turret (a net collar runs down to the top plate)
-  const netTopShape = new THREE.Shape([[L / 2, -wallZ], [cx, -wallZ], [back, -cz], [back, cz], [cx, wallZ], [L / 2, wallZ]].map(([x, z]) => new THREE.Vector2(x, -z)));
-  netTopShape.holes.push(new THREE.Path(arcPts(tx, tz, net.collar, 0, Math.PI * 2, 40).map(([x, z]) => new THREE.Vector2(x, -z))));
-  const ntGeo = new THREE.ShapeGeometry(netTopShape, 12);
-  ntGeo.rotateX(-Math.PI / 2);
-  const netTop = mesh(ntGeo, netMat, root, 0, wallTop, 0);
-  netTop.castShadow = false;
-  netTop.userData.net = true;
-  const extTopGeo = new THREE.PlaneGeometry(1, 2 * bw);
-  extTopGeo.translate(-0.5, 0, 0);
-  { const uv = extTopGeo.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * (netFrontX + extLen - L / 2), uv.getY(i) * 2 * bw); }
-  extTopGeo.rotateX(-Math.PI / 2);
-  const netExtTop = mesh(extTopGeo, netMat, ext, xF - 0.006, wallTop, 0);
-  netExtTop.castShadow = false;
-  netExtTop.userData.net = true;
-  const collarGeo = new THREE.CylinderGeometry(net.collar, 0.2, 1, 40, 1, true);
-  collarGeo.translate(0, 0.5, 0);
-  { const uv = collarGeo.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * Math.PI * 2 * net.collar, uv.getY(i) * net.h); }
-  const collar = mesh(collarGeo, netMat, root, tx, wallTop, tz);
-  collar.castShadow = false;
-  collar.userData.net = true;
-  // springy fiberglass poles at the corners and a cord round the top
-  const poleMat = std(0x111214, 0.6, 0.1);
-  const poles = [];
-  const poleGeo = new THREE.CylinderGeometry(0.004, 0.004, 1, 6);
-  poleGeo.translate(0, 0.5, 0);
-  for (const [x, z] of wallPts.slice(1, 5)) poles.push(mesh(poleGeo, poleMat, root, x, wallTop - 0.01, z));
-  for (const s of [-1, 1]) {
-    poles.push(mesh(poleGeo, poleMat, root, L / 2 - 0.01, wallTop - 0.01, s * wallZ));
-    poles.push(mesh(poleGeo, poleMat, ext, netFrontX - 0.004, wallTop - 0.01, s * (bw - 0.01)));
+  const netX0 = bay.dome.x0 - 0.02, netFront = xF - 0.006 + extLen; // deployed front
+  const NX = 36, NZ = 28, nv = (NX + 1) * (NZ + 1);
+  const netBase = new Float32Array(nv), netPin = new Uint8Array(nv), netH = new Float32Array(nv), netC = new Float32Array(nv);
+  const netPos = new Float32Array(nv * 3), netUv = new Float32Array(nv * 2), netIdx = [];
+  const holeR = bay.dome.rHole - 0.005;
+  for (let i = 0; i <= NX; i++) {
+    for (let j = 0; j <= NZ; j++) {
+      const k = i * (NZ + 1) + j, x = netX0 + ((netFront - netX0) * i) / NX, z = -wallZ + (2 * wallZ * j) / NZ;
+      netBase[k] = x;
+      netPin[k] = i === 0 || i === NX || j === 0 || j === NZ || Math.hypot(x - tx, z - tz) < holeR + 0.01 ? 1 : 0;
+      netH[k] = wallTop + 0.004;
+      netPos.set([x, netH[k], z], k * 3);
+      netUv.set([x, z], k * 2);
+    }
   }
-
+  for (let i = 0; i < NX; i++) {
+    for (let j = 0; j < NZ; j++) {
+      const k = i * (NZ + 1) + j;
+      const x = netX0 + ((netFront - netX0) * (i + 0.5)) / NX, z = -wallZ + (2 * wallZ * (j + 0.5)) / NZ;
+      if (Math.hypot(x - tx, z - tz) < holeR) continue; // the turret comes up through here
+      netIdx.push(k, k + 1, k + NZ + 2, k, k + NZ + 2, k + NZ + 1);
+    }
+  }
+  const netGeo = new THREE.BufferGeometry();
+  netGeo.setAttribute('position', new THREE.BufferAttribute(netPos, 3));
+  netGeo.setAttribute('uv', new THREE.BufferAttribute(netUv, 2));
+  netGeo.setIndex(netIdx);
+  netGeo.computeVertexNormals();
+  const netTop = mesh(netGeo, netMat, root);
+  netTop.castShadow = false;
+  netTop.frustumCulled = false;
+  netTop.userData.net = true;
+  const R_NET = FUEL.radius, netFrontX0 = xF - 0.006; // the box's front edge, stowed
+  const drapeNet = (load, ex) => {
+    // the box's part of the net stretches as it slides out
+    const kx = (netFrontX0 + ex - L / 2) / (netFront - L / 2);
+    for (let k = 0; k < nv; k++) {
+      const x = netBase[k] <= L / 2 ? netBase[k] : L / 2 + (netBase[k] - L / 2) * kx;
+      netPos[k * 3] = x;
+      netC[k] = wallTop + 0.004;
+    }
+    // held up by the FUEL poking above the walls
+    for (const e of load || []) {
+      const p = e.p;
+      if (p.y + R_NET < wallTop) continue;
+      for (let k = 0; k < nv; k++) {
+        if (netPin[k]) continue;
+        const dx = netPos[k * 3] - p.x, dz = netPos[k * 3 + 2] - p.z, d2 = dx * dx + dz * dz;
+        if (d2 < R_NET * R_NET) netC[k] = Math.max(netC[k], p.y + Math.sqrt(R_NET * R_NET - d2) + 0.004);
+      }
+    }
+    // a taut sheet: each point sits at its neighbors' average unless the FUEL holds it up
+    for (let it = 0; it < 10; it++) {
+      for (let i = 1; i < NX; i++) {
+        for (let j = 1; j < NZ; j++) {
+          const k = i * (NZ + 1) + j;
+          if (netPin[k]) continue;
+          const avg = (netH[k - 1] + netH[k + 1] + netH[k - NZ - 1] + netH[k + NZ + 1]) / 4;
+          netH[k] = Math.max(netC[k], avg);
+        }
+      }
+    }
+    for (let k = 0; k < nv; k++) netPos[k * 3 + 1] = netPin[k] ? wallTop + 0.004 : netH[k];
+    netGeo.attributes.position.needsUpdate = true;
+    netGeo.computeVertexNormals();
+  };
   bolts.done();
 
-  let netH = net.folded;
   const anim = (st, dt) => {
     // the intake box slides out on its racks (and stays out)
     const ex = st.hopperDeploy * extLen;
@@ -1182,19 +1198,7 @@ function build4414(cfg, alliance) {
     fly.rotation.z -= st.flywheel * dt * 10;
     hoodRoller.rotation.y -= st.flywheel * dt * 5;
     hood.rotation.z = (st.hoodDeg - 62) * Math.PI / 180 * 0.5;
-    // the net
-    // (the TRENCH arm pushes it down at once; it springs back up)
-    const hMax = Math.min(net.h, Math.max(0.02, (st.headroom ?? 9) - wallTop - 0.012));
-    const target = Math.max(net.folded, hMax * THREE.MathUtils.smoothstep(st.hopperDeploy, 0.3, 1));
-    netH = target < netH || !dt ? target : netH + (target - netH) * Math.min(1, dt * 6);
-    const h = netH;
-    for (const m of netParts) m.scale.y = h;
-    for (const m of netSides) { m.scale.x = netFrontX + ex - cx; m.position.x = (cx + netFrontX + ex) / 2; }
-    netTop.position.y = wallTop + h;
-    netExtTop.position.y = wallTop + h;
-    netExtTop.scale.x = Math.max(0.001, netFrontX + ex - L / 2);
-    collar.scale.y = h;
-    for (const p of poles) p.scale.y = h + 0.012;
+    drapeNet(st.load, ex);
   };
   return { root, anim, stored: [], modules, extLen };
 }

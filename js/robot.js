@@ -313,7 +313,7 @@ export class Robot {
     const entryX = lip?.entry ?? Math.min(front - R - 0.02, this.halfL + 0.02);
     // it drops in on top of whatever FUEL is already by the entry (and when that's up to the
     // top, the rollers push it in and the load gives way)
-    const entryY = Math.min(this.hopper.dropHeight(entryX, z), this.hopper.topAt(entryX) - R) + 0.015;
+    const entryY = Math.min(this.hopper.dropHeight(entryX, z), this.hopper.topAt(entryX, z) - R) + 0.015;
     const lipX = lip ? lip.x : this.halfL + 0.04, lipY = lip ? lip.y : BUMP_Y1 + R + 0.025;
     return { lipX, lipY, entryX, entryY, liftY: Math.max(entryY, lipY) };
   }
@@ -367,6 +367,10 @@ export class Robot {
   }
 
   _stepHopper(dt) {
+    // a stretchy net over the top bulges only as far as there's room (the TRENCH arm presses it
+    // down, and the load under it with it)
+    const dome = this.cfg.bay.dome;
+    if (dome) this.hopper.domeScale = clamp((this._headroom() - 0.005 - this.cfg.bay.top) / dome.h, 0, 1);
     // the robot's acceleration and turn rate, felt by the FUEL inside
     let ax = 0, az = 0, alpha = 0;
     if (this.prevVel) {
@@ -535,6 +539,29 @@ export class Robot {
     return { mode: 'pass', x, z, table: this.passTable, inZone };
   }
 
+  // where a FUEL launched now would come down is on our half of the FIELD, clear of the walls,
+  // and it doesn't drop into a HUB on the way (that would be a G407 from outside the zone)
+  _passLands() {
+    const sh = this.cfg.shooter;
+    const psi = sh.type === 'fixed' ? this.yaw + this.aimOffset : this.yaw + this.turretYaw;
+    // from where it really leaves, moving with the (maybe turning) robot
+    const exit = sh.type === 'fixed'
+      ? this._exitPoint(sh.lanes[this.lane % sh.lanes.length])
+      : this.localToWorld(sh.turretPos.x + Math.cos(this.turretYaw) * sh.exitRadius, sh.exitY, sh.turretPos.z - Math.sin(this.turretYaw) * sh.exitRadius);
+    const lv = this.velocityAt(exit);
+    const th = this.hoodDeg * DEG, v = this.flywheel;
+    const pts = trajectoryPoints(exit, { x: Math.cos(psi) * Math.cos(th) * v + lv.x, y: Math.sin(th) * v, z: -Math.sin(psi) * Math.cos(th) * v + lv.z });
+    const x = pts[pts.length - 3], z = pts[pts.length - 1], s = this.alliance === BLUE ? 1 : -1;
+    if (!(Math.abs(x) < HALF_L - 1.2 && Math.abs(z) < HALF_W - 1.2 && s * x < -0.5)) return false;
+    for (const a of [BLUE, RED]) {
+      const c = Field.hubCenter(a);
+      for (let i = 0; i < pts.length; i += 3) {
+        if (pts[i + 1] < HUB.rimFront + 0.6 && Math.hypot(pts[i] - c.x, pts[i + 2] - c.z) < HUB.size / 2 + 0.3) return false;
+      }
+    }
+    return true;
+  }
+
   _exitPoint(laneZ = 0) {
     const sh = this.cfg.shooter;
     if (sh.type === 'fixed') return this.localToWorld(sh.exit.x, sh.exit.y, laneZ);
@@ -603,11 +630,15 @@ export class Robot {
           aimErr = wrapAngle(sol.psi - (this.yaw + this.turretYaw));
         }
         this._lastPsi = sol.psi;
-        const tol = tgt.mode === 'hub' ? Math.max(0.6 * DEG, Math.atan2(0.14, sol.dist)) : 4 * DEG;
-        const spinOk = Math.abs(this.flywheel - sol.v) / sol.v < 0.025;
+        // a pass (shuttling FUEL back) doesn't have to be perfect: instead of waiting for a clean
+        // shot at the aim point, it goes as soon as, with the flywheel, hood and heading as they
+        // are right now, the FUEL would come down on our half of the FIELD (clear of the walls)
+        const pass = tgt.mode === 'pass';
+        const tol = pass ? 4 * DEG : Math.max(0.6 * DEG, Math.atan2(0.14, sol.dist));
+        const spinOk = pass ? this.flywheel > 0.75 * sol.v : Math.abs(this.flywheel - sol.v) / sol.v < 0.025;
         const hoodOk = Math.abs(this.hoodDeg - sol.theta / DEG) < 1.5;
         const aimOk = Math.abs(aimErr) < tol;
-        ready = spinOk && hoodOk && aimOk;
+        ready = pass ? spinOk && this._passLands() : spinOk && hoodOk && aimOk;
         status = !spinOk ? 'Spinning up' : !aimOk ? 'Aiming' : !hoodOk ? 'Hood' : 'READY';
         if (tgt.mode === 'pass') status = ready ? 'PASS READY' : 'Pass: ' + status.toLowerCase();
         this.preview = { exit, lv, sol };
@@ -807,7 +838,7 @@ export class Robot {
       hoodDeg: this.hoodDeg,
       turretYaw: this.turretYaw,
       rotorAngle: this.hopper.finAngle,
-      headroom: this._headroom(),
+      load: this.hopper.list,
     }, dt);
     // swerve module steering to match the motion
     const lv = this.worldToLocalVec(this.vel.x, this.vel.z);

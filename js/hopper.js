@@ -73,6 +73,7 @@ export class Hopper {
     this.pressure = 0;    // how hard the load is squeezed (deepest ball overlap, m)
     this.quiet = 0;
     this.finAngle = 0; // Dye Rotor: how far it has turned (where the Dolphin Fin is, robot frame, about +y)
+    this.domeScale = 1;
     this.obstacles = [...(spec.obstacles || [])];
     if (spec.hook) {
       // the hook as a row of thin posts at its height over the rotor
@@ -116,11 +117,25 @@ export class Hopper {
     return y;
   }
 
-  topAt(x) {
+  // the ceiling over the load; a stretchy net (spec.dome) bulges up over its open part, as far
+  // as there's room over the robot (domeScale, 0..1)
+  topAt(x, z = 0) {
     const s = this.spec;
     if (s.above) return this.floorAt(x) + s.above;
+    if (s.dome) return s.top + s.dome.h * this.domeScale * this.domeShape(x, z);
     if (s.extTop !== undefined && x > s.x1) return s.extTop;
     return s.top;
+  }
+
+  // 0..1: how far the net over the top can bulge here (pinned at its edges, the top plate and
+  // round the turret)
+  domeShape(x, z) {
+    const d = this.spec.dome, hw = this.spec.hw;
+    const u = (x - d.x0) / Math.max(0.05, this.front - d.x0), v = (z + hw) / (2 * hw);
+    if (u <= 0 || u >= 1 || v <= 0 || v >= 1) return 0;
+    const r = Math.hypot(x - d.cx, z - d.cz);
+    const hole = clamp((r - d.rHole) / 0.14, 0, 1);
+    return Math.sin(Math.PI * u) * Math.sin(Math.PI * v) * hole * hole * (3 - 2 * hole);
   }
 
   add(b, p, v) {
@@ -143,11 +158,11 @@ export class Hopper {
     const s = this.spec;
     const step = 2 * R * 0.97;
     const slots = [];
-    for (let layer = 0; layer < 6; layer++) {
+    for (let layer = 0; layer < 8; layer++) {
       for (let x = s.x0 + R; x <= this.front - R + 1e-6; x += step) {
         for (let z = -s.hw + R; z <= s.hw - R + 1e-6; z += step) {
           const y = this.floorAt(x, z) + R + layer * step;
-          if (y <= this.topAt(x) - R + 0.02) slots.push(new THREE.Vector3(x, y, z));
+          if (y <= this.topAt(x, z) - R + 0.02) slots.push(new THREE.Vector3(x, y, z));
         }
       }
     }
@@ -306,7 +321,7 @@ export class Hopper {
     p.x = clamp(p.x, s.x0 + R_WALL, Math.min(this.front, this.wall) - R_WALL);
     p.z = clamp(p.z, -s.hw + R_WALL, s.hw - R_WALL);
     const fl = this.floorAt(p.x, p.z) + R_WALL;
-    const top = this.topAt(p.x) - R_WALL;
+    const top = this.topAt(p.x, p.z) - R_WALL;
     if (p.y < fl) {
       // push out along the floor's normal, so FUEL rolls down slopes and funnels
       const e = 0.01;
@@ -314,7 +329,15 @@ export class Hopper {
       const gz = (this.floorAt(p.x, p.z + e) - this.floorAt(p.x, p.z - e)) / (2 * e);
       const k = (fl - p.y) / (1 + gx * gx + gz * gz);
       p.x -= gx * k; p.y += k; p.z -= gz * k;
-    } else if (p.y > top && top > fl) p.y = top;
+    } else if (p.y > top && top > fl) {
+      // under a sloped ceiling (the net's bulge) push out along its normal, so FUEL slides out
+      // under it instead of being pressed into the load
+      const e = 0.01;
+      const gx = (this.topAt(p.x + e, p.z) - this.topAt(p.x - e, p.z)) / (2 * e);
+      const gz = (this.topAt(p.x, p.z + e) - this.topAt(p.x, p.z - e)) / (2 * e);
+      const k = (p.y - top) / (1 + gx * gx + gz * gz);
+      p.x += gx * k; p.y -= k; p.z += gz * k;
+    }
     if (s.chamfer) {
       // cut back corners: (x - x0) - |z| + hw - chamfer >= R * sqrt2
       const sz = Math.sign(p.z) || 1;

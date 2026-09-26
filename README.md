@@ -34,6 +34,7 @@ ES modules won't load from `file://`, so always use `serve.py` instead of openin
 | Climb / cancel / lower (climber add-on only) | A | C |
 | Climb level up / down | D-pad ↑ / ↓ | ↑ / ↓ |
 | Camera (Driver Station, Follow, Chase, Overhead, Broadcast) | D-pad ← / → | [ / ] |
+| Turn the camera around 180° (field-relative drive turns with it) | Right stick click | T |
 | Field- / robot-relative drive | B | B |
 | Slow mode (hold) | Left stick click | X |
 | Pause | Menu (☰) | Esc |
@@ -44,6 +45,7 @@ Flywheels stay spun up for 1.5 s after you release the trigger, so stop-and-go s
 **RT is context-aware:**
 - With your BUMPERS in your ALLIANCE ZONE, it targets your HUB.
 - Anywhere else it lobs FUEL into the nearest corner of your ALLIANCE ZONE, because scoring from outside is a MAJOR FOUL (G407).
+- Passes don't wait for a perfect shot: they go as soon as the FUEL would come down on your half of the FIELD, clear of the walls and the HUBS.
 
 Every robot shoots on the move: the solver leads the target by the robot's velocity, including air drag.
 
@@ -169,7 +171,7 @@ A match takes about 30 s of CPU, so more cores train faster.
 | Type | Dumper | Dye Rotor | Hopperless |
 | Frame | 27.5 × 27 in swerve | 25 × 32 in swerve | 27.5 × 27.5 in swerve |
 | Capacity (stated) | 58 FUEL | 88 FUEL (extending hopper) | 12 (only the ball path) |
-| Capacity (the modeled hopper, what the sim uses) | 44 → 63 FUEL | 61 → 92 FUEL | 12 |
+| Capacity (the modeled hopper, what the sim uses) | 44 → 63 FUEL | 57 → 111 FUEL (the net stretches) | 12 |
 | Shooter | 4-wide drum, adjustable hood, **fixed to the chassis** (whole robot turns to aim) | Single-stream 3" flywheel on a **turret**, adjustable hood | Hooded flywheel on a **turret** |
 | Rate | 32 FUEL/s | 18 FUEL/s | 13 FUEL/s |
 | Intake | as fast as it drives through FUEL (~110/s at full speed), slap-down (7.8 in reach) | as fast as it drives through FUEL (~140/s), sliding box (latched out) | 14 FUEL/s |
@@ -178,7 +180,7 @@ A match takes about 30 s of CPU, so more cores train faster.
 
 Sources:
 - 2910: the Re•Blitz tech binder and their public Onshape CAD. The intake, shooter and hopper you see are their "Pivoting Intake Assembly", "Shooter & Feeder" and "R2 Hopper" (its panels slide out along slotted rails as the intake deploys): a roller ramp indexes FUEL up under the rollered hood to the drum, which fires out the back. The intake's reach (7.8 in past the BUMPER) comes from that CAD. Colors follow the CAD: raw aluminum, grey plates, light green drum wheels, and clear lids over the fixed and expanding hopper.
-- 4414: the 2026 tech binder (2026.team4414.com) and its CAD renders: the sliding box intake on racks (front panel, under-roller, ramp, star roller, impact guards, pinion strips), the Dye Rotor (pocketed spinning rotor with the Dolphin Fin, hook, feeder wheels, center column), the smoked hopper with its teal truss and the keyhole top plate that carries the turret bearing, the A-frame turret shooter, and a net that springs up over the hopper once it's out (and squashes under the TRENCH arm).
+- 4414: the 2026 tech binder (2026.team4414.com) and its CAD renders: the sliding box intake on racks (front panel, under-roller, ramp, star roller, impact guards, pinion strips), the Dye Rotor (pocketed spinning rotor with the Dolphin Fin, hook, feeder wheels, center column), the full-height smoked hopper walls with the teal truss and the keyhole top plate that carries the turret bearing, the A-frame turret shooter sitting down inside its ring (flywheel at the back, FUEL out past the hood roller at the front), and the stretchy net over the top: past the stated 88 the load bulges it up, to about 110 FUEL (it's pressed flat, load and all, under the TRENCH arm).
 - 8793: your team CAD (Intake V3, Conveyor V2, Turret, Shooter).
 
 None of the three climbed, so each defaults to *no climber*. The **Climber add-on** option adds a hypothetical Level 1 or Level 1-3 climber if you want to try the TOWER.
