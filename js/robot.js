@@ -45,6 +45,8 @@ export class Robot {
 
     // ---- shot tables (hub + pass), built from the drag model
     const sh = cfg.shooter;
+    // a fixed shooter fires along the robot's heading, or straight out the back (2910)
+    this.aimOffset = sh.type === 'fixed' && sh.facing === 'back' ? Math.PI : 0;
     const h0 = sh.type === 'fixed' ? sh.exit.y : sh.exitY;
     this.hubTable = new ShotTable({
       h0, Ht: HUB.targetHeight, hoodMin: sh.hoodMin, hoodMax: sh.hoodMax, speedMax: sh.speedMax, mode: 'hub',
@@ -541,10 +543,12 @@ export class Robot {
       let exit, lv;
       if (sh.type === 'fixed') {
         // The drum sits on the robot's centerline, so once aimed the shot line passes through the
-        // robot center. Solve from a point that does not move when the chassis rotates.
+        // robot center. Solve from a point that does not move when the chassis rotates: the exit's
+        // distance along the shot line (a back-facing drum's exit is toward the target).
         const dx = tgt.x - this.pos.x, dz = tgt.z - this.pos.z;
         const dd = Math.hypot(dx, dz) || 1;
-        exit = new THREE.Vector3(this.pos.x + (dx / dd) * sh.exit.x, this.pos.y + sh.exit.y, this.pos.z + (dz / dd) * sh.exit.x);
+        const along = this.aimOffset ? -sh.exit.x : sh.exit.x;
+        exit = new THREE.Vector3(this.pos.x + (dx / dd) * along, this.pos.y + sh.exit.y, this.pos.z + (dz / dd) * along);
         lv = { x: this.vel.x, z: this.vel.z };
       } else {
         // FUEL leaves the hood exitRadius in front of the turret axis, along the shot line
@@ -561,7 +565,7 @@ export class Robot {
         this.hoodDeg = approach(this.hoodDeg, sol.theta / DEG, 260 * dt);
         let aimErr;
         if (sh.type === 'fixed') {
-          aimErr = wrapAngle(sol.psi - this.yaw);
+          aimErr = wrapAngle(sol.psi - this.yaw - this.aimOffset);
           if (wantShoot) {
             // chassis heading controller: time-optimal profile (no overshoot) + feed-forward on
             // how fast the aim direction moves while driving
@@ -655,7 +659,7 @@ export class Robot {
     this.hopper.remove(e);
     this._unstore(b);
     const exit = this.localToWorld(e.p.x, e.p.y, e.p.z);
-    let psi = sh.type === 'fixed' ? this.yaw : this.yaw + this.turretYaw;
+    let psi = sh.type === 'fixed' ? this.yaw + this.aimOffset : this.yaw + this.turretYaw;
     const k = this.noiseScale ?? 1; // AI skill: extra scatter for weaker drivers
     psi += gauss() * sh.yawSigma * k * DEG;
     const th = this.hoodDeg * DEG + gauss() * sh.angleSigma * k * DEG;
@@ -808,7 +812,7 @@ export class Robot {
   previewPoints() {
     if (!this.preview) return null;
     const { exit, lv, sol } = this.preview;
-    const psi = this.cfg.shooter.type === 'fixed' ? this.yaw : this.yaw + this.turretYaw;
+    const psi = this.cfg.shooter.type === 'fixed' ? this.yaw + this.aimOffset : this.yaw + this.turretYaw;
     const v = this.flywheel > 0.5 ? Math.max(this.flywheel, 0) : sol.v;
     const th = this.hoodDeg * DEG;
     return trajectoryPoints(exit, {

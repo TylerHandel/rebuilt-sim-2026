@@ -415,35 +415,37 @@ function build2910(cfg, alliance) {
   const green = std(cfg.colors.trim, 0.5, 0.2);
   const extLen = cfg.storage.extLen;
 
-  // ---- shooter tower at the back: pocketed billet side plates, drum + hood
+  // ---- shooter tower at the back: pocketed billet side plates, drum + hood. It fires out the
+  // back, away from the intake: FUEL comes up the front of the drum from the indexer, rides over
+  // the top under the hood and leaves at the back.
   const tower = new THREE.Group();
   tower.position.set(-L / 2 + 0.1, 0, 0);
   root.add(tower);
   const holes = [[-0.04, -0.12, 0.025], [0.04, -0.12, 0.025], [-0.04, 0.0, 0.02], [0.05, 0.02, 0.018], [0, 0.12, 0.018]];
+  const drumY = 0.37, hoodR = 0.17; // hood clears a FUEL (5.9in) squeezed on the 4in drum
   for (const s of [-1, 1]) {
     pocketPlate(tower, 0.19, H - 0.14, 0.0127, plate, holes, 0, 0.14 + (H - 0.14) / 2, s * (W / 2 - 0.03));
-    kraken(tower, -0.02, 0.44, s * (W / 2 + 0.01), false, 'z');
+    kraken(tower, -0.02, drumY, s * (W / 2 + 0.01), false, 'z');
   }
-  const drum = wheelStack(tower, W - 0.09, 0.0508, 4, M.green, -0.02, 0.44, 0, (W - 0.12) / 4);
+  const drum = wheelStack(tower, W - 0.09, 0.0508, 4, M.green, -0.02, drumY, 0, (W - 0.12) / 4);
   const hood = new THREE.Group();
-  hood.position.set(-0.02, 0.44, 0);
+  hood.position.set(-0.02, drumY, 0);
   tower.add(hood);
-  const hoodShell = new THREE.Mesh(new THREE.CylinderGeometry(0.125, 0.125, W - 0.1, 24, 1, true, Math.PI * 0.05, Math.PI * 0.62), std(0x2a2d33, 0.45, 0.55, { side: THREE.DoubleSide }));
+  // the hood arc runs from the front-top of the drum (30deg) over to the back (139deg)
+  const arc0 = 0.53, arcLen = 1.9;
+  const hoodShell = new THREE.Mesh(new THREE.CylinderGeometry(hoodR, hoodR, W - 0.1, 28, 1, true, arc0 + Math.PI / 2, arcLen), std(0x2a2d33, 0.45, 0.55, { side: THREE.DoubleSide }));
   hoodShell.rotation.x = Math.PI / 2;
   hood.add(hoodShell);
   for (let i = 0; i < 5; i++) {
-    const rib = new THREE.Mesh(new THREE.TorusGeometry(0.125, 0.004, 4, 20, Math.PI * 0.62), purple);
-    rib.rotation.z = Math.PI * 0.05;
+    const rib = new THREE.Mesh(new THREE.TorusGeometry(hoodR + 0.004, 0.004, 4, 24, arcLen), purple);
+    rib.rotation.z = arc0;
     rib.position.z = -W / 2 + 0.06 + i * ((W - 0.12) / 4);
     hood.add(rib);
   }
   const hoodRollers = [];
-  for (let i = 0; i < 3; i++) {
-    const a = 0.45 + i * 0.5;
-    hoodRollers.push(cylZ(0.018, W - 0.12, M.alu, hood, -Math.cos(a) * 0.1, Math.sin(a) * 0.1, 0, 12));
-  }
+  for (const a of [0.95, 1.45, 1.95]) hoodRollers.push(cylZ(0.016, W - 0.12, M.alu, hood, Math.cos(a) * (hoodR - 0.02), Math.sin(a) * (hoodR - 0.02), 0, 12));
   // compliant indexer wheels feeding the drum + inclined powered floor
-  const indexer = wheelStack(tower, W - 0.1, 0.03, 8, M.compliant, 0.07, 0.3, 0, 0.022);
+  const indexer = wheelStack(tower, W - 0.1, 0.03, 8, M.compliant, 0.085, 0.25, 0, 0.022);
   const feeder = new THREE.Group();
   feeder.position.set(0.06, 0.1, 0);
   feeder.rotation.z = 0.26;
@@ -518,7 +520,7 @@ function build2910(cfg, alliance) {
     for (const r of hoodRollers) r.rotation.y += st.flywheel * dt * 8;
     indexer.rotation.z -= st.feeding * dt * 25;
     for (const r of feedRollers) r.rotation.y -= st.feeding * dt * 30;
-    hood.rotation.z = (st.hoodDeg - 58) * Math.PI / 180 * 0.6;
+    hood.rotation.z = -(st.hoodDeg - 58) * Math.PI / 180 * 0.4; // a higher shot tips the exit up
   };
   return { root, anim, stored, modules, extLen };
 }

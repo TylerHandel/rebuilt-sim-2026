@@ -1,8 +1,8 @@
 // Robot definitions, based on each team's published 2026 information.
 //  - 2910 Jack in the Bot "Re•Blitz" (tech binder): 27.5x27in swerve (MK5n R1), front slap-down
 //    over-bumper intake (4 FUEL wide), one-piece hopper (holds 50+, fits under the TRENCH),
-//    4-FUEL-wide drum shooter with adjustable hood fixed to the chassis — the whole robot turns
-//    to aim; 30+ BPS (34 sustained). No climber ("Won't: Climb").
+//    4-FUEL-wide drum shooter with adjustable hood fixed to the chassis, firing out the back (away
+//    from the intake) — the whole robot turns to aim; 30+ BPS (34 sustained). No climber ("Won't: Climb").
 //  - 4414 HighTide "RIPCURRENT" (tech binder): 25x32in swerve (7.67:1), over-bumper intake,
 //    extending hopper (85+ under the TRENCH), a Dye Rotor (pocketed rotor, as in a paintball
 //    loader) feeding a single-stream turret shooter
@@ -37,12 +37,14 @@ export const ROBOTS = {
       x0: -0.143, x1: 0.323, hw: 0.33, top: 0.53, extTop: 0.47, // under the lids
       floor: { a: 0.1, b: 0.266, lo: 0.09, hi: 0.17 },
       drive: 'floor', driveSpeed: 1.8,
-      feed: { x: -0.09, via: [[-0.17, 0.3]] },
+      // indexer, up the front of the drum, over the top under the hood
+      feed: { x: -0.09, via: [[-0.16, 0.25], [-0.16, 0.42], [-0.26, 0.5]] },
     },
     shooter: {
       type: 'fixed',
+      facing: 'back', // the drum at the back fires away from the intake
       lanes: [-0.19, -0.063, 0.063, 0.19],
-      exit: { x: -0.2, y: 0.52 }, // drum at the back of the robot, shooting over the hopper
+      exit: { x: -0.35, y: 0.46 }, // where FUEL leaves the hood, at the back of the drum
       bps: 32,
       hoodMin: 42, hoodMax: 74,
       speedMax: 17,
