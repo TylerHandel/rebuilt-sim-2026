@@ -184,13 +184,13 @@ None of the three climbed, so each defaults to *no climber*. The **Climber add-o
 
 ## What's simulated
 
-**Field** (2026 Game Manual section 5 plus the official AprilTag layout):
+**Field** (2026 Game Manual section 5, the official AprilTag layout and the official field CAD):
 - 651.2 × 317.7 in field.
 - HUBS: 47 in, with a 41.7 in hex opening at 72 in and a 58.4 in wide net 10.3 in behind them (from the GE-26300 drawing). FUEL leaves through a 35.6 in wide opening in the NEUTRAL ZONE face, 30.1 in off the carpet, and drops onto the field.
 - BUMPS: 73 × 44.4 × 6.5 in with 15° ramps.
 - TRENCHES: 22.25 in clearance.
 - TOWERS: rungs at 27, 45 and 63 in.
-- DEPOTS (24 FUEL each) and OUTPOSTS, with the CHUTE (24 FUEL), CHUTE DOOR and CORRAL.
+- DEPOTS (24 FUEL each) and OUTPOSTS, with the CHUTE (24 FUEL), CHUTE DOOR and CORRAL. The TOWER, OUTPOST and DEPOT positions match the field CAD: the blue TOWER is centered on AprilTag 31 and the blue OUTPOST on 29, and the red ones mirror them.
 - 20 in guardrails and the alliance walls.
 
 **FUEL:**
@@ -268,7 +268,16 @@ Autos save automatically in the browser (localStorage) and appear in the **Auto 
 
 ## Real CAD
 
-Field or robot CAD can replace the drawn models. Export glTF (.glb) from Onshape, or convert STEP with `python3 tools/cad2glb.py in.step out.glb`. Put the files in `cad/` and list them in `cad/manifest.json` (see `cad/README.md`). Physics still uses the colliders built from the game manual dimensions.
+The field you see is FIRST's official field CAD (Onshape "FE-2026: REBUILT Playing Field"), in `cad/field/field.glb`. It's slimmed for the browser: the FUEL, carpet, tape and small hardware are dropped, and it has about 360k triangles in 26 meshes. The bleachers, HUMAN PLAYERS, HUB lights and CHUTE DOORS are still drawn by the game. Physics still uses the colliders built from the dimensions in `js/constants.js`, which line up with the CAD. To go back to the drawn field, set `"enabled": false` on the entry in `cad/manifest.json`.
+
+To refresh the field from Onshape (this needs API keys):
+```
+tools/onshape-export.sh /tmp/field-raw.glb
+npm i --no-save @gltf-transform/core @gltf-transform/extensions @gltf-transform/functions meshoptimizer
+node tools/slim-glb.mjs /tmp/field-raw.glb cad/field/field.glb
+```
+
+Other CAD, such as robots or field elements, can be added the same way. Export glTF (.glb) from Onshape, or convert STEP with `python3 tools/cad2glb.py in.step out.glb`. Then list the file in `cad/manifest.json` (see `cad/README.md`).
 
 ## Project layout
 

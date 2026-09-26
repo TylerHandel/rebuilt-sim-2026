@@ -1,3 +1,5 @@
 {
-  "models": []
+  "models": [
+    { "file": "field/field.glb", "kind": "field", "scale": 1, "rotationDeg": [-90, 0, 180], "position": [0, 0, 0] }
+  ]
 }
