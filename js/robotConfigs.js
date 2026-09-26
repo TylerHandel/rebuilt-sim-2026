@@ -25,7 +25,8 @@ export const ROBOTS = {
     mass: 61,
     drive: { maxSpeed: 4.3, maxAccel: 9.5, maxOmega: 8.5, maxAlpha: 32 },
     intake: { width: 25.5 * IN, reach: 11 * IN, rate: 26, deployTime: 0.35, side: 'front', latched: false },
-    storage: { capacity: 58 },
+    // one-piece hopper whose front slides out with the intake (40 FUEL retracted, 58 out)
+    storage: { capacity: 58, retracted: 40, extLen: 0.25, extend: 'intake' },
     shooter: {
       type: 'fixed',
       lanes: [-0.19, -0.063, 0.063, 0.19],
@@ -53,7 +54,8 @@ export const ROBOTS = {
     mass: 60,
     drive: { maxSpeed: 4.0, maxAccel: 9.0, maxOmega: 8.0, maxAlpha: 30 },
     intake: { width: 30 * IN, reach: 12 * IN, rate: 30, deployTime: 0.4, side: 'front', latched: true },
-    storage: { capacity: 88 },
+    // hopper front telescopes out 12in with the latched intake (58 FUEL retracted, 88 out)
+    storage: { capacity: 88, retracted: 58, extLen: 0.3, extend: 'latched' },
     shooter: {
       type: 'turret',
       turretPos: { x: -0.1, z: 0.0 },

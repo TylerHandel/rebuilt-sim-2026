@@ -182,6 +182,7 @@ export class Field {
     );
     carpet.rotation.x = -Math.PI / 2;
     carpet.receiveShadow = true;
+    carpet.userData.floor = true;
     this.group.add(carpet);
 
     const outer = new THREE.Mesh(
@@ -191,6 +192,7 @@ export class Field {
     outer.rotation.x = -Math.PI / 2;
     outer.position.y = -0.005;
     outer.receiveShadow = true;
+    outer.userData.floor = true;
     this.group.add(outer);
   }
 
@@ -306,7 +308,7 @@ export class Field {
       box(HUB.size, sideH, 0.03, mats.black, 0, sideY, hs - 0.015, hub);
       box(HUB.size, sideH, 0.03, mats.black, 0, sideY, -hs + 0.015, hub);
       // alliance-colored lower trim and REBUILT panels
-      for (const [px, pz, ry] of [[-hs - 0.002, 0, -Math.PI / 2], [hs + 0.002, 0, Math.PI / 2], [0, hs + 0.002, 0], [0, -hs - 0.002, Math.PI]]) {
+      for (const [px, pz, ry] of [[-hs - 0.002, 0, -Math.PI / 2], [0, hs + 0.002, 0], [0, -hs - 0.002, Math.PI]]) {
         const p = new THREE.Mesh(new THREE.PlaneGeometry(HUB.size * 0.8, 0.55), new THREE.MeshStandardMaterial({ color: 0x3f7fa8, roughness: 0.6 }));
         p.position.set(px, 0.85, pz);
         p.rotation.y = ry;
@@ -324,8 +326,12 @@ export class Field {
         tag.rotation.y = ry;
         hub.add(tag);
       }
-      // exits at the base facing the NEUTRAL ZONE
-      for (const o of HUB.exitOffsets) box(0.02, 0.2, 0.24, mats.dark, hs + 0.006, 0.14, o, hub, false);
+      // exit opening in the NEUTRAL ZONE face, with the white HDPE ramp lip FUEL rolls off
+      const exH = HUB.exitTop - HUB.exitHeight;
+      box(0.02, exH, HUB.exitWidth, mats.dark, hs + 0.004, HUB.exitHeight + exH / 2, 0, hub, false);
+      box(0.1, 0.012, HUB.exitWidth, mats.white, hs + 0.04, HUB.exitHeight - 0.006, 0, hub, false);
+      for (const sz of [-1, 1]) box(0.03, exH + 0.03, 0.03, mats.alu, hs + 0.01, HUB.exitHeight + exH / 2, sz * (HUB.exitWidth / 2 + 0.015), hub, false);
+      box(0.03, 0.03, HUB.exitWidth + 0.06, mats.alu, hs + 0.01, HUB.exitTop + 0.015, 0, hub, false);
 
       // ---- funnel / deck (trimesh used for both rendering and collision)
       const rim = hexVerts(HUB.hexR);
@@ -420,27 +426,36 @@ export class Field {
         hub.add(bar);
       }
 
-      // NET in the back of the HUB (toward the NEUTRAL ZONE)
-      const netBottom = HUB.rimBack + 0.02;
-      const dy = HUB.netTop - netBottom;
-      const netLen = Math.hypot(dy, HUB.netLean);
-      const tilt = Math.atan2(HUB.netLean, dy);
-      const net = new THREE.Mesh(new THREE.PlaneGeometry(HUB.size, netLen), mats.net);
-      net.position.set(hs + HUB.netLean / 2 - 0.03, netBottom + dy / 2, 0);
-      net.rotation.set(0, Math.PI / 2, 0);
-      net.rotateX(tilt);
+      // NET in the back of the HUB (toward the NEUTRAL ZONE): a vertical back sheet on a U frame
+      // with triangular side sheets up to the leaning poles
+      const nx = hs + HUB.netOut, nw = HUB.netWidth / 2;
+      const nH = HUB.netTop - HUB.netBottom, nY = HUB.netBottom + nH / 2;
+      const net = new THREE.Mesh(new THREE.PlaneGeometry(HUB.netWidth, nH), mats.net);
+      net.position.set(nx, nY, 0);
+      net.rotation.y = Math.PI / 2;
       hub.add(net);
-      for (const pz of [-hs, hs]) {
-        const pole = cyl(0.02, netLen + 0.15, mats.alu, hub, 8);
-        pole.position.set(hs + HUB.netLean / 2 - 0.03, netBottom + dy / 2, pz);
-        pole.rotation.z = -tilt;
+      const tube = (a, b) => {
+        const len = a.distanceTo(b);
+        const c = cyl(0.016, len, mats.alu, hub, 8);
+        c.position.copy(a).add(b).multiplyScalar(0.5);
+        c.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), b.clone().sub(a).normalize());
+      };
+      const V = (x, y, z) => new THREE.Vector3(x, y, z);
+      tube(V(nx, HUB.netTop, -nw), V(nx, HUB.netTop, nw));
+      for (const sz of [-1, 1]) {
+        const z = sz * nw;
+        tube(V(nx, HUB.netBottom, z), V(nx, HUB.netTop, z));
+        tube(V(0, HUB.netBottom, z), V(nx, HUB.netBottom, z)); // U frame
+        tube(V(-hs * 0.3, deckY, sz * (hs - 0.05)), V(nx, HUB.netTop, z)); // leaning pole
+        const g = new THREE.BufferGeometry().setFromPoints([V(0, HUB.netBottom, z), V(nx, HUB.netBottom, z), V(nx, HUB.netTop, z)]);
+        g.setAttribute('uv', new THREE.Float32BufferAttribute([0, 0, 1, 0, 1, 1], 2));
+        g.computeVertexNormals();
+        const side = new THREE.Mesh(g, mats.net);
+        hub.add(side);
       }
-      const topBar = cyl(0.02, HUB.size, mats.alu, hub, 8);
-      topBar.rotation.x = Math.PI / 2;
-      topBar.position.set(hs + HUB.netLean - 0.03, HUB.netTop, 0);
-      const qn = { x: 0, y: 0, z: Math.sin(-tilt / 2), w: Math.cos(-tilt / 2) };
-      const nc = T(hx + hs + HUB.netLean / 2 - 0.03, 0);
-      P.orientedBox(nc.x, netBottom + dy / 2, nc.z, 0.02, netLen / 2, hs, rotQ(qn), { restitution: 0.15, friction: 0.6 });
+      tube(V(nx, HUB.netBottom, -nw), V(nx, HUB.netBottom, nw));
+      const nc = T(hx + nx, 0);
+      P.box(nc.x, nY, nc.z, 0.02, nH / 2, nw, { restitution: 0.15, friction: 0.6 });
 
       this.hubs[alliance] = { center: Field.hubCenter(alliance), lightMat, group: hub };
     }
