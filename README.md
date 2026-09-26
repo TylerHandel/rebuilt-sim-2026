@@ -266,6 +266,10 @@ Autos save automatically in the browser (localStorage) and appear in the **Auto 
 | Settings panel (auto list, start, mirror, test…) | Y, then D-pad + A | Click / H |
 | Done | B or Menu (☰) | Esc |
 
+## Real CAD
+
+Field or robot CAD can replace the drawn models. Export glTF (.glb) from Onshape, or convert STEP with `python3 tools/cad2glb.py in.step out.glb`. Put the files in `cad/` and list them in `cad/manifest.json` (see `cad/README.md`). Physics still uses the colliders built from the game manual dimensions.
+
 ## Project layout
 
 ```

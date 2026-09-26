@@ -182,6 +182,7 @@ export class Field {
     );
     carpet.rotation.x = -Math.PI / 2;
     carpet.receiveShadow = true;
+    carpet.userData.floor = true;
     this.group.add(carpet);
 
     const outer = new THREE.Mesh(
@@ -191,6 +192,7 @@ export class Field {
     outer.rotation.x = -Math.PI / 2;
     outer.position.y = -0.005;
     outer.receiveShadow = true;
+    outer.userData.floor = true;
     this.group.add(outer);
   }
 
