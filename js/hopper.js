@@ -18,13 +18,67 @@ const G = 9.81;
 const ITER = 3;
 const MAX_SPEED = 5;
 
+// How much FUEL a hopper holds: pour n in, let it settle, and see whether the load fits without
+// squashing past what foam gives (SQUEEZE_MAX). Largest n that fits, by bisection. Seeded, and
+// cached per hopper, so it's the same every time.
+const SQUEEZE_MAX = 0.01;
+const capCache = new Map();
+export function measureCapacity(spec, front) {
+  const key = spec;
+  let per = capCache.get(key);
+  if (!per) { per = new Map(); capCache.set(key, per); }
+  const k = front.toFixed(3);
+  if (per.has(k)) return per.get(k);
+  const env = { acc: { x: 0, z: 0 }, w: 0, alpha: 0 };
+  const fits = (n) => {
+    let s = 12345;
+    const rng = () => ((s = (s * 16807) % 2147483647) / 2147483647);
+    const h = new Hopper(spec);
+    h.front = front;
+    h.fill(Array.from({ length: n }, () => ({})), rng);
+    let p = 0;
+    for (let i = 0; i < 240; i++) { h.step(1 / 120, env); if (i >= 210) p = Math.max(p, h.pressure); }
+    return p < SQUEEZE_MAX;
+  };
+  let lo = 1, hi = 8;
+  while (fits(hi) && hi < 400) { lo = hi; hi *= 2; }
+  while (hi - lo > 1) { const m = (lo + hi) >> 1; if (fits(m)) lo = m; else hi = m; }
+  per.set(k, lo);
+  return lo;
+}
+
+// the most a robot holds (hopper out)
+export const modelCapacity = (cfg) => measureCapacity(cfg.bay, cfg.bay.x1 + (cfg.storage.extLen || 0));
+
+// A Dye Rotor's hook: a fixed curved guide over the rotor, from its rim in to the feeder at the
+// center column (FUEL carried round runs into it and slides in along it). Points [x, z] in the
+// robot frame; angles about the rotor center in the fin's sense (direction (cos, 0, -sin)).
+export function hookPath(bay, n = 20) {
+  const rs = bay.rotor, h = bay.hook, f = bay.feed;
+  const thF = Math.atan2(-(f.z - rs.z), f.x - rs.x);
+  const pts = [];
+  for (let i = 0; i <= n; i++) {
+    const t = i / n, r = h.r0 + (h.r1 - h.r0) * t, th = thF + h.th0 + (h.th1 - h.th0) * t;
+    pts.push([rs.x + r * Math.cos(th), rs.z - r * Math.sin(th)]);
+  }
+  return pts;
+}
+
 export class Hopper {
   constructor(spec) {
     this.spec = spec;
     this.list = [];
     this.front = spec.x1;
+    this.wall = Infinity; // a mechanism sweeping in from the front (2910's intake compacting)
+    this.pressure = 0;    // how hard the load is squeezed (deepest ball overlap, m)
     this.quiet = 0;
-    this.finAngle = 0; // Dye Rotor: where the Dolphin Fin is (robot frame, about +y)
+    this.finAngle = 0; // Dye Rotor: how far it has turned (where the Dolphin Fin is, robot frame, about +y)
+    this.obstacles = [...(spec.obstacles || [])];
+    if (spec.hook) {
+      // the hook as a row of thin posts at its height over the rotor
+      const h = spec.hook, y = spec.rotor.y;
+      for (const [x, z] of hookPath(spec, 12)) this.obstacles.push({ x, z, r: h.r, y0: y + h.y0, y1: y + h.y1 });
+    }
   }
 
   clear() {
@@ -36,11 +90,28 @@ export class Hopper {
 
   floorAt(x, z = 0) {
     const s = this.spec, f = s.floor;
+    if (s.ramp && x > s.x1) {
+      // an intake box's ramp: up to a ridge over the bumper, then down to the front roller
+      const r = s.ramp, base = this.floorAt(s.x1, z);
+      if (x <= r.x) return base + ((r.y - base) * (x - s.x1)) / (r.x - s.x1);
+      return Math.max(r.lo, r.y - r.fwd * (x - r.x)) + r.lift;
+    }
     let y = clamp(f.a + f.b * x, f.lo, f.hi);
     if (s.funnel) {
       // terraces around the rotor slope down into it
       const r = s.rotor, d = Math.hypot(x - r.x, z - r.z) - r.r;
       if (d > 0) y += Math.min(s.funnel.cap, d * s.funnel.slope);
+    }
+    return y;
+  }
+
+  // Where a FUEL let in at (x, z) comes to rest: on the hopper floor, or on the FUEL already there
+  dropHeight(x, z) {
+    let y = this.floorAt(x, z) + R_WALL;
+    for (const e of this.list) {
+      if (e.tr) continue;
+      const dx = e.p.x - x, dz = e.p.z - z, h2 = dx * dx + dz * dz;
+      if (h2 < D_BALL * D_BALL) y = Math.max(y, e.p.y + Math.sqrt(D_BALL * D_BALL - h2));
     }
     return y;
   }
@@ -68,7 +139,7 @@ export class Hopper {
   }
 
   // Drop FUEL in loosely (preload), back to front and bottom up, and let it settle
-  fill(balls) {
+  fill(balls, rng = Math.random) {
     const s = this.spec;
     const step = 2 * R * 0.97;
     const slots = [];
@@ -82,8 +153,8 @@ export class Hopper {
     }
     balls.forEach((b, i) => {
       const p = (slots[i] || slots[slots.length - 1] || new THREE.Vector3(0, 0.3, 0)).clone();
-      p.x += (Math.random() - 0.5) * 0.02;
-      p.z += (Math.random() - 0.5) * 0.02;
+      p.x += (rng() - 0.5) * 0.02;
+      p.z += (rng() - 0.5) * 0.02;
       this.add(b, p, new THREE.Vector3());
     });
     for (let i = 0; i < 30; i++) this.step(1 / 120, { acc: { x: 0, z: 0 }, w: 0, alpha: 0 });
@@ -157,18 +228,18 @@ export class Hopper {
         const target = env.feeding ? -s.driveSpeed : env.intaking ? -0.5 : null;
         if (target !== null) fx += 12 * (target - v.x);
       } else if (s.drive === 'rotor' && onFloor) {
-        // the Dolphin Fin sweeps round over the still floor: it pushes the FUEL touching its
-        // leading face, and that FUEL pushes the rest along
+        // the rotor spins under the FUEL on it and carries it round (friction), and the Dolphin
+        // Fin on its rim pushes the FUEL touching its leading face, which pushes the rest along
         const r = s.rotor, dx = p.x - r.x, dz = p.z - r.z, d = Math.hypot(dx, dz);
         if (d < r.r && d > 0.05 && spin) {
           const th = Math.atan2(-dz, dx); // same sense as the fin: direction (cos, 0, -sin)
           let gap = (spin > 0 ? th - this.finAngle : this.finAngle - th) % (2 * Math.PI);
           if (gap < 0) gap += 2 * Math.PI;
-          if (gap < R / d + 0.08) {
-            const ux = -Math.sin(th) * spin * d, uz = -Math.cos(th) * spin * d;
-            fx += (r.grip ?? 40) * (ux - v.x);
-            fz += (r.grip ?? 40) * (uz - v.z);
-          }
+          const fin = d > (r.finR0 ?? 0) - R * 0.5 && gap < R / d + 0.08;
+          const k = fin ? r.grip ?? 40 : r.drag ?? 0;
+          const ux = -Math.sin(th) * spin * d, uz = -Math.cos(th) * spin * d;
+          fx += k * (ux - v.x);
+          fz += k * (uz - v.z);
         }
       } else if (s.drive === 'belt') {
         // compliant conveyor wheels grip the FUEL: carry it up to the turret, or hold it
@@ -194,6 +265,7 @@ export class Hopper {
     // constraints: ball-ball contact, then the hopper around them
     list.sort((a, b) => a.p.x - b.p.x);
     const n = list.length;
+    let squeeze = 0;
     for (let it = 0; it < ITER; it++) {
       for (let i = 0; i < n; i++) {
         const a = list[i];
@@ -206,6 +278,7 @@ export class Hopper {
           if (d2 >= D_BALL * D_BALL) continue;
           if (a.tr && b.tr) continue;
           const d = Math.sqrt(d2) || 1e-4;
+          if (it === ITER - 1) squeeze = Math.max(squeeze, D_BALL - d);
           const corr = (D_BALL - d) / d;
           const ka = a.tr ? 0 : b.tr ? 1 : 0.5, kb = b.tr ? 0 : a.tr ? 1 : 0.5;
           const cx = dx * corr, cy = (d2 > 1e-8 ? dy : 1e-4) * corr, cz = dz * corr;
@@ -215,6 +288,7 @@ export class Hopper {
       }
       for (const e of list) if (!e.tr) this._bounds(e.p);
     }
+    this.pressure = squeeze;
 
     for (const e of list) {
       if (e.tr) continue;
@@ -229,7 +303,7 @@ export class Hopper {
 
   _bounds(p) {
     const s = this.spec;
-    p.x = clamp(p.x, s.x0 + R_WALL, this.front - R_WALL);
+    p.x = clamp(p.x, s.x0 + R_WALL, Math.min(this.front, this.wall) - R_WALL);
     p.z = clamp(p.z, -s.hw + R_WALL, s.hw - R_WALL);
     const fl = this.floorAt(p.x, p.z) + R_WALL;
     const top = this.topAt(p.x) - R_WALL;
@@ -247,8 +321,8 @@ export class Hopper {
       const g = (p.x - s.x0) - Math.abs(p.z) + s.hw - s.chamfer - R_WALL * Math.SQRT2;
       if (g < 0) { p.x -= g / 2; p.z += (sz * g) / 2; }
     }
-    if (s.obstacles) {
-      for (const o of s.obstacles) {
+    if (this.obstacles.length) {
+      for (const o of this.obstacles) {
         if (o.box) {
           const [x0, x1, y0, y1, z0, z1] = o.box;
           const qx = clamp(p.x, x0, x1), qy = clamp(p.y, y0, y1), qz = clamp(p.z, z0, z1);

@@ -2,6 +2,7 @@
 // coordinates (fx from the blue ALLIANCE WALL, fy from the blue drivers' right), like the
 // built-in routines; red autos are the same path rotated 180 degrees.
 import { FIELD_W, ALLIANCE_ZONE_DEPTH } from './constants.js';
+import { modelCapacity } from './hopper.js';
 
 const KEY = 'rebuiltSim.customAutos';
 export const CUSTOM_PREFIX = 'custom:';
@@ -104,7 +105,7 @@ export function estimateTime(a, cfg, preload = 8) {
     const L = Math.hypot(p.fx - prev.fx, p.fy - prev.fy);
     const v = d.maxSpeed * p.speed;
     t += L < (v * v) / acc ? 2 * Math.sqrt(L / acc) : L / v + v / acc;
-    if (p.intake) stored = Math.min(cfg.storage.capacity, stored + Math.round(L * 3));
+    if (p.intake) stored = Math.min(modelCapacity(cfg), stored + Math.round(L * 3));
     if (p.shoot !== 'off' && p.fx < ALLIANCE_ZONE_DEPTH) stored = 0;
     if (p.action === 'shoot') shoot();
     t += waitTime(p.action);

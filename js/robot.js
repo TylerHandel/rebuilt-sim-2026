@@ -1,11 +1,11 @@
 import * as THREE from 'three';
 import { RAPIER, yawQuat } from './physics.js';
 import {
-  BLUE, HALF_L, HALF_W, HUB, FUEL, TOWER, GROUP, groups, IN,
+  BLUE, RED, HALF_L, HALF_W, HUB, FUEL, TOWER, TRENCH, GROUP, groups, IN,
 } from './constants.js';
 import { BUMPER_T } from './robotConfigs.js';
 import { buildRobotModel, addClimberVisual, BUMP_Y1 } from './robotModels.js';
-import { Hopper } from './hopper.js';
+import { Hopper, measureCapacity } from './hopper.js';
 import { ShotTable, solveMovingShot, trajectoryPoints } from './ballistics.js';
 import { Field } from './field.js';
 import { obstacleAt } from './nav.js';
@@ -55,6 +55,8 @@ export class Robot {
     this.passTable = new ShotTable({ h0, Ht: FUEL.radius + 0.02, hoodMin: sh.hoodMin, hoodMax: sh.hoodMax, speedMax: sh.speedMax, mode: 'pass', passTheta: 55 });
 
     this.hopper = new Hopper(cfg.bay);
+    const ext = cfg.storage.extLen || 0;
+    this.geoCap = { retracted: measureCapacity(cfg.bay, cfg.bay.x1), extended: measureCapacity(cfg.bay, cfg.bay.x1 + ext) };
     this._createBody();
     this.reset();
   }
@@ -143,6 +145,7 @@ export class Robot {
     this.feedTimer = 0;
     this.lane = 0;
     this.intakeTokens = 0;
+    this.full = false; // the hopper holds all it can
     this.outtakeTimer = 0;
     this.enabled = false;
     this.cmd = { vx: 0, vz: 0, omega: 0, intake: false, outtake: false, shoot: false, pass: false };
@@ -209,14 +212,21 @@ export class Robot {
     return { x: this.vel.x + this.omega * (p.z - this.pos.z), z: this.vel.z - this.omega * (p.x - this.pos.x) };
   }
 
-  // how much FUEL fits right now (an extending hopper holds more when it's out)
+  // how much FUEL fits right now: what the modeled hopper holds (measured from its geometry,
+  // not the team's stated number), more once an extending hopper is out
   capacity() {
-    const st = this.cfg.storage;
-    if (!st.extLen) return st.capacity;
-    return Math.floor(st.retracted + (st.capacity - st.retracted) * this.hopperDeploy + 1e-6);
+    const g = this.geoCap;
+    return Math.floor(g.retracted + (g.extended - g.retracted) * this.hopperDeploy + 1e-6);
   }
 
-  maxCapacity() { return this.cfg.storage.capacity; }
+  maxCapacity() { return this.geoCap.extended; }
+
+  // how far forward the retracting intake arm reaches into the hopper (its roller)
+  _compactorX() {
+    const a = this.cfg.intake.arm;
+    const deg = a.stowDeg + (a.deployDeg - a.stowDeg) * this.intakeDeploy;
+    return a.x + a.len * Math.cos(deg * DEG);
+  }
 
   // front of the hopper right now (an extending hopper moves it forward)
   bayFront() { return this.cfg.bay.x1 + (this.cfg.storage.extLen || 0) * this.hopperDeploy; }
@@ -244,7 +254,8 @@ export class Robot {
     // 'latched' hoppers come out with the intake at the start and stay out; 'intake' hoppers
     // follow the intake. Either way the hopper can't close on FUEL that needs the room.
     let want = st.extend === 'latched' ? (this.hopperDeploy > 0.02 || this.intakeDeploy > 0.3 ? 1 : 0) : this.intakeDeploy;
-    const need = Math.min(1, Math.max(0, (this.stored.length - st.retracted) / (st.capacity - st.retracted)));
+    const gc = this.geoCap;
+    const need = Math.min(1, Math.max(0, (this.stored.length - gc.retracted) / Math.max(1, gc.extended - gc.retracted)));
     want = Math.max(want, need);
     if (on || want < this.hopperDeploy) this.hopperDeploy = approach(this.hopperDeploy, want, dt / 0.45);
     if (!this.hopperCollider) return;
@@ -298,10 +309,13 @@ export class Robot {
   _intakePath(z) {
     const front = this.bayFront();
     // just over the bumper (an extended hopper already reaches out over it)
-    const entryX = Math.min(front - R - 0.02, this.halfL + 0.02);
-    const entryY = this.hopper.floorAt(entryX, z) + R + 0.015;
-    const lipX = this.halfL + 0.04;
-    return { lipX, entryX, entryY, liftY: Math.max(entryY, BUMP_Y1 + R + 0.025) };
+    const lip = this.cfg.intake.lip;
+    const entryX = lip?.entry ?? Math.min(front - R - 0.02, this.halfL + 0.02);
+    // it drops in on top of whatever FUEL is already by the entry (and when that's up to the
+    // top, the rollers push it in and the load gives way)
+    const entryY = Math.min(this.hopper.dropHeight(entryX, z), this.hopper.topAt(entryX) - R) + 0.015;
+    const lipX = lip ? lip.x : this.halfL + 0.04, lipY = lip ? lip.y : BUMP_Y1 + R + 0.025;
+    return { lipX, lipY, entryX, entryY, liftY: Math.max(entryY, lipY) };
   }
 
   // The intake rollers drag grabbed FUEL up over the bumper and into the hopper
@@ -381,10 +395,13 @@ export class Robot {
     let want = on && this.cmd.intake;
     if (ic.latched && this.intakeDeploy >= 1) want = true; // latched down for the whole match
     if (this.forceDeploy) want = true;
-    // Re•Blitz retracts the intake while shooting to compress FUEL into the shooter
-    if (this.cfg.key === '2910' && on && (this.cmd.shoot || this.cmd.pass) && !this.cmd.intake) want = false;
+    // Re•Blitz retracts the intake while shooting to compact FUEL into the indexer
+    if (ic.compacts && on && (this.cmd.shoot || this.cmd.pass) && !this.cmd.intake) want = false;
     if (on && this.cmd.outtake) want = true;
-    this.intakeDeploy = approach(this.intakeDeploy, want ? 1 : 0, dt / ic.deployTime);
+    const next = approach(this.intakeDeploy, want ? 1 : 0, dt / (want ? ic.deployTime : ic.retractTime ?? ic.deployTime));
+    // a compacting intake pushes on the load as it comes in, and stalls while it can't squeeze more
+    if (!(ic.compacts && next < this.intakeDeploy && this.hopper.pressure > 0.025)) this.intakeDeploy = next;
+    this.hopper.wall = ic.compacts ? this._compactorX() : Infinity;
     this._hopper(dt, on);
     const deployed = this.intakeDeploy > 0.85;
     // An intake that deploys into a structure (e.g. 4414 at the Hub start) would jam the robot,
@@ -400,7 +417,8 @@ export class Robot {
 
     const running = on && this.cmd.intake && deployed;
     this.intakeSpeed = on && this.cmd.outtake ? -1 : running ? 1 : 0;
-    if (running && this.stored.length + this.captured.length < this.capacity()) {
+    this.full = this.stored.length + this.captured.length >= this.capacity();
+    if (running && !this.full) {
       this.intakeTokens = Math.min(Math.max(4, 2 * ic.rate * dt), this.intakeTokens + ic.rate * dt);
       const front = this.halfL - 0.04;
       const reach = this.halfL + ic.reach + R + 0.02;
@@ -789,6 +807,7 @@ export class Robot {
       hoodDeg: this.hoodDeg,
       turretYaw: this.turretYaw,
       rotorAngle: this.hopper.finAngle,
+      headroom: this._headroom(),
     }, dt);
     // swerve module steering to match the motion
     const lv = this.worldToLocalVec(this.vel.x, this.vel.z);
@@ -802,6 +821,26 @@ export class Robot {
     if (m.climber) {
       m.climber.hook.position.y = 0.55 + (this.climbState === 'aligning' ? 0.25 : this.climbState !== 'none' ? Math.max(0, 0.25 - this.climbLift) : 0);
     }
+  }
+
+  // how much room there is over the robot (the TRENCH arm), from the robot's origin up
+  _headroom() {
+    const ext = this.halfL + (this.cfg.storage.extLen || 0) * this.hopperDeploy, r = Math.hypot(ext, this.halfW);
+    const zOpen = HALF_W - TRENCH.clearWidth;
+    if (Math.abs(this.pos.z) + r < zOpen) return Infinity;
+    for (const a of [BLUE, RED]) {
+      const hx = Field.hubCenter(a).x;
+      if (Math.abs(this.pos.x - hx) > r + TRENCH.armThick / 2) continue;
+      // any corner of the footprint past the arm's near edge, and the footprint spans the arm
+      let minX = Infinity, maxX = -Infinity, far = false;
+      for (const [lx, lz] of [[ext, this.halfW], [ext, -this.halfW], [-this.halfL, this.halfW], [-this.halfL, -this.halfW]]) {
+        const p = this.localToWorld(lx, 0, lz);
+        minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
+        if (Math.abs(p.z) > zOpen) far = true;
+      }
+      if (far && minX < hx + TRENCH.armThick / 2 && maxX > hx - TRENCH.armThick / 2) return TRENCH.clearHeight - this.pos.y;
+    }
+    return Infinity;
   }
 
   worldToLocalVec(x, z) {

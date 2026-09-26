@@ -147,7 +147,7 @@ export class AutoRunner {
     const maxFx = HALF_L + r.halfW - 0.08; // BUMPERS past the CENTER LINE but not fully across
     const steps = [];
     const lane = (kind, fy) => (fy > FIELD_W / 2 ? FIELD_W - ROUTE_FY[kind] : ROUTE_FY[kind]);
-    const shootAll = () => steps.push({ type: 'shoot', timeout: r.cfg.storage.capacity / bps + 1.2 });
+    const shootAll = () => steps.push({ type: 'shoot', timeout: r.maxCapacity() / bps + 1.2 });
     if (plan.preload === 'stand') steps.push({ type: 'shoot', timeout: 1.5 });
     let first = plan.preload !== 'stand';
     for (const trip of plan.trips) {

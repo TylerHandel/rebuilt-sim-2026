@@ -6,6 +6,7 @@ import { Worker } from 'node:worker_threads';
 import { cpus } from 'node:os';
 import { BEST_AUTOS } from '../js/auto.js';
 import { ROBOTS } from '../js/robotConfigs.js';
+import { modelCapacity } from '../js/hopper.js';
 import { mulberry32 } from './headless.mjs';
 
 const args = process.argv.slice(2);
@@ -42,7 +43,7 @@ const run = (a, b, seed) => new Promise((resolve, reject) => { const id = nextId
 
 // ------------------------------------------------------------------ plans
 function randomTrip(key, side) {
-  const cap = ROBOTS[key].storage.capacity;
+  const cap = modelCapacity(ROBOTS[key]);
   if (rng() < (cap < 20 ? 0.35 : 0.15)) return { depot: true, speed: round(U(0.25, 0.6)) };
   // sweep a stretch of the FUEL line starting on this side and heading across
   const len = Math.min(5.0, cap < 20 ? U(0.6, 2.2) : U(1.2, 5.0));
