@@ -419,7 +419,7 @@ export class Robot {
     if (on && this.cmd.outtake) want = true;
     const next = approach(this.intakeDeploy, want ? 1 : 0, dt / (want ? ic.deployTime : ic.retractTime ?? ic.deployTime));
     // a compacting intake pushes on the load as it comes in, and stalls while it can't squeeze more
-    if (!(ic.compacts && next < this.intakeDeploy && this.hopper.pressure > 0.025)) this.intakeDeploy = next;
+    if (!(ic.compacts && next < this.intakeDeploy && this.hopper.pressure > (this.cfg.bay.push ?? FUEL.intakePush))) this.intakeDeploy = next;
     this.hopper.wall = ic.compacts ? this._compactorX() : Infinity;
     this._hopper(dt, on);
     const deployed = this.intakeDeploy > 0.85;
@@ -942,7 +942,9 @@ export class Robot {
     const n = Math.min(list.length, m.storedMesh.instanceMatrix.count);
     const mat = new THREE.Matrix4();
     for (let i = 0; i < n; i++) {
-      mat.makeTranslation(list[i].p.x, list[i].p.y, list[i].p.z);
+      // squeezed FUEL squashes: drawn smaller by how far it's pressed in, so it doesn't overlap
+      const k = 1 - Math.min(0.3, (list[i].squash || 0) / R);
+      mat.makeScale(k, k, k).setPosition(list[i].p.x, list[i].p.y, list[i].p.z);
       m.storedMesh.setMatrixAt(i, mat);
     }
     m.storedMesh.count = n;

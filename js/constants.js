@@ -37,6 +37,12 @@ export const GRAVITY = 9.81;
 export const FUEL = {
   radius: (5.91 * IN) / 2, // 5.91in diameter high-density foam ball
   mass: 0.215,             // 0.448-0.500 lb
+  // Foam: squeezed between two plates it gives like a spring. 20 lb/in is the nominal spring
+  // rate in AndyMark's 2026 Scoring Element Testing Report (FUEL firms up with age, to ~30-38).
+  // Two FUEL pressed together squash the same (each contact is twice as stiff, in series).
+  springRate: (20 * 4.448) / 0.0254, // N/m
+  // how hard intake rollers shove FUEL into a full hopper (roller grip on a squeezed FUEL)
+  intakePush: 45,          // N
   total: 504,
   perDepot: 24,
   perChute: 24,
