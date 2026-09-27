@@ -606,7 +606,8 @@ export class Robot {
     const tgt = this._target();
     const inZoneNow = tgt.inZone;
     this.lastInZone = inZoneNow;
-    const prespin = on && has && inZoneNow;
+    // spin up ahead of time: in our zone, or when the driver (an AI about to dump a pass) asks
+    const prespin = on && has && (inZoneNow || !!this.cmd.prespin);
     const twin = this.turrets.length > 1;
     if (twin) ({ ready, status } = this._twinTurrets(dt, t, tgt, (wantShoot || prespin) && has, wantShoot, status));
     else if ((wantShoot || prespin) && has) {

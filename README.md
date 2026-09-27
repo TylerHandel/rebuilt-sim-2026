@@ -70,15 +70,20 @@ In **1 v 1** an AI robot plays the other ALLIANCE (in **3 v 3**, up to five of t
 
 | Strategy | What it does |
 |---|---|
-| Scorer | Runs its own cycles. It collects FUEL, and **steals** from your ALLIANCE ZONE when it's worth it (every FUEL taken counts twice: one fewer for you, one more for it), then shoots on the move once back in its zone. **Off shifts:** it has one goal, to get as much FUEL onto its side as possible. It collects in the NEUTRAL ZONE and passes everything into its own zone (turrets pass as they intake; the 2910 passes in batches), never over its HUB. Near the end of the shift it fills its hopper and heads home, then works through that stockpile when its HUB turns on. |
+| Scorer | Runs its own cycles. It collects FUEL, and **steals** from your ALLIANCE ZONE when it's worth it (every FUEL taken counts twice: one fewer for you, one more for it), then shoots on the move once back in its zone. **Off shifts:** it has one goal, to get as much FUEL onto its side as possible. It collects in the NEUTRAL ZONE and passes everything into its own zone, never over its HUB. It passes in big batches (it collects a load, spins the flywheel up as the load nears the batch size, then dumps it all at once), so a drum robot turns once and any shooter spins up once per batch instead of once per FUEL. Near the end of the shift it fills its hopper and heads home, then works through that stockpile when its HUB turns on. |
 | Defense | Tries to **keep you out of your zone**. It guards the BUMP or TRENCH lane you'd use to get in and **rams** you back when you come close. If you get in, it shoves you off your shot. It backs off 72 in before a PIN becomes a foul, and leaves you alone at your TOWER in END GAME. |
 | Hybrid | Shift-aware. It defends during the SHIFTS when only your HUB is active and scores the rest of the time. |
 
+How the Scorer collects:
+- It goes where it gets the most FUEL per second of driving. A target counts the FUEL around it (up to what still fits), so a big pile a few meters away beats picking through scraps, like the piles that collect in front of each HUB's exits. A trip out of its zone also pays for the drive back. FUEL it can shoot while picking it up (in its zone, HUB active) counts extra, and so does FUEL stolen from your zone. FUEL behind it costs the turn.
+- A turret robot collecting in its zone while shooting stays there only while that's still the best place to collect.
+- Its intake goes down on the way to the FUEL and stays down while it collects (and on the way home, except 2910, which uses the retract to compact its load). It comes up only when the hopper is full, when an opponent is about to be inside its reach (allowing for how fast they're closing and how long the intake takes to come up; a latched intake slows the robot instead), or for the moment a FUEL just released by a HUB would drop into it (G408).
+- It fills its whole hopper before a cycle when there's time (Cycle fill).
+
 How the Scorer handles time and traffic:
-- If its own zone has too little FUEL left to be worth picking through, it goes to the NEUTRAL ZONE.
 - It measures its own collection rate. If its HUB's active window won't last long enough to fill up, travel and shoot, it scores the partial load it has. It also heads in with any load just before its HUB activates.
-- Turret robots (4414, 8793, 971, 1690, 4946) don't use a fixed shooting spot. Once inside their zone with the HUB active, they shoot from wherever they are while collecting. Outside the zone they head for the nearest point inside it. 2910 and 1678 still drive to a shooting spot, because the whole chassis has to turn to aim.
-- While shooting or passing on the move, it drives smoothly: capped speed, limited acceleration and turning. This lets the turret, hood and flywheel settle so the shot actually releases (a shot only fires when aim, flywheel speed and hood are all on target).
+- Turret robots (4414, 8793, 971, 1690, 4946) don't use a fixed shooting spot. Once inside their zone with the HUB active, they shoot from wherever they are while collecting. Outside the zone they head for the nearest point inside it. 2910 and 1678 still drive to a shooting spot, because the whole chassis has to turn to aim; they turn to face their shot over the last few meters, so they arrive aimed.
+- While shooting or passing on the move, it drives smoothly: capped speed, limited acceleration and turning (only while it has FUEL to shoot). This lets the turret, hood and flywheel settle so the shot actually releases (a shot only fires when aim, flywheel speed and hood are all on target).
 - If you block it on the way to its zone, it goes around at first. Once it stops gaining ground (you're mirroring it), it drives straight through you.
 
 **Skill** sets its speed, how carefully it collects, how much of its hopper it uses, its shooting accuracy, how long it hesitates between cycles, its reaction time on defense and its pin discipline:

@@ -82,6 +82,12 @@ For a new Claude Code session. The latest work is on branch `claude/great-hypati
 - Checks: shooting 971 20 BPS at any heading (299/300 into the HUB from four headings), 1678 26, 1690 12, 4946 20, all into the HUB; capacities 971 40 → 75, 1678 31 → 73, 1690 31 → 58, 4946 81 → 107; the 2910/4414/8793 bench is unchanged; headless 971 vs 1678 finishes with both climbing.
 - `BEST_AUTOS` for the new robots come from `tools/auto-search.mjs --robots 971,1678,1690,4946`.
 
+## Done: AI scoring efficiency
+- `OpponentAI._pickBall` values FUEL by FUEL per second of driving: the cluster round each candidate (up to the room left), the drive back to the zone for FUEL outside it, the turn for FUEL behind, extra for FUEL it can shoot while collecting or steal. `_zoneWorthIt` keeps a turret in its zone only while that's the best place to collect.
+- Intake: down once the target is within `intakeDist` (default 8 m) and it stays down while collecting (`_intakeFor`). It comes up for an opponent about to be inside its reach (`_foeAhead`, allowing for closing speed and the retract time; `_yieldToFoes` slows a latched one) or for a HUB-released FUEL predicted to drop into it (`_hubFuelNear`).
+- Passing: batches of `passBatch` (default 45, or full, or nothing left), with `cmd.prespin` spinning the shooter up ahead of the dump; the speed cap only applies while it's actually firing. Cycle fill is a fraction of the whole hopper (it was capped at 60). Chassis-aimed shooters face their shot over the last 3 m home.
+- Result (7 robots, 3 seeds each vs a 4414 scorer, FUEL per match): 3519 → 4692 in total, every robot up (2910 +15%, 4414 +9%, 8793 +41%, 971 +38%, 1678 +65%, 1690 +37%, 4946 +44%), fouls 13 → 3. `TRAINED_BRAIN` was trained on the old behavior; retrain if you use it.
+
 ## Other open items
 - The HUB and BUMP sizes were checked against the drawing. All element positions were checked against the field CAD. The TRENCH, TOWER, DEPOT and OUTPOST *sizes* still come from the game manual, so compare them with the drawing pages above or measure them in the CAD. Note that the Block CAD bounding box puts the inside edge of the fixed TRENCH about 8 cm closer to the guardrail than `TRENCH.width` does.
 - Optional: a longer AI self-play training run, `npm run train -- --gens 30 --pop 12 --scenarios 6 --resume`.
