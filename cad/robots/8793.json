@@ -1,0 +1,132 @@
+{
+  "source": "8793 Pumpkin Bots, \"8793-2026-A-0000 Robot\" (Onshape e34c8122db6474f80cc7e909, workspace dd037c647c748146eb3a3f31, element 56e3b8b78eff91db02fc8880), STEP through tools/step2glb.py",
+  "front": "-y",
+  "parts": [
+    {
+      "out": "cad/robots/8793-body.glb",
+      "include": [
+        "8793-2026-A-0100 Drivetrain",
+        "8793-2026-A-0310 Conveyor V2",
+        "8793-2026-A-0400 Turret"
+      ],
+      "like": {
+        "glb": "r8793.glb",
+        "node": "8793-2026-A-0000 Robot"
+      },
+      "exclude": [
+        "swerve",
+        "bumper",
+        "wood",
+        "turntable gear",
+        "cable carrier",
+        "spacer",
+        "bearing",
+        "chain",
+        "belt",
+        "standoff",
+        "plunger",
+        "REV-11-1850",
+        "REV-11-1863"
+      ],
+      "smooth": true,
+      "ratio": 0.15,
+      "error": 0.003
+    },
+    {
+      "out": "cad/robots/8793-mount.glb",
+      "include": [
+        "8793-2026-A-0220 Intake V3"
+      ],
+      "like": {
+        "glb": "r8793.glb",
+        "node": "8793-2026-A-0220 Intake V3"
+      },
+      "exclude": [
+        "spacer",
+        "bearing",
+        "chain",
+        "belt",
+        "REV-11-1850",
+        "REV-11-1863"
+      ],
+      "skipBox": [
+        [
+          0.3,
+          9,
+          -9,
+          9,
+          -9,
+          9
+        ]
+      ],
+      "smooth": true,
+      "ratio": 0.3,
+      "error": 0.0015
+    },
+    {
+      "out": "cad/robots/8793-intake.glb",
+      "include": [
+        "8793-2026-A-0220 Intake V3"
+      ],
+      "like": {
+        "glb": "r8793.glb",
+        "node": "8793-2026-A-0220 Intake V3"
+      },
+      "exclude": [
+        "spacer",
+        "bearing",
+        "chain",
+        "belt",
+        "REV-11-1850",
+        "REV-11-1863"
+      ],
+      "onlyBox": [
+        [
+          0.3,
+          9,
+          -9,
+          9,
+          -9,
+          9
+        ]
+      ],
+      "origin": [
+        0.292,
+        0.336,
+        0
+      ],
+      "smooth": true,
+      "ratio": 0.3,
+      "error": 0.0015
+    },
+    {
+      "out": "cad/robots/8793-turret.glb",
+      "include": [
+        "8793-2026-A-0500 Shooter",
+        "200T 20DP Turntable Gear",
+        "Cable Carrier"
+      ],
+      "like": {
+        "glb": "r8793.glb",
+        "node": "8793-2026-A-0000 Robot"
+      },
+      "exclude": [
+        "spacer",
+        "bearing",
+        "chain",
+        "belt",
+        "standoff",
+        "REV-11-1850",
+        "REV-11-1863"
+      ],
+      "origin": [
+        -0.127,
+        0,
+        0
+      ],
+      "smooth": true,
+      "ratio": 0.2,
+      "error": 0.002
+    }
+  ]
+}

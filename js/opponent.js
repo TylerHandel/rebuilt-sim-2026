@@ -143,7 +143,9 @@ export class OpponentAI {
       this.seen.push({ t: this.t, x: F.pos.x, z: F.pos.z });
       while (this.seen.length > 2 && this.seen[1].t < this.t - this.skill.lag) this.seen.shift();
     }
-    Object.assign(cmd, { vx: 0, vz: 0, omega: 0, intake: false, shoot: false, pass: false, outtake: false, prespin: false });
+    Object.assign(cmd, { vx: 0, vz: 0, omega: 0, intake: false, shoot: false, pass: false, outtake: false, prespin: false, lower: false });
+    // an intake that stows folded up (8793's) comes down on the way under a TRENCH
+    if (r.cfg.intake.fold && underTrench(r.pos.x, r.pos.z, r.halfL + 1.2)) cmd.lower = true;
     if (!m.isTeleop) { this.label = m.isAuto ? 'AUTO' : 'Waiting'; return; }
 
     // mode selection (with nobody to defend against, everyone scores)
@@ -260,7 +262,7 @@ export class OpponentAI {
   _drive(x, z, { speed = 1, face = 'travel', arrive = 0.08, avoid = false } = {}) {
     const r = this.robot, cmd = r.cmd, d = r.cfg.drive;
     this.replanT -= this.dt;
-    const nav = r.fitsTrenchNow() ? this.navFit : this.navTall;
+    const nav = r.fitsTrenchLowered() ? this.navFit : this.navTall;
     if (nav !== this.nav) { this.nav = nav; this.path = null; }
     if (!this.path || !this.goal || this.replanT <= 0 || Math.hypot(this.goal.x - x, this.goal.z - z) > 0.3) {
       const near = avoid ? this.others.filter((P) => Math.hypot(P.pos.x - r.pos.x, P.pos.z - r.pos.z) < 5) : [];
@@ -534,7 +536,7 @@ export class OpponentAI {
     const bins = new Map();
     const cands = [];
     const CELL = 0.5;
-    const tall = !r.fitsTrenchNow();
+    const tall = !r.fitsTrenchLowered();
     for (const b of this.fuel.balls) {
       if (b.state !== 'field' || b.inFlight || b.hubFresh || b.inCorral) continue;
       const p = b.pos;
@@ -598,7 +600,7 @@ export class OpponentAI {
     const r = this.robot;
     if (d < this.brain.intakeDist) this.intakeDown = true;
     // near a TRENCH with the load almost up to the arm: more FUEL would wedge it under there
-    const wedge = underTrench(r.pos.x, r.pos.z, 1.0) && r.topY > TRENCH.clearHeight - 0.06;
+    const wedge = underTrench(r.pos.x, r.pos.z, 1.0) && r.growTop > TRENCH.clearHeight - 0.06;
     return this.intakeDown && r.stored.length < this.maxLoad && !wedge && !this._foeAhead() && !this._hubFuelNear();
   }
 

@@ -1227,25 +1227,32 @@ function build4414(cfg, alliance) {
 }
 
 // ============================================================ 8793 Hopperless
-// Low, open robot: wide multi-roller intake -> funnel conveyor of compliant wheels -> big
-// bearing-ring turret carrying a hooded flywheel shooter. Holds only the FUEL in its path.
+// From 8793's Onshape CAD ("8793-2026-A-0000 Robot"), split by tools/extract-parts.mjs
+// (cad/robots/8793.json): the body (drivetrain, Conveyor V2's omni wheels over a polycarbonate
+// ramp, and the fixed turret tower), Intake V3's mount and its arm (exported down on the carpet;
+// origin on the pivot, it folds up and back by intake.fold.stowDeg to stow), and the turret (200T
+// turntable with the hooded 4in flywheel shooter; origin on the turntable axis). Holds only the
+// FUEL in its path. Until the CAD loads (and headless), a drawn stand-in shows.
 function build8793(cfg, alliance) {
   const root = new THREE.Group();
-  const L = cfg.frame.length, W = cfg.frame.width;
+  const L = cfg.frame.length, W = cfg.frame.width, fold = cfg.intake.fold;
   addBumpers(root, cfg, alliance);
-  const modules = addDrivebase(root, cfg);
+  const modules = addDrivebase(root, cfg, 0, false);
   const orange = std(cfg.colors.accent, 0.45, 0.35);
   const plate = std(0x2a2c31, 0.5, 0.6);
-  addElectronics(root, -0.12, -W / 2 + 0.2, Math.PI / 2);
+  const drawn = new THREE.Group();
+  root.add(drawn);
+  addDrivebase(drawn, cfg, 0, true).forEach((md) => md.pivot.parent.removeFromParent());
+  addElectronics(drawn, -0.12, -W / 2 + 0.2, Math.PI / 2);
 
   // electronics deck
-  rbx(L - 0.12, 0.008, W - 0.12, 0.003, std(0x1b1c20, 0.6, 0.4), root, -0.02, 0.172, 0);
-  for (const s of [-1, 1]) rbx(L * 0.45, 0.01, 0.16, 0.003, orange, root, -0.14, 0.18, s * (W / 2 - 0.14));
+  rbx(L - 0.12, 0.008, W - 0.12, 0.003, std(0x1b1c20, 0.6, 0.4), drawn, -0.02, 0.172, 0);
+  for (const s of [-1, 1]) rbx(L * 0.45, 0.01, 0.16, 0.003, orange, drawn, -0.14, 0.18, s * (W / 2 - 0.14));
 
   // conveyor: funnel of compliant wheels from the intake back to the turret
   const conv = new THREE.Group();
   conv.position.set(0.1, 0.19, 0);
-  root.add(conv);
+  drawn.add(conv);
   const convWheels = [];
   for (let row = 0; row < 3; row++) {
     const w = W - 0.18 - row * 0.1;
@@ -1288,6 +1295,18 @@ function build8793(cfg, alliance) {
   wheelStack(intake, cfg.intake.width - 0.06, 0.035, 7, M.compliant, armLen - 0.19, 0.03, 0, 0.025);
   kraken(intake, 0.03, 0, cfg.intake.width / 2 + 0.05, true, 'z');
 
+  // the team's CAD
+  const cadTurret = new THREE.Group();
+  cadTurret.position.set(cfg.shooter.turretPos.x, 0, cfg.shooter.turretPos.z);
+  root.add(cadTurret);
+  const cadArm = new THREE.Group();
+  cadArm.position.set(fold.pivot[0], fold.pivot[1], 0);
+  root.add(cadArm);
+  cadPart(root, 'robots/8793-body.glb', () => { drawn.visible = false; });
+  cadPart(root, 'robots/8793-mount.glb', () => {});
+  cadPart(cadArm, 'robots/8793-intake.glb', () => { intake.visible = false; });
+  cadPart(cadTurret, 'robots/8793-turret.glb', () => { turret.visible = false; });
+
   // FUEL in the ball path (intake -> conveyor -> turret)
   const stored = [];
   const path = [[0.33, 0.13], [0.26, 0.16], [0.19, 0.2], [0.12, 0.24], [0.05, 0.28], [-0.02, 0.32]];
@@ -1298,6 +1317,8 @@ function build8793(cfg, alliance) {
     for (const r of intakeRollers) r.rotation.z += st.intakeSpeed * dt * 40;
     for (const w of convWheels) w.rotation.z += (st.intakeSpeed + st.feeding) * dt * 25;
     turret.rotation.y = st.turretYaw;
+    cadArm.rotation.z = (1 - st.intakeDeploy) * fold.stowDeg * Math.PI / 180;
+    cadTurret.rotation.y = st.turretYaw;
     fly.rotation.z -= st.flywheel * dt * 8;
     hood.rotation.z = (st.hoodDeg - 62) * Math.PI / 180 * 0.8;
   };

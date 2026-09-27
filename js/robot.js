@@ -3,7 +3,7 @@ import { RAPIER, yawQuat } from './physics.js';
 import {
   BLUE, RED, HALF_L, HALF_W, HUB, FUEL, TOWER, TRENCH, GROUP, groups, IN,
 } from './constants.js';
-import { BUMPER_T, BUMPER_Y0, BUMPER_Y1, fitsTrench } from './robotConfigs.js';
+import { BUMPER_T, BUMPER_Y0, BUMPER_Y1, fitsTrench, foldTop } from './robotConfigs.js';
 import { buildRobotModel, addClimberVisual, BUMP_Y1 } from './robotModels.js';
 import { Hopper, measureCapacity, intakePush } from './hopper.js';
 import { ShotTable, solveMovingShot, trajectoryPoints } from './ballistics.js';
@@ -144,13 +144,25 @@ export class Robot {
     // The top of the robot when a load bulges its net up, or a lid is raised (1678's): a slab at
     // that height over the hopper, so it hits the TRENCH arm (a robot that's too tall gets stuck)
     this.loadCollider = null;
-    this.topY = this.height;
+    this.topY = this.topLoad = this.height;
+    this.growTop = 0;
     const bay = cfg.bay;
     if (bay.dome || bay.lift) {
       const x1 = bay.x1 + (st.extLen || 0);
       this.loadSlab = { x: (bay.x0 + x1) / 2, hx: (x1 - bay.x0) / 2 };
       this.loadCollider = world.createCollider(
         RAPIER.ColliderDesc.cuboid(this.loadSlab.hx, 0.03, bay.hw).setTranslation(this.loadSlab.x, this.height, 0)
+          .setMass(0.1).setFriction(0.05).setRestitution(0.1).setCollisionGroups(0),
+        this.body,
+      );
+    }
+    // an intake that folds up over the robot to stow (8793's) stands taller than the TRENCH
+    // clearance: a slab at its top, over the arm, catches the TRENCH arm until it's lowered
+    this.foldCollider = null;
+    if (cfg.intake.fold) {
+      const f = cfg.intake.fold;
+      this.foldCollider = world.createCollider(
+        RAPIER.ColliderDesc.cuboid(0.12, 0.03, cfg.intake.width / 2).setTranslation(f.pivot[0], this.height, 0)
           .setMass(0.1).setFriction(0.05).setRestitution(0.1).setCollisionGroups(0),
         this.body,
       );
@@ -448,10 +460,20 @@ export class Robot {
     let loadTop = 0;
     for (const e of this.hopper.list) if (!e.tr) loadTop = Math.max(loadTop, e.p.y + R);
     if (lift) this.hopper.liftScale = Math.max(this.hopperDeploy, clamp((loadTop - 0.01 - bay.top) / lift.h, 0, 1));
-    this.topY = Math.max(this.height, lift ? bay.top + lift.h * this.hopper.liftScale + 0.01 : bay.dome ? loadTop + 0.005 : 0);
+    // topLoad: the top with the intake down; topY: the true top, with a folded intake as it is now
+    // growTop: the part that grows with the load (a net it bulges up, a lid it holds up), 0 if none
+    this.growTop = lift ? bay.top + lift.h * this.hopper.liftScale + 0.01 : bay.dome ? loadTop + 0.005 : 0;
+    this.topLoad = Math.max(this.height, this.growTop);
+    const fold = foldTop(this.cfg.intake, this.intakeDeploy);
+    this.topY = Math.max(this.topLoad, fold);
+    if (this.foldCollider) {
+      const up = fold > this.height + 0.005;
+      this.foldCollider.setTranslationWrtParent({ x: this.cfg.intake.fold.pivot[0] - 0.06, y: fold - 0.03, z: 0 });
+      this.foldCollider.setCollisionGroups(up ? groups(GROUP.ROBOT, GROUP.STATIC) : 0);
+    }
     if (this.loadCollider) {
-      const up = this.topY > this.height + 0.005;
-      this.loadCollider.setTranslationWrtParent({ x: this.loadSlab.x, y: this.topY - 0.03, z: 0 });
+      const up = this.topLoad > this.height + 0.005;
+      this.loadCollider.setTranslationWrtParent({ x: this.loadSlab.x, y: this.topLoad - 0.03, z: 0 });
       this.loadCollider.setCollisionGroups(up ? groups(GROUP.ROBOT, GROUP.STATIC) : 0);
     }
     // the robot's acceleration and turn rate, felt by the FUEL inside
@@ -482,6 +504,7 @@ export class Robot {
     let want = on && this.cmd.intake;
     if (ic.latched && this.intakeDeploy >= 1) want = true; // latched down for the whole match
     if (this.forceDeploy) want = true;
+    if (on && this.cmd.lower) want = true; // down without running (to get under the TRENCH)
     // Re•Blitz retracts the intake while shooting to compact FUEL into the indexer
     if (ic.compacts && on && (this.cmd.shoot || this.cmd.pass) && !this.cmd.intake) want = false;
     if (on && this.cmd.outtake) want = true;
@@ -875,6 +898,8 @@ export class Robot {
       if (d < bd) { bd = d; best = e; }
     }
     if (!best) return false;
+    // a single-file indexer only takes the FUEL that's got to it (the conveyor brings the rest)
+    if (f.reach && bd > f.reach * f.reach) return false;
     this.lane++;
     const via = (f.vias ? f.vias[ti] : f.via).map(([x, y, z]) => new THREE.Vector3(x, y, z ?? laneZ));
     const end = sh.type === 'fixed'
@@ -1059,6 +1084,8 @@ export class Robot {
 
   // whether it fits under a TRENCH arm right now (a load bulging its net, or a raised lid, doesn't)
   fitsTrenchNow() { return fitsTrench(this.cfg) && this.topY <= TRENCH.clearHeight - 0.005; }
+  // fits once a folded intake is lowered (the AI lowers it on its way under)
+  fitsTrenchLowered() { return fitsTrench(this.cfg) && this.topLoad <= TRENCH.clearHeight - 0.005; }
 
   worldToLocalVec(x, z) {
     const c = Math.cos(this.yaw), s = Math.sin(this.yaw);

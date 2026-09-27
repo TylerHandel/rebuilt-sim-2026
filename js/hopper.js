@@ -111,6 +111,16 @@ export function hookPath(bay, n = 20) {
   return pts;
 }
 
+// piecewise linear through [x, y] points (sorted by x), flat past the ends
+function pwl(pts, x) {
+  if (x <= pts[0][0]) return pts[0][1];
+  for (let i = 1; i < pts.length; i++) {
+    const [x1, y1] = pts[i];
+    if (x <= x1) { const [x0, y0] = pts[i - 1]; return y0 + ((y1 - y0) * (x - x0)) / (x1 - x0); }
+  }
+  return pts[pts.length - 1][1];
+}
+
 export class Hopper {
   constructor(spec) {
     this.spec = spec;
@@ -146,13 +156,28 @@ export class Hopper {
       if (x <= r.x) return base + ((r.y - base) * (x - s.x1)) / (r.x - s.x1);
       return Math.max(r.lo, r.y - r.fwd * (x - r.x)) + r.lift;
     }
-    let y = clamp(f.a + f.b * x, f.lo, f.hi);
+    // a straight slope, or (floor.pts) a path's profile through points
+    let y = f.pts ? pwl(f.pts, x) : clamp(f.a + f.b * x, f.lo, f.hi);
     if (s.funnel) {
       // terraces around the rotor slope down into it
       const r = s.rotor, d = Math.hypot(x - r.x, z - r.z) - r.r;
       if (d > 0) y += Math.min(s.funnel.cap, d * s.funnel.slope);
     }
     return y;
+  }
+
+  // half-width at x: the side walls, or a funnel narrowing toward the back (spec.taper.pts:
+  // [x, half-width] points, as on 8793's conveyor that takes 4-wide FUEL down to 1-wide)
+  hwAt(x) {
+    const s = this.spec, t = s.taper;
+    return t ? pwl(t.pts, x) : s.hw;
+  }
+
+  // a FUEL in a funnel's throat (too narrow for two) with another beside it
+  _abreast(e) {
+    const s = this.spec, p = e.p;
+    if (this.hwAt(p.x) >= 2 * R + 0.01) return false;
+    return this.list.some((o) => o !== e && !o.tr && Math.abs(o.p.x - p.x) < R && o.p.z * p.z < 0 && Math.abs(o.p.z - p.z) < 2.2 * R);
   }
 
   // Where a FUEL let in at (x, z) comes to rest: on the hopper floor, or on the FUEL already there
@@ -215,7 +240,8 @@ export class Hopper {
     const slots = [];
     for (let layer = 0; layer < 8; layer++) {
       for (let x = s.x0 + R; x <= this.front - R + 1e-6; x += step) {
-        for (let z = -s.hw + R; z <= s.hw - R + 1e-6; z += step) {
+        const hw = this.hwAt(x);
+        for (let z = -hw + R; z <= hw - R + 1e-6; z += step) {
           const y = this.floorAt(x, z) + R + layer * step;
           if (y <= this.topAt(x, z) - R + 0.02) slots.push(new THREE.Vector3(x, y, z));
         }
@@ -335,14 +361,24 @@ export class Hopper {
         }
       } else if (s.drive === 'belt') {
         // compliant conveyor wheels grip the FUEL: carry it up to the turret, or hold it
-        const b = s.floor.b, n = Math.hypot(1, b);
+        const b = (this.floorAt(p.x + 0.01, p.z) - this.floorAt(p.x - 0.01, p.z)) / 0.02, n = Math.hypot(1, b);
         const tx = -1 / n, ty = -b / n; // up the slope, toward the turret
         const gAlong = fy * ty;
         fx -= gAlong * tx; fy -= gAlong * ty;
-        const sp = running ? s.driveSpeed : 0;
-        fx += 15 * (sp * tx - v.x);
+        let sp = running ? s.driveSpeed : 0;
+        // at a funnel's throat, two wheels on opposite sides spin FUEL against each other
+        // (taper.spin: the side whose wheel drives FUEL in; the other's pushes it back out), so
+        // two arriving abreast roll round each other and go in single file instead of wedging.
+        // (Held FUEL here has no ball-on-ball friction, so a pair can't lock up the way real
+        // foam does; the wheels only act on a pair that's actually abreast in the throat.)
+        const t = s.taper;
+        let k = s.grip ?? 15; // how hard the wheels grab FUEL (1/s)
+        if (t && t.spin && sp && p.z * t.spin < -0.02 && this._abreast(e)) { sp = -0.5 * sp; k *= 0.5; }
+        fx += k * (sp * tx - v.x);
         fy += 15 * (sp * ty - v.y);
         fz += -4 * v.z;
+        // in a funnel, omni wheels on the sides push the FUEL in toward the middle
+        if (s.taper && sp && this.hwAt(p.x) < s.hw) fz -= s.taper.center * p.z;
       }
       // the intake roller shoves the FUEL it just brought in back into the load (e.push, N) until
       // it's a ball's width in or the push runs out; that packs the load against the walls, the
@@ -429,8 +465,9 @@ export class Hopper {
     for (let i = 0; i < e.nTouch; i++) touch(tmp, e.touch[4 * i], e.touch[4 * i + 1], e.touch[4 * i + 2], e.touch[4 * i + 3]);
     if (e.tr) return tmp.nTouch;
     const wall = (nx, ny, nz, w) => { if (w < R) touch(tmp, nx, ny, nz, Math.max(w, R * 0.7)); };
-    wall(0, 0, 1, s.hw - p.z);
-    wall(0, 0, -1, s.hw + p.z);
+    const hw = this.hwAt(p.x);
+    wall(0, 0, 1, hw - p.z);
+    wall(0, 0, -1, hw + p.z);
     wall(-1, 0, 0, p.x - s.x0);
     wall(1, 0, 0, Math.min(this.front, this.wall) - p.x);
     wall(0, -1, 0, p.y - this.floorAt(p.x, p.z));
@@ -441,6 +478,15 @@ export class Hopper {
   _bounds(p) {
     const s = this.spec;
     p.x = clamp(p.x, s.x0 + R_WALL, Math.min(this.front, this.wall) - R_WALL);
+    if (s.taper) {
+      // funnel walls: push out along their normal (in and forward), so FUEL slides along them
+      const lim = this.hwAt(p.x) - R_WALL;
+      if (Math.abs(p.z) > lim) {
+        const sz = Math.sign(p.z), k = (this.hwAt(p.x + 0.005) - this.hwAt(p.x - 0.005)) / 0.01;
+        const n = Math.hypot(1, k), d = (Math.abs(p.z) - lim) / n;
+        p.z -= (sz * d) / n; p.x += (k * d) / n;
+      }
+    }
     p.z = clamp(p.z, -s.hw + R_WALL, s.hw - R_WALL);
     const fl = this.floorAt(p.x, p.z) + R_WALL;
     const top = this.topAt(p.x, p.z) - R_WALL;

@@ -261,6 +261,8 @@ export class AutoRunner {
     const cmd = r.cmd;
     cmd.vx = 0; cmd.vz = 0; cmd.omega = 0;
     cmd.intake = false; cmd.shoot = false; cmd.pass = false; cmd.outtake = false;
+    // an intake that stows folded up (8793's) comes down on the way under a TRENCH
+    cmd.lower = !!r.cfg.intake.fold && underTrench(r.pos.x, r.pos.z, r.halfL + 1.2);
     if (this.done || this.i >= this.steps.length) {
       this.done = true;
       return;
@@ -317,9 +319,9 @@ export class AutoRunner {
       // arm (it would bulge the net or hold the lid up too high to get under), and if it's still
       // too tall right before the arm, stop and spit FUEL out until it fits.
       if (fitsTrench(r.cfg) && this._trenchAhead()) {
-        if (r.topY > TRENCH.clearHeight - 0.06) cmd.intake = false;
+        if (r.growTop > TRENCH.clearHeight - 0.06) cmd.intake = false;
         const ahead = [0.4, 0.8, 1.2].some((k) => d > 1e-3 && underTrench(r.pos.x + (dx / d) * k, r.pos.z + (dz / d) * k, Math.max(r.halfL, r.halfW)));
-        if (ahead && !r.fitsTrenchNow()) { cmd.vx = 0; cmd.vz = 0; cmd.intake = false; cmd.outtake = true; cmd.shoot = false; return; }
+        if (ahead && !r.fitsTrenchLowered()) { cmd.vx = 0; cmd.vz = 0; cmd.intake = false; cmd.outtake = true; cmd.shoot = false; return; }
       }
       // 'hub' = shoot on the move only once back in our ALLIANCE ZONE (don't pass the FUEL away)
       cmd.shoot = s.shoot === 'hub' ? r.lastInZone : !!s.shoot;

@@ -40,6 +40,17 @@ export const BUMPER_Y0 = 0.032, BUMPER_Y1 = 0.16;
 // whether a robot fits under the TRENCH arm (4946 doesn't: it goes over the BUMPS)
 export const fitsTrench = (cfg) => cfg.height <= TRENCH.clearHeight - 0.005;
 
+// Top of an intake that folds up over the robot to stow (intake.fold, 8793's): its side outline
+// swung up from deployed by (1 - deploy) x stowDeg about the pivot. 0 for other intakes.
+export function foldTop(ic, deploy) {
+  const f = ic.fold;
+  if (!f) return 0;
+  const a = (1 - deploy) * f.stowDeg * Math.PI / 180, c = Math.cos(a), s = Math.sin(a);
+  let top = -Infinity;
+  for (const [x, y] of f.hull) top = Math.max(top, x * s + y * c);
+  return f.pivot[1] + top;
+}
+
 export const ROBOTS = {
   2910: {
     key: '2910',
@@ -164,27 +175,45 @@ export const ROBOTS = {
     teamName: 'Pumpkin Bots',
     robotName: 'Hopperless',
     archetype: 'Hopperless',
-    blurb: 'No hopper: a wide intake feeds a conveyor straight into a turret shooter. Holds only what fits in the ball path — intake and shoot at the same time.',
+    blurb: 'No hopper: a 4-wide intake feeds a conveyor that funnels FUEL to single file, up through the turret and out a hooded flywheel. Holds only what fits in the ball path — intake and shoot at the same time.',
     frame: { length: 27.5 * IN, width: 27.5 * IN },
-    height: 19.5 * IN,
+    height: 21.5 * IN, // top of the shooter (their CAD)
     mass: 52,
     drive: { maxSpeed: 4.5, maxAccel: 10.0, maxOmega: 9.0, maxAlpha: 34 },
-    intake: { width: 26 * IN, reach: 10 * IN, rate: 14, deployTime: 0.3, side: 'front', latched: false },
+    // Intake V3 (their CAD): three silicone rollers on an arm that swings down from a pivot over
+    // the front of the frame. Stowed, it folds back up inside the frame perimeter and stands
+    // 0.69 m tall, too tall for the TRENCH: it has to be down to drive under. fold.hull is the
+    // arm's side outline around the pivot (m, x forward, y up) as exported, deployed.
+    intake: {
+      width: 26 * IN, reach: 10 * IN, rate: 14, deployTime: 0.3, side: 'front', latched: false,
+      fold: {
+        pivot: [0.292, 0.336], stowDeg: 145,
+        hull: [[-0.026, -0.018], [0.161, -0.305], [0.176, -0.306], [0.298, -0.196], [0.328, -0.105], [0.191, 0.009], [0.005, 0.032], [-0.025, 0.02]],
+      },
+    },
     storage: { capacity: 12 },
-    // no hopper: two lanes on the conveyor that climbs from the intake to the turret
+    // no hopper, a ball path (their CAD). FUEL comes in 4 wide over the front of the frame (the
+    // outer two ride the swerve covers) and Conveyor V2's overhead wheels (4in omnis on the sides
+    // push in) carry it back down its polycarbonate floor, 2 wide, to the middle of the robot.
+    // There the turret indexer's wall plates close in to one FUEL wide, and single file it runs
+    // back along the J-shaped roller rails under the turntable, up their curve, and up through
+    // the turret into the shooter, out forward over the flywheel under the hood.
     bay: {
-      x0: -0.13, x1: 0.3, hw: 0.16, above: 0.26, pack: false, // a ball path, not a hopper: poured, not packed
-      floor: { a: 0.24, b: -0.543, lo: 0.115, hi: 0.28 },
-      drive: 'belt', driveSpeed: 1.4,
-      feed: { x: -0.08, via: [[-0.12, 0.42]] },
+      x0: -0.28, x1: 0.34, hw: 0.31, above: 0.2, pack: false, // poured, not packed
+      // [x, half-width]; at the throat 5in (-z) and 3in (+z) omni wheels spin FUEL against each other
+      taper: { pts: [[0.03, 0.087], [0.17, 0.165], [0.23, 0.31]], center: 60, spin: -1 },
+      // [x, height of the FUEL's underside]: the conveyor floor down to the middle, the rails' J
+      floor: { pts: [[-0.21, 0.165], [-0.12, 0.045], [0.03, 0.06], [0.34, 0.175]] },
+      drive: 'belt', driveSpeed: 2.2, grip: 80, // compliant wheels grab FUEL hard: single file keeps up with the shooter
+      feed: { x: -0.2, reach: 0.1, via: [[-0.19, 0.34], [-0.14, 0.42]] },
     },
     shooter: {
       type: 'turret',
-      turretPos: { x: -0.12, z: 0.0 },
-      exitRadius: 0.08,
-      exitY: 0.47,
+      turretPos: { x: -0.127, z: 0.0 }, // 200T turntable (their CAD)
+      exitRadius: 0.14, // over the flywheel, which sits 0.127 m out from the turret axis
+      exitY: 0.49,
       turretRange: 185, turretRate: 600,
-      bps: 13,
+      bps: 10, // the team's measured rate
       hoodMin: 45, hoodMax: 80,
       speedMax: 15,
       spinTau: 0.28,
@@ -192,7 +221,7 @@ export const ROBOTS = {
       speedSigma: 0.017, angleSigma: 0.9, yawSigma: 0.9,
     },
     climber: null,
-    stats: { 'Shot rate': '13 BPS', Aiming: 'Turret', 'Top speed': '14.8 ft/s', Trench: 'Yes' },
+    stats: { 'Shot rate': '10 BPS', Aiming: 'Turret', 'Top speed': '14.8 ft/s', Trench: 'Intake down' },
     colors: { frame: 0x1f2126, accent: 0xf07a1a, trim: 0xf07a1a },
   },
   971: {
