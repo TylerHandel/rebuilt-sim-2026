@@ -186,7 +186,7 @@ A match takes about 30 s of CPU, so more cores train faster.
 
 | Robot | Type | Frame | Capacity (modeled hopper: in → out) | Shooter | Rate | Climb |
 |---|---|---|---|---|---|---|
-| **2910** Jack in the Bot "Re•Blitz" | Dumper | 27.5 × 27 in | 44 → 63 (stated 58) | 4-wide drum, adjustable hood, **fixed to the chassis** (fires out the back; the robot turns to aim) | 32 FUEL/s | – |
+| **2910** Jack in the Bot "Re•Blitz" | Dumper | 27.5 × 27 in | 48 → 71 (stated 58) | 4-wide drum, adjustable hood, **fixed to the chassis** (fires out the back; the robot turns to aim) | 45 FUEL/s | – |
 | **4414** HighTide "RIPCURRENT" | Dye Rotor | 25 × 32 in | 57 → 111, the net stretches (stated 88) | single-stream 3" flywheel on a **turret** | 18 FUEL/s | – |
 | **8793** Pumpkin Bots | Hopperless | 27.5 × 27.5 in | 12 (the ball path) | hooded flywheel on a **turret** | 13 FUEL/s | – |
 | **971** Spartan Robotics "Mixtape" | Twin turrets | 24.5 × 29.5 in | 40 → 75 under its net | **two** independent shooters on turrets (4" flywheels, lead-screw hoods, FUEL out over the flywheel). Each turret's ~210° of travel points back and out to its own side, so together they cover everything but straight ahead; the chassis turns when no turret can reach | 20 FUEL/s (both together) | Level 1 |
