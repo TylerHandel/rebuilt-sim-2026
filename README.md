@@ -5,9 +5,13 @@ It runs in the browser (Three.js rendering + Rapier physics), works with an Xbox
 Play solo, or against an AI opponent robot (PvE), and build your own autos in the Auto Editor.
 The AI can also drive your robot, so you can watch AI-vs-AI matches. Its strategy can be trained by self-play, or by playing Training matches against it, where it also learns from how you drive. You can run defense drills against it, and fine-tune and export its values from the AI Tuning screen.
 
+**Play it in your browser: https://tylerhandel.github.io/rebuilt-sim-2026/** (nothing to download or install; any recent Chrome, Edge, Firefox or Safari).
+
 ## Run it
 
-Requires Python 3 (already on macOS) and a modern browser (Chrome, Edge or Safari). The 3D and physics libraries load from a CDN, so you need an internet connection the first time.
+The easiest way is the link above. Every push to `main` publishes the game there (`.github/workflows/pages.yml`; one-time setup: the repository's Settings → Pages → Source: "GitHub Actions").
+
+To run it from a copy on your computer instead (to work on it, or offline once the libraries are cached), you need Python 3 (already on macOS) and a modern browser (Chrome, Edge or Safari). The 3D and physics libraries load from a CDN, so you need an internet connection the first time.
 
 - **Windows:** install Python 3 from python.org (tick "Add python.exe to PATH"), then double-click `start.bat`.
 - **macOS:** double-click `start.command`.
