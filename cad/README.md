@@ -32,14 +32,20 @@ Playing Field"). Its GLB export is in meters, Z-up, with the blue alliance on +X
 - Drawn meshes flagged `userData.keepWithCad` (bleachers, HUMAN PLAYERS, HUB lights, CHUTE DOORS) stay visible under a `"field"` model.
 
 ## Robot parts
-`robots/2910-intake.glb` is 2910's "Pivoting Intake Assembly" from their public Re•Blitz Onshape document (dfb391aac173a4555d00a5b5). It's re-expressed in the robot model's frame with its origin on the intake pivot. `js/robotModels.js` loads it in the browser and swings it about that pivot; the drawn intake stays until it loads, and headless runs never load it. To rebuild it:
+`robots/2910-intake.glb` is 2910's "Pivoting Intake Assembly" from their public Re•Blitz Onshape document (dfb391aac173a4555d00a5b5). It's re-expressed in the robot model's frame with its origin on the intake pivot. `js/robotModels.js` loads it in the browser and swings it about that pivot; the drawn intake stays until it loads, and headless runs never load it.
+
+2910's parts come from a STEP export, tessellated by OpenCascade (`tools/step2glb.py`) with the surfaces' own normals, so wheels, rollers and tubes render round. A glTF export from Onshape comes pre-faceted, and the old pipeline then simplified it to 8% and dropped the normals, which is what made round parts look faceted. STEP carries the exact surfaces (not the parametric history, which stays in Onshape), so the tessellation accuracy is ours to pick: 1.2 mm and 0.45 rad here, then a light simplification that leaves hard edges alone. The STEP export flattens the subassembly tree, so `robots/2910.json` picks the parts of each file by matching name and position against the glTF export (`like`), which also says which panels are see-through. To rebuild them (the STEP translation is an async API job; the Onshape export page works too):
 ```
-DID=dfb391aac173a4555d00a5b5 WID=3dc64f602735252892b0e47b tools/onshape-export.sh /tmp/r2910.glb 6c654da4eb6b1710fb0900bd
-node tools/extract-part.mjs /tmp/r2910.glb cad/robots/2910-intake.glb "Pivoting Intake Assembly" -0.273 0.170
-node tools/extract-part.mjs /tmp/r2910.glb cad/robots/2910-shooter.glb "32 - R2 Shooter & Feeder" 0 0
-node tools/extract-part.mjs /tmp/r2910.glb cad/robots/2910-hopper.glb "62 - R2 Hopper" 0 0
+DID=dfb391aac173a4555d00a5b5 WID=3dc64f602735252892b0e47b tools/onshape-export.sh /tmp/cad/r2910.glb 6c654da4eb6b1710fb0900bd
+# STEP: POST /api/v6/assemblies/d/$DID/w/$WID/e/6c654da4eb6b1710fb0900bd/translations {"formatName":"STEP","storeInDocument":false},
+# poll /api/v6/translations/<id> until DONE, then GET /api/v6/documents/d/$DID/externaldata/<resultExternalDataIds[0]>
+python3 -m venv /tmp/ocp && /tmp/ocp/bin/pip install cadquery-ocp
+/tmp/ocp/bin/python tools/step2glb.py /tmp/cad/r2910.step /tmp/cad/r2910-step.glb --lin 0.0012 --ang 0.45 \
+  --only "42 - R2 Intake" "32 - R2 Shooter" "62 - R2 Hopper" \
+  --skip "screw|bolt|\bnut\b|washer|rivet|spacer|chain|belt|tensioner|bearing|gear|sprocket|kraken|motor|plug|collar|\bpin\b|hub|insert|pulley|retaining|wcp-0982|^9\d{4}a|^fuel\b|shcs|bhcs|fhcs"
+node tools/extract-parts.mjs /tmp/cad/r2910-step.glb cad/robots/2910.json   # finds r2910.glb next to it for "like"
 ```
-`robots/2910-hopper.glb` is their "R2 Hopper": its side, top and front panels sit over the shooter when stowed and slide out along the slotted rails as the intake deploys (0.25 m, `storage.extLen`). The slots allow up to ~0.48 m; the travel isn't in the export.
+`robots/2910-hopper.glb` is their "R2 Hopper": its side, top and front panels sit over the shooter when stowed and slide out along the slotted rails as the intake deploys (0.27 m, `storage.extLen`). The slots allow up to ~0.48 m; the travel isn't in the export.
 `robots/2910-shooter.glb` is their "Shooter & Feeder": the powered floor, the roller ramp that indexes FUEL up under the rollered hood, and the drum at the back. It's static (origin at the robot center) and replaces the drawn tower once it loads.
 
 

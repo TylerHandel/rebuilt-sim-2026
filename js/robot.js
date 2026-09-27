@@ -3,15 +3,17 @@ import { RAPIER, yawQuat } from './physics.js';
 import {
   BLUE, RED, HALF_L, HALF_W, HUB, FUEL, TOWER, TRENCH, GROUP, groups, IN,
 } from './constants.js';
-import { BUMPER_T } from './robotConfigs.js';
+import { BUMPER_T, BUMPER_Y0, BUMPER_Y1 } from './robotConfigs.js';
 import { buildRobotModel, addClimberVisual, BUMP_Y1 } from './robotModels.js';
-import { Hopper, measureCapacity } from './hopper.js';
+import { Hopper, measureCapacity, intakePush } from './hopper.js';
 import { ShotTable, solveMovingShot, trajectoryPoints } from './ballistics.js';
 import { Field } from './field.js';
 import { obstacleAt } from './nav.js';
 import { clamp, wrapAngle, approach, approachAngle, gauss, DEG, rand } from './util.js';
 
 const WHEEL_R = 0.05;
+const TIP_RATE = 2.5; // rad/s: the most a robot pitches or rolls (see preStep)
+const FLOOR_QUERY = groups(GROUP.WHEEL, GROUP.STATIC | GROUP.TERRAIN); // what the wheels drive on
 const R = FUEL.radius;
 // FUEL the intake has grabbed is held by the rollers: it still hits field structures, but not
 // this robot, other FUEL, or the floor features the robot is driving over
@@ -62,7 +64,8 @@ export class Robot {
     this.hopper = new Hopper(cfg.bay);
     const ext = cfg.storage.extLen || 0;
     // retracted: hopper in and any lid (1678's, on the climber) down
-    this.geoCap = { retracted: measureCapacity(cfg.bay, cfg.bay.x1, 0), extended: measureCapacity(cfg.bay, cfg.bay.x1 + ext, 1) };
+    this.intakePush = intakePush(cfg); // N: how hard the intake shoves FUEL into the hopper
+    this.geoCap = { retracted: measureCapacity(cfg.bay, cfg.bay.x1, 0, this.intakePush), extended: measureCapacity(cfg.bay, cfg.bay.x1 + ext, 1, this.intakePush) };
     this._createBody();
     this.reset();
   }
@@ -76,30 +79,45 @@ export class Robot {
       .setCcdEnabled(true)
       .setCanSleep(false)
       .setLinearDamping(0)
-      .setAngularDamping(1.5);
+      .setAngularDamping(4);
     this.body = world.createRigidBody(desc);
     const robotGroups = groups(GROUP.ROBOT, GROUP.STATIC | GROUP.TERRAIN | GROUP.BALL | GROUP.ROBOT_BARRIER | GROUP.ROBOT);
-    const y0 = 0.055, y1 = 0.16;
-    // rounded like a real bumper, so a pile of FUEL can lift it rather than stop it dead
-    const br = 0.03;
-    const bumper = RAPIER.ColliderDesc.roundCuboid(this.halfL - br, (y1 - y0) / 2 - br, this.halfW - br, br)
-      .setTranslation(0, (y0 + y1) / 2, 0)
-      .setMass(cfg.mass * 0.55)
+    const y0 = BUMPER_Y0, y1 = BUMPER_Y1;
+    // Bumpers: straight up and down, so two robots meet face to face and push level (a rounded
+    // top edge lets one ride up the other and lever it over); the bottom edge is chamfered, so a
+    // pile of FUEL can still lift it rather than stop it dead. Rounded corners in plan.
+    const bc = 0.03, cr = 0.04, pts = [];
+    for (const [y, inset] of [[y0, bc], [y0 + bc, 0], [y1, 0]]) {
+      const hl = this.halfL - inset, hw = this.halfW - inset;
+      for (const [cx, cz] of [[1, 1], [-1, 1], [-1, -1], [1, -1]]) {
+        for (let k = 0; k <= 3; k++) {
+          const a = Math.atan2(cz, cx) - Math.PI / 4 + (k / 3) * (Math.PI / 2);
+          pts.push(cx * (hl - cr) + cr * Math.cos(a), y, cz * (hw - cr) + cr * Math.sin(a));
+        }
+      }
+    }
+    const bumper = RAPIER.ColliderDesc.convexHull(new Float32Array(pts))
+      .setMass(cfg.mass * 0.15)
       .setFriction(0.05).setFrictionCombineRule(RAPIER.CoefficientCombineRule.Min)
       .setRestitution(0.1)
       .setCollisionGroups(robotGroups);
     world.createCollider(bumper, this.body);
     const sL = cfg.frame.length / 2, sW = cfg.frame.width / 2;
+    // the frame above the bumpers: other robots meet the bumpers, not this
     const upper = RAPIER.ColliderDesc.cuboid(sL, (this.height - y1) / 2, sW)
       .setTranslation(0, (this.height + y1) / 2, 0)
-      .setMass(cfg.mass * 0.4)
+      .setMass(cfg.mass * 0.3)
       .setFriction(0.05).setFrictionCombineRule(RAPIER.CoefficientCombineRule.Min)
       .setRestitution(0.1)
-      .setCollisionGroups(robotGroups);
+      .setCollisionGroups(groups(GROUP.ROBOT, GROUP.STATIC | GROUP.TERRAIN | GROUP.BALL | GROUP.ROBOT_BARRIER));
     world.createCollider(upper, this.body);
+    // most of a robot's weight is low (drivetrain, battery, motors): mass only, it touches nothing
+    world.createCollider(RAPIER.ColliderDesc.cuboid(sL, 0.03, sW).setTranslation(0, 0.05, 0).setMass(cfg.mass * 0.5).setCollisionGroups(0), this.body);
     const inset = 0.075;
+    this.wheelPts = [];
     for (const sx of [1, -1]) {
       for (const sz of [1, -1]) {
+        this.wheelPts.push({ x: sx * (sL - inset), z: sz * (sW - inset) });
         const w = RAPIER.ColliderDesc.ball(WHEEL_R)
           .setTranslation(sx * (sL - inset), WHEEL_R, sz * (sW - inset))
           .setMass(cfg.mass * 0.0125)
@@ -306,15 +324,45 @@ export class Robot {
     const sp = Math.hypot(tvx, tvz);
     if (sp > d.maxSpeed) { tvx *= d.maxSpeed / sp; tvz *= d.maxSpeed / sp; }
     tw = clamp(tw, -d.maxOmega, d.maxOmega);
-    const lv = this.body.linvel();
-    let dvx = tvx - lv.x, dvz = tvz - lv.z;
-    const dm = Math.hypot(dvx, dvz), maxDv = d.maxAccel * dt;
-    if (dm > maxDv) { dvx *= maxDv / dm; dvz *= maxDv / dm; }
-    this.body.setLinvel({ x: lv.x + dvx, y: lv.y, z: lv.z + dvz }, true);
-    const av = this.body.angvel();
-    const w = approach(av.y, tw, d.maxAlpha * dt);
-    this.body.setAngvel({ x: av.x, y: w, z: av.z }, true); // pitch and roll are the physics'
+    // the wheels only push on what they're touching: the drive has as much grip as the share of
+    // wheels on the floor (carpet, BUMPS, DEPOT barriers). Up on FUEL or another robot, it
+    // coasts instead of climbing further.
+    const grip = this.traction = this._wheelsDown() / this.wheelPts.length;
+    // Tires and frame flex soak up the kick from a sharp edge (a DEPOT barrier at full speed, a
+    // bumper hit), which rigid wheels in the physics don't: pitching and rolling are capped at
+    // TIP_RATE, and the angular damping bleeds them off, so a hit rocks a robot but doesn't flip it.
+    {
+      const av = this.body.angvel();
+      const h = Math.hypot(av.x, av.z);
+      if (h > TIP_RATE) this.body.setAngvel({ x: (av.x * TIP_RATE) / h, y: av.y, z: (av.z * TIP_RATE) / h }, true);
+    }
+    if (grip > 0) {
+      const lv = this.body.linvel();
+      let dvx = tvx - lv.x, dvz = tvz - lv.z;
+      const dm = Math.hypot(dvx, dvz), maxDv = d.maxAccel * dt * grip;
+      if (dm > maxDv) { dvx *= maxDv / dm; dvz *= maxDv / dm; }
+      this.body.setLinvel({ x: lv.x + dvx, y: lv.y, z: lv.z + dvz }, true);
+      const av = this.body.angvel();
+      const w = approach(av.y, tw, d.maxAlpha * dt * grip);
+      this.body.setAngvel({ x: av.x, y: w, z: av.z }, true); // pitch and roll are the physics'
+    }
     this._guideCaptured(dt);
+  }
+
+  // How many wheels touch the floor: a short ray down from each wheel's center finds the carpet,
+  // a BUMP or a DEPOT barrier (not FUEL, not robots) within its radius (plus a little give)
+  _wheelsDown() {
+    const world = this.physics.world;
+    const q = this.body.rotation(), p = this.body.translation();
+    const qv = new THREE.Quaternion(q.x, q.y, q.z, q.w);
+    const v = new THREE.Vector3();
+    let n = 0;
+    for (const w of this.wheelPts) {
+      v.set(w.x, WHEEL_R, w.z).applyQuaternion(qv);
+      const ray = new RAPIER.Ray({ x: p.x + v.x, y: p.y + v.y, z: p.z + v.z }, { x: 0, y: -1, z: 0 });
+      if (world.castRay(ray, WHEEL_R + 0.02, true, undefined, FLOOR_QUERY, undefined, this.body)) n++;
+    }
+    return n;
   }
 
   // Where FUEL crosses into the hopper: over the bumper, then in at the front of the hopper
@@ -419,7 +467,7 @@ export class Robot {
     if (on && this.cmd.outtake) want = true;
     const next = approach(this.intakeDeploy, want ? 1 : 0, dt / (want ? ic.deployTime : ic.retractTime ?? ic.deployTime));
     // a compacting intake pushes on the load as it comes in, and stalls while it can't squeeze more
-    if (!(ic.compacts && next < this.intakeDeploy && this.hopper.pressure > (this.cfg.bay.push ?? FUEL.intakePush))) this.intakeDeploy = next;
+    if (!(ic.compacts && next < this.intakeDeploy && this.hopper.pressure > (ic.compactPush ?? this.intakePush))) this.intakeDeploy = next;
     this.hopper.wall = ic.compacts ? this._compactorX() : Infinity;
     this._hopper(dt, on);
     const deployed = this.intakeDeploy > 0.85;
@@ -496,7 +544,9 @@ export class Robot {
         b.captor = null;
         this.stored.push(b);
         this.stats.intaked++;
-        this.hopper.add(b, l, new THREE.Vector3(lv.x, v.y, lv.z));
+        const e = this.hopper.add(b, l, new THREE.Vector3(lv.x, v.y, lv.z));
+        e.push = this.intakePush; // the roller shoves it on into the load
+        e.pushT = 0.4;
       } else if (lost || (!running && !cap.over)) {
         // not over the bumper yet: it drops back onto the carpet
         this.captured.splice(i, 1);
@@ -941,12 +991,19 @@ export class Robot {
     const list = this.hopper.list;
     const n = Math.min(list.length, m.storedMesh.instanceMatrix.count);
     const mat = new THREE.Matrix4();
+    // squeezed FUEL is drawn flattened where it's pressed (against other FUEL and the walls)
+    const tc = m.storedTouch || [], patches = this._touch || (this._touch = new Float32Array(16));
     for (let i = 0; i < n; i++) {
-      // squeezed FUEL squashes: drawn smaller by how far it's pressed in, so it doesn't overlap
-      const k = 1 - Math.min(0.3, (list[i].squash || 0) / R);
-      mat.makeScale(k, k, k).setPosition(list[i].p.x, list[i].p.y, list[i].p.z);
+      const k = this.hopper.touchPatches(list[i], patches);
+      for (let j = 0; j < tc.length; j++) {
+        const a = tc[j].array, o = 4 * i;
+        if (j < k) { a[o] = patches[4 * j]; a[o + 1] = patches[4 * j + 1]; a[o + 2] = patches[4 * j + 2]; a[o + 3] = patches[4 * j + 3]; }
+        else { a[o] = 0; a[o + 1] = 1; a[o + 2] = 0; a[o + 3] = 1; } // no patch: a plane beyond the ball
+      }
+      mat.makeTranslation(list[i].p.x, list[i].p.y, list[i].p.z);
       m.storedMesh.setMatrixAt(i, mat);
     }
+    for (const a of tc) a.needsUpdate = true;
     m.storedMesh.count = n;
     m.storedMesh.instanceMatrix.needsUpdate = true;
     // mechanisms

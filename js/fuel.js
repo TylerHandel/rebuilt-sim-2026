@@ -20,9 +20,7 @@ export class FuelManager {
     this.field = field;
     this.match = null;
     this.balls = [];
-    this.hubQueue = [];
     this.outQueue = [];
-    this.exitBusy = { blue: [0, 0, 0, 0], red: [0, 0, 0, 0] };
     this.chute = { blue: [], red: [] };
 
     const geo = new THREE.SphereGeometry(R, 16, 12);
@@ -56,7 +54,7 @@ export class FuelManager {
         id: i, body, col, state: 'off',
         pos: new THREE.Vector3(0, -10, 0), quat: new THREE.Quaternion(),
         prevVel: { x: 0, y: 0, z: 0 },
-        inFlight: false, launch: null, hubFresh: false, ignoreUntil: 0, ignoring: false, inCorral: null,
+        inFlight: false, launch: null, hubFresh: false, ignoreUntil: 0, ignoring: false, inCorral: null, inHub: null, hubT: 0,
       });
     }
   }
@@ -64,9 +62,7 @@ export class FuelManager {
   // ------------------------------------------------------------------ staging
   // preload: FUEL preloaded in the player's robot (0..8). Remaining FUEL goes to the NEUTRAL ZONE.
   stage(preload) {
-    this.hubQueue = [];
     this.outQueue = [];
-    this.exitBusy = { blue: [0, 0, 0, 0], red: [0, 0, 0, 0] };
     for (const b of this.balls) { this._disable(b, 'off'); b.captor = null; b.hop = null; }
     let i = 0;
     const next = () => this.balls[i++];
@@ -100,6 +96,7 @@ export class FuelManager {
     b.launch = null;
     b.hubFresh = false;
     b.inCorral = null;
+    if (b.inHub) { b.inHub = null; b.col.setFriction(FUEL.friction); }
     b.body.setEnabled(true);
     b.body.setTranslation({ x, y, z }, false);
     b.body.setLinvel({ x: 0, y: 0, z: 0 }, false);
@@ -118,6 +115,7 @@ export class FuelManager {
     b.body.setEnabled(false);
     b.inFlight = false;
     b.inCorral = null;
+    if (b.inHub) { b.inHub = null; b.col.setFriction(FUEL.friction); }
   }
 
   toRobot(b) {
@@ -139,6 +137,7 @@ export class FuelManager {
     b.inFlight = true;
     b.hubFresh = !!info.hubFresh;
     b.inCorral = null;
+    if (b.inHub) { b.inHub = null; b.col.setFriction(FUEL.friction); }
     b.launch = info.by ? { by: info.by, alliance: info.alliance, legal: info.legal, t: info.t } : null;
     // thrown in from the OUTPOST AREA (behind the ALLIANCE WALL): not "out" until it has entered
     b.fromOutside = info.fromOutside ? (info.t ?? 0) : null;
@@ -166,6 +165,8 @@ export class FuelManager {
         const f = Math.max(0, 1 - k * sp * dt);
         vx *= f; vy *= f; vz *= f;
       }
+      // inside the HUB the load is pressed down harder (HUB.extraGravity), so it keeps moving
+      if (b.inHub) vy -= HUB.extraGravity * dt;
       const grounded = b.pos.y < R + 0.012 && Math.abs(vy) < 0.35;
       if (grounded) {
         // carpet rolling resistance: slow the roll and the spin together. (Forcing the spin to
@@ -214,15 +215,32 @@ export class FuelManager {
     for (const b of this.balls) {
       if (b.state !== 'field') continue;
       const p = b.pos;
-      // HUB entry (FUEL that passes through the top opening)
-      if (p.y > 1.0 && p.y < HUB.funnelBottomY + R + 0.12) {
+      // The HUB: FUEL that drops out of the bottom of the funnel is scored (it falls past the
+      // HUB's sensors), then rolls down the ramp inside and out through the exit in the NEUTRAL
+      // ZONE face. Once it's off the exit lip it's "released by the HUB" (hubFresh) until it
+      // touches the carpet.
+      if (b.inHub) {
+        const c = Field.hubCenter(b.inHub), s = b.inHub === BLUE ? 1 : -1;
+        const u = s * (p.x - c.x);
+        if (u > HUB.size / 2 + 0.1 + R * 0.6 || p.y < HUB.exitHeight - 0.25) {
+          b.inHub = null;
+          b.hubFresh = true;
+          b.col.setFriction(FUEL.friction);
+          const v = b.body.linvel();
+          b.prevVel = { x: v.x, y: v.y, z: v.z };
+        } else {
+          b.body.wakeUp(); // never parked inside: the load keeps flowing out
+          continue;
+        }
+      } else if (p.y < HUB.funnelBottomY && p.y > HUB.exitHeight - 0.05 && !b.captor) {
         for (const a of [BLUE, RED]) {
-          if (this.field.isInsideHubOpening(a, p.x, p.y, p.z)) {
+          const c = Field.hubCenter(a);
+          if (Math.abs(p.x - c.x) < HUB.size / 2 - 0.05 && Math.abs(p.z - c.z) < HUB.size / 2 - 0.05) {
             this._enterHub(b, a, t);
             break;
           }
         }
-        if (b.state !== 'field') continue;
+        if (b.inHub) continue;
       }
       // Corral (behind the OUTPOST base opening) — still on the carpet but off the FIELD
       b.inCorral = null;
@@ -251,19 +269,6 @@ export class FuelManager {
       }
     }
 
-    // HUB processing -> exits into the NEUTRAL ZONE
-    for (let i = this.hubQueue.length - 1; i >= 0; i--) {
-      const q = this.hubQueue[i];
-      if (t < q.at) continue;
-      const busy = this.exitBusy[q.alliance];
-      let e = Math.floor(Math.random() * 4);
-      let tries = 0;
-      while (busy[e] > t && tries < 4) { e = (e + 1) % 4; tries++; }
-      if (busy[e] > t) continue;
-      busy[e] = t + 0.11;
-      this.hubQueue.splice(i, 1);
-      this._exitHub(q.b, q.alliance, e, t);
-    }
     // field staff returning FUEL that left the FIELD
     for (let i = this.outQueue.length - 1; i >= 0; i--) {
       const q = this.outQueue[i];
@@ -275,24 +280,13 @@ export class FuelManager {
   }
 
   _enterHub(b, alliance, t) {
-    this._disable(b, 'hub');
     if (this.match) this.match.fuelEnteredHub(alliance, b, t);
+    b.inHub = alliance;
+    b.hubT = t;
+    // tumbling through the slick inside, it barely grips the FUEL round it, so the load slides
+    // out rather than locking into an arch over the exit
+    b.col.setFriction(HUB.fuelFriction);
     b.launch = null;
-    this.hubQueue.push({ b, alliance, at: t + rand(0.45, 1.3) });
-  }
-
-  _exitHub(b, alliance, e, t) {
-    const c = Field.hubCenter(alliance);
-    const s = alliance === BLUE ? 1 : -1; // direction toward the NEUTRAL ZONE
-    const off = HUB.exitOffsets[e];
-    const x = c.x + s * (HUB.size / 2 + R + 0.03);
-    const z = c.z + s * off;
-    const base = Math.sign(off) * (Math.abs(off) > 0.3 ? 0.55 : 0.18);
-    const ang = base + rand(-0.4, 0.4);
-    const sp = rand(HUB.exitSpeed[0], HUB.exitSpeed[1]);
-    // leaves the exit ramp level or slightly downward (no pop-up), already rolling
-    this.launch(b, { x, y: HUB.exitHeight + R, z }, { x: s * Math.cos(ang) * sp, y: rand(-0.3, 0), z: s * Math.sin(ang) * sp }, { hubFresh: true, t });
-    b.body.setAngvel({ x: (s * Math.sin(ang) * sp) / R, y: 0, z: -(s * Math.cos(ang) * sp) / R }, true);
     b.inFlight = false;
   }
 
@@ -343,7 +337,7 @@ export class FuelManager {
   counts() {
     const c = { field: 0, robot: 0, hub: 0, chute: 0, out: 0, off: 0, corral: 0 };
     for (const b of this.balls) {
-      c[b.state] = (c[b.state] || 0) + 1;
+      c[b.inHub ? 'hub' : b.state] = (c[b.inHub ? 'hub' : b.state] || 0) + 1;
       if (b.inCorral) c.corral++;
     }
     return c;

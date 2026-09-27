@@ -186,13 +186,13 @@ A match takes about 30 s of CPU, so more cores train faster.
 
 | Robot | Type | Frame | Capacity (modeled hopper: in → out) | Shooter | Rate | Climb |
 |---|---|---|---|---|---|---|
-| **2910** Jack in the Bot "Re•Blitz" | Dumper | 27.5 × 27 in | 56 → 77, its retracting intake crams the load (stated 58) | 4-wide drum, adjustable hood, **fixed to the chassis** (fires out the back; the robot turns to aim) | 45 FUEL/s | – |
-| **4414** HighTide "RIPCURRENT" | Dye Rotor | 25 × 32 in | 39 → 85, the net stretches (stated 88) | single-stream 3" flywheel on a **turret** | 18 FUEL/s | – |
-| **8793** Pumpkin Bots | Hopperless | 27.5 × 27.5 in | 9 (the ball path) | hooded flywheel on a **turret** | 13 FUEL/s | – |
-| **971** Spartan Robotics "Mixtape" | Twin turrets | 24.5 × 29.5 in | 31 → 58 under its net | **two** independent shooters on turrets (4" flywheels, lead-screw hoods, FUEL out over the flywheel). Each turret's ~210° of travel points back and out to its own side, so together they cover everything but straight ahead; the chassis turns when no turret can reach | 20 FUEL/s (both together) | Level 1 |
-| **1678** Citrus Circuits "Limestone" | Drum + lift | 27 × 27 in | 26 → 58 with the lid lifted | full-width 3.5" drum with three hood rollers, articulating hood, **fixed to the chassis** (fires out the back) | 26 FUEL/s | Level 1 |
-| **1690** Orbit "Kepler" | Compact turret | 25 × 29 in | 26 → 45 under its net (stated 50-55 open-topped) | compact gear-driven **turret** on an 8" bearing, shoots on the move while intaking | 12 FUEL/s | – |
-| **4946** The Alpha Dogs "Moto Moto" | Round Dye Rotor | 30 × 30 in, half-circle back | 36 → 72 | **turret** on the center of rotation, above a Dye Rotor tray | 20 FUEL/s | – |
+| **2910** Jack in the Bot "Re•Blitz" | Dumper | 27.5 × 27 in | 48 → 67 (stated 58) | 4-wide drum, adjustable hood, **fixed to the chassis** (fires out the back; the robot turns to aim) | 45 FUEL/s | – |
+| **4414** HighTide "RIPCURRENT" | Dye Rotor | 25 × 32 in | 69 → 122, the net stretches (stated 88) | single-stream 3" flywheel on a **turret** | 18 FUEL/s | – |
+| **8793** Pumpkin Bots | Hopperless | 27.5 × 27.5 in | 10 (the ball path) | hooded flywheel on a **turret** | 13 FUEL/s | – |
+| **971** Spartan Robotics "Mixtape" | Twin turrets | 24.5 × 29.5 in | 39 → 70 under its net | **two** independent shooters on turrets (4" flywheels, lead-screw hoods, FUEL out over the flywheel). Each turret's ~210° of travel points back and out to its own side, so together they cover everything but straight ahead; the chassis turns when no turret can reach | 20 FUEL/s (both together) | Level 1 |
+| **1678** Citrus Circuits "Limestone" | Drum + lift | 27 × 27 in | 28 → 67 with the lid lifted | full-width 3.5" drum with three hood rollers, articulating hood, **fixed to the chassis** (fires out the back) | 26 FUEL/s | Level 1 |
+| **1690** Orbit "Kepler" | Compact turret | 25 × 29 in | 32 → 63 under its net (stated 50-55 open-topped) | compact gear-driven **turret** on an 8" bearing, shoots on the move while intaking | 12 FUEL/s | – |
+| **4946** The Alpha Dogs "Moto Moto" | Round Dye Rotor | 30 × 30 in, half-circle back | 78 → 103 | **turret** on the center of rotation, above a Dye Rotor tray | 20 FUEL/s | – |
 
 All but 4946 fit under the TRENCH; 4946 (29.5 in tall) goes over the BUMPS, and the AI and the AUTOs route it that way. Capacity is what the modeled hopper holds (see *FUEL in the robots*); 971 and 1690's nets and 1678's lid get pressed down, load and all, under the TRENCH arm.
 
@@ -221,7 +221,7 @@ Sources:
 **FUEL:**
 - 504 balls: 400–408 staged in the NEUTRAL ZONE (34 × 12 grid), 48 in the DEPOTS, 48 in the CHUTES, plus up to 8 preloaded.
 - Physics uses the real size and mass, quadratic air drag and carpet rolling resistance.
-- FUEL that enters a HUB is processed and comes back out the exits into the NEUTRAL ZONE.
+- FUEL that enters a HUB really falls through it: down the funnel, past the sensors (where it's scored) onto a ramp inside, and out through the exit in the NEUTRAL ZONE face. Inside, FUEL is slick and pressed down a little harder than gravity (`HUB.fuelFriction`, `HUB.extraGravity`), and a roof slopes back from the top of the exit, so the load keeps flowing instead of locking into an arch over the opening: 200 FUEL poured in at 60 a second are all out within about 5 s.
 - FUEL that leaves the field is returned by "field staff" near where it left.
 
 **Match:**
@@ -249,16 +249,16 @@ Sources:
 **Robot-to-robot rules** apply when an opponent is on the field. Both robots are held to them, and foul points go to the other alliance:
 - **G403** (MAJOR): in AUTO, contacting an opponent while your BUMPERS are fully across the CENTER LINE.
 - **G415** (MINOR): a deployed over-the-bumper intake reaching inside the opponent's FRAME PERIMETER, i.e. hitting them intake-first with the intake down.
-- Ramming, even at full speed, is legal. High-speed contact isn't called in competition, and robots here can't tip over.
+- Ramming, even at full speed, is legal. High-speed contact isn't called in competition, and robots here rock but don't tip over.
 - **G418** (MINOR): PINNING an opponent against a FIELD element for more than 3 s, plus another MINOR for every further 3 s. The count resets when the robots are 72 in apart. The HUD shows the pin count for either robot.
 - **G420** (MAJOR): in END GAME, contacting an opponent that is touching its TOWER or climbing.
 
-Robots push each other with realistic traction (mass × acceleration limit), so heavier or faster-accelerating robots win shoving matches. Robots ride on their wheels and can pitch and roll: they tilt going up a BUMP, over a DEPOT barrier or onto a jammed pile of FUEL (the bumpers are rounded so a pile can lift them), and the FUEL in the hopper feels the tilt.
+Robots push each other with realistic traction (mass × acceleration limit), so heavier or faster-accelerating robots win shoving matches. Robots ride on their wheels and can pitch and roll: they tilt going up a BUMP, over a DEPOT barrier or onto a jammed pile of FUEL, and the FUEL in the hopper feels the tilt. They only drive with wheels on the floor: a short ray down from each wheel finds the carpet, a BUMP or a DEPOT barrier, and the drive gets that share of its grip, so a robot lifted onto FUEL or another robot coasts instead of climbing. Bumpers are straight-sided (1.25 in to 6.3 in off the carpet, chamfered underneath), so robots meet bumper to bumper and push level; the frames above only touch other robots through their bumpers. Most of the weight is low (drivetrain, battery), and pitching and rolling are capped and damped the way tires and frame flex soak up a hit, so a crash or a DEPOT barrier at full speed rocks a robot (under 30°) but doesn't flip it.
 
 **FUEL in the robots** (nothing teleports):
 - **Intake:** the rollers grab FUEL (still a physics ball) and drag it up the intake arm, over the BUMPER and in through the slot under the hopper wall, at the robot's intake rate. FUEL the rollers let go of before it's over the BUMPER drops back onto the carpet.
-- **Capacity:** a robot holds as much as its modeled hopper does, not the team's stated number. When a robot is built, FUEL is poured into its hopper (`bay`) and settled, retracted and extended, and the most that fits without any two FUEL pressed together harder than the intake can push is the capacity (`measureCapacity` in `js/hopper.js`). Intake rollers push about 45 N (`FUEL.intakePush`); 2910's intake retracts over the load and crams it into the indexer, so it squeezes to 180 N (`bay.push`, an estimate). With these, 2910 and 4414 come out at their teams' stated capacities (57 and 85 at 45 N, against 58 and 88). The intake drops FUEL onto the pile by the entry and pushes it in once that spot is full, until the hopper is at capacity.
-- **Hopper:** held FUEL is simulated in the robot's own frame with a lighter solver: gravity, soft ball-to-ball contact (FUEL is a full 5.91 in and squashes like a spring at 20 lb/in, the nominal spring rate in AndyMark's [2026 Scoring Element Testing Report](https://community.firstinspires.org/hubfs/blog/frc/2026-scoring-element-whitepaper-am.pdf)), the walls, floors and internal parts, and the robot's own motion, so the load piles up, slides back when you accelerate and sloshes when you spin. Each robot's mechanisms move it:
+- **Capacity:** a robot holds as much as its modeled hopper physically does, packed the way its intake packs it, not the team's stated number. FUEL comes in one at a time at the front, on top of what's there, and the intake roller shoves each one into the load, so the load fills out against every wall, the floor and the nets; the hopper is full when a FUEL stays pressed into the load harder than the roller pushes (`Hopper.pack`, `measureCapacity` in `js/hopper.js`). How hard a roller pushes comes from how much it squeezes a FUEL (`intake.squeeze`: teams report 3/4-1 in with compliant wheels, 1/2-5/8 in with rigid rollers, [Chief Delphi](https://www.chiefdelphi.com/t/what-is-the-optimal-compression-for-fuel-between-a-2-inch-roller-and-35a-compliant-wheels-2-inch-diameter/511867)), the foam's spring rate and rubber-on-foam grip: about 67 N (15 lbf) at 3/4 in, 53 N for 1678's rigid silicone roller at 0.6 in (`intakePush`). The same push works in play, so a robot fills up the same way. Packing takes a second or two per robot, so the results are precomputed (`tools/capacity.mjs` writes `js/capacities.js`; a hopper that's changed since is measured live). 8793 has no hopper, so its ball path is still poured.
+- **Hopper:** held FUEL is simulated in the robot's own frame with a lighter solver: gravity, soft ball-to-ball contact (FUEL is a full 5.91 in and squashes like a spring at 20 lb/in, the nominal spring rate in AndyMark's [2026 Scoring Element Testing Report](https://community.firstinspires.org/hubfs/blog/frc/2026-scoring-element-whitepaper-am.pdf); it's drawn flattened where it presses on other FUEL or the walls), the walls, floors and internal parts, and the robot's own motion, so the load piles up, slides back when you accelerate and sloshes when you spin. Each robot's mechanisms move it:
   - 2910's powered floor rolls FUEL back to the indexer, and while it shoots its intake retracts slowly and pushes the load back into the indexer (it stalls against the FUEL until there's room). Its hopper slides out with the first intake and stays out for the match.
   - 4414's Dye Rotor: the pocketed rotor spins under the load and carries it round, and the Dolphin Fin ramp on its rim sweeps it along. A fixed hook of passive rollers steers FUEL in to the feeder at the center column, where the omni and feeder wheels lift it up a ramp into the turret. Printed "stadium" pieces funnel FUEL onto the rotor, and when it isn't feeding the rotor turns slowly backward to agitate the load. FUEL comes in under the intake box's front roller, up its hinged ramp and over the front bumper (a star roller drives it); the box is part of the hopper, so FUEL also collects in it.
   - 8793's conveyor carries FUEL up to its turret and holds it there.
@@ -329,7 +329,7 @@ Other CAD, such as robots or field elements, can be added the same way. Export g
 index.html, css/style.css   UI shell and styles
 js/constants.js             field dimensions, timing, points (from the manual)
 js/field.js                 field geometry and colliders
-js/fuel.js                  all 504 FUEL: physics, drag, HUB processing, returns
+js/fuel.js                  all 504 FUEL: physics, drag, HUB scoring and exits, returns
 js/ballistics.js            drag-aware trajectory model, shot tables, shoot-on-the-move solver
 js/robotConfigs.js          the robots' specs
 js/robotModels.js           3D models

@@ -1,16 +1,18 @@
 // Controlled intake check: each robot drives straight through the NEUTRAL ZONE FUEL with its
 // intake running; prints FUEL collected and how long it took.
-//   node --import ./tools/node-env.mjs tools/intake-test.mjs [speed m/s] [--along]
+//   node --import ./tools/node-env.mjs tools/intake-test.mjs [speed m/s] [--along] [--time s] [--robots 2910,4414]
 // --along drives down the length of the FUEL line (the most FUEL per meter) instead of across it
 import { createWorld, mulberry32 } from './headless.mjs';
 import { Robot } from '../js/robot.js';
 import { Match } from '../js/match.js';
-import { ROBOTS } from '../js/robotConfigs.js';
+import { ROBOTS, ROBOT_ORDER } from '../js/robotConfigs.js';
 import { PHYSICS_DT, BLUE } from '../js/constants.js';
 
 const speed = +(process.argv[2] || 1.5);
 const along = process.argv.includes('--along');
-for (const key of ['2910', '4414', '8793']) {
+const arg = (name, def) => { const i = process.argv.indexOf(name); return i > 0 ? process.argv[i + 1] : def; };
+const T = +arg('--time', 4);
+for (const key of arg('--robots', ROBOT_ORDER.join(',')).split(',')) {
   for (const z of along ? [0] : [-1.5, 0.4]) {
     const world = await createWorld();
     Math.random = mulberry32(7);
@@ -23,7 +25,7 @@ for (const key of ['2910', '4414', '8793']) {
     fuel.stage(0);
     r.enabled = true;
     let t = 0, first = null, full = null;
-    for (let i = 0; i < 4.0 / PHYSICS_DT; i++) {
+    for (let i = 0; i < T / PHYSICS_DT; i++) {
       Object.assign(r.cmd, { vx: along ? 0 : speed, vz: along ? -speed : 0, omega: 0, intake: true, shoot: false, pass: false, outtake: false });
       r.preStep(PHYSICS_DT);
       fuel.preStep(PHYSICS_DT);

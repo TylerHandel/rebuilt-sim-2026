@@ -3,24 +3,95 @@
   "parts": [
     {
       "out": "cad/robots/2910-intake.glb",
-      "include": ["42 - R2 Intake Assembly"],
-      "like": { "glb": "r2910.glb", "node": "Pivoting Intake Assembly" },
-      "exclude": ["bolt", "spacer", "chain", "belt", "tensioner", "bearing", "gear", "sprocket", "kraken", "motor", "plug", "collar", "\\bpin\\b", "hub", "pulley", "wcp-0982"],
-      "origin": [0.273, 0.17, 0],
+      "include": [
+        "42 - R2 Intake Assembly"
+      ],
+      "like": {
+        "glb": "r2910.glb",
+        "node": "Pivoting Intake Assembly"
+      },
+      "exclude": [
+        "bolt",
+        "spacer",
+        "chain",
+        "belt",
+        "tensioner",
+        "bearing",
+        "gear",
+        "sprocket",
+        "kraken",
+        "motor",
+        "plug",
+        "collar",
+        "\\bpin\\b",
+        "hub",
+        "pulley",
+        "wcp-0982"
+      ],
+      "origin": [
+        0.273,
+        0.17,
+        0
+      ],
       "smooth": true
     },
     {
       "out": "cad/robots/2910-shooter.glb",
-      "include": ["32 - R2 Shooter & Feeder"],
-      "like": { "glb": "r2910.glb", "node": "32 - R2 Shooter & Feeder" },
-      "exclude": ["bolt", "spacer", "chain", "belt", "tensioner", "bearing", "gear", "sprocket", "kraken", "motor", "plug", "collar", "\\bpin\\b", "hub", "pulley", "wcp-0982"],
+      "include": [
+        "32 - R2 Shooter & Feeder"
+      ],
+      "like": {
+        "glb": "r2910.glb",
+        "node": "32 - R2 Shooter & Feeder"
+      },
+      "exclude": [
+        "bolt",
+        "spacer",
+        "chain",
+        "belt",
+        "tensioner",
+        "bearing",
+        "gear",
+        "sprocket",
+        "kraken",
+        "motor",
+        "plug",
+        "collar",
+        "\\bpin\\b",
+        "hub",
+        "pulley",
+        "wcp-0982",
+        "adapter"
+      ],
       "smooth": true
     },
     {
       "out": "cad/robots/2910-hopper.glb",
-      "include": ["62 - R2 Hopper"],
-      "like": { "glb": "r2910.glb", "node": "62 - R2 Hopper" },
-      "exclude": ["bolt", "spacer", "chain", "belt", "tensioner", "bearing", "gear", "sprocket", "kraken", "motor", "plug", "collar", "\\bpin\\b", "hub", "pulley", "wcp-0982"],
+      "include": [
+        "62 - R2 Hopper"
+      ],
+      "like": {
+        "glb": "r2910.glb",
+        "node": "62 - R2 Hopper"
+      },
+      "exclude": [
+        "bolt",
+        "spacer",
+        "chain",
+        "belt",
+        "tensioner",
+        "bearing",
+        "gear",
+        "sprocket",
+        "kraken",
+        "motor",
+        "plug",
+        "collar",
+        "\\bpin\\b",
+        "hub",
+        "pulley",
+        "wcp-0982"
+      ],
       "smooth": true
     }
   ]
