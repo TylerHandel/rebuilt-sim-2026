@@ -25,6 +25,22 @@ const MAX_SPEED = 5;
 // by bisection. Seeded, and cached per hopper, so it's the same every time. lift: how far a
 // lid that rises with the hopper (spec.lift) is up, 0..1.
 const capCache = new Map();
+
+// a held FUEL's contact patches, deepest kept: e.touch holds [nx, ny, nz, w] per contact (the
+// patch is the plane w from its center, facing n)
+const MAX_TOUCH = 4;
+function touch(e, nx, ny, nz, w) {
+  const t = e.touch;
+  let i = e.nTouch;
+  if (i >= MAX_TOUCH) {
+    // full: replace the shallowest (largest w) if this one is deeper
+    let k = 0;
+    for (let j = 1; j < MAX_TOUCH; j++) if (t[4 * j + 3] > t[4 * k + 3]) k = j;
+    if (t[4 * k + 3] <= w) return;
+    i = k;
+  } else e.nTouch++;
+  t[4 * i] = nx; t[4 * i + 1] = ny; t[4 * i + 2] = nz; t[4 * i + 3] = w;
+}
 export function measureCapacity(spec, front, lift = 1) {
   const key = spec;
   let per = capCache.get(key);
@@ -149,7 +165,8 @@ export class Hopper {
   }
 
   add(b, p, v) {
-    const e = { b, p: p.clone(), v: v.clone(), prev: new THREE.Vector3(), tr: null, squash: 0 };
+    // touch: where other FUEL presses on it (up to MAX_TOUCH: normal xyz, distance from its center)
+    const e = { b, p: p.clone(), v: v.clone(), prev: new THREE.Vector3(), tr: null, touch: new Float32Array(4 * MAX_TOUCH), nTouch: 0 };
     b.hop = e;
     this.list.push(e);
     this.quiet = 0;
@@ -296,7 +313,7 @@ export class Hopper {
     const lam = this.lam;
     lam.clear();
     const soft = 1 / (K_BALL * dt * dt), W = 2 / FUEL.mass;
-    for (const e of list) e.squash = 0;
+    for (const e of list) e.nTouch = 0;
     for (let it = 0; it < ITER; it++) {
       for (let i = 0; i < n; i++) {
         const a = list[i];
@@ -311,9 +328,11 @@ export class Hopper {
           const d = Math.sqrt(d2) || 1e-4;
           if (it === ITER - 1) {
             squeeze = Math.max(squeeze, (D_BALL - d) * K_BALL);
-            // how far each is squashed (half the overlap), for drawing it
-            a.squash = Math.max(a.squash, (D_BALL - d) / 2);
-            b.squash = Math.max(b.squash, (D_BALL - d) / 2);
+            // each is flattened halfway between the centers, for drawing it
+            if (!a.tr && !b.tr) {
+              touch(a, dx / d, dy / d, dz / d, d / 2);
+              touch(b, -dx / d, -dy / d, -dz / d, d / 2);
+            }
           }
           let corr = (D_BALL - d) / d; // FUEL on its way to the shooter shoves the rest aside
           if (!a.tr && !b.tr) {
@@ -341,6 +360,24 @@ export class Hopper {
       maxV = Math.max(maxV, sp);
     }
     this.quiet = still && maxV < 0.03 ? this.quiet + dt : 0;
+  }
+
+  // Where a held FUEL is pressed flat, for drawing it: the other FUEL (from the last step) and
+  // the walls, floor and ceiling it's up against. Fills out (4 floats per patch: normal, distance
+  // from its center) with up to MAX_TOUCH patches and returns how many.
+  touchPatches(e, out) {
+    const s = this.spec, p = e.p;
+    const tmp = { touch: out, nTouch: 0 };
+    for (let i = 0; i < e.nTouch; i++) touch(tmp, e.touch[4 * i], e.touch[4 * i + 1], e.touch[4 * i + 2], e.touch[4 * i + 3]);
+    if (e.tr) return tmp.nTouch;
+    const wall = (nx, ny, nz, w) => { if (w < R) touch(tmp, nx, ny, nz, Math.max(w, R * 0.7)); };
+    wall(0, 0, 1, s.hw - p.z);
+    wall(0, 0, -1, s.hw + p.z);
+    wall(-1, 0, 0, p.x - s.x0);
+    wall(1, 0, 0, Math.min(this.front, this.wall) - p.x);
+    wall(0, -1, 0, p.y - this.floorAt(p.x, p.z));
+    wall(0, 1, 0, this.topAt(p.x, p.z) - p.y);
+    return tmp.nTouch;
   }
 
   _bounds(p) {

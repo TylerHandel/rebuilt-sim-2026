@@ -17,7 +17,7 @@
 // copies which of them are see-through; for picking a subassembly out of a STEP conversion,
 // which flattens the tree (tools/step2glb.mjs). "smooth": keep the surface normals and the
 // source's own tessellation instead of simplifying (for STEP conversions: round parts stay
-// round), quantized to keep the file small.
+// round), only lightly simplified (ratio 0.5, error 0.001 by default) and quantized.
 import { NodeIO, getBounds } from '@gltf-transform/core';
 import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
 import { prune, dedup, weld, simplify, flatten, join, quantize } from '@gltf-transform/functions';
@@ -103,7 +103,8 @@ for (const part of recipe.parts) {
   for (const c of [...scene.listChildren()]) { scene.removeChild(c); pivot.addChild(c); }
   scene.addChild(pivot);
   if (part.smooth) {
-    await doc.transform(prune(), dedup(), weld(), flatten(), join({ keepNamed: false }), prune(), quantize());
+    // light: hard edges keep their split normals, so the simplifier leaves them alone
+    await doc.transform(prune(), dedup(), weld(), flatten(), join({ keepNamed: false }), simplify({ simplifier: MeshoptSimplifier, ratio: part.ratio ?? 0.5, error: part.error ?? 0.001 }), prune(), quantize());
   } else {
     // flat CAD surfaces: drop the split normals so vertices weld and the simplifier can work
     for (const m of root.listMeshes()) for (const p of m.listPrimitives()) { p.setAttribute('NORMAL', null); p.setAttribute('TEXCOORD_0', null); }

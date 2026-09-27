@@ -1764,15 +1764,41 @@ export function buildRobotModel(cfg, alliance) {
   else m = build8793(cfg, alliance);
   // stored FUEL visual (instanced)
   const r = FUEL.radius;
-  const geo = new THREE.SphereGeometry(r, 14, 10);
+  const geo = new THREE.SphereGeometry(r, 20, 14);
+  // squeezed FUEL flattens where it's pressed: up to four contact patches per ball (touch0..3:
+  // the patch's normal and its distance from the center, Hopper.touchPatches). The sphere is cut
+  // flat at each one and the patch shades flat, so only the contact edges squash.
+  const MAX = 260; // room for whatever the hopper holds
+  const touch = [0, 1, 2, 3].map((j) => {
+    const a = new THREE.InstancedBufferAttribute(new Float32Array(4 * MAX), 4);
+    for (let i = 0; i < MAX; i++) { a.array[4 * i + 1] = 1; a.array[4 * i + 3] = 1; }
+    a.setUsage(THREE.DynamicDrawUsage);
+    geo.setAttribute('touch' + j, a);
+    return a;
+  });
   const mat = new THREE.MeshStandardMaterial({ color: 0xf4d23a, roughness: 0.75 });
-  const inst = new THREE.InstancedMesh(geo, mat, 260); // room for whatever the hopper holds
+  mat.onBeforeCompile = (sh) => {
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', `#include <common>
+attribute vec4 touch0; attribute vec4 touch1; attribute vec4 touch2; attribute vec4 touch3;
+void squash(vec4 c, inout vec3 p, inout vec3 nrm) {
+  float s = dot(p, c.xyz) - c.w;
+  if (s > 0.0) { p -= c.xyz * s; nrm = c.xyz; }
+}`)
+      .replace('#include <beginnormal_vertex>', `#include <beginnormal_vertex>
+vec3 sqP = position;
+squash(touch0, sqP, objectNormal); squash(touch1, sqP, objectNormal);
+squash(touch2, sqP, objectNormal); squash(touch3, sqP, objectNormal);`)
+      .replace('#include <begin_vertex>', 'vec3 transformed = sqP;');
+  };
+  const inst = new THREE.InstancedMesh(geo, mat, MAX);
   inst.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   inst.frustumCulled = false;
   inst.castShadow = true;
   inst.count = 0;
   m.root.add(inst);
   m.storedMesh = inst;
+  m.storedTouch = touch;
   m.root.traverse((o) => {
     if (o.isMesh && o.material !== M.poly && o.material !== M.polyTint) o.castShadow = true;
   });

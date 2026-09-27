@@ -941,12 +941,19 @@ export class Robot {
     const list = this.hopper.list;
     const n = Math.min(list.length, m.storedMesh.instanceMatrix.count);
     const mat = new THREE.Matrix4();
+    // squeezed FUEL is drawn flattened where it's pressed (against other FUEL and the walls)
+    const tc = m.storedTouch || [], patches = this._touch || (this._touch = new Float32Array(16));
     for (let i = 0; i < n; i++) {
-      // squeezed FUEL squashes: drawn smaller by how far it's pressed in, so it doesn't overlap
-      const k = 1 - Math.min(0.3, (list[i].squash || 0) / R);
-      mat.makeScale(k, k, k).setPosition(list[i].p.x, list[i].p.y, list[i].p.z);
+      const k = this.hopper.touchPatches(list[i], patches);
+      for (let j = 0; j < tc.length; j++) {
+        const a = tc[j].array, o = 4 * i;
+        if (j < k) { a[o] = patches[4 * j]; a[o + 1] = patches[4 * j + 1]; a[o + 2] = patches[4 * j + 2]; a[o + 3] = patches[4 * j + 3]; }
+        else { a[o] = 0; a[o + 1] = 1; a[o + 2] = 0; a[o + 3] = 1; } // no patch: a plane beyond the ball
+      }
+      mat.makeTranslation(list[i].p.x, list[i].p.y, list[i].p.z);
       m.storedMesh.setMatrixAt(i, mat);
     }
+    for (const a of tc) a.needsUpdate = true;
     m.storedMesh.count = n;
     m.storedMesh.instanceMatrix.needsUpdate = true;
     // mechanisms
