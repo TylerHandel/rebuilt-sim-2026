@@ -1,6 +1,6 @@
 # Handoff
 
-For a new Claude Code session. The latest work is on branch `claude/physical-fuel-handling`, which is built on the field CAD work. Don't open a PR unless asked.
+For a new Claude Code session. The latest work is on branch `claude/great-hypatia-3fnqae` (restarted from `main`, which has everything before it). Don't open a PR unless asked.
 
 ## The project in brief
 - An FRC 2026 REBUILT single-player browser simulator built on Three.js and Rapier. The libraries load from a CDN, so there's no build step. Run it with `python3 serve.py --open`.
@@ -67,6 +67,17 @@ For a new Claude Code session. The latest work is on branch `claude/physical-fue
 - The home screen has Practice, 1 v 1 and 3 v 3 (plus Auto Editor, AI Tuning, Controls, Settings). Each mode has its own page (`PAGES` in `js/ui.js`: sections, robot cards, options, 3 v 3 slot rows with an Edit accordion); options are `{ label, values, get, set, desc }`. `settings.matchMode` and `settings.slots` (six `{ robot, auto, start, driver, skill }`) are saved with the rest.
 - `createGame` builds any lineup from `matchEntries(settings)`: `game.units` (robot, auto, ai, entry), `game.me` (the side the camera/HUD take), `game.you` (your unit, if you're in the match), a human player per alliance (`game.hps`). `game.robot` / `game.opp` still work for 1 v 1 and the headless tools; `runGame(settings)` in `tools/headless.mjs` plays any lineup headless.
 - `assignStarts` (auto.js) keeps an alliance's robots on different start spots (mirroring a best plan, `mirrorPlan`, when only its other side is free). `RobotRules` keys its state per robot pair (`robot.uid`), and `OpponentAI` takes `foes` and `mates` (defenders lock onto the biggest threat; everyone avoids everyone).
+
+## Done: 971, 1678 and 1690
+- Three more robots, all with public CAD (`ROBOTS` in `js/robotConfigs.js`, `ROBOT_ORDER` has six):
+  - **971 Mixtape**: twin turrets. `shooter.turrets` lists more than one turret: each aims itself (`Robot.turretYaws`), FUEL alternates between them (`bay.feed.zs` / `feed.vias`, one path per turret), and `turretRange` 105 is its ~210° of travel: when a target is past a hard stop the chassis turns to help (`aimOverride` in `Robot._shooter`).
+  - **1678 Limestone**: fixed full-width drum firing out the back (like 2910); its lid rides on the climber, so the hopper's ceiling rises with the hopper (`bay.lift`, `Hopper.liftScale`, pressed down under the TRENCH like a net's dome). `measureCapacity(spec, front, lift)` measures the retracted capacity with the lid down.
+  - **1690 Kepler**: compact turret, roller floor, net.
+  - Nets: 971 and 1690 use `bay.dome` (the load bulges the net, as on 4414); 1678's lifted lid has netting round the sides. In the model, `hopperNet` (shared with 4414 now) drapes a net over the load and `netPanel` draws 1678's side netting.
+  - Built-in climbers: `cfg.climber` (971 and 1678, Level 1). `createGame` gives it to the robot (your add-on choice overrides it). The AI goes to climb near the end of TELEOP, one robot per ALLIANCE (`OpponentAI._climb`, `Robot.climbClaim`).
+- Models: 971 and 1678 are their CAD, split into moving parts by `tools/extract-parts.mjs` with the recipes in `cad/robots/*.json` (see `cad/README.md`; pivots and swings were read off part positions, since the export has no mates). The Onshape API only exports documents whose sharing allows EXPORT: 971's and 1678's do, 1690's doesn't (and the API keys here are read-only, so its X_T can't be imported to Onshape either). 1690 is drawn from Onshape's scaled shaded views (`/api/.../shadedviews` with `pixelSize`, which does work for view-only documents), its X_T release on Google Drive and photos.
+- Checks: shooting 971 20.0 BPS (also when it starts facing away from the HUB), 1678 26, 1690 12, all into the HUB; capacities 971 40 → 75, 1678 31 → 76, 1690 31 → 58; the 2910/4414/8793 bench is unchanged; headless 971 vs 1678 finishes with both climbing.
+- `BEST_AUTOS` for the three come from `tools/auto-search.mjs --robots 971,1678,1690`.
 
 ## Other open items
 - The HUB and BUMP sizes were checked against the drawing. All element positions were checked against the field CAD. The TRENCH, TOWER, DEPOT and OUTPOST *sizes* still come from the game manual, so compare them with the drawing pages above or measure them in the CAD. Note that the Block CAD bounding box puts the inside edge of the fixed TRENCH about 8 cm closer to the guardrail than `TRENCH.width` does.

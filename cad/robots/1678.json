@@ -1,0 +1,183 @@
+{
+  "source": "1678 Citrus Circuits, \"1678-26c-0000 CAD Release\" (Onshape acdaaf42764a293a9452326d, element a9684fa7665096e977b19c44)",
+  "front": "-y",
+  "parts": [
+    {
+      "out": "cad/robots/1678-body.glb",
+      "include": [
+        "1678-26c-1100",
+        "1678-26c-1300",
+        "1678-26c-1600"
+      ],
+      "exclude": [
+        "bumpers",
+        "SDS MK5n",
+        "Limelight",
+        "Orin",
+        "locknut",
+        "Mount Stud",
+        "pulley",
+        "PowerDistribution",
+        "PDP",
+        "insert",
+        "spring",
+        "LC1258",
+        "conn\\d",
+        "CONTACT",
+        "torx",
+        "92395A",
+        "94459A",
+        "3764N",
+        "Pigeon",
+        "CANivore",
+        "roboRIO",
+        "CANrange",
+        "CANdle",
+        "Radio",
+        "VRM",
+        "Breaker",
+        "MPM",
+        "Mini Power",
+        "^Component2",
+        "Pully",
+        "shaft collar"
+      ],
+      "ratio": 0.04,
+      "error": 0.015,
+      "glass": [
+        "^1678-26c-1118",
+        "^1678-26c-1120",
+        "^1678-26c-1123"
+      ]
+    },
+    {
+      "out": "cad/robots/1678-intake.glb",
+      "include": [
+        "1678-26c-1500"
+      ],
+      "origin": [
+        0.254,
+        0.194,
+        0
+      ],
+      "exclude": [
+        "Orin",
+        "locknut",
+        "Mount Stud",
+        "pulley",
+        "PowerDistribution",
+        "PDP",
+        "insert",
+        "spring",
+        "LC1258",
+        "conn\\d",
+        "CONTACT",
+        "torx",
+        "92395A",
+        "94459A",
+        "3764N",
+        "Pigeon",
+        "CANivore",
+        "roboRIO",
+        "CANrange",
+        "CANdle",
+        "Radio",
+        "VRM",
+        "Breaker",
+        "MPM",
+        "Mini Power",
+        "^Component2",
+        "Pully",
+        "shaft collar",
+        "^1678-26c-1529"
+      ],
+      "ratio": 0.04,
+      "error": 0.015,
+      "glass": [
+        "^1678-26c-1535"
+      ]
+    },
+    {
+      "out": "cad/robots/1678-slide.glb",
+      "include": [
+        "1678-26c-1500"
+      ],
+      "onlyName": [
+        "^1678-26c-1529"
+      ],
+      "glass": [
+        "^1678-26c-1529"
+      ],
+      "exclude": [
+        "Orin",
+        "locknut",
+        "Mount Stud",
+        "pulley",
+        "PowerDistribution",
+        "PDP",
+        "insert",
+        "spring",
+        "LC1258",
+        "conn\\d",
+        "CONTACT",
+        "torx",
+        "92395A",
+        "94459A",
+        "3764N",
+        "Pigeon",
+        "CANivore",
+        "roboRIO",
+        "CANrange",
+        "CANdle",
+        "Radio",
+        "VRM",
+        "Breaker",
+        "MPM",
+        "Mini Power",
+        "^Component2",
+        "Pully",
+        "shaft collar"
+      ],
+      "ratio": 0.04,
+      "error": 0.015
+    },
+    {
+      "out": "cad/robots/1678-lift.glb",
+      "include": [
+        "1678-26c-1900"
+      ],
+      "exclude": [
+        "Orin",
+        "locknut",
+        "Mount Stud",
+        "pulley",
+        "PowerDistribution",
+        "PDP",
+        "insert",
+        "spring",
+        "LC1258",
+        "conn\\d",
+        "CONTACT",
+        "torx",
+        "92395A",
+        "94459A",
+        "3764N",
+        "Pigeon",
+        "CANivore",
+        "roboRIO",
+        "CANrange",
+        "CANdle",
+        "Radio",
+        "VRM",
+        "Breaker",
+        "MPM",
+        "Mini Power",
+        "^Component2",
+        "Pully",
+        "shaft collar"
+      ],
+      "ratio": 0.04,
+      "error": 0.015
+    }
+  ]
+}

@@ -55,6 +55,19 @@ export const BEST_AUTOS = {
   ] },
   // 66: clears the DEPOT while shooting, then short slow passes (it only holds 12 and intakes
   // slowly) with a trip home to shoot after each
+  // provisional (4414's), until tools/auto-search.mjs finds better
+  971: { start: 'rightTrench', preload: 'stand', trips: [
+    { out: 'trench', fx: 8.4, a: 2.32, b: 6.7, speed: 0.53, home: 'bump', shootAt: [2.21, 5.46] },
+    { out: 'bump', fx: 7.32, a: 6.65, b: 3.95, speed: 0.47, home: 'bump', shootAt: [2.95, 5.72] },
+  ] },
+  1678: { start: 'leftTrench', preload: 'stand', trips: [
+    { out: 'trench', fx: 7.53, a: 6.44, b: 3.36, speed: 0.42, home: 'bump', shootAt: [2.31, 1.5] },
+    { out: 'trench', fx: 7.88, a: 2.02, b: 6.7, speed: 0.52, home: 'trench', shootAt: [2.74, 6.2] },
+  ] },
+  1690: { start: 'rightBump', preload: 'move', trips: [
+    { out: 'trench', fx: 8.4, a: 2.32, b: 6.7, speed: 0.53, home: 'bump', shootAt: [2.21, 5.46] },
+    { out: 'bump', fx: 7.32, a: 6.65, b: 3.95, speed: 0.47, home: 'bump', shootAt: [2.95, 5.72] },
+  ] },
   8793: { start: 'leftTrench', preload: 'move', trips: [
     { depot: true, speed: 0.44 },
     { out: 'trench', fx: 8.15, a: 6.16, b: 5.18, speed: 0.42, home: 'trench', shootAt: [2.3, 6.2] },
@@ -127,7 +140,7 @@ export class AutoRunner {
 
   _build(routine) {
     const r = this.robot;
-    const small = r.cfg.storage.capacity < 20; // hopperless: pass while collecting
+    const small = r.maxCapacity() < 20; // hopperless: pass while collecting
     const hl = r.halfL;
     const steps = [];
     const shootPreload = () => steps.push({ type: 'shoot', timeout: 3.0 });
@@ -182,7 +195,7 @@ export class AutoRunner {
   // Steps for a BEST_AUTOS-style plan (see above)
   _planSteps(plan) {
     const r = this.robot;
-    const small = r.cfg.storage.capacity < 20;
+    const small = r.maxCapacity() < 20;
     const bps = r.cfg.shooter.bps;
     const maxFx = HALF_L + r.halfW - 0.08; // BUMPERS past the CENTER LINE but not fully across
     const steps = [];

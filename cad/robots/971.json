@@ -1,0 +1,178 @@
+{
+  "source": "971 Spartan Robotics, \"2026 971 Robot Mixtape Public Release\" (Onshape cabaa0c1c77517916df80783, element 96844befd4591dac162d657b)",
+  "front": "+y",
+  "parts": [
+    {
+      "out": "cad/robots/971-body.glb",
+      "include": [
+        "Turrets + Platform",
+        "Indexer Assembly",
+        "Ramp <1>",
+        "Ramp <2>",
+        "left mount",
+        "Right mount",
+        "Main Front",
+        "brainpan"
+      ],
+      "exclude": [
+        "bumper",
+        "foam",
+        "SDS MK5n",
+        "anti sag wood",
+        "^Sliding Plate",
+        "^Part 69",
+        "Orin",
+        "locknut",
+        "Mount Stud",
+        "ka100ar0",
+        "SDS MK5",
+        "pulley",
+        "PowerDistribution",
+        "insert",
+        "spring",
+        "LC1258",
+        "conn\\d",
+        "CONTACT",
+        "torx",
+        "92395A",
+        "94459A",
+        "3764N",
+        "Pigeon",
+        "CANivore",
+        "roboRIO",
+        "shaft collar"
+      ],
+      "skipBox": [
+        [
+          0.45,
+          9,
+          -9,
+          9,
+          -9,
+          9
+        ]
+      ],
+      "ratio": 0.04,
+      "error": 0.015,
+      "origin": [
+        0,
+        -0.043,
+        0
+      ]
+    },
+    {
+      "out": "cad/robots/971-hopper.glb",
+      "include": [
+        "Indexer Assembly"
+      ],
+      "onlyName": [
+        "^Sliding Plate",
+        "^Part 69"
+      ],
+      "onlyBox": [
+        [
+          0.45,
+          9,
+          -9,
+          9,
+          -9,
+          9
+        ]
+      ],
+      "exclude": [
+        "Orin",
+        "locknut",
+        "Mount Stud",
+        "ka100ar0",
+        "SDS MK5",
+        "pulley",
+        "PowerDistribution",
+        "insert",
+        "spring",
+        "LC1258",
+        "conn\\d",
+        "CONTACT",
+        "torx",
+        "92395A",
+        "94459A",
+        "3764N",
+        "Pigeon",
+        "CANivore",
+        "roboRIO",
+        "shaft collar"
+      ],
+      "origin": [
+        0,
+        -0.043,
+        0
+      ]
+    },
+    {
+      "out": "cad/robots/971-intake.glb",
+      "include": [
+        "Ground Intake"
+      ],
+      "origin": [
+        0.217,
+        0.1,
+        0
+      ],
+      "exclude": [
+        "Orin",
+        "locknut",
+        "Mount Stud",
+        "ka100ar0",
+        "SDS MK5",
+        "pulley",
+        "PowerDistribution",
+        "insert",
+        "spring",
+        "LC1258",
+        "conn\\d",
+        "CONTACT",
+        "torx",
+        "92395A",
+        "94459A",
+        "3764N",
+        "Pigeon",
+        "CANivore",
+        "roboRIO",
+        "shaft collar"
+      ]
+    },
+    {
+      "out": "cad/robots/971-turret.glb",
+      "include": [
+        "shooter assembly <1>"
+      ],
+      "origin": [
+        -0.148,
+        0.284,
+        0.2095
+      ],
+      "exclude": [
+        "Orin",
+        "locknut",
+        "Mount Stud",
+        "ka100ar0",
+        "SDS MK5",
+        "pulley",
+        "PowerDistribution",
+        "insert",
+        "spring",
+        "LC1258",
+        "conn\\d",
+        "CONTACT",
+        "torx",
+        "92395A",
+        "94459A",
+        "3764N",
+        "Pigeon",
+        "CANivore",
+        "roboRIO",
+        "shaft collar"
+      ]
+    }
+  ],
+  "note": "The CAD's floor is at z = -0.043 (wheel bottoms), so parts are lifted 0.043 m; the intake's pivot and the turret axes sit 0.043 m higher in the robot frame than in the export."
+}

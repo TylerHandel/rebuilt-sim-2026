@@ -20,14 +20,15 @@ const MAX_SPEED = 5;
 
 // How much FUEL a hopper holds: pour n in, let it settle, and see whether the load fits without
 // squashing past what foam gives (SQUEEZE_MAX). Largest n that fits, by bisection. Seeded, and
-// cached per hopper, so it's the same every time.
+// cached per hopper, so it's the same every time. lift: how far a lid that rises with the hopper
+// (spec.lift) is up, 0..1.
 const SQUEEZE_MAX = 0.01;
 const capCache = new Map();
-export function measureCapacity(spec, front) {
+export function measureCapacity(spec, front, lift = 1) {
   const key = spec;
   let per = capCache.get(key);
   if (!per) { per = new Map(); capCache.set(key, per); }
-  const k = front.toFixed(3);
+  const k = front.toFixed(3) + '|' + lift;
   if (per.has(k)) return per.get(k);
   const env = { acc: { x: 0, z: 0 }, w: 0, alpha: 0 };
   const fits = (n) => {
@@ -35,6 +36,7 @@ export function measureCapacity(spec, front) {
     const rng = () => ((s = (s * 16807) % 2147483647) / 2147483647);
     const h = new Hopper(spec);
     h.front = front;
+    h.liftScale = lift;
     h.fill(Array.from({ length: n }, () => ({})), rng);
     let p = 0;
     for (let i = 0; i < 240; i++) { h.step(1 / 120, env); if (i >= 210) p = Math.max(p, h.pressure); }
@@ -48,7 +50,7 @@ export function measureCapacity(spec, front) {
 }
 
 // the most a robot holds (hopper out)
-export const modelCapacity = (cfg) => measureCapacity(cfg.bay, cfg.bay.x1 + (cfg.storage.extLen || 0));
+export const modelCapacity = (cfg) => measureCapacity(cfg.bay, cfg.bay.x1 + (cfg.storage.extLen || 0), 1);
 
 // A Dye Rotor's hook: a fixed curved guide over the rotor, from its rim in to the feeder at the
 // center column (FUEL carried round runs into it and slides in along it). Points [x, z] in the
@@ -74,6 +76,7 @@ export class Hopper {
     this.quiet = 0;
     this.finAngle = 0; // Dye Rotor: how far it has turned (where the Dolphin Fin is, robot frame, about +y)
     this.domeScale = 1;
+    this.liftScale = 1; // a lid on the climber (spec.lift): how far it's up, 0..1
     this.obstacles = [...(spec.obstacles || [])];
     if (spec.hook) {
       // the hook as a row of thin posts at its height over the rotor
@@ -122,9 +125,11 @@ export class Hopper {
   topAt(x, z = 0) {
     const s = this.spec;
     if (s.above) return this.floorAt(x) + s.above;
-    if (s.dome) return s.top + s.dome.h * this.domeScale * this.domeShape(x, z);
+    // a lid that rises (1678's, on the climber) lifts the whole ceiling; netting closes the sides
+    const top = s.lift ? s.top + s.lift.h * this.liftScale : s.top;
+    if (s.dome) return top + s.dome.h * this.domeScale * this.domeShape(x, z);
     if (s.extTop !== undefined && x > s.x1) return s.extTop;
-    return s.top;
+    return top;
   }
 
   // 0..1: how far the net over the top can bulge here (pinned at its edges, the top plate and

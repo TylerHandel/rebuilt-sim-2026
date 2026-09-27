@@ -55,7 +55,7 @@ function randomTrip(key, side) {
 }
 function randomPlan(key) {
   const start = pick(['rightTrench', 'rightBump', 'hub', 'leftBump', 'leftTrench']);
-  const n = pick(ROBOTS[key].storage.capacity < 20 ? [2, 3, 4] : [1, 2, 3]);
+  const n = pick(modelCapacity(ROBOTS[key]) < 20 ? [2, 3, 4] : [1, 2, 3]);
   let side = start.startsWith('left') ? 'left' : start.startsWith('right') ? 'right' : pick(['left', 'right']);
   const trips = [];
   for (let i = 0; i < n; i++) {

@@ -23,11 +23,12 @@ export const DEFAULT_SLOTS = [
   { robot: '2910', auto: 'best', start: 'leftTrench', driver: 'you', skill: 'champs' },
   { robot: '4414', auto: 'best', start: 'hub', driver: 'scorer', skill: 'champs' },
   { robot: '8793', auto: 'defendStage', start: 'rightBump', driver: 'defense', skill: 'champs' },
-  { robot: '4414', auto: 'best', start: 'leftTrench', driver: 'scorer', skill: 'champs' },
-  { robot: '2910', auto: 'best', start: 'hub', driver: 'scorer', skill: 'champs' },
-  { robot: '8793', auto: 'defendStage', start: 'rightBump', driver: 'defense', skill: 'champs' },
+  { robot: '1678', auto: 'best', start: 'leftTrench', driver: 'scorer', skill: 'champs' },
+  { robot: '971', auto: 'best', start: 'hub', driver: 'scorer', skill: 'champs' },
+  { robot: '1690', auto: 'best', start: 'rightBump', driver: 'hybrid', skill: 'champs' },
 ];
 export const slotAlliance = (i) => (i < 3 ? BLUE : RED);
+const cfgOf = (e) => ROBOTS[e.robot] || ROBOTS['2910'];
 
 // The robots in the match: { alliance, station (0-2), robot, auto, start, customSide, driver
 // ('human' or an AI strategy), skill, brain, plan, preload, you }
@@ -73,7 +74,7 @@ export function createGame(world, settings, { onEvent = () => {}, prev = null } 
   const pre = fuel.stage(entries.reduce((n, e) => n + e.preload, 0));
   let k = 0;
   const units = entries.map((e) => {
-    const robot = new Robot({ cfg: ROBOTS[e.robot] || ROBOTS['2910'], alliance: e.alliance, physics, scene, field, fuel, match, climber: e.you ? CLIMBER_OPTIONS[settings.climber] || null : null });
+    const robot = new Robot({ cfg: cfgOf(e), alliance: e.alliance, physics, scene, field, fuel, match, climber: (e.you && CLIMBER_OPTIONS[settings.climber]) || cfgOf(e).climber || null });
     const custom = customSelection(e.auto, e.customSide);
     const pose = startPose(e.startKey || e.start, robot, e.alliance, custom);
     robot.spawn(pose.x, pose.z, pose.yaw);

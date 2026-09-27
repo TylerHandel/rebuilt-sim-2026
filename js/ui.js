@@ -69,7 +69,7 @@ const OPT = {
   },
   preload: opt('preload', 'Preloaded FUEL', [0, 1, 2, 3, 4, 5, 6, 7, 8].map((n) => [n, String(n)]), 'Up to 8 FUEL per robot. Unused preload FUEL is staged in the NEUTRAL ZONE.'),
   preloadAll: opt('preload', 'Preloaded FUEL (each robot)', [0, 1, 2, 3, 4, 5, 6, 7, 8].map((n) => [n, String(n)]), 'Up to 8 FUEL per robot. Unused preload FUEL is staged in the NEUTRAL ZONE.'),
-  oppRobot: opt('oppRobot', 'Robot', robotValues, 'The AI can drive any of the three robots.'),
+  oppRobot: opt('oppRobot', 'Robot', robotValues, 'The AI can drive any of the six robots.'),
   opponent: opt('opponent', 'Strategy', OPP_ORDER.filter((k) => k !== 'off').map((k) => [k, OPP_STRATEGIES[k].name]), (s) => OPP_STRATEGIES[s.opponent].desc),
   oppSkill: opt('oppSkill', 'Skill', SKILL_ORDER.map((k) => [k, OPP_SKILLS[k].name]), (s) => OPP_SKILLS[s.oppSkill].desc),
   mode: opt('mode', 'Match type', [['normal', 'Normal'], ['training', 'Training (AI learns)']], (s) => (s.mode === 'training'
@@ -82,7 +82,7 @@ const OPT = {
     'Watch mode: an AI drives your robot in TELEOP (AUTO still runs your auto routine).'),
   driverSkill: opt('driverSkill', 'Its AI skill', SKILL_ORDER.map((k) => [k, OPP_SKILLS[k].name]), (s) => 'Only used in watch mode. ' + OPP_SKILLS[s.driverSkill].desc),
   hp: opt('hp', 'Your human player', [['manual', 'Manual (X / Y)'], ['auto', 'Auto-throw when HUB active']], 'The human player at your OUTPOST: throw FUEL yourself, or let it throw whenever your HUB is active.'),
-  climber: opt('climber', 'Climber add-on', [['none', 'None (as built)'], ['l1', 'Level 1 hook'], ['l3', 'Level 1-3 climber']], 'None of these three robots climbed in 2026. Add a hypothetical climber to your robot to try the TOWER.'),
+  climber: opt('climber', 'Climber add-on', [['none', 'None (as built)'], ['l1', 'Level 1 hook'], ['l3', 'Level 1-3 climber']], '971 and 1678 climb Level 1 as built; the other four didn\'t climb in 2026. Add a hypothetical climber to your robot to try the TOWER.'),
   camera: opt('camera', 'Starting camera', CAMERA_MODES.map((m) => [m, CAMERA_NAMES[m]]), 'Change it any time in a match with D-pad ◀ ▶ ([ / ]); right stick click (T) turns it around.'),
   preview: opt('preview', 'Shot preview line', [['on', 'On'], ['off', 'Off']], 'While you hold shoot, a line shows where the shot goes (green once it will score).'),
 };

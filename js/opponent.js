@@ -29,8 +29,8 @@ export const BRAIN_SPEC = {
   cycleTime: { min: 5, max: 24, def: 14, group: 'Scoring', label: 'Max collect time', unit: 's', desc: 's of collecting before it scores what it has while its HUB is active' },
   stageMargin: { min: 0, max: 6, def: 2, group: 'Scoring', label: 'Stage early by', unit: 's', desc: 's of slack when heading in to stage before its HUB turns active' },
   topUp: { min: 2, max: 14, def: 6, group: 'Scoring', label: 'Top-up window', unit: 's', desc: 'tops up its hopper if its HUB stays inactive this much longer than the trip back (s)' },
-  spotFx: { min: 1.6, max: 3.7, def: 2.7, group: 'Scoring', label: 'Shot spot from wall (2910)', unit: 'm', desc: 'shooting spot distance from its ALLIANCE WALL for a chassis-aimed shooter (turrets shoot from anywhere in the zone) (m)' },
-  spotZ: { min: 0.7, max: 2.6, def: 0.9, group: 'Scoring', label: 'Shot spot side offset (2910)', unit: 'm', desc: 'minimum sideways offset of the chassis-aimed shooting spot from the HUB (m)' },
+  spotFx: { min: 1.6, max: 3.7, def: 2.7, group: 'Scoring', label: 'Shot spot from wall (2910, 1678)', unit: 'm', desc: 'shooting spot distance from its ALLIANCE WALL for a chassis-aimed shooter (turrets shoot from anywhere in the zone) (m)' },
+  spotZ: { min: 0.7, max: 2.6, def: 0.9, group: 'Scoring', label: 'Shot spot side offset (2910, 1678)', unit: 'm', desc: 'minimum sideways offset of the chassis-aimed shooting spot from the HUB (m)' },
   shootSpeed: { min: 0.2, max: 1, def: 0.45, group: 'Scoring', label: 'Speed while shooting', unit: '%', desc: 'top speed while shooting or passing on the move, so the turret/flywheel can settle (fraction of top speed)' },
   shootAccel: { min: 1, max: 10, def: 3, group: 'Scoring', label: 'Acceleration while shooting', unit: 'm/s²', desc: 'how quickly it changes velocity while shooting or passing (m/s²)' },
   pushThrough: { min: 0.3, max: 6, def: 1.5, group: 'Scoring', label: 'Push through a blocker after', unit: 's', desc: 's of being blocked on the way to its zone before it stops going around and drives through' },
@@ -160,6 +160,7 @@ export class OpponentAI {
 
     r.passTarget = null;
     this.shootingMode = false;
+    if (this._climb()) return;
     if (this.mode === 'defend') this._defend(dt);
     else this._score(dt);
     this._smooth(dt);
@@ -177,6 +178,30 @@ export class OpponentAI {
       this.ball = null;
       this.path = null;
     }
+  }
+
+  // END GAME: a robot with a climber (971, 1678) heads for its TOWER just in time to get up to
+  // LEVEL 1 before the buzzer, one per ALLIANCE (the RUNGS have room for one here). Returns true
+  // while it's busy with that.
+  _climb() {
+    const r = this.robot, m = this.match;
+    if (!r.climberCfg || !r.cfg.climber) return false;
+    if (r.climbState !== 'none') { this.label = r.climbState === 'hanging' ? `Hanging (L${r.climbLevel})` : 'Climbing'; return true; }
+    const left = TIMING.teleop - m.phaseTime;
+    const p = r.climbPose();
+    const d = Math.hypot(p.x - r.pos.x, p.z - r.pos.z);
+    if (!r.climbClaim) {
+      const need = d / (0.55 * r.cfg.drive.maxSpeed * this.skill.speed) + (r.climberCfg.times[1] ?? 2) + 2.5;
+      if (left > need || left < 1.5) return false;
+      if (this.mates.some((o) => o.climbClaim || o.climbState !== 'none')) return false;
+      r.climbClaim = true;
+    }
+    // shoot what it can on the way
+    r.cmd.shoot = r.lastInZone && r.stored.length > 0;
+    if (d > 1.0) this._drive(p.x, p.z, { face: p.yaw, avoid: true });
+    else r.requestClimb();
+    this.label = 'Going to climb';
+    return true;
   }
 
   // Which opponent to watch: a defender sticks with the biggest threat (loaded, near or in its
