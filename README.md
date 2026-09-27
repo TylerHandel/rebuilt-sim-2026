@@ -66,7 +66,7 @@ In 3 v 3, robots on an ALLIANCE never start on the same spot: each gets the one 
 
 ## PvE: AI opponent
 
-In **1 v 1** an AI robot plays the other ALLIANCE (in **3 v 3**, up to five of them). It can drive any of the three robots, scores into its own HUB, and has its own HUMAN PLAYER, who throws when its HUB is active. Its AUTO FUEL counts toward which HUB goes inactive first.
+In **1 v 1** an AI robot plays the other ALLIANCE (in **3 v 3**, up to five of them). It can drive any of the six robots, scores into its own HUB, and has its own HUMAN PLAYER, who throws when its HUB is active. Its AUTO FUEL counts toward which HUB goes inactive first.
 
 | Strategy | What it does |
 |---|---|
@@ -77,7 +77,7 @@ In **1 v 1** an AI robot plays the other ALLIANCE (in **3 v 3**, up to five of t
 How the Scorer handles time and traffic:
 - If its own zone has too little FUEL left to be worth picking through, it goes to the NEUTRAL ZONE.
 - It measures its own collection rate. If its HUB's active window won't last long enough to fill up, travel and shoot, it scores the partial load it has. It also heads in with any load just before its HUB activates.
-- Turret robots (4414, 8793) don't use a fixed shooting spot. Once inside their zone with the HUB active, they shoot from wherever they are while collecting. Outside the zone they head for the nearest point inside it. The 2910 still drives to a shooting spot, because its whole chassis has to turn to aim.
+- Turret robots (4414, 8793, 971, 1690) don't use a fixed shooting spot. Once inside their zone with the HUB active, they shoot from wherever they are while collecting. Outside the zone they head for the nearest point inside it. 2910 and 1678 still drive to a shooting spot, because the whole chassis has to turn to aim.
 - While shooting or passing on the move, it drives smoothly: capped speed, limited acceleration and turning. This lets the turret, hood and flywheel settle so the shot actually releases (a shot only fires when aim, flywheel speed and hood are all on target).
 - If you block it on the way to its zone, it goes around at first. Once it stops gaining ground (you're mirroring it), it drives straight through you.
 
@@ -179,24 +179,26 @@ A match takes about 30 s of CPU, so more cores train faster.
 
 ## The robots
 
-| | 2910 Jack in the Bot "Re•Blitz" | 4414 HighTide "RIPCURRENT" | 8793 Pumpkin Bots |
-|---|---|---|---|
-| Type | Dumper | Dye Rotor | Hopperless |
-| Frame | 27.5 × 27 in swerve | 25 × 32 in swerve | 27.5 × 27.5 in swerve |
-| Capacity (stated) | 58 FUEL | 88 FUEL (extending hopper) | 12 (only the ball path) |
-| Capacity (the modeled hopper, what the sim uses) | 44 → 63 FUEL | 57 → 111 FUEL (the net stretches) | 12 |
-| Shooter | 4-wide drum, adjustable hood, **fixed to the chassis** (whole robot turns to aim) | Single-stream 3" flywheel on a **turret**, adjustable hood | Hooded flywheel on a **turret** |
-| Rate | 32 FUEL/s | 18 FUEL/s | 13 FUEL/s |
-| Intake | as fast as it drives through FUEL (~110/s at full speed), slap-down (7.8 in reach) | as fast as it drives through FUEL (~140/s), sliding box (latched out) | 14 FUEL/s |
-| Fits under TRENCH | yes | yes | yes |
-| Climber | none | none | none |
+| Robot | Type | Frame | Capacity (modeled hopper: in → out) | Shooter | Rate | Climb |
+|---|---|---|---|---|---|---|
+| **2910** Jack in the Bot "Re•Blitz" | Dumper | 27.5 × 27 in | 44 → 63 (stated 58) | 4-wide drum, adjustable hood, **fixed to the chassis** (fires out the back; the robot turns to aim) | 32 FUEL/s | – |
+| **4414** HighTide "RIPCURRENT" | Dye Rotor | 25 × 32 in | 57 → 111, the net stretches (stated 88) | single-stream 3" flywheel on a **turret** | 18 FUEL/s | – |
+| **8793** Pumpkin Bots | Hopperless | 27.5 × 27.5 in | 12 (the ball path) | hooded flywheel on a **turret** | 13 FUEL/s | – |
+| **971** Spartan Robotics "Mixtape" | Twin turrets | 24.5 × 29.5 in | 40 → 75 under its net | **two** independently aimed turrets (~210° of travel each: the chassis turns when a target is past the hard stops), 4" flywheels, lead-screw hood | 20 FUEL/s (both together) | Level 1 |
+| **1678** Citrus Circuits "Limestone" | Drum + lift | 27 × 27 in | 31 → 76 with the lid lifted | full-width 3.5" drum with three hood rollers, articulating hood, **fixed to the chassis** (fires out the back) | 26 FUEL/s | Level 1 |
+| **1690** Orbit "Kepler" | Compact turret | 25 × 29 in | 31 → 58 under its net (stated 50-55 open-topped) | compact gear-driven **turret** on an 8" bearing, shoots on the move while intaking | 12 FUEL/s | – |
+
+All six fit under the TRENCH. Capacity is what the modeled hopper holds (see *FUEL in the robots*); 971 and 1690's nets and 1678's lid get pressed down, load and all, under the TRENCH arm.
 
 Sources:
 - 2910: the Re•Blitz tech binder and their public Onshape CAD. The intake, shooter and hopper you see are their "Pivoting Intake Assembly", "Shooter & Feeder" and "R2 Hopper" (its panels slide out along slotted rails as the intake deploys): a roller ramp indexes FUEL up under the rollered hood to the drum, which fires out the back. The intake's reach (7.8 in past the BUMPER) comes from that CAD. Colors follow the CAD: raw aluminum, grey plates, light green drum wheels, and clear lids over the fixed and expanding hopper.
 - 4414: the 2026 tech binder (2026.team4414.com) and its CAD renders: the sliding box intake on racks (front panel, under-roller, ramp, star roller, impact guards, pinion strips), the Dye Rotor (pocketed spinning rotor with the Dolphin Fin, hook, feeder wheels, center column), the full-height smoked hopper walls with the teal truss and the keyhole top plate that carries the turret bearing, the A-frame turret shooter sitting down inside its ring (flywheel at the back, FUEL out past the hood roller at the front), and the stretchy net over the top: past the stated 88 the load bulges it up, to about 110 FUEL (it's pressed flat, load and all, under the TRENCH arm).
 - 8793: your team CAD (Intake V3, Conveyor V2, Turret, Shooter).
+- 971: their public Onshape CAD ("2026 971 Robot Mixtape Public Release") and technical documentation. The model is their CAD: the drivetrain, roller floor, powered omni-wheel separator that splits FUEL into two streams, kicker, the two ramps up into the turrets, the turret platform with its two 10" bearings, and the polycarbonate hopper, whose front slides out when the 4-bar ground intake deploys (the intake folds up inside the hopper, as exported). Both turrets are their shooter assembly, each turning on its own. A net covers the open top of the hopper.
+- 1678: their public Onshape CAD ("1678-26c-0000 CAD Release") and robot page. The model is their CAD: the drivetrain with its polycarbonate walls on the bumper mounts, the roller floor (dead-axle rollers, then flex wheels), the ball tunnel and drum, the slapdown intake, the polycarbonate plates of the horizontal extension (they slide out with the intake), and the climber with the corrugated lid that lifts to make the hopper taller (it comes down to get under the TRENCH). Netting closes the sides and front between the walls and the lifted lid.
+- 1690: Orbit's Onshape document doesn't allow export, so the model is drawn from Onshape's own scaled renders of it, their X_T release, the reveal and CAD-release threads and photos: lattice-sided hopper over a powered roller floor, over-bumper intake held down by surgical tubing, electronics box at the back right, and at the back left a vertical kicker of green compliant wheels feeding the turret (lattice A-frame, green flywheel wheels, hood) on its bearing ringed with printed guide fins. The team said it holds 50-55 open-topped and that FUEL bounces out, and that they'd try netting; the net over the top keeps the load in.
 
-None of the three climbed, so each defaults to *no climber*. The **Climber add-on** option adds a hypothetical Level 1 or Level 1-3 climber if you want to try the TOWER.
+971 and 1678 climb Level 1 as built (the AI heads for the TOWER near the end of the match so it's up before the buzzer, one robot per ALLIANCE). The others didn't climb; the **Climber add-on** option gives your robot a hypothetical Level 1 or Level 1-3 climber if you want to try the TOWER.
 
 ## What's simulated
 
@@ -253,6 +255,9 @@ Robots push each other with realistic traction (mass × acceleration limit), so 
   - 2910's powered floor rolls FUEL back to the indexer, and while it shoots its intake retracts slowly and pushes the load back into the indexer (it stalls against the FUEL until there's room). Its hopper slides out with the first intake and stays out for the match.
   - 4414's Dye Rotor: the pocketed rotor spins under the load and carries it round, and the Dolphin Fin ramp on its rim sweeps it along. A fixed hook of passive rollers steers FUEL in to the feeder at the center column, where the omni and feeder wheels lift it up a ramp into the turret. Printed "stadium" pieces funnel FUEL onto the rotor, and when it isn't feeding the rotor turns slowly backward to agitate the load. FUEL comes in under the intake box's front roller, up its hinged ramp and over the front bumper (a star roller drives it); the box is part of the hopper, so FUEL also collects in it.
   - 8793's conveyor carries FUEL up to its turret and holds it there.
+  - 971's roller floor carries FUEL back to the separator, which splits it into two streams: each goes up its own ramp into its turret, one turret after the other. Its net lets the load pile up over the walls.
+  - 1678's roller floor carries FUEL back to the ball tunnel, which lifts it to the drum. Its lid rises with the hopper (and comes down under the TRENCH), so the load can stack higher.
+  - 1690's roller floor carries FUEL back to the vertical kicker in front of its turret. Its net lets the load pile up over the walls.
 - **Shooter:** FUEL travels the feed path to the flywheel and leaves from the exit at the same rate (BPS) and with the same shot model as before. A FUEL that reaches the wheels while the shot isn't lined up waits there.
 
 ## Auto routines
@@ -301,6 +306,12 @@ npm i --no-save @gltf-transform/core @gltf-transform/extensions @gltf-transform/
 node tools/slim-glb.mjs /tmp/field-raw.glb cad/field/field.glb
 ```
 
+The robots with public CAD (2910, 971, 1678) are built from it: `tools/extract-parts.mjs` takes a robot's Onshape GLB export and a recipe (`cad/robots/971.json`, `1678.json`) and writes each moving part (body, intake, sliding hopper, turret, lid) as its own light GLB in the robot's frame, with its origin on its pivot or axis. The game loads them in the browser and moves them; the drawn stand-ins show until they arrive, and headless runs never load them. To rebuild 971's (needs the API keys; 1678's is the same with its document):
+```
+DID=cabaa0c1c77517916df80783 WID=48cb057db38a03cc202ff44e tools/onshape-export.sh /tmp/r971.glb 96844befd4591dac162d657b
+node tools/extract-parts.mjs /tmp/r971.glb cad/robots/971.json
+```
+
 Other CAD, such as robots or field elements, can be added the same way. Export glTF (.glb) from Onshape, or convert STEP with `python3 tools/cad2glb.py in.step out.glb`. Then list the file in `cad/manifest.json` (see `cad/README.md`).
 
 ## Project layout
@@ -311,7 +322,7 @@ js/constants.js             field dimensions, timing, points (from the manual)
 js/field.js                 field geometry and colliders
 js/fuel.js                  all 504 FUEL: physics, drag, HUB processing, returns
 js/ballistics.js            drag-aware trajectory model, shot tables, shoot-on-the-move solver
-js/robotConfigs.js          the three robots' specs
+js/robotConfigs.js          the robots' specs
 js/robotModels.js           3D models
 js/robot.js                 swerve drive, intake, storage, turret/chassis aiming, shooter, climber
 js/hopper.js                FUEL inside a robot: hopper physics, mechanisms, feed paths

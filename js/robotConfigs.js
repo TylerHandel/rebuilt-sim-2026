@@ -9,6 +9,22 @@
 //    (3in flywheel, adjustable hood), precomputed shoot-on-the-move. No climber listed.
 //  - 8793 Pumpkin Bots (team CAD): hopperless — Intake V3 -> Conveyor V2 -> Turret -> Shooter.
 //    Low profile for the TRENCH. No climber in the assembly.
+//  - 971 Spartan Robotics "Mixtape" (public Onshape CAD + technical documentation): 25x30in
+//    swerve (MK5), 4-bar ground intake that pushes the polycarbonate hopper out, roller floor to a
+//    powered omni-wheel separator that splits FUEL into two paths, kickers and ramps up into two
+//    independently powered turrets (~210deg of travel each, 4in flywheels, lead-screw hood), one
+//    stage telescoping L1 climber.
+//  - 1678 Citrus Circuits "Limestone" (public Onshape CAD + robot page): 27x27in swerve (MK5n),
+//    full-width slapdown intake with a horizontal hopper extension, roller floor of flex wheels to
+//    a ball tunnel, full-width 3.5in drum with three hood rollers and an articulating hood fixed to
+//    the chassis (fires out the back), a corrugated lid on the climber that lifts to make the
+//    hopper taller (the vertical extension), L1 climb.
+//  - 1690 Orbit "Kepler" (Onshape views + X_T release, reveal and CAD threads): swerve, over-bumper
+//    intake with passive deploy, expanding hopper with a lattice frame over a powered roller floor
+//    (50-55 FUEL open-topped), vertical kicker into a compact gear-driven turret on an 8in bearing,
+//    shoot-on-the-move while intaking.
+//  Nets: all three carry netting over the open parts of their hoppers (the physics lets the load
+//  bulge it up, bay.dome; 1678's closes the sides of the lifted lid).
 import { IN } from './constants.js';
 
 export const BUMPER_T = 3.25 * IN; // bumper thickness incl. backing
@@ -165,11 +181,148 @@ export const ROBOTS = {
     stats: { 'Shot rate': '13 BPS', Aiming: 'Turret', 'Top speed': '14.8 ft/s', Trench: 'Yes' },
     colors: { frame: 0x1f2126, accent: 0xf07a1a, trim: 0xf07a1a },
   },
+  971: {
+    key: '971',
+    team: 971,
+    teamName: 'Spartan Robotics',
+    robotName: 'Mixtape',
+    archetype: 'Twin turrets',
+    blurb: 'Two independently aimed turrets fed by a roller floor and a powered separator that splits FUEL into two streams. The hopper is pushed out by its 4-bar intake, and a net holds the load in over the top. Climbs Level 1.',
+    // their CAD: bumpers +-0.394 x +-0.457 m
+    frame: { length: 24.5 * IN, width: 29.5 * IN },
+    height: 22 * IN,
+    mass: 60,
+    drive: { maxSpeed: 4.4, maxAccel: 9.5, maxOmega: 8.5, maxAlpha: 32 },
+    // 4-bar ground intake under the hopper's front (their CAD: the beater tube folds up inside the
+    // hopper, and deploying it pushes the hopper out)
+    intake: { width: 29 * IN, reach: 0.18, rate: 200, pull: 5, deployTime: 0.35, side: 'front', latched: false },
+    storage: { extLen: 0.28, extend: 'latched' },
+    // the hopper as the FUEL sees it (their CAD): polycarbonate walls to 0.54 m, 0.7 m apart; the
+    // roller floor slopes down to the back wall, under which the separator and kicker take FUEL
+    // to the two ramps. The net over the open top bulges up with the load.
+    bay: {
+      x0: 0.0, x1: 0.34, hw: 0.345, top: 0.54,
+      dome: { h: 0.15, x0: 0.0, cx: 0, cz: 0, rHole: -1 },
+      floor: { a: 0.14, b: 0.12, lo: 0.14, hi: 0.22 },
+      drive: 'floor', driveSpeed: 2.0,
+      // separator in the middle at the back wall: each side goes up its own ramp into its turret
+      feed: {
+        x: 0.02, z: 0, zs: [-0.12, 0.12],
+        vias: [
+          [[-0.06, 0.24, -0.17], [-0.15, 0.34, -0.21], [-0.19, 0.46, -0.21]],
+          [[-0.06, 0.24, 0.17], [-0.15, 0.34, 0.21], [-0.19, 0.46, 0.21]],
+        ],
+      },
+    },
+    shooter: {
+      type: 'turret',
+      // two 10in X-contact bearings on the platform behind the hopper (their CAD)
+      turrets: [{ x: -0.148, z: -0.21 }, { x: -0.148, z: 0.21 }],
+      turretPos: { x: -0.148, z: -0.21 },
+      exitRadius: 0.1,
+      exitY: 0.54,
+      turretRange: 105, turretRate: 600, // ~210deg of travel between hard stops
+      bps: 20,
+      hoodMin: 35, hoodMax: 85, // 50deg of hood travel on the lead screw
+      speedMax: 17,
+      spinTau: 0.28,
+      shotDrop: 0.004,
+      speedSigma: 0.014, angleSigma: 0.7, yawSigma: 0.7,
+    },
+    climber: { maxLevel: 1, times: [0, 2.0] }, // one-stage telescoping arm
+    stats: { 'Shot rate': '20 BPS (2 turrets)', Aiming: 'Twin turrets', 'Top speed': '14.4 ft/s', Trench: 'Yes', Climb: 'Level 1' },
+    colors: { frame: 0xb4b9c1, accent: 0xc62828, trim: 0x2a2c31 }, // raw aluminum, red, black hoods
+  },
+  1678: {
+    key: '1678',
+    team: 1678,
+    teamName: 'Citrus Circuits',
+    robotName: 'Limestone',
+    archetype: 'Drum + lift',
+    blurb: 'Milstein Division champion. A full-width drum with three hood rollers fires out the back, fed by a roller floor and ball tunnel. The hopper grows out with the intake and up with the climber, with netting around the lifted lid. Climbs Level 1.',
+    frame: { length: 27.0 * IN, width: 27.0 * IN },
+    height: 21.6 * IN,
+    mass: 62,
+    drive: { maxSpeed: 4.5, maxAccel: 9.8, maxOmega: 8.8, maxAlpha: 33 },
+    // full-width slapdown: 2in silicone roller + 1.25in kicker bar, pivot at the front
+    intake: { width: 25 * IN, reach: 0.1, rate: 200, pull: 5, deployTime: 0.3, side: 'front', latched: false },
+    // the horizontal extension rides out with the intake (a slanted slot in its side plates)
+    storage: { extLen: 0.2, extend: 'intake' },
+    // their CAD: roller floor (dead-axle rollers, then flex wheels) sloping down to the ball
+    // tunnel at the back; the lid (corrugated plastic on the climber tubes) sits at 0.52 m and
+    // lifts lift.h with the climber (it comes back down under the TRENCH), netting on the sides
+    bay: {
+      x0: -0.09, x1: 0.33, hw: 0.3, top: 0.52,
+      lift: { h: 0.2 },
+      floor: { a: 0.157, b: 0.3, lo: 0.12, hi: 0.23 },
+      drive: 'floor', driveSpeed: 2.4,
+      // up the ball tunnel (active backing rollers) to the drum
+      feed: { x: -0.09, via: [[-0.14, 0.2], [-0.17, 0.34], [-0.2, 0.47]] },
+    },
+    shooter: {
+      type: 'fixed',
+      facing: 'back', // the drum at the back throws FUEL back over itself
+      lanes: [-0.21, -0.07, 0.07, 0.21],
+      exit: { x: -0.33, y: 0.56 }, // over the drum (their CAD)
+      bps: 26,
+      hoodMin: 38, hoodMax: 76,
+      speedMax: 18,
+      spinTau: 0.3,
+      shotDrop: 0.002,
+      speedSigma: 0.015, angleSigma: 0.75, yawSigma: 0.75,
+    },
+    climber: { maxLevel: 1, times: [0, 1.6] },
+    stats: { 'Shot rate': '26 BPS', Aiming: 'Chassis', 'Top speed': '14.8 ft/s', Trench: 'Yes', Climb: 'Level 1' },
+    colors: { frame: 0x1d1f24, accent: 0x5fd13a, trim: 0x2a2c31 }, // black anodized, lime
+  },
+  1690: {
+    key: '1690',
+    team: 1690,
+    teamName: 'Orbit',
+    robotName: 'Kepler',
+    archetype: 'Compact turret',
+    blurb: 'A compact gear-driven turret on an 8in bearing shoots on the move while the intake keeps running. The hopper expands forward under a lattice frame, and netting over the top stops FUEL bouncing out.',
+    frame: { length: 25.0 * IN, width: 29.0 * IN },
+    height: 21.5 * IN,
+    mass: 58,
+    // they geared down and went to spiked wheels mid-season for the BUMP, TRENCH and defense
+    drive: { maxSpeed: 4.0, maxAccel: 10.5, maxOmega: 8.5, maxAlpha: 34 },
+    // over-bumper: motorized main roller with light compression over an aluminum bottom roller,
+    // deployed by surgical tubing (it stays down)
+    intake: { width: 27 * IN, reach: 0.2, rate: 200, pull: 5, deployTime: 0.3, side: 'front', latched: true },
+    storage: { extLen: 0.25, extend: 'latched' },
+    // Onshape views: the powered roller floor covers the front of the robot; the turret sits at the
+    // back left and the electronics box at the back right. A vertical kicker in front of the
+    // turret lifts FUEL into it. Netting over the lattice frame on top.
+    bay: {
+      x0: -0.02, x1: 0.31, hw: 0.34, top: 0.45,
+      dome: { h: 0.16, x0: -0.02, cx: -0.12, cz: -0.17, rHole: 0.16 },
+      floor: { a: 0.13, b: 0.08, lo: 0.12, hi: 0.17 },
+      drive: 'floor', driveSpeed: 2.0,
+      feed: { x: -0.02, z: -0.17, via: [[-0.05, 0.26, -0.17], [-0.09, 0.4, -0.17]] },
+    },
+    shooter: {
+      type: 'turret',
+      turretPos: { x: -0.12, z: -0.17 },
+      exitRadius: 0.09,
+      exitY: 0.52,
+      turretRange: 200, turretRate: 720,
+      bps: 12,
+      hoodMin: 40, hoodMax: 80,
+      speedMax: 16,
+      spinTau: 0.3, // no added flywheel mass
+      shotDrop: 0.006,
+      speedSigma: 0.012, angleSigma: 0.55, yawSigma: 0.55,
+    },
+    climber: null,
+    stats: { 'Shot rate': '12 BPS', Aiming: 'Turret', 'Top speed': '13.1 ft/s', Trench: 'Yes' },
+    colors: { frame: 0x2a2d33, accent: 0x2d6fd6, trim: 0x9aa0a8 }, // black lattice, blue, aluminum
+  },
 };
 
-export const ROBOT_ORDER = ['2910', '4414', '8793'];
+export const ROBOT_ORDER = ['2910', '4414', '8793', '971', '1678', '1690'];
 
-// Optional add-on climbers (none of the three real robots climbed)
+// Optional add-on climbers for robots without one (971 and 1678 have their own, cfg.climber)
 export const CLIMBER_OPTIONS = {
   none: null,
   l1: { maxLevel: 1, times: [0, 1.6] },

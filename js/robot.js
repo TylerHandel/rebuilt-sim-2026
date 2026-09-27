@@ -41,7 +41,7 @@ export class Robot {
 
     // ---- model
     this.model = buildRobotModel(cfg, alliance);
-    if (climber) addClimberVisual(this.model, cfg);
+    if (climber && !cfg.climber) addClimberVisual(this.model, cfg); // a built-in climber is in the model
     this.visual = new THREE.Group();
     this.visual.add(this.model.root);
     scene.add(this.visual);
@@ -57,9 +57,12 @@ export class Robot {
     });
     this.passTable = new ShotTable({ h0, Ht: FUEL.radius + 0.02, hoodMin: sh.hoodMin, hoodMax: sh.hoodMax, speedMax: sh.speedMax, mode: 'pass', passTheta: 55 });
 
+    // turret shooters: one or more turrets (971 has two), each aiming itself
+    this.turrets = sh.type === 'turret' ? (sh.turrets || [sh.turretPos]) : [];
     this.hopper = new Hopper(cfg.bay);
     const ext = cfg.storage.extLen || 0;
-    this.geoCap = { retracted: measureCapacity(cfg.bay, cfg.bay.x1), extended: measureCapacity(cfg.bay, cfg.bay.x1 + ext) };
+    // retracted: hopper in and any lid (1678's, on the climber) down
+    this.geoCap = { retracted: measureCapacity(cfg.bay, cfg.bay.x1, 0), extended: measureCapacity(cfg.bay, cfg.bay.x1 + ext, 1) };
     this._createBody();
     this.reset();
   }
@@ -145,6 +148,7 @@ export class Robot {
     this.flywheel = 0;
     this.hoodDeg = this.cfg.shooter.hoodMin;
     this.turretYaw = 0;
+    this.turretYaws = this.turrets.map(() => 0);
     this.feedTimer = 0;
     this.lane = 0;
     this.intakeTokens = 0;
@@ -162,6 +166,7 @@ export class Robot {
     this.climbTarget = this.climberCfg ? this.climberCfg.maxLevel : 0;
     this.climbLevel = 0;
     this.climbTime = 0;
+    this.climbClaim = false; // an AI has picked this robot to climb for its alliance
     this.stats = { shots: 0, intaked: 0, passes: 0, dropped: 0 };
     this.lastInZone = false;
     this.preview = null;
@@ -374,6 +379,9 @@ export class Robot {
     // down, and the load under it with it)
     const dome = this.cfg.bay.dome;
     if (dome) this.hopper.domeScale = clamp((this._headroom() - 0.005 - this.cfg.bay.top) / dome.h, 0, 1);
+    // a lid that rises with the hopper (1678's, on the climber) comes back down under the TRENCH
+    const lift = this.cfg.bay.lift;
+    if (lift) this.hopper.liftScale = Math.min(this.hopperDeploy, clamp((this._headroom() - 0.005 - this.cfg.bay.top) / lift.h, 0, 1));
     // the robot's acceleration and turn rate, felt by the FUEL inside
     let ax = 0, az = 0, alpha = 0;
     if (this.prevVel) {
@@ -546,11 +554,12 @@ export class Robot {
   // and it doesn't drop into a HUB on the way (that would be a G407 from outside the zone)
   _passLands() {
     const sh = this.cfg.shooter;
-    const psi = sh.type === 'fixed' ? this.yaw + this.aimOffset : this.yaw + this.turretYaw;
+    const ti = this.turrets.length ? this.lane % this.turrets.length : 0;
+    const psi = sh.type === 'fixed' ? this.yaw + this.aimOffset : this.yaw + this.turretYaws[ti];
     // from where it really leaves, moving with the (maybe turning) robot
     const exit = sh.type === 'fixed'
       ? this._exitPoint(sh.lanes[this.lane % sh.lanes.length])
-      : this.localToWorld(sh.turretPos.x + Math.cos(this.turretYaw) * sh.exitRadius, sh.exitY, sh.turretPos.z - Math.sin(this.turretYaw) * sh.exitRadius);
+      : this.localToWorld(...this._turretExit(ti));
     const lv = this.velocityAt(exit);
     const th = this.hoodDeg * DEG, v = this.flywheel;
     const pts = trajectoryPoints(exit, { x: Math.cos(psi) * Math.cos(th) * v + lv.x, y: Math.sin(th) * v, z: -Math.sin(psi) * Math.cos(th) * v + lv.z });
@@ -565,10 +574,17 @@ export class Robot {
     return true;
   }
 
-  _exitPoint(laneZ = 0) {
+  _exitPoint(laneZ = 0, ti = 0) {
     const sh = this.cfg.shooter;
     if (sh.type === 'fixed') return this.localToWorld(sh.exit.x, sh.exit.y, laneZ);
-    return this.localToWorld(sh.turretPos.x, sh.exitY, sh.turretPos.z);
+    const t = this.turrets[ti];
+    return this.localToWorld(t.x, sh.exitY, t.z);
+  }
+
+  // where FUEL leaves turret ti's hood right now (robot frame)
+  _turretExit(ti) {
+    const sh = this.cfg.shooter, t = this.turrets[ti], a = this.turretYaws[ti];
+    return [t.x + Math.cos(a) * sh.exitRadius, sh.exitY, t.z - Math.sin(a) * sh.exitRadius];
   }
 
   _shooter(dt, t, on) {
@@ -599,8 +615,9 @@ export class Robot {
         exit = new THREE.Vector3(this.pos.x + (dx / dd) * along, this.pos.y + sh.exit.y, this.pos.z + (dz / dd) * along);
         lv = { x: this.vel.x, z: this.vel.z };
       } else {
-        // FUEL leaves the hood exitRadius in front of the turret axis, along the shot line
-        const c = this._exitPoint(0);
+        // FUEL leaves the hood exitRadius in front of the turret axis, along the shot line (the
+        // turret that fires next sets the shot)
+        const c = this._exitPoint(0, this.lane % this.turrets.length);
         const dx = tgt.x - c.x, dz = tgt.z - c.z;
         const dd = Math.hypot(dx, dz) || 1;
         exit = new THREE.Vector3(c.x + (dx / dd) * sh.exitRadius, c.y, c.z + (dz / dd) * sh.exitRadius);
@@ -624,13 +641,33 @@ export class Robot {
             this.aimOverride = clamp(Math.sign(aimErr) * w + ff, -d.maxOmega, d.maxOmega);
           }
         } else {
-          let rel = wrapAngle(sol.psi - this.yaw);
-          const lim = sh.turretRange * DEG;
-          // choose the equivalent angle closest to the current turret position within limits
-          const cands = [rel, rel + 2 * Math.PI, rel - 2 * Math.PI].filter((a) => Math.abs(a) <= lim);
-          let goal = cands.length ? cands.reduce((a, b) => (Math.abs(b - this.turretYaw) < Math.abs(a - this.turretYaw) ? b : a)) : clamp(rel, -lim, lim);
-          this.turretYaw = approach(this.turretYaw, goal, sh.turretRate * DEG * dt);
-          aimErr = wrapAngle(sol.psi - (this.yaw + this.turretYaw));
+          // every turret aims from where it sits at the same (lead-corrected) aim point
+          const lim = sh.turretRange * DEG, margin = 8 * DEG;
+          const ti = this.lane % this.turrets.length;
+          const c0 = this._exitPoint(0, ti);
+          const ax = sol.aim.x, az = sol.aim.z; // the lead-corrected aim point
+          aimErr = 0;
+          let over = 0;
+          this.turrets.forEach((t, i) => {
+            const c = i === ti ? c0 : this._exitPoint(0, i);
+            const psi = i === ti ? sol.psi : Math.atan2(-(az - c.z), ax - c.x);
+            const rel = wrapAngle(psi - this.yaw);
+            // choose the equivalent angle closest to the current turret position within limits
+            const cands = [rel, rel + 2 * Math.PI, rel - 2 * Math.PI].filter((a) => Math.abs(a) <= lim);
+            const cur = this.turretYaws[i];
+            const goal = cands.length ? cands.reduce((a, b) => (Math.abs(b - cur) < Math.abs(a - cur) ? b : a)) : clamp(rel, -lim, lim);
+            this.turretYaws[i] = approach(cur, goal, sh.turretRate * DEG * dt);
+            const err = wrapAngle(psi - (this.yaw + this.turretYaws[i]));
+            if (Math.abs(err) > Math.abs(aimErr)) aimErr = err;
+            // near a hard stop (turrets with limited travel): how far the chassis should turn
+            if (lim < Math.PI && Math.abs(rel) > lim - margin && Math.abs(rel) - (lim - margin) > Math.abs(over)) over = rel - clamp(rel, margin - lim, lim - margin);
+          });
+          this.turretYaw = this.turretYaws[0];
+          if (wantShoot && over) {
+            // the chassis turns to bring the target back inside the turrets' travel
+            const d = this.cfg.drive, a = Math.abs(over);
+            this.aimOverride = Math.sign(over) * Math.min(d.maxOmega, Math.sqrt(2 * 0.7 * d.maxAlpha * a), 7 * a);
+          }
         }
         this._lastPsi = sol.psi;
         // a pass (shuttling FUEL back) doesn't have to be perfect: instead of waiting for a clean
@@ -683,7 +720,9 @@ export class Robot {
   _startFeed() {
     const sh = this.cfg.shooter, f = this.cfg.bay.feed;
     let laneZ = f.z ?? 0;
+    const ti = this.turrets.length ? this.lane % this.turrets.length : 0;
     if (sh.type === 'fixed') laneZ = sh.lanes[this.lane % sh.lanes.length];
+    else if (f.zs) laneZ = f.zs[ti]; // twin turrets: each has its own side of the separator
     const fp = new THREE.Vector3(f.x, this.hopper.floorAt(f.x, laneZ) + R, laneZ);
     let best = null, bd = Infinity;
     for (const e of this.hopper.list) {
@@ -692,16 +731,17 @@ export class Robot {
       if (d < bd) { bd = d; best = e; }
     }
     if (!best) return false;
-    if (sh.type === 'fixed') this.lane++;
-    const via = f.via.map(([x, y, z]) => new THREE.Vector3(x, y, z ?? laneZ));
+    this.lane++;
+    const via = (f.vias ? f.vias[ti] : f.via).map(([x, y, z]) => new THREE.Vector3(x, y, z ?? laneZ));
     const end = sh.type === 'fixed'
       ? () => new THREE.Vector3(sh.exit.x, sh.exit.y, laneZ)
-      : () => new THREE.Vector3(sh.turretPos.x + Math.cos(this.turretYaw) * sh.exitRadius, sh.exitY, sh.turretPos.z - Math.sin(this.turretYaw) * sh.exitRadius);
+      : () => new THREE.Vector3(...this._turretExit(ti));
     this.hopper.startTransit(best, via, end, FEED_SPEED, (e) => {
       // a FUEL that reaches the wheels while the shot isn't lined up waits there
       if (this.ready && this.shot && this.enabled && (this.cmd.shoot || this.cmd.pass)) this._fire(e, this.shot.mode);
     });
     best.tr.feed = true;
+    best.tr.turret = ti;
     return true;
   }
 
@@ -711,7 +751,7 @@ export class Robot {
     this.hopper.remove(e);
     this._unstore(b);
     const exit = this.localToWorld(e.p.x, e.p.y, e.p.z);
-    let psi = sh.type === 'fixed' ? this.yaw + this.aimOffset : this.yaw + this.turretYaw;
+    let psi = sh.type === 'fixed' ? this.yaw + this.aimOffset : this.yaw + this.turretYaws[e.tr?.turret ?? 0];
     const k = this.noiseScale ?? 1; // AI skill: extra scatter for weaker drivers
     psi += gauss() * sh.yawSigma * k * DEG;
     const th = this.hoodDeg * DEG + gauss() * sh.angleSigma * k * DEG;
@@ -840,8 +880,12 @@ export class Robot {
       feeding: this.feeding,
       hoodDeg: this.hoodDeg,
       turretYaw: this.turretYaw,
+      turretYaws: this.turretYaws,
+      climbLift: this.climbLift,
+      climbState: this.climbState,
       rotorAngle: this.hopper.finAngle,
       load: this.hopper.list,
+      lift: this.hopper.liftScale,
     }, dt);
     // swerve module steering to match the motion
     const lv = this.worldToLocalVec(this.vel.x, this.vel.z);
