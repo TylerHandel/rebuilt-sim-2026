@@ -12,11 +12,18 @@
 // boxes [x0, x1, y0, y1, z0, z1]; "onlyName" / "onlyBox" keep just the parts under a node
 // matching one of the regexes or centered in one of the boxes. "glass": regexes for parts that are
 // polycarbonate but aren't see-through in the CAD (they get a clear material named "poly").
+// "like": { "glb": ref.glb, "node": "name" } keeps only the parts that match (by name and
+// position, within 5 mm) a part under that node in another export of the same robot, and
+// copies which of them are see-through; for picking a subassembly out of a STEP conversion,
+// which flattens the tree (tools/step2glb.mjs). "smooth": keep the surface normals and the
+// source's own tessellation instead of simplifying (for STEP conversions: round parts stay
+// round), quantized to keep the file small.
 import { NodeIO, getBounds } from '@gltf-transform/core';
 import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
-import { prune, dedup, weld, simplify, flatten, join } from '@gltf-transform/functions';
+import { prune, dedup, weld, simplify, flatten, join, quantize } from '@gltf-transform/functions';
 import { MeshoptSimplifier } from 'meshoptimizer';
 import fs from 'node:fs';
+import path from 'node:path';
 
 const [src, recipePath] = process.argv.slice(2);
 if (!recipePath) { console.log('usage: node tools/extract-parts.mjs robot.glb recipe.json'); process.exit(1); }
@@ -31,8 +38,25 @@ const AXES = {
   '-y': [0, 0, -1, 0, -1, 0, 0, 0, 0, 1, 0, 0], // model = (-y, z, -x)
 };
 
+const center = (n) => { const b = getBounds(n); return [0, 1, 2].map((i) => (b.min[i] + b.max[i]) / 2); };
+const see = (n) => n.getMesh().listPrimitives().some((p) => { const m = p.getMaterial(); return m && (m.getAlphaMode() === 'BLEND' || m.getBaseColorFactor()[3] < 0.99); });
+const refs = new Map();
+const refParts = async (like) => {
+  const k = like.glb + '|' + like.node;
+  if (!refs.has(k)) {
+    const ref = await io.read(path.resolve(path.dirname(src), like.glb)); // next to the source
+    const top = ref.getRoot().listNodes().find((n) => n.getName().startsWith(like.node));
+    if (!top) throw new Error('no node ' + like.node + ' in ' + like.glb);
+    const list = [];
+    top.traverse((n) => { if (n.getMesh()) list.push({ name: n.getName(), c: center(n), clear: see(n) }); });
+    refs.set(k, list);
+  }
+  return refs.get(k);
+};
+
 for (const part of recipe.parts) {
   const doc = await io.read(src);
+  const like = part.like ? await refParts(part.like) : null;
   const root = doc.getRoot();
   const scene = root.listScenes()[0];
   const inc = (part.include || []).map((n) => n.toLowerCase());
@@ -53,9 +77,14 @@ for (const part of recipe.parts) {
     const cl = clear || glassRe.some((r) => r.test(name));
     if (cl && n.getMesh()) glass.add(n);
     if (hit && n.getMesh()) {
-      const b = getBounds(n);
-      const c = toModel([0, 1, 2].map((i) => (b.min[i] + b.max[i]) / 2));
+      const cc = center(n);
+      const c = toModel(cc);
       let ok = !(part.skipBox || []).some((bx) => inBox(c, bx));
+      if (ok && like) {
+        const m = like.find((q) => q.name === name && Math.hypot(q.c[0] - cc[0], q.c[1] - cc[1], q.c[2] - cc[2]) < 0.005);
+        ok = !!m;
+        if (m && m.clear) glass.add(n);
+      }
       if (ok && (part.onlyName || part.onlyBox)) ok = nm || (part.onlyBox || []).some((bx) => inBox(c, bx));
       if (ok) keep.add(n);
     }
@@ -73,9 +102,13 @@ for (const part of recipe.parts) {
   const pivot = doc.createNode('pivot').setMatrix([...M, -o[0], -o[1], -o[2], 1]);
   for (const c of [...scene.listChildren()]) { scene.removeChild(c); pivot.addChild(c); }
   scene.addChild(pivot);
-  // flat CAD surfaces: drop the split normals so vertices weld and the simplifier can work
-  for (const m of root.listMeshes()) for (const p of m.listPrimitives()) { p.setAttribute('NORMAL', null); p.setAttribute('TEXCOORD_0', null); }
-  await doc.transform(prune(), dedup(), weld({ tolerance: 0.0002 }), simplify({ simplifier: MeshoptSimplifier, ratio: part.ratio ?? 0.08, error: part.error ?? 0.02 }), flatten(), join({ keepNamed: false }), prune());
+  if (part.smooth) {
+    await doc.transform(prune(), dedup(), weld(), flatten(), join({ keepNamed: false }), prune(), quantize());
+  } else {
+    // flat CAD surfaces: drop the split normals so vertices weld and the simplifier can work
+    for (const m of root.listMeshes()) for (const p of m.listPrimitives()) { p.setAttribute('NORMAL', null); p.setAttribute('TEXCOORD_0', null); }
+    await doc.transform(prune(), dedup(), weld({ tolerance: 0.0002 }), simplify({ simplifier: MeshoptSimplifier, ratio: part.ratio ?? 0.08, error: part.error ?? 0.02 }), flatten(), join({ keepNamed: false }), prune());
+  }
   let tris = 0;
   root.listMeshes().forEach((m) => m.listPrimitives().forEach((p) => { tris += (p.getIndices() || p.getAttribute('POSITION')).getCount() / 3; }));
   await io.write(part.out, doc);

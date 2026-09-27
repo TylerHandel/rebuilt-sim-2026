@@ -70,6 +70,9 @@ export const ROBOTS = {
       x0: -0.143, x1: 0.323, hw: 0.33, top: 0.54, extTop: 0.51, // under the hopper top (their CAD)
       floor: { a: 0.1, b: 0.266, lo: 0.09, hi: 0.17 },
       drive: 'floor', driveSpeed: 1.8,
+      // the intake retracting over the load crams it into the indexer, far harder than rollers
+      // can push (FUEL.intakePush); how hard it squeezes the load before it stalls (N, estimate)
+      push: 180,
       // up the roller ramp at the back of the hopper, under the hood to the drum (their CAD)
       feed: { x: -0.09, via: [[-0.1, 0.25], [-0.12, 0.38], [-0.2, 0.44]] },
     },
@@ -95,7 +98,7 @@ export const ROBOTS = {
     teamName: 'HighTide',
     robotName: 'RIPCURRENT',
     archetype: 'Dye Rotor',
-    blurb: 'Extending hopper holds 88 FUEL, about 110 with its net stretched. A Dye Rotor single-streams FUEL into a fast turret shooter with precomputed shoot-on-the-move.',
+    blurb: 'Extending hopper holds about 88 FUEL under a stretchy net. A Dye Rotor single-streams FUEL into a fast turret shooter with precomputed shoot-on-the-move.',
     frame: { length: 25.0 * IN, width: 32.0 * IN },
     height: 21.75 * IN,
     mass: 60,

@@ -55,8 +55,9 @@ For a new Claude Code session. The latest work is on branch `claude/great-hypati
 - Colors follow the real robots: 2910 in raw aluminum with grey plates and light green drum wheels (their CAD), and 4414 in black and carbon with the teal truss (binder renders). 8793 is unchanged (no source yet). 2910 has clear lids over the fixed hopper and the expanding section.
 
 ## Done: capacity from the model
-- Capacity is measured from each hopper's geometry (`measureCapacity` in `js/hopper.js`: pour n FUEL in, settle 2 s, largest n under 10 mm of extra squeeze, bisection, cached). `Robot.geoCap` holds retracted/extended; `capacity()` / `maxCapacity()` use it, and so do the UI robot cards, the AI and the AUTO timeouts. `storage.capacity` / `retracted` in the configs are only the teams' stated numbers now.
-- Today: 2910 48 → 71, 4414 57 → 111 (walls to 0.53 m, then the net's dome), 8793 12.
+- Capacity is measured from each hopper's geometry (`measureCapacity` in `js/hopper.js`: pour n FUEL in, settle 2 s, largest n whose hardest ball-to-ball contact stays under what the intake pushes, `bay.push` or `FUEL.intakePush` 45 N, bisection, cached). `Robot.geoCap` holds retracted/extended; `capacity()` / `maxCapacity()` use it, and so do the UI robot cards, the AI and the AUTO timeouts. `storage.capacity` / `retracted` in the configs are only the teams' stated numbers now.
+- FUEL is soft (since the soft-FUEL change): full 5.91 in balls with XPBD contacts at `FUEL.springRate` (20 lb/in, the nominal spring rate in AndyMark's 2026 Scoring Element Testing Report; aged FUEL firms up to ~30-38). `Hopper.pressure` is the hardest contact in N. The old model was hard 0.9-diameter spheres, which packed ~20% more than real FUEL. 2910's compactor squeezes to `bay.push` 180 N (an estimate) and stalls past it.
+- Today: 2910 56 → 77, 4414 39 → 85 (walls to 0.53 m, then the net's dome), 8793 9, 971 31 → 58, 1678 26 → 58, 1690 26 → 45, 4946 36 → 72. At 45 N, 2910 would be 38 → 57 and 4414 85, against stated 58 and 88.
 - Captured FUEL enters on top of the pile by the entry (`Hopper.dropHeight`), and is pushed in once that spot is up to the top.
 
 ## Done: passes, camera

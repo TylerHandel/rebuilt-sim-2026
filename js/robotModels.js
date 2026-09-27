@@ -1725,11 +1725,11 @@ function build4946(cfg, alliance) {
     g.translate(0, 0, sz * iw - 0.003);
     mesh(g, grey, box);
   }
-  const intakeRollers = [
-    wheelStack(box, 2 * iw - 0.02, 0.032, 10, green, xF - 0.03, 0.26, 0, 0.022),
-    cylZ(0.022, 2 * iw - 0.02, M.black, box, xF - 0.02, 0.19, 0, 12),
-    cylZ(0.02, 2 * iw - 0.02, M.alu, box, xF - 0.1, 0.08, 0, 12),
-  ];
+  // spun about their axles (z): the two over the FUEL turn with their undersides moving in,
+  // the low one it rides over turns the other way
+  const star = wheelStack(box, 2 * iw - 0.02, 0.032, 10, green, xF - 0.03, 0.26, 0, 0.022);
+  const upper = cylZ(0.022, 2 * iw - 0.02, M.black, box, xF - 0.02, 0.19, 0, 12);
+  const under = cylZ(0.02, 2 * iw - 0.02, M.alu, box, xF - 0.1, 0.08, 0, 12);
   rbx(0.03, 0.03, 2 * iw, 0.004, tubeMat, box, xF - 0.015, 0.44, 0); // top crossbar
   kraken(box, xF - 0.12, 0.3, iw + 0.04, true, 'z');
   bolts.done();
@@ -1740,7 +1740,10 @@ function build4946(cfg, alliance) {
   const anim = (st, dt) => {
     const ex = st.hopperDeploy * extLen;
     box.position.x = ex;
-    for (const r of intakeRollers) r.rotation.y += st.intakeSpeed * dt * 40;
+    const spin = st.intakeSpeed * dt * 40;
+    star.rotation.z -= spin; // a group: its axle is its z
+    upper.rotation.y -= spin; // cylZ meshes are tipped onto z, so their own y is the axle
+    under.rotation.y += spin;
     rotor.rotation.y = st.rotorAngle ?? 0;
     turret.rotation.y = st.turretYaw;
     fly.rotation.z -= st.flywheel * dt * 9;

@@ -1,7 +1,7 @@
 // FUEL inside a robot. Held FUEL is simulated in the robot's own frame with a light
 // position-based solver instead of full rigid bodies: gravity, the robot's acceleration and
 // rotation (so the load sloshes when it brakes or spins), soft ball-to-ball contact (FUEL is
-// foam), the hopper's walls, floor and internal parts, and what the mechanisms do to it (a
+// foam: a spring at its measured rate, FUEL.springRate), the hopper's walls, floor and internal parts, and what the mechanisms do to it (a
 // powered floor, a rotor, a conveyor). Every ball moves on its own; nothing snaps to a slot.
 // FUEL on its way to the shooter (or back out through the intake) follows that path.
 //
@@ -12,17 +12,18 @@ import { FUEL } from './constants.js';
 import { clamp } from './util.js';
 
 const R = FUEL.radius;
-const D_BALL = 2 * R * 0.9; // foam squashes, so centers can get a little closer than a diameter
+const D_BALL = 2 * R; // FUEL touch at a full diameter and squash (softly) past that
+const K_BALL = FUEL.springRate;
 const R_WALL = R * 0.96;
 const G = 9.81;
 const ITER = 3;
 const MAX_SPEED = 5;
 
-// How much FUEL a hopper holds: pour n in, let it settle, and see whether the load fits without
-// squashing past what foam gives (SQUEEZE_MAX). Largest n that fits, by bisection. Seeded, and
-// cached per hopper, so it's the same every time. lift: how far a lid that rises with the hopper
-// (spec.lift) is up, 0..1.
-const SQUEEZE_MAX = 0.01;
+// How much FUEL a hopper holds: pour n in, let it settle, and see whether the intake could
+// have squeezed the last one in: no two FUEL pressed together harder than it pushes
+// (spec.push, e.g. 2910's compacting intake; FUEL.intakePush otherwise). Largest n that fits,
+// by bisection. Seeded, and cached per hopper, so it's the same every time. lift: how far a
+// lid that rises with the hopper (spec.lift) is up, 0..1.
 const capCache = new Map();
 export function measureCapacity(spec, front, lift = 1) {
   const key = spec;
@@ -40,7 +41,7 @@ export function measureCapacity(spec, front, lift = 1) {
     h.fill(Array.from({ length: n }, () => ({})), rng);
     let p = 0;
     for (let i = 0; i < 240; i++) { h.step(1 / 120, env); if (i >= 210) p = Math.max(p, h.pressure); }
-    return p < SQUEEZE_MAX;
+    return p < (spec.push ?? FUEL.intakePush);
   };
   let lo = 1, hi = 8;
   while (fits(hi) && hi < 400) { lo = hi; hi *= 2; }
@@ -72,7 +73,8 @@ export class Hopper {
     this.list = [];
     this.front = spec.x1;
     this.wall = Infinity; // a mechanism sweeping in from the front (2910's intake compacting)
-    this.pressure = 0;    // how hard the load is squeezed (deepest ball overlap, m)
+    this.pressure = 0;    // how hard the load is squeezed (hardest ball-to-ball contact, N)
+    this.lam = new Map(); // contact impulses, per step (soft contacts)
     this.quiet = 0;
     this.finAngle = 0; // Dye Rotor: how far it has turned (where the Dolphin Fin is, robot frame, about +y)
     this.domeScale = 1;
@@ -147,7 +149,7 @@ export class Hopper {
   }
 
   add(b, p, v) {
-    const e = { b, p: p.clone(), v: v.clone(), prev: new THREE.Vector3(), tr: null };
+    const e = { b, p: p.clone(), v: v.clone(), prev: new THREE.Vector3(), tr: null, squash: 0 };
     b.hop = e;
     this.list.push(e);
     this.quiet = 0;
@@ -288,7 +290,13 @@ export class Hopper {
     // constraints: ball-ball contact, then the hopper around them
     list.sort((a, b) => a.p.x - b.p.x);
     const n = list.length;
+    // soft contacts (XPBD): each pair pushes apart with the foam's spring rate, so a load only
+    // squashes as hard as something presses it (gravity, braking, an intake cramming FUEL in)
     let squeeze = 0;
+    const lam = this.lam;
+    lam.clear();
+    const soft = 1 / (K_BALL * dt * dt), W = 2 / FUEL.mass;
+    for (const e of list) e.squash = 0;
     for (let it = 0; it < ITER; it++) {
       for (let i = 0; i < n; i++) {
         const a = list[i];
@@ -301,8 +309,19 @@ export class Hopper {
           if (d2 >= D_BALL * D_BALL) continue;
           if (a.tr && b.tr) continue;
           const d = Math.sqrt(d2) || 1e-4;
-          if (it === ITER - 1) squeeze = Math.max(squeeze, D_BALL - d);
-          const corr = (D_BALL - d) / d;
+          if (it === ITER - 1) {
+            squeeze = Math.max(squeeze, (D_BALL - d) * K_BALL);
+            // how far each is squashed (half the overlap), for drawing it
+            a.squash = Math.max(a.squash, (D_BALL - d) / 2);
+            b.squash = Math.max(b.squash, (D_BALL - d) / 2);
+          }
+          let corr = (D_BALL - d) / d; // FUEL on its way to the shooter shoves the rest aside
+          if (!a.tr && !b.tr) {
+            const key = i * 4096 + j, l0 = lam.get(key) || 0;
+            const dl = Math.max(-l0, (D_BALL - d - soft * l0) / (W + soft)); // pushes, never pulls
+            lam.set(key, l0 + dl);
+            corr = (dl * W) / d;
+          }
           const ka = a.tr ? 0 : b.tr ? 1 : 0.5, kb = b.tr ? 0 : a.tr ? 1 : 0.5;
           const cx = dx * corr, cy = (d2 > 1e-8 ? dy : 1e-4) * corr, cz = dz * corr;
           a.p.x -= cx * ka; a.p.y -= cy * ka; a.p.z -= cz * ka;
