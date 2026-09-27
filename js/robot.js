@@ -3,12 +3,12 @@ import { RAPIER, yawQuat } from './physics.js';
 import {
   BLUE, RED, HALF_L, HALF_W, HUB, FUEL, TOWER, TRENCH, GROUP, groups, IN,
 } from './constants.js';
-import { BUMPER_T, BUMPER_Y0, BUMPER_Y1 } from './robotConfigs.js';
+import { BUMPER_T, BUMPER_Y0, BUMPER_Y1, fitsTrench, foldTop, frameShape, offsetShape, modulePoints } from './robotConfigs.js';
 import { buildRobotModel, addClimberVisual, BUMP_Y1 } from './robotModels.js';
 import { Hopper, measureCapacity, intakePush } from './hopper.js';
 import { ShotTable, solveMovingShot, trajectoryPoints } from './ballistics.js';
 import { Field } from './field.js';
-import { obstacleAt } from './nav.js';
+import { TRENCH_ARMS } from './nav.js';
 import { clamp, wrapAngle, approach, approachAngle, gauss, DEG, rand } from './util.js';
 
 const WHEEL_R = 0.05;
@@ -23,6 +23,8 @@ const FEED_SPEED = 7;     // m/s up the feed path into the shooter
 const CLIMB_LIFT = [0, 0.16, 0.74, 1.2]; // body lift to satisfy LEVEL 1/2/3 criteria
 
 let robotCount = 0;
+
+const _q = new THREE.Quaternion(), _v = new THREE.Vector3(), _v2 = new THREE.Vector3();
 
 export class Robot {
   constructor({ cfg, alliance, physics, scene, field, fuel, match, climber }) {
@@ -81,19 +83,20 @@ export class Robot {
       .setLinearDamping(0)
       .setAngularDamping(4);
     this.body = world.createRigidBody(desc);
-    const robotGroups = groups(GROUP.ROBOT, GROUP.STATIC | GROUP.TERRAIN | GROUP.BALL | GROUP.ROBOT_BARRIER | GROUP.ROBOT);
+    const robotGroups = groups(GROUP.ROBOT, GROUP.STATIC | GROUP.TERRAIN | GROUP.BALL | GROUP.ROBOT_BARRIER | GROUP.ROBOT | GROUP.INTAKE);
     const y0 = BUMPER_Y0, y1 = BUMPER_Y1;
-    // Bumpers: straight up and down, so two robots meet face to face and push level (a rounded
-    // top edge lets one ride up the other and lever it over); the bottom edge is chamfered, so a
-    // pile of FUEL can still lift it rather than stop it dead. Rounded corners in plan.
+    // Bumpers: straight up and down, so two robots meet face to face and push level (a fully
+    // rounded top lets one ride up the other and lever it over); the bottom edge is chamfered, so a
+    // pile of FUEL can still lift it rather than stop it dead, and the top edge a little (the pool
+    // noodles are round), so a robot that lands on another's bumper slides off rather than
+    // perching there. Rounded corners in plan.
+    // The hull follows the frame's own shape (frameShape: 4414's cut corners, 4946's round back),
+    // BUMPER_T out, with rounded corners in plan.
     const bc = 0.03, cr = 0.04, pts = [];
-    for (const [y, inset] of [[y0, bc], [y0 + bc, 0], [y1, 0]]) {
-      const hl = this.halfL - inset, hw = this.halfW - inset;
-      for (const [cx, cz] of [[1, 1], [-1, 1], [-1, -1], [1, -1]]) {
-        for (let k = 0; k <= 3; k++) {
-          const a = Math.atan2(cz, cx) - Math.PI / 4 + (k / 3) * (Math.PI / 2);
-          pts.push(cx * (hl - cr) + cr * Math.cos(a), y, cz * (hw - cr) + cr * Math.sin(a));
-        }
+    const shape = frameShape(cfg);
+    for (const [y, inset] of [[y0, bc], [y0 + bc, 0], [y1 - 0.025, 0], [y1, 0.025]]) {
+      for (const [x, z] of offsetShape(shape, BUMPER_T - inset - cr)) {
+        for (let k = 0; k < 8; k++) { const a = (k / 8) * Math.PI * 2; pts.push(x + cr * Math.cos(a), y, z + cr * Math.sin(a)); }
       }
     }
     const bumper = RAPIER.ColliderDesc.convexHull(new Float32Array(pts))
@@ -103,23 +106,27 @@ export class Robot {
       .setCollisionGroups(robotGroups);
     world.createCollider(bumper, this.body);
     const sL = cfg.frame.length / 2, sW = cfg.frame.width / 2;
-    // the frame above the bumpers: other robots meet the bumpers, not this
-    const upper = RAPIER.ColliderDesc.cuboid(sL, (this.height - y1) / 2, sW)
-      .setTranslation(0, (this.height + y1) / 2, 0)
+    // the frame and superstructure above the bumpers: solid to the field and to other robots (a
+    // robot coming down off a BUMP onto another lands on it, not through it); level robots only
+    // meet bumper to bumper, since the frame sits inside the bumpers
+    // (its lower edge chamfered, so a frame that ends up on another robot's bumper slides off)
+    const up = [];
+    for (const [x, z] of offsetShape(shape, -0.05)) up.push(x, y1, z);
+    for (const [x, z] of shape) up.push(x, y1 + 0.05, z, x, this.height, z);
+    const upper = RAPIER.ColliderDesc.convexHull(new Float32Array(up))
       .setMass(cfg.mass * 0.3)
       .setFriction(0.05).setFrictionCombineRule(RAPIER.CoefficientCombineRule.Min)
       .setRestitution(0.1)
-      .setCollisionGroups(groups(GROUP.ROBOT, GROUP.STATIC | GROUP.TERRAIN | GROUP.BALL | GROUP.ROBOT_BARRIER));
+      .setCollisionGroups(groups(GROUP.ROBOT, GROUP.STATIC | GROUP.TERRAIN | GROUP.BALL | GROUP.ROBOT_BARRIER | GROUP.ROBOT | GROUP.INTAKE));
     world.createCollider(upper, this.body);
     // most of a robot's weight is low (drivetrain, battery, motors): mass only, it touches nothing
     world.createCollider(RAPIER.ColliderDesc.cuboid(sL, 0.03, sW).setTranslation(0, 0.05, 0).setMass(cfg.mass * 0.5).setCollisionGroups(0), this.body);
-    const inset = 0.075;
     this.wheelPts = [];
-    for (const sx of [1, -1]) {
-      for (const sz of [1, -1]) {
-        this.wheelPts.push({ x: sx * (sL - inset), z: sz * (sW - inset) });
+    for (const [mx, mz] of modulePoints(cfg)) {
+      {
+        this.wheelPts.push({ x: mx, z: mz });
         const w = RAPIER.ColliderDesc.ball(WHEEL_R)
-          .setTranslation(sx * (sL - inset), WHEEL_R, sz * (sW - inset))
+          .setTranslation(mx, WHEEL_R, mz)
           .setMass(cfg.mass * 0.0125)
           .setFriction(0).setFrictionCombineRule(RAPIER.CoefficientCombineRule.Min)
           .setRestitution(0)
@@ -141,8 +148,53 @@ export class Robot {
         this.body,
       );
     }
-    // deployed intake roller (pushes FUEL it cannot swallow)
+    // What sticks up out of the top is solid too, where it really is (no invisible slabs): 1678's
+    // lid and 8793's folding intake arm (rigid: they stop the robot at a TRENCH arm), and the FUEL
+    // a load pushes up under a net (the net lies over it; a sphere per FUEL above the frame's top,
+    // moved with it each step, for other robots). A TRENCH arm meets that FUEL in the hopper
+    // instead, where it's soft: pushed hard enough, the load squashes down and goes under.
+    this.topY = this.topLoad = this.height;
+    this.growTop = 0;
+    const bay = cfg.bay;
+    const solid = groups(GROUP.ROBOT, GROUP.STATIC | GROUP.ROBOT | GROUP.INTAKE);
+    this.loadBalls = [];
+    // the FUEL under a net meets robots here; a TRENCH arm it meets in the hopper, where the load
+    // gives (FUEL is soft): Hopper.step pushes it down out of the arm and the robot feels that
+    this.loadBallGroups = groups(GROUP.ROBOT, GROUP.ROBOT | GROUP.INTAKE);
+    this.lidCollider = null;
+    if (bay.lift) {
+      const x1 = bay.slope ? bay.slope.x : bay.x1;
+      this.lid = { x: (bay.x0 + x1) / 2 };
+      this.lidCollider = world.createCollider(
+        RAPIER.ColliderDesc.cuboid((x1 - bay.x0) / 2, 0.006, bay.hw).setTranslation(this.lid.x, bay.top, 0)
+          .setDensity(0).setFriction(0.05).setRestitution(0.1).setCollisionGroups(solid),
+        this.body,
+      );
+    }
     const ic = this.cfg.intake;
+    // Intakes are solid to the field and other robots as they come out, so one deployed against a
+    // wall or a robot pushes this robot back rather than going through. 8793's arm is its own
+    // shape (its side outline across its width), turning about its pivot; the others are a block
+    // from the bumper out to the roller that slides out as they deploy.
+    const intakeGroups = groups(GROUP.INTAKE, GROUP.STATIC | GROUP.ROBOT | GROUP.INTAKE | GROUP.ROBOT_BARRIER);
+    if (ic.fold) {
+      const pts = [];
+      for (const [x, y] of ic.fold.hull) for (const z of [-ic.width / 2 - 0.01, ic.width / 2 + 0.01]) pts.push(x, y, z);
+      this.armCollider = world.createCollider(
+        RAPIER.ColliderDesc.convexHull(new Float32Array(pts)).setTranslation(ic.fold.pivot[0], ic.fold.pivot[1], 0)
+          .setDensity(0).setFriction(0.1).setRestitution(0.05).setCollisionGroups(intakeGroups),
+        this.body,
+      );
+    } else {
+      this.intakeBlock = { hx: ic.reach / 2 + 0.02, y0: 0.03, y1: 0.19 };
+      this.armCollider = world.createCollider(
+        RAPIER.ColliderDesc.cuboid(this.intakeBlock.hx, (this.intakeBlock.y1 - this.intakeBlock.y0) / 2, ic.width / 2)
+          .setTranslation(this.halfL - this.intakeBlock.hx, (this.intakeBlock.y0 + this.intakeBlock.y1) / 2, 0)
+          .setDensity(0).setFriction(0.1).setRestitution(0.05).setCollisionGroups(0),
+        this.body,
+      );
+    }
+    // deployed intake roller (pushes FUEL it cannot swallow)
     this.intakeCollider = world.createCollider(
       RAPIER.ColliderDesc.cuboid(0.03, 0.05, ic.width / 2)
         .setTranslation(this.halfL + ic.reach - 0.05, 0.1, 0)
@@ -289,16 +341,12 @@ export class Robot {
     want = Math.max(want, need);
     if (on || want < this.hopperDeploy) this.hopperDeploy = approach(this.hopperDeploy, want, dt / 0.45);
     if (!this.hopperCollider) return;
-    // collider follows the sliding section; it only hits field structures once clear of them
+    // collider follows the sliding section
     const out = this.hopperDeploy * st.extLen;
     const fx = this.cfg.frame.length / 2 - st.extLen / 2 + out;
     this.hopperCollider.setTranslationWrtParent({ x: fx, y: 0.17 + this.hopperHalfH, z: 0 });
-    let g = 0;
-    if (this.hopperDeploy > 0.05) {
-      const tip = this.cfg.frame.length / 2 + out, hw = this.cfg.frame.width / 2;
-      const clear = [[tip, hw], [tip, -hw], [tip, 0]].every(([lx, lz]) => { const p = this.localToWorld(lx, 0, lz); return !obstacleAt(p.x, p.z, 0); });
-      g = groups(GROUP.ROBOT, GROUP.BALL | GROUP.ROBOT | GROUP.ROBOT_BARRIER | (clear ? GROUP.STATIC : 0));
-    }
+    // solid to the field and to robots once it's out (out against a wall, it pushes the robot back)
+    const g = this.hopperDeploy > 0.05 ? groups(GROUP.ROBOT, GROUP.BALL | GROUP.ROBOT | GROUP.ROBOT_BARRIER | GROUP.STATIC | GROUP.INTAKE) : 0;
     this.hopperCollider.setCollisionGroups(g);
   }
 
@@ -426,14 +474,76 @@ export class Robot {
     this._stepHopper(dt);
   }
 
+  // TRENCH arms near the robot, as oriented boxes in its frame, for the FUEL it holds
+  _armsNear() {
+    const out = [];
+    const inv = _q.set(-this.quat.x, -this.quat.y, -this.quat.z, this.quat.w);
+    for (const a of TRENCH_ARMS) {
+      if (Math.abs(a.x - this.pos.x) > a.hx + 1 || Math.abs(a.z - this.pos.z) > a.hz + 1) continue;
+      out.push({
+        c: new THREE.Vector3(a.x - this.pos.x, a.y - this.pos.y, a.z - this.pos.z).applyQuaternion(inv),
+        ax: [new THREE.Vector3(1, 0, 0).applyQuaternion(inv), new THREE.Vector3(0, 1, 0).applyQuaternion(inv), new THREE.Vector3(0, 0, 1).applyQuaternion(inv)],
+        h: [a.hx, a.hy, a.hz],
+        // the arm's velocity seen from the robot (it's the robot that moves)
+        v: new THREE.Vector3(-this.vel.x, 0, -this.vel.z).applyQuaternion(inv),
+      });
+    }
+    return out;
+  }
+
+  // the push a TRENCH arm gave the FUEL (squashing it down into the load) comes back on the robot
+  _applyBoxForce(dt) {
+    const f = this.hopper.boxForce;
+    if (!f.lengthSq()) return;
+    const w = _v.copy(f).applyQuaternion(this.quat).multiplyScalar(dt);
+    const at = _v2.copy(this.hopper.boxAt).applyQuaternion(this.quat).add(this.pos);
+    this.body.applyImpulseAtPoint({ x: w.x, y: w.y, z: w.z }, { x: at.x, y: at.y, z: at.z }, true);
+  }
+
+  // Move the colliders for what sticks up out of the top to where it is now (see _createBody)
+  _stepTopColliders() {
+    const bay = this.cfg.bay, ic = this.cfg.intake;
+    // a sphere (FUEL plus the net over it) for each held FUEL above the frame's top
+    let n = 0;
+    for (const e of this.hopper.list) {
+      if (e.tr || e.p.y + R < this.height - 0.01) continue;
+      let c = this.loadBalls[n];
+      if (!c) {
+        c = this.physics.world.createCollider(RAPIER.ColliderDesc.ball(R + 0.004).setDensity(0).setFriction(0.05).setRestitution(0.1).setCollisionGroups(0), this.body);
+        this.loadBalls.push(c);
+      }
+      c.setTranslationWrtParent({ x: e.p.x, y: e.p.y, z: e.p.z });
+      c.setCollisionGroups(this.loadBallGroups);
+      n++;
+    }
+    for (let k = n; k < this.loadBalls.length; k++) this.loadBalls[k].setCollisionGroups(0);
+    if (this.lidCollider) this.lidCollider.setTranslationWrtParent({ x: this.lid.x, y: bay.top + bay.lift.h * this.hopper.liftScale + 0.006, z: 0 });
+    if (ic.fold) {
+      const a = (1 - this.intakeDeploy) * ic.fold.stowDeg * DEG;
+      this.armCollider.setRotationWrtParent({ x: 0, y: 0, z: Math.sin(a / 2), w: Math.cos(a / 2) });
+    } else {
+      // the block slides out from inside the bumper to the roller as the intake deploys
+      const b = this.intakeBlock, out = this.intakeDeploy * (ic.reach + 0.04);
+      this.armCollider.setTranslationWrtParent({ x: this.halfL - b.hx + out - 0.02, y: (b.y0 + b.y1) / 2, z: 0 });
+      this.armCollider.setCollisionGroups(this.intakeDeploy > 0.05 ? groups(GROUP.INTAKE, GROUP.STATIC | GROUP.ROBOT | GROUP.INTAKE | GROUP.ROBOT_BARRIER) : 0);
+    }
+  }
+
   _stepHopper(dt) {
-    // a stretchy net over the top bulges only as far as there's room (the TRENCH arm presses it
-    // down, and the load under it with it)
-    const dome = this.cfg.bay.dome;
-    if (dome) this.hopper.domeScale = clamp((this._headroom() - 0.005 - this.cfg.bay.top) / dome.h, 0, 1);
-    // a lid that rises with the hopper (1678's, on the climber) comes back down under the TRENCH
-    const lift = this.cfg.bay.lift;
-    if (lift) this.hopper.liftScale = Math.min(this.hopperDeploy, clamp((this._headroom() - 0.005 - this.cfg.bay.top) / lift.h, 0, 1));
+    // A stretchy net over the top bulges as far as the load pushes it; nothing presses it back
+    // down (a TRENCH arm stops the robot instead). A lid that rises with the hopper (1678's, on
+    // the climber) comes down with it, but not onto FUEL that's piled up under it.
+    const bay = this.cfg.bay, lift = bay.lift;
+    let loadTop = 0;
+    for (const e of this.hopper.list) if (!e.tr) loadTop = Math.max(loadTop, e.p.y + R);
+    if (lift) this.hopper.liftScale = Math.max(this.hopperDeploy, clamp((loadTop - 0.01 - bay.top) / lift.h, 0, 1));
+    // topLoad: the top with the intake down; topY: the true top, with a folded intake as it is now
+    // growTop: the part that grows with the load (a net it bulges up, a lid it holds up), 0 if none
+    this.growTop = lift ? bay.top + lift.h * this.hopper.liftScale + 0.01 : bay.dome ? loadTop + 0.005 : 0;
+    this.topLoad = Math.max(this.height, this.growTop);
+    const fold = foldTop(this.cfg.intake, this.intakeDeploy);
+    this.topY = Math.max(this.topLoad, fold);
+    this._stepTopColliders();
     // the robot's acceleration and turn rate, felt by the FUEL inside
     let ax = 0, az = 0, alpha = 0;
     if (this.prevVel) {
@@ -454,7 +564,9 @@ export class Robot {
       feeding: this.feeding > 0,
       intaking: this.intakeSpeed > 0,
       feedPoint: new THREE.Vector3(f.x, 0, f.z ?? 0),
+      boxes: this._armsNear(),
     });
+    this._applyBoxForce(dt);
   }
 
   _intake(dt, t, on) {
@@ -462,6 +574,7 @@ export class Robot {
     let want = on && this.cmd.intake;
     if (ic.latched && this.intakeDeploy >= 1) want = true; // latched down for the whole match
     if (this.forceDeploy) want = true;
+    if (on && this.cmd.lower) want = true; // down without running (to get under the TRENCH)
     // Re•Blitz retracts the intake while shooting to compact FUEL into the indexer
     if (ic.compacts && on && (this.cmd.shoot || this.cmd.pass) && !this.cmd.intake) want = false;
     if (on && this.cmd.outtake) want = true;
@@ -471,15 +584,8 @@ export class Robot {
     this.hopper.wall = ic.compacts ? this._compactorX() : Infinity;
     this._hopper(dt, on);
     const deployed = this.intakeDeploy > 0.85;
-    // An intake that deploys into a structure (e.g. 4414 at the Hub start) would jam the robot,
-    // so it only collides with field structures once it is clear of them.
-    let groupsNow = 0;
-    if (deployed) {
-      const tip = this.halfL + ic.reach, hw = ic.width / 2;
-      const clear = [[tip, hw], [tip, -hw], [tip, 0], [this.halfL + 0.05, hw], [this.halfL + 0.05, -hw]]
-        .every(([lx, lz]) => { const p = this.localToWorld(lx, 0, lz); return !obstacleAt(p.x, p.z, 0); });
-      groupsNow = groups(GROUP.INTAKE, GROUP.BALL | GROUP.ROBOT_BARRIER | (clear ? GROUP.STATIC : 0));
-    }
+    // the roller only pushes FUEL (the intake's own collider meets walls and robots)
+    const groupsNow = deployed ? groups(GROUP.INTAKE, GROUP.BALL | GROUP.ROBOT_BARRIER) : 0;
     this.intakeCollider.setCollisionGroups(groupsNow);
 
     const running = on && this.cmd.intake && deployed;
@@ -855,6 +961,8 @@ export class Robot {
       if (d < bd) { bd = d; best = e; }
     }
     if (!best) return false;
+    // a single-file indexer only takes the FUEL that's got to it (the conveyor brings the rest)
+    if (f.reach && bd > f.reach * f.reach) return false;
     this.lane++;
     const via = (f.vias ? f.vias[ti] : f.via).map(([x, y, z]) => new THREE.Vector3(x, y, z ?? laneZ));
     const end = sh.type === 'fixed'
@@ -1037,25 +1145,10 @@ export class Robot {
     }
   }
 
-  // how much room there is over the robot (the TRENCH arm), from the robot's origin up
-  _headroom() {
-    const ext = this.halfL + (this.cfg.storage.extLen || 0) * this.hopperDeploy, r = Math.hypot(ext, this.halfW);
-    const zOpen = HALF_W - TRENCH.clearWidth;
-    if (Math.abs(this.pos.z) + r < zOpen) return Infinity;
-    for (const a of [BLUE, RED]) {
-      const hx = Field.hubCenter(a).x;
-      if (Math.abs(this.pos.x - hx) > r + TRENCH.armThick / 2) continue;
-      // any corner of the footprint past the arm's near edge, and the footprint spans the arm
-      let minX = Infinity, maxX = -Infinity, far = false;
-      for (const [lx, lz] of [[ext, this.halfW], [ext, -this.halfW], [-this.halfL, this.halfW], [-this.halfL, -this.halfW]]) {
-        const p = this.localToWorld(lx, 0, lz);
-        minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
-        if (Math.abs(p.z) > zOpen) far = true;
-      }
-      if (far && minX < hx + TRENCH.armThick / 2 && maxX > hx - TRENCH.armThick / 2) return TRENCH.clearHeight - this.pos.y;
-    }
-    return Infinity;
-  }
+  // whether it fits under a TRENCH arm right now (a load bulging its net, or a raised lid, doesn't)
+  fitsTrenchNow() { return fitsTrench(this.cfg) && this.topY <= TRENCH.clearHeight - 0.005; }
+  // fits once a folded intake is lowered (the AI lowers it on its way under)
+  fitsTrenchLowered() { return fitsTrench(this.cfg) && this.topLoad <= TRENCH.clearHeight - 0.005; }
 
   worldToLocalVec(x, z) {
     const c = Math.cos(this.yaw), s = Math.sin(this.yaw);

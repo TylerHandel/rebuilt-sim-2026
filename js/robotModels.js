@@ -9,7 +9,7 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { IN, FUEL } from './constants.js';
-import { BUMPER_T, BUMPER_Y0, BUMPER_Y1 } from './robotConfigs.js';
+import { BUMPER_T, BUMPER_Y0, BUMPER_Y1, frameShape, offsetShape, modulePoints } from './robotConfigs.js';
 import { ALLIANCE_COLOR_CSS } from './field.js';
 import { hookPath } from './hopper.js';
 
@@ -142,15 +142,6 @@ function swerveModule(parent, x, z) {
   return { pivot, wheel: spin };
 }
 
-// Frame outline (frame perimeter) in robot XZ, counter-clockwise seen from above
-function frameOutline(L, W, chamferBack = 0) {
-  const c = chamferBack;
-  const pts = [[L / 2, W / 2], [L / 2, -W / 2]];
-  if (c > 0) pts.push([-L / 2 + c, -W / 2], [-L / 2, -W / 2 + c], [-L / 2, W / 2 - c], [-L / 2 + c, W / 2]);
-  else pts.push([-L / 2, -W / 2], [-L / 2, W / 2]);
-  return pts;
-}
-
 function bumperTexture(number, alliance) {
   const c = document.createElement('canvas');
   c.width = 512;
@@ -173,7 +164,7 @@ function addBumpers(root, cfg, alliance, chamferBack = 0) {
   const L = cfg.frame.length, W = cfg.frame.width, T = BUMPER_T;
   const h = BUMP_Y1 - BUMP_Y0;
   const bevel = Math.min(0.02, h / 2 - 0.004);
-  const outline = frameOutline(L, W, chamferBack);
+  const outline = frameShape(cfg);
   // shape space: (u, v) = (x, -z); after rotateX(-90deg) shape v -> world -z, depth -> +y
   const P = outline.map(([x, z]) => new THREE.Vector2(x, -z));
   let area = 0;
@@ -212,11 +203,18 @@ function addBumpers(root, cfg, alliance, chamferBack = 0) {
   const tex = bumperTexture(cfg.team, alliance);
   const numMat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 });
   const yc = (BUMP_Y0 + BUMP_Y1) / 2;
-  const sides = [
+  const ch = cfg.frame.chamfer || 0, rd = cfg.frame.round;
+  const sides = rd ? [
+    // round: the flat front, and short labels on the curve at the back and the widest points
+    { x: L / 2 + T + 0.002, z: 0, ry: Math.PI / 2, len: rd.front },
+    { x: -L / 2 - T - 0.002, z: 0, ry: -Math.PI / 2, len: 0.3 },
+    { x: rd.cx, z: W / 2 + T + 0.002, ry: 0, len: 0.3 },
+    { x: rd.cx, z: -W / 2 - T - 0.002, ry: Math.PI, len: 0.3 },
+  ] : [
     { x: L / 2 + T + 0.002, z: 0, ry: Math.PI / 2, len: W },
-    { x: -L / 2 - T - 0.002, z: 0, ry: -Math.PI / 2, len: W - 2 * chamferBack },
-    { x: -chamferBack / 2, z: W / 2 + T + 0.002, ry: 0, len: L - chamferBack },
-    { x: -chamferBack / 2, z: -W / 2 - T - 0.002, ry: Math.PI, len: L - chamferBack },
+    { x: -L / 2 - T - 0.002, z: 0, ry: -Math.PI / 2, len: W - 2 * ch },
+    { x: -ch / 2, z: W / 2 + T + 0.002, ry: 0, len: L - ch },
+    { x: -ch / 2, z: -W / 2 - T - 0.002, ry: Math.PI, len: L - ch },
   ];
   for (const sd of sides) {
     const w = Math.min(0.42, sd.len * 0.8), hh = w / 4;
@@ -231,23 +229,31 @@ function addBumpers(root, cfg, alliance, chamferBack = 0) {
 // frame tubes, bellypan and swerve modules (frame: false when the team's CAD brings its own frame)
 function addDrivebase(root, cfg, chamferBack = 0, frame = true) {
   const L = cfg.frame.length, W = cfg.frame.width;
-  const modules = [];
-  const inset = 0.075;
-  for (const sx of [1, -1]) for (const sz of [1, -1]) modules.push(swerveModule(root, sx * (L / 2 - inset), sz * (W / 2 - inset)));
+  const modules = modulePoints(cfg).map(([x, z]) => swerveModule(root, x, z));
   if (!frame) return modules;
   const frameMat = std(cfg.colors.frame, 0.4, 0.65);
   const y = 0.085;
-  const outline = frameOutline(L, W, chamferBack);
+  const outline = frameShape(cfg);
   for (let i = 0; i < outline.length; i++) {
     const [x0, z0] = outline[i], [x1, z1] = outline[(i + 1) % outline.length];
     // pull each tube 0.5in inside the perimeter
     const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2, k = 0.0127 / Math.max(1e-6, Math.hypot(cx, cz));
     tube(root, x0 - x0 * k * 0.9, z0 - z0 * k * 0.9, x1 - x1 * k * 0.9, z1 - z1 * k * 0.9, y, frameMat);
   }
-  // cross tubes + bellypan
-  tube(root, -L / 2 + 0.16, -W / 2 + 0.03, -L / 2 + 0.16, W / 2 - 0.03, y, frameMat);
-  tube(root, L / 2 - 0.16, -W / 2 + 0.03, L / 2 - 0.16, W / 2 - 0.03, y, frameMat);
-  rbx(L - 0.05, 0.004, W - 0.05, 0.002, M.aluDark, root, 0, 0.057, 0);
+  // bellypan (the frame's own shape) and cross tubes
+  const pan = new THREE.Shape(offsetShape(outline, -0.02).map(([x, z]) => new THREE.Vector2(x, -z)));
+  const panGeo = new THREE.ExtrudeGeometry(pan, { depth: 0.004, bevelEnabled: false, curveSegments: 4 });
+  panGeo.rotateX(-Math.PI / 2);
+  mesh(panGeo, M.aluDark, root, 0, 0.055, 0);
+  const inside = (x) => { // the frame's half-width at x
+    let hw = 0;
+    for (let i = 0; i < outline.length; i++) {
+      const [x0, z0] = outline[i], [x1, z1] = outline[(i + 1) % outline.length];
+      if ((x0 - x) * (x1 - x) <= 0 && x0 !== x1) hw = Math.max(hw, Math.abs(z0 + ((z1 - z0) * (x - x0)) / (x1 - x0)));
+    }
+    return hw || W / 2;
+  };
+  for (const xc of [-L / 2 + 0.16, L / 2 - 0.16]) { const hw = inside(xc) - 0.03; tube(root, xc, -hw, xc, hw, y, frameMat); }
   return modules;
 }
 
@@ -1227,25 +1233,32 @@ function build4414(cfg, alliance) {
 }
 
 // ============================================================ 8793 Hopperless
-// Low, open robot: wide multi-roller intake -> funnel conveyor of compliant wheels -> big
-// bearing-ring turret carrying a hooded flywheel shooter. Holds only the FUEL in its path.
+// From 8793's Onshape CAD ("8793-2026-A-0000 Robot"), split by tools/extract-parts.mjs
+// (cad/robots/8793.json): the body (drivetrain, Conveyor V2's omni wheels over a polycarbonate
+// ramp, and the fixed turret tower), Intake V3's mount and its arm (exported down on the carpet;
+// origin on the pivot, it folds up and back by intake.fold.stowDeg to stow), and the turret (200T
+// turntable with the hooded 4in flywheel shooter; origin on the turntable axis). Holds only the
+// FUEL in its path. Until the CAD loads (and headless), a drawn stand-in shows.
 function build8793(cfg, alliance) {
   const root = new THREE.Group();
-  const L = cfg.frame.length, W = cfg.frame.width;
+  const L = cfg.frame.length, W = cfg.frame.width, fold = cfg.intake.fold;
   addBumpers(root, cfg, alliance);
-  const modules = addDrivebase(root, cfg);
+  const modules = addDrivebase(root, cfg, 0, false);
   const orange = std(cfg.colors.accent, 0.45, 0.35);
   const plate = std(0x2a2c31, 0.5, 0.6);
-  addElectronics(root, -0.12, -W / 2 + 0.2, Math.PI / 2);
+  const drawn = new THREE.Group();
+  root.add(drawn);
+  addDrivebase(drawn, cfg, 0, true).forEach((md) => md.pivot.parent.removeFromParent());
+  addElectronics(drawn, -0.12, -W / 2 + 0.2, Math.PI / 2);
 
   // electronics deck
-  rbx(L - 0.12, 0.008, W - 0.12, 0.003, std(0x1b1c20, 0.6, 0.4), root, -0.02, 0.172, 0);
-  for (const s of [-1, 1]) rbx(L * 0.45, 0.01, 0.16, 0.003, orange, root, -0.14, 0.18, s * (W / 2 - 0.14));
+  rbx(L - 0.12, 0.008, W - 0.12, 0.003, std(0x1b1c20, 0.6, 0.4), drawn, -0.02, 0.172, 0);
+  for (const s of [-1, 1]) rbx(L * 0.45, 0.01, 0.16, 0.003, orange, drawn, -0.14, 0.18, s * (W / 2 - 0.14));
 
   // conveyor: funnel of compliant wheels from the intake back to the turret
   const conv = new THREE.Group();
   conv.position.set(0.1, 0.19, 0);
-  root.add(conv);
+  drawn.add(conv);
   const convWheels = [];
   for (let row = 0; row < 3; row++) {
     const w = W - 0.18 - row * 0.1;
@@ -1288,6 +1301,18 @@ function build8793(cfg, alliance) {
   wheelStack(intake, cfg.intake.width - 0.06, 0.035, 7, M.compliant, armLen - 0.19, 0.03, 0, 0.025);
   kraken(intake, 0.03, 0, cfg.intake.width / 2 + 0.05, true, 'z');
 
+  // the team's CAD
+  const cadTurret = new THREE.Group();
+  cadTurret.position.set(cfg.shooter.turretPos.x, 0, cfg.shooter.turretPos.z);
+  root.add(cadTurret);
+  const cadArm = new THREE.Group();
+  cadArm.position.set(fold.pivot[0], fold.pivot[1], 0);
+  root.add(cadArm);
+  cadPart(root, 'robots/8793-body.glb', () => { drawn.visible = false; });
+  cadPart(root, 'robots/8793-mount.glb', () => {});
+  cadPart(cadArm, 'robots/8793-intake.glb', () => { intake.visible = false; });
+  cadPart(cadTurret, 'robots/8793-turret.glb', () => { turret.visible = false; });
+
   // FUEL in the ball path (intake -> conveyor -> turret)
   const stored = [];
   const path = [[0.33, 0.13], [0.26, 0.16], [0.19, 0.2], [0.12, 0.24], [0.05, 0.28], [-0.02, 0.32]];
@@ -1298,6 +1323,8 @@ function build8793(cfg, alliance) {
     for (const r of intakeRollers) r.rotation.z += st.intakeSpeed * dt * 40;
     for (const w of convWheels) w.rotation.z += (st.intakeSpeed + st.feeding) * dt * 25;
     turret.rotation.y = st.turretYaw;
+    cadArm.rotation.z = (1 - st.intakeDeploy) * fold.stowDeg * Math.PI / 180;
+    cadTurret.rotation.y = st.turretYaw;
     fly.rotation.z -= st.flywheel * dt * 8;
     hood.rotation.z = (st.hoodDeg - 62) * Math.PI / 180 * 0.8;
   };
@@ -1638,9 +1665,10 @@ function build4946(cfg, alliance) {
 
   // ---- clear walls on the bumpers, following the frame round the back
   const out = 0.025;
-  const pts = frameOutline(L + 2 * out, W + 2 * out, ch + out * 0.4);
+  // on the bumpers, 1.125in out from the frame (a 35in hopper), cut at the front of the hopper
+  const pts = offsetShape(frameShape(cfg), 0.029);
   const xFront = bay.x1 + 0.005;
-  pts[0][0] = pts[1][0] = xFront;
+  pts[0][0] = pts[pts.length - 1][0] = xFront;
   for (let i = 0; i < pts.length; i++) {
     const [xa, za] = pts[i], [xb, zb] = pts[(i + 1) % pts.length];
     const len = Math.hypot(xb - xa, zb - za);
@@ -1651,7 +1679,8 @@ function build4946(cfg, alliance) {
     const pane = mesh(new THREE.PlaneGeometry(len, top - y0), M.poly, g, 0, (y0 + top) / 2, 0);
     pane.castShadow = false;
     rbx(len, 0.014, 0.014, 0.002, grey, g, 0, top, 0);
-    rbx(0.014, top - y0, 0.014, 0.002, grey, g, len / 2, (y0 + top) / 2, 0);
+    // posts at the ends of the straight walls and every few segments round the curve
+    if (len > 0.15 || i % 6 === 0) rbx(0.014, top - y0, 0.014, 0.002, grey, g, len / 2, (y0 + top) / 2, 0);
   }
 
   // ---- Dye Rotor tray: a round plate under the load, with the spinner's vanes on it
@@ -1701,7 +1730,7 @@ function build4946(cfg, alliance) {
   for (const s of [-1, 1]) kraken(turret, -0.08, 0.13, s * 0.12, false, 'z');
 
   // ---- gantry over the front of the hopper: perforated tube, beacon on top
-  const gx = xFront - 0.06, gz = W / 2 - 0.02, gy = 0.74;
+  const gx = xFront - 0.06, gz = cfg.frame.round.front / 2 + 0.01, gy = 0.74;
   const tubeMat = std(0xb8bdc4, 0.35, 0.85);
   for (const sz of [-1, 1]) rbx(0.025, gy - 0.12, 0.025, 0.003, tubeMat, root, gx, 0.12 + (gy - 0.12) / 2, sz * gz);
   rbx(0.025, 0.025, 2 * gz + 0.025, 0.003, tubeMat, root, gx, gy, 0);

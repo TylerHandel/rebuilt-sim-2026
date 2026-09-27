@@ -81,6 +81,16 @@ const TRENCH_OPENINGS = (() => {
   return out;
 })();
 
+// the TRENCH arms over the openings, as boxes (world, center and half sizes), for the FUEL held
+// in robots (Robot._armsNear)
+export const TRENCH_ARMS = TRENCH_OPENINGS.map((o) => {
+  const armH = TRENCH.height - TRENCH.clearHeight;
+  return { x: o.x, y: TRENCH.clearHeight + armH / 2, z: o.z, hx: TRENCH.armThick / 2, hy: armH / 2, hz: TRENCH.clearWidth / 2 };
+});
+
+// whether (x, z) is under a TRENCH arm's opening (margin: how far round it counts)
+export const underTrench = (x, z, margin = 0) => TRENCH_OPENINGS.some((o) => Math.abs(x - o.x) < o.hx + margin && Math.abs(z - o.z) < o.hz + margin);
+
 export class NavGrid {
   // trench: false for a robot that doesn't fit under the TRENCH (it has to use the BUMPS)
   constructor(radius, { trench = true } = {}) {

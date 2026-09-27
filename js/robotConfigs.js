@@ -37,8 +37,61 @@ export const BUMPER_T = 3.25 * IN; // bumper thickness incl. backing
 // noodles), so they meet FUEL near its middle and push it rather than wedging it underneath
 export const BUMPER_Y0 = 0.032, BUMPER_Y1 = 0.16;
 
+// The frame perimeter in plan (x forward, z to the side, a closed polygon starting at the front):
+// a rectangle, one with its back corners cut off (frame.chamfer, 4414's), or a half circle at the
+// back with straight sides to a flat front edge (frame.round, 4946's). The bumpers, the drawn
+// frame and the physics all follow it.
+export function frameShape(cfg) {
+  const f = cfg.frame, L = f.length, W = f.width;
+  if (f.round) {
+    const { r, cx, front } = f.round, pts = [[L / 2, front / 2]];
+    for (let i = 0; i <= 24; i++) { const a = Math.PI / 2 + (i / 24) * Math.PI; pts.push([cx + r * Math.cos(a), r * Math.sin(a)]); }
+    pts.push([L / 2, -front / 2]);
+    return pts;
+  }
+  const c = f.chamfer || 0, pts = [[L / 2, W / 2], [L / 2, -W / 2]];
+  if (c > 0) pts.push([-L / 2 + c, -W / 2], [-L / 2, -W / 2 + c], [-L / 2, W / 2 - c], [-L / 2 + c, W / 2]);
+  else pts.push([-L / 2, -W / 2], [-L / 2, W / 2]);
+  return pts;
+}
+
+// the polygon moved out by d (in by -d), each edge parallel to the original
+export function offsetShape(pts, d) {
+  const n = pts.length;
+  let area = 0;
+  for (let i = 0; i < n; i++) { const a = pts[i], b = pts[(i + 1) % n]; area += a[0] * b[1] - b[0] * a[1]; }
+  const s = area > 0 ? 1 : -1; // outward normal of edge (dx, dz) is s * (dz, -dx) / len
+  const nrm = (a, b) => { const dx = b[0] - a[0], dz = b[1] - a[1], l = Math.hypot(dx, dz) || 1; return [(s * dz) / l, (-s * dx) / l]; };
+  return pts.map((p, i) => {
+    const n0 = nrm(pts[(i - 1 + n) % n], p), n1 = nrm(p, pts[(i + 1) % n]);
+    const mx = n0[0] + n1[0], mz = n0[1] + n1[1], k = d / Math.max(0.2, (mx * n0[0] + mz * n0[1]));
+    return [p[0] + mx * k, p[1] + mz * k];
+  });
+}
+
+// where the swerve modules sit (x, z): 3in in from the corners, or inside a round frame
+export function modulePoints(cfg) {
+  const f = cfg.frame, inset = 0.075;
+  if (f.round) {
+    const { r, cx } = f.round, d = (r - 0.1) * Math.SQRT1_2;
+    return [[cx + d, d], [cx + d, -d], [cx - d, d], [cx - d, -d]];
+  }
+  return [[1, 1], [1, -1], [-1, 1], [-1, -1]].map(([sx, sz]) => [sx * (f.length / 2 - inset), sz * (f.width / 2 - inset)]);
+}
+
 // whether a robot fits under the TRENCH arm (4946 doesn't: it goes over the BUMPS)
 export const fitsTrench = (cfg) => cfg.height <= TRENCH.clearHeight - 0.005;
+
+// Top of an intake that folds up over the robot to stow (intake.fold, 8793's): its side outline
+// swung up from deployed by (1 - deploy) x stowDeg about the pivot. 0 for other intakes.
+export function foldTop(ic, deploy) {
+  const f = ic.fold;
+  if (!f) return 0;
+  const a = (1 - deploy) * f.stowDeg * Math.PI / 180, c = Math.cos(a), s = Math.sin(a);
+  let top = -Infinity;
+  for (const [x, y] of f.hull) top = Math.max(top, x * s + y * c);
+  return f.pivot[1] + top;
+}
 
 export const ROBOTS = {
   2910: {
@@ -102,7 +155,7 @@ export const ROBOTS = {
     robotName: 'RIPCURRENT',
     archetype: 'Dye Rotor',
     blurb: 'Extending hopper holds about 88 FUEL under a stretchy net. A Dye Rotor single-streams FUEL into a fast turret shooter with precomputed shoot-on-the-move.',
-    frame: { length: 25.0 * IN, width: 32.0 * IN },
+    frame: { length: 25.0 * IN, width: 32.0 * IN, chamfer: 0.12 }, // back corners cut off
     height: 21.75 * IN,
     mass: 60,
     drive: { maxSpeed: 4.0, maxAccel: 9.0, maxOmega: 8.0, maxAlpha: 30 },
@@ -164,27 +217,45 @@ export const ROBOTS = {
     teamName: 'Pumpkin Bots',
     robotName: 'Hopperless',
     archetype: 'Hopperless',
-    blurb: 'No hopper: a wide intake feeds a conveyor straight into a turret shooter. Holds only what fits in the ball path — intake and shoot at the same time.',
+    blurb: 'No hopper: a 4-wide intake feeds a conveyor that funnels FUEL to single file, up through the turret and out a hooded flywheel. Holds only what fits in the ball path — intake and shoot at the same time.',
     frame: { length: 27.5 * IN, width: 27.5 * IN },
-    height: 19.5 * IN,
+    height: 21.5 * IN, // top of the shooter (their CAD)
     mass: 52,
     drive: { maxSpeed: 4.5, maxAccel: 10.0, maxOmega: 9.0, maxAlpha: 34 },
-    intake: { width: 26 * IN, reach: 10 * IN, rate: 14, deployTime: 0.3, side: 'front', latched: false },
+    // Intake V3 (their CAD): three silicone rollers on an arm that swings down from a pivot over
+    // the front of the frame. Stowed, it folds back up inside the frame perimeter and stands
+    // 0.69 m tall, too tall for the TRENCH: it has to be down to drive under. fold.hull is the
+    // arm's side outline around the pivot (m, x forward, y up) as exported, deployed.
+    intake: {
+      width: 26 * IN, reach: 10 * IN, rate: 14, deployTime: 0.3, side: 'front', latched: false,
+      fold: {
+        pivot: [0.292, 0.336], stowDeg: 145,
+        hull: [[-0.026, -0.018], [0.161, -0.305], [0.176, -0.306], [0.298, -0.196], [0.328, -0.105], [0.191, 0.009], [0.005, 0.032], [-0.025, 0.02]],
+      },
+    },
     storage: { capacity: 12 },
-    // no hopper: two lanes on the conveyor that climbs from the intake to the turret
+    // no hopper, a ball path (their CAD). FUEL comes in 4 wide over the front of the frame (the
+    // outer two ride the swerve covers) and Conveyor V2's overhead wheels (4in omnis on the sides
+    // push in) carry it back down its polycarbonate floor, 2 wide, to the middle of the robot.
+    // There the turret indexer's wall plates close in to one FUEL wide, and single file it runs
+    // back along the J-shaped roller rails under the turntable, up their curve, and up through
+    // the turret into the shooter, out forward over the flywheel under the hood.
     bay: {
-      x0: -0.13, x1: 0.3, hw: 0.16, above: 0.26, pack: false, // a ball path, not a hopper: poured, not packed
-      floor: { a: 0.24, b: -0.543, lo: 0.115, hi: 0.28 },
-      drive: 'belt', driveSpeed: 1.4,
-      feed: { x: -0.08, via: [[-0.12, 0.42]] },
+      x0: -0.28, x1: 0.34, hw: 0.31, above: 0.2, pack: false, // poured, not packed
+      // [x, half-width]; at the throat 5in (-z) and 3in (+z) omni wheels spin FUEL against each other
+      taper: { pts: [[0.03, 0.087], [0.17, 0.165], [0.23, 0.31]], center: 60, spin: -1 },
+      // [x, height of the FUEL's underside]: the conveyor floor down to the middle, the rails' J
+      floor: { pts: [[-0.21, 0.165], [-0.12, 0.045], [0.03, 0.06], [0.34, 0.175]] },
+      drive: 'belt', driveSpeed: 2.2, grip: 80, // compliant wheels grab FUEL hard: single file keeps up with the shooter
+      feed: { x: -0.2, reach: 0.1, via: [[-0.19, 0.34], [-0.14, 0.42]] },
     },
     shooter: {
       type: 'turret',
-      turretPos: { x: -0.12, z: 0.0 },
-      exitRadius: 0.08,
-      exitY: 0.47,
+      turretPos: { x: -0.127, z: 0.0 }, // 200T turntable (their CAD)
+      exitRadius: 0.14, // over the flywheel, which sits 0.127 m out from the turret axis
+      exitY: 0.49,
       turretRange: 185, turretRate: 600,
-      bps: 13,
+      bps: 10, // the team's measured rate
       hoodMin: 45, hoodMax: 80,
       speedMax: 15,
       spinTau: 0.28,
@@ -192,7 +263,7 @@ export const ROBOTS = {
       speedSigma: 0.017, angleSigma: 0.9, yawSigma: 0.9,
     },
     climber: null,
-    stats: { 'Shot rate': '13 BPS', Aiming: 'Turret', 'Top speed': '14.8 ft/s', Trench: 'Yes' },
+    stats: { 'Shot rate': '10 BPS', Aiming: 'Turret', 'Top speed': '14.8 ft/s', Trench: 'Intake down' },
     colors: { frame: 0x1f2126, accent: 0xf07a1a, trim: 0xf07a1a },
   },
   971: {
@@ -347,8 +418,10 @@ export const ROBOTS = {
     robotName: 'Moto Moto',
     archetype: 'Round Dye Rotor',
     blurb: 'A round robot: a 35in hopper around a turret on the center of rotation, fed by a Dye Rotor tray. Its intake slides out with a net stretched from the hopper down to it. Too tall for the TRENCH, it goes over the BUMPS.',
-    // engineering report: a half-circle drivetrain tapering to a 30in front edge; Onshape views
-    frame: { length: 30.5 * IN, width: 30 * IN },
+    // engineering report and Onshape's top view: a half-circle bellypan of 16.375in radius (its
+    // center 3cm ahead of the middle, under the turret) whose sides run straight on to a 30in
+    // front edge: 32.75in across, 30.3in front to back
+    frame: { length: 0.77, width: 2 * 16.375 * IN, round: { r: 16.375 * IN, cx: 16.375 * IN - 0.77 / 2, front: 30 * IN } }, // cx: the back is at -length/2
     height: 29.5 * IN,
     mass: 60,
     drive: { maxSpeed: 3.9, maxAccel: 10.5, maxOmega: 8.0, maxAlpha: 30 }, // MK5n in its lowest gear
@@ -357,12 +430,14 @@ export const ROBOTS = {
     intake: { width: 27 * IN, reach: 0.22, rate: 200, pull: 5, deployTime: 0.35, side: 'front', latched: false },
     // the intake box is part of the hopper while it's out
     storage: { extLen: 0.2, extend: 'intake' },
-    // Onshape views: clear walls mounted on the bumpers round a Dye Rotor tray (FUEL is funneled
-    // onto it, and its spinner carries FUEL round and up into the turret at the center); the
-    // hopper's round back is cut by the chamfers. The net runs diagonally from the top of the
-    // hopper's front wall down to the front of the intake.
+    // Onshape views: clear walls mounted on the bumpers, 1.125in out from the frame (a 35in hopper,
+    // round at the back, then along the frame's sides), round a Dye Rotor tray (FUEL is funneled
+    // onto it, and its spinner carries FUEL round and up into the turret at the center). The net
+    // runs diagonally from the top of the hopper's front wall down to the front of the intake.
     bay: {
-      x0: -0.4, x1: 0.37, hw: 0.4, top: 0.64, chamfer: 0.22,
+      x0: -0.415, x1: 0.37, hw: 0.445, top: 0.64,
+      round: { x: 16.375 * IN - 0.77 / 2, r: 35 / 2 * IN },
+      taper: { pts: [[0.031, 0.445], [0.385, 0.41]] },
       slope: { x: 0.37, y: 0.46 },
       floor: { a: 0.2, b: 0, lo: 0.2, hi: 0.2 },
       obstacles: [{ x: 0.02, z: 0, r: 0.15, y0: 0.15, y1: 1 }], // the turret's column

@@ -2,10 +2,11 @@
 // runs one of these pre-programmed routines. Waypoints are in BLUE field coordinates
 // (fx from the blue ALLIANCE WALL, fy from the blue drivers' right) and are mirrored for
 // the red ALLIANCE and for left-side starts.
-import { FIELD_W, ALLIANCE_ZONE_DEPTH, HALF_L, HUB, DEPOT, BUMP, fw } from './constants.js';
+import { FIELD_W, ALLIANCE_ZONE_DEPTH, HALF_L, HUB, DEPOT, BUMP, TRENCH, fw } from './constants.js';
 import { clamp, wrapAngle } from './util.js';
 import { getCustom, customSteps } from './customAutos.js';
 import { fitsTrench } from './robotConfigs.js';
+import { underTrench } from './nav.js';
 
 export const START_POSITIONS = {
   leftTrench: { name: 'Left Trench', fy: FIELD_W - 0.64 },
@@ -238,11 +239,30 @@ export class AutoRunner {
     return steps;
   }
 
+  // whether what's left of this route passes under a TRENCH arm
+  _trenchAhead() {
+    if (this._taI === this.i) return this._ta;
+    let under = false;
+    for (let k = this.i; k < this.steps.length && !under; k++) {
+      const s = this.steps[k];
+      if (s.type !== 'drive') continue;
+      const pts = s.pts.map(([fx, fy]) => this.P(fx, fy, s.mirror !== false));
+      for (let j = 0; j + 1 < pts.length && !under; j++) {
+        const a = pts[j], b = pts[j + 1], n = Math.ceil(Math.hypot(b.x - a.x, b.z - a.z) / 0.25);
+        for (let q = 0; q <= n && !under; q++) under = underTrench(a.x + ((b.x - a.x) * q) / n, a.z + ((b.z - a.z) * q) / n);
+      }
+    }
+    this._taI = this.i; this._ta = under;
+    return under;
+  }
+
   update(dt) {
     const r = this.robot;
     const cmd = r.cmd;
     cmd.vx = 0; cmd.vz = 0; cmd.omega = 0;
     cmd.intake = false; cmd.shoot = false; cmd.pass = false; cmd.outtake = false;
+    // an intake that stows folded up (8793's) comes down on the way under a TRENCH
+    cmd.lower = !!r.cfg.intake.fold && underTrench(r.pos.x, r.pos.z, r.halfL + 1.2);
     if (this.done || this.i >= this.steps.length) {
       this.done = true;
       return;
@@ -295,6 +315,14 @@ export class AutoRunner {
       if (this.left && s.face === undefined) face = Math.atan2(-dz, dx);
       if (d > 0.15 || s.face !== undefined) cmd.omega = clamp(5 * wrapAngle(face - r.yaw), -r.cfg.drive.maxOmega, r.cfg.drive.maxOmega);
       cmd.intake = !!s.intake;
+      // Under a TRENCH later on this route: stop taking FUEL in once the load is nearly up to the
+      // arm (it would bulge the net or hold the lid up too high to get under), and if it's still
+      // too tall right before the arm, stop and spit FUEL out until it fits.
+      if (fitsTrench(r.cfg) && this._trenchAhead()) {
+        if (r.growTop > TRENCH.clearHeight - 0.06) cmd.intake = false;
+        const ahead = [0.4, 0.8, 1.2].some((k) => d > 1e-3 && underTrench(r.pos.x + (dx / d) * k, r.pos.z + (dz / d) * k, Math.max(r.halfL, r.halfW)));
+        if (ahead && !r.fitsTrenchLowered()) { cmd.vx = 0; cmd.vz = 0; cmd.intake = false; cmd.outtake = true; cmd.shoot = false; return; }
+      }
       // 'hub' = shoot on the move only once back in our ALLIANCE ZONE (don't pass the FUEL away)
       cmd.shoot = s.shoot === 'hub' ? r.lastInZone : !!s.shoot;
       if ((last && d < 0.1) || (!last && d < 0.35)) {
