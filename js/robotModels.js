@@ -9,11 +9,11 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { IN, FUEL } from './constants.js';
-import { BUMPER_T } from './robotConfigs.js';
+import { BUMPER_T, BUMPER_Y0, BUMPER_Y1 } from './robotConfigs.js';
 import { ALLIANCE_COLOR_CSS } from './field.js';
 import { hookPath } from './hopper.js';
 
-export const BUMP_Y0 = 0.055, BUMP_Y1 = 0.16;
+export const BUMP_Y0 = BUMPER_Y0, BUMP_Y1 = BUMPER_Y1;
 const lerp = THREE.MathUtils.lerp;
 
 // ------------------------------------------------------------------ materials
@@ -1764,10 +1764,11 @@ export function buildRobotModel(cfg, alliance) {
   else m = build8793(cfg, alliance);
   // stored FUEL visual (instanced)
   const r = FUEL.radius;
-  const geo = new THREE.SphereGeometry(r, 20, 14);
+  const geo = new THREE.SphereGeometry(r, 32, 22);
   // squeezed FUEL flattens where it's pressed: up to four contact patches per ball (touch0..3:
-  // the patch's normal and its distance from the center, Hopper.touchPatches). The sphere is cut
-  // flat at each one and the patch shades flat, so only the contact edges squash.
+  // the patch's normal and its distance from the center, Hopper.touchPatches). Foam gives around
+  // a contact too, not just on it, so the sphere eases into each flat patch over a band that
+  // widens the harder it's pressed (a smooth minimum of the sphere and the contact plane).
   const MAX = 260; // room for whatever the hopper holds
   const touch = [0, 1, 2, 3].map((j) => {
     const a = new THREE.InstancedBufferAttribute(new Float32Array(4 * MAX), 4);
@@ -1782,8 +1783,14 @@ export function buildRobotModel(cfg, alliance) {
       .replace('#include <common>', `#include <common>
 attribute vec4 touch0; attribute vec4 touch1; attribute vec4 touch2; attribute vec4 touch3;
 void squash(vec4 c, inout vec3 p, inout vec3 nrm) {
-  float s = dot(p, c.xyz) - c.w;
-  if (s > 0.0) { p -= c.xyz * s; nrm = c.xyz; }
+  float k = 0.01 + 1.2 * max(0.0, ${r.toFixed(4)} - c.w); // blend band: wider for a deeper squash
+  float h = dot(p, c.xyz);
+  float q = max(k - abs(h - c.w), 0.0) / k;
+  float hs = min(h, c.w) - q * q * k * 0.25;
+  if (hs < h) {
+    p -= c.xyz * (h - hs);
+    nrm = normalize(mix(c.xyz, nrm, clamp(0.5 + 0.5 * (c.w - h) / k, 0.0, 1.0)));
+  }
 }`)
       .replace('#include <beginnormal_vertex>', `#include <beginnormal_vertex>
 vec3 sqP = position;

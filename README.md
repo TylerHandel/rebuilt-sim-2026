@@ -221,7 +221,7 @@ Sources:
 **FUEL:**
 - 504 balls: 400–408 staged in the NEUTRAL ZONE (34 × 12 grid), 48 in the DEPOTS, 48 in the CHUTES, plus up to 8 preloaded.
 - Physics uses the real size and mass, quadratic air drag and carpet rolling resistance.
-- FUEL that enters a HUB is processed and comes back out the exits into the NEUTRAL ZONE.
+- FUEL that enters a HUB really falls through it: down the funnel, past the sensors (where it's scored) onto a ramp inside, and out through the exit in the NEUTRAL ZONE face. Inside, FUEL is slick and pressed down a little harder than gravity (`HUB.fuelFriction`, `HUB.extraGravity`), and a roof slopes back from the top of the exit, so the load keeps flowing instead of locking into an arch over the opening: 200 FUEL poured in at 60 a second are all out within about 5 s.
 - FUEL that leaves the field is returned by "field staff" near where it left.
 
 **Match:**
@@ -249,11 +249,11 @@ Sources:
 **Robot-to-robot rules** apply when an opponent is on the field. Both robots are held to them, and foul points go to the other alliance:
 - **G403** (MAJOR): in AUTO, contacting an opponent while your BUMPERS are fully across the CENTER LINE.
 - **G415** (MINOR): a deployed over-the-bumper intake reaching inside the opponent's FRAME PERIMETER, i.e. hitting them intake-first with the intake down.
-- Ramming, even at full speed, is legal. High-speed contact isn't called in competition, and robots here can't tip over.
+- Ramming, even at full speed, is legal. High-speed contact isn't called in competition, and robots here rock but don't tip over.
 - **G418** (MINOR): PINNING an opponent against a FIELD element for more than 3 s, plus another MINOR for every further 3 s. The count resets when the robots are 72 in apart. The HUD shows the pin count for either robot.
 - **G420** (MAJOR): in END GAME, contacting an opponent that is touching its TOWER or climbing.
 
-Robots push each other with realistic traction (mass × acceleration limit), so heavier or faster-accelerating robots win shoving matches. Robots ride on their wheels and can pitch and roll: they tilt going up a BUMP, over a DEPOT barrier or onto a jammed pile of FUEL (the bumpers are rounded so a pile can lift them), and the FUEL in the hopper feels the tilt.
+Robots push each other with realistic traction (mass × acceleration limit), so heavier or faster-accelerating robots win shoving matches. Robots ride on their wheels and can pitch and roll: they tilt going up a BUMP, over a DEPOT barrier or onto a jammed pile of FUEL, and the FUEL in the hopper feels the tilt. They only drive with wheels on the floor: a short ray down from each wheel finds the carpet, a BUMP or a DEPOT barrier, and the drive gets that share of its grip, so a robot lifted onto FUEL or another robot coasts instead of climbing. Bumpers are straight-sided (1.25 in to 6.3 in off the carpet, chamfered underneath), so robots meet bumper to bumper and push level; the frames above only touch other robots through their bumpers. Most of the weight is low (drivetrain, battery), and pitching and rolling are capped and damped the way tires and frame flex soak up a hit, so a crash or a DEPOT barrier at full speed rocks a robot (under 30°) but doesn't flip it.
 
 **FUEL in the robots** (nothing teleports):
 - **Intake:** the rollers grab FUEL (still a physics ball) and drag it up the intake arm, over the BUMPER and in through the slot under the hopper wall, at the robot's intake rate. FUEL the rollers let go of before it's over the BUMPER drops back onto the carpet.
@@ -329,7 +329,7 @@ Other CAD, such as robots or field elements, can be added the same way. Export g
 index.html, css/style.css   UI shell and styles
 js/constants.js             field dimensions, timing, points (from the manual)
 js/field.js                 field geometry and colliders
-js/fuel.js                  all 504 FUEL: physics, drag, HUB processing, returns
+js/fuel.js                  all 504 FUEL: physics, drag, HUB scoring and exits, returns
 js/ballistics.js            drag-aware trajectory model, shot tables, shoot-on-the-move solver
 js/robotConfigs.js          the robots' specs
 js/robotModels.js           3D models

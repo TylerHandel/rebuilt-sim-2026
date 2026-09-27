@@ -33,6 +33,9 @@
 import { IN, TRENCH } from './constants.js';
 
 export const BUMPER_T = 3.25 * IN; // bumper thickness incl. backing
+// bumper height off the carpet: 1.25in up (clear of the 1.125in DEPOT barrier) and 5in tall, like real FRC bumpers (two pool
+// noodles), so they meet FUEL near its middle and push it rather than wedging it underneath
+export const BUMPER_Y0 = 0.032, BUMPER_Y1 = 0.16;
 
 // whether a robot fits under the TRENCH arm (4946 doesn't: it goes over the BUMPS)
 export const fitsTrench = (cfg) => cfg.height <= TRENCH.clearHeight - 0.005;

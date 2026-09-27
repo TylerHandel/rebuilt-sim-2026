@@ -79,9 +79,15 @@ export const HUB = {
   // edge 30.13in off the carpet (top of the 30in rear bottom panel, GE-26306), off the HUB ramps
   exitWidth: (47 - 2 * 5.72) * IN,
   exitTop: 38.88 * IN,
-  exitOffsets: [-0.34, -0.11, 0.11, 0.34], // 4 FUEL lanes across that opening
   exitHeight: 30.13 * IN,           // bottom of the FUEL as it leaves the opening (m above the carpet)
-  exitSpeed: [1.0, 2.2],            // m/s off the exit ramps
+  // Inside, FUEL drops out of the funnel onto a ramp (rampRise higher at the back than at the
+  // exit) and rolls out; a roof slopes up and back from the top of the exit, so the load narrows
+  // to one layer at the opening. FUEL inside is slick (fuelFriction) and pressed down a little
+  // harder (extraGravity, m/s^2), so the load keeps sliding out instead of locking into an arch.
+  rampRise: 0.4,
+  roofRun: 0.45, roofRise: 0.2,
+  fuelFriction: 0.02,
+  extraGravity: 4.9,
   scoreGrace: 3.0,                  // FUEL assessed up to 3s after deactivation
   targetHeight: 1.95,               // aim point (center of opening)
   // LED light diffusers around the top of the HUB box (field CAD, GE-26309/10/11)

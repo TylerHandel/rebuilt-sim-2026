@@ -4,7 +4,6 @@ import {
   GUARDRAIL_H, DS_BASE_H, DS_GLASS_H, ALLIANCE_WALL_H, ALLIANCE_ZONE_DEPTH, FUEL, GROUP, groups,
 } from './constants.js';
 import { mulQuat, yawQuat } from './physics.js';
-import { inHexagon } from './util.js';
 
 export const ALLIANCE_COLOR = { blue: 0x1f5fe0, red: 0xd92b2b };
 export const ALLIANCE_COLOR_CSS = { blue: '#2f6ff0', red: '#e03434' };
@@ -143,11 +142,6 @@ export class Field {
     const az = Math.abs(z);
     if (az < HUB.size / 2 || az > HUB.size / 2 + BUMP.width) return 0;
     return BUMP.height * (1 - dx / (BUMP.depth / 2));
-  }
-
-  isInsideHubOpening(alliance, x, y, z) {
-    const c = Field.hubCenter(alliance);
-    return y < HUB.funnelBottomY + FUEL.radius + 0.12 && y > 1.0 && inHexagon(x - c.x, z - c.z, HUB.funnelBottomR + 0.03);
   }
 
   // Hub light states: 'active' | 'warning' | 'off' | 'chase'
@@ -299,8 +293,20 @@ export class Field {
       const hub = new THREE.Group();
       hub.position.set(hx, 0, 0);
       grp.add(hub);
-      // body: solid below the funnel, thin side panels up to the deck so the funnel stays visible
-      box(HUB.size, HUB.funnelBottomY, HUB.size, mats.black, 0, HUB.funnelBottomY / 2, 0, hub);
+      // body: solid below the exit, then walls round the inside (FUEL drops out of the funnel
+      // onto a ramp that rolls it out through the exit in the NEUTRAL ZONE face), then thin side
+      // panels up to the deck so the funnel stays visible
+      const eh = HUB.exitHeight, fb = HUB.funnelBottomY, ew = HUB.exitWidth / 2;
+      box(HUB.size, eh, HUB.size, mats.black, 0, eh / 2, 0, hub);
+      box(0.03, fb - eh, HUB.size, mats.black, -hs + 0.015, (eh + fb) / 2, 0, hub);
+      for (const sz of [-1, 1]) {
+        box(HUB.size, fb - eh, 0.03, mats.black, 0, (eh + fb) / 2, sz * (hs - 0.015), hub);
+        box(0.03, HUB.exitTop - eh, hs - ew, mats.black, hs - 0.015, (eh + HUB.exitTop) / 2, sz * (hs + ew) / 2, hub);
+      }
+      box(0.03, fb - HUB.exitTop, HUB.size, mats.black, hs - 0.015, (HUB.exitTop + fb) / 2, 0, hub);
+      // the ramp inside, down to the exit's HDPE lip
+      const ramp = box(Math.hypot(2 * hs + 0.1, HUB.rampRise), 0.02, 2 * ew, mats.dark, 0.05, eh + HUB.rampRise / 2 - 0.01, 0, hub, false);
+      ramp.rotation.z = -Math.atan2(HUB.rampRise, 2 * hs + 0.1);
       const sideH = deckY - HUB.funnelBottomY - 0.004;
       const sideY = HUB.funnelBottomY + sideH / 2;
       box(0.03, sideH, HUB.size, mats.black, hs - 0.015, sideY, 0, hub);
@@ -328,7 +334,6 @@ export class Field {
       }
       // exit opening in the NEUTRAL ZONE face, with the white HDPE ramp lip FUEL rolls off
       const exH = HUB.exitTop - HUB.exitHeight;
-      box(0.02, exH, HUB.exitWidth, mats.dark, hs + 0.004, HUB.exitHeight + exH / 2, 0, hub, false);
       box(0.1, 0.012, HUB.exitWidth, mats.white, hs + 0.04, HUB.exitHeight - 0.006, 0, hub, false);
       for (const sz of [-1, 1]) box(0.03, exH + 0.03, 0.03, mats.alu, hs + 0.01, HUB.exitHeight + exH / 2, sz * (HUB.exitWidth / 2 + 0.015), hub, false);
       box(0.03, 0.03, HUB.exitWidth + 0.06, mats.alu, hs + 0.01, HUB.exitTop + 0.015, 0, hub, false);
@@ -400,8 +405,37 @@ export class Field {
       }
       P.trimesh(wv, idx, { restitution: 0.35, friction: 0.35 });
 
-      // lower solid body + perimeter walls up to the deck
-      boxC(hx, HUB.funnelBottomY / 2, 0, hs, HUB.funnelBottomY / 2, hs, { restitution: 0.4 });
+      // lower solid body, the ramp inside and the walls round it (with the exit opening), then
+      // perimeter walls up to the deck
+      boxC(hx, (eh - 0.02) / 2, 0, hs, (eh - 0.02) / 2, hs, { restitution: 0.4 });
+      {
+        // ramp: from the back wall down to the lip past the exit (ball bottom at exitHeight at the face)
+        const k = HUB.rampRise / (2 * hs);
+        const yAt = (u) => eh + k * (hs - u); // surface height at local x = u
+        const pts = [];
+        for (const u of [-hs, hs + 0.1]) for (const z of [-hs, hs]) pts.push(hx + u, yAt(u), z, hx + u, yAt(u) - 0.05, z);
+        hullC(pts, { restitution: 0.15, friction: 0.3 });
+      }
+      // slick HDPE inside, so FUEL can't wedge itself in an arch over the exit
+      const slick = { friction: 0.05, restitution: 0.2 };
+      const iy = (eh + fb) / 2, ih = (fb - eh) / 2 + 0.02;
+      boxC(hx - hs + 0.03, iy, 0, 0.03, ih, hs, slick);
+      for (const sz of [-1, 1]) {
+        boxC(hx, iy, sz * (hs - 0.03), hs, ih, 0.03, slick);
+        boxC(hx, iy, sz * (ew + 0.03), hs, ih, 0.03, slick); // guides to the exit's width
+        boxC(hx + hs - 0.03, (eh + HUB.exitTop) / 2, sz * (hs + ew) / 2, 0.03, (HUB.exitTop - eh) / 2, (hs - ew) / 2, slick);
+      }
+      boxC(hx + hs - 0.03, (HUB.exitTop + fb) / 2, 0, 0.03, (fb - HUB.exitTop) / 2 + 0.02, hs, slick);
+      {
+        // a roof sloping up and back from the top of the exit: the pile narrows to one layer as
+        // it reaches the opening instead of leaning on a wall right over it
+        const pts = [];
+        for (const z of [-ew, ew]) {
+          for (const [u, y] of [[hs - 0.06, HUB.exitTop], [hs - 0.06 - HUB.roofRun, HUB.exitTop + HUB.roofRise]]) pts.push(hx + u, y, z, hx + u, y + 0.04, z);
+          pts.push(hx + hs - 0.06, HUB.exitTop + HUB.roofRise + 0.3, z); // its top slopes back into the pile: no shelf
+        }
+        hullC(pts, slick);
+      }
       const wallH = (deckY - HUB.funnelBottomY) / 2;
       const wy = HUB.funnelBottomY + wallH;
       boxC(hx + hs - 0.03, wy, 0, 0.03, wallH, hs, {});
