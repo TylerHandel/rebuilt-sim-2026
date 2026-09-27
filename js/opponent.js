@@ -14,6 +14,7 @@ import { NavGrid, obstacleAt } from './nav.js';
 import { towerProtected, PIN_RESET } from './rules.js';
 import { clamp, wrapAngle, rand } from './util.js';
 import { TRAINED_BRAIN } from './trainedBrain.js';
+import { fitsTrench } from './robotConfigs.js';
 
 export const OPP_STRATEGIES = {
   off: { name: 'Off (solo)', desc: 'No opponent: just you, the FUEL and the clock.' },
@@ -95,7 +96,7 @@ export class OpponentAI {
     this.skillKey = skill;
     this.skill = OPP_SKILLS[skill] || OPP_SKILLS.regional;
     this.brain = brainFor(skill, brain);
-    this.nav = new NavGrid(Math.min(robot.halfL, robot.halfW) + 0.07);
+    this.nav = new NavGrid(Math.min(robot.halfL, robot.halfW) + 0.07, { trench: fitsTrench(robot.cfg) });
     this.state = 'collect';
     this.mode = 'score';
     this.label = 'Waiting';

@@ -5,6 +5,7 @@
 import { FIELD_W, ALLIANCE_ZONE_DEPTH, HALF_L, HUB, DEPOT, BUMP, fw } from './constants.js';
 import { clamp, wrapAngle } from './util.js';
 import { getCustom, customSteps } from './customAutos.js';
+import { fitsTrench } from './robotConfigs.js';
 
 export const START_POSITIONS = {
   leftTrench: { name: 'Left Trench', fy: FIELD_W - 0.64 },
@@ -66,6 +67,10 @@ export const BEST_AUTOS = {
   ] },
   1690: { start: 'rightBump', preload: 'move', trips: [
     { out: 'trench', fx: 8.4, a: 2.32, b: 6.7, speed: 0.53, home: 'bump', shootAt: [2.21, 5.46] },
+    { out: 'bump', fx: 7.32, a: 6.65, b: 3.95, speed: 0.47, home: 'bump', shootAt: [2.95, 5.72] },
+  ] },
+  4946: { start: 'rightBump', preload: 'stand', trips: [
+    { out: 'bump', fx: 8.4, a: 2.32, b: 6.7, speed: 0.53, home: 'bump', shootAt: [2.21, 5.46] },
     { out: 'bump', fx: 7.32, a: 6.65, b: 3.95, speed: 0.47, home: 'bump', shootAt: [2.95, 5.72] },
   ] },
   8793: { start: 'leftTrench', preload: 'move', trips: [
@@ -146,7 +151,8 @@ export class AutoRunner {
     const shootPreload = () => steps.push({ type: 'shoot', timeout: 3.0 });
     const sweep = (fxLine, back) => {
       // through the TRENCH into the NEUTRAL ZONE, sweep across the FUEL, back over the BUMP
-      steps.push({ type: 'drive', pts: [[3.2, 0.64], [5.6, 0.64], [fxLine - 0.2, 1.25]], intake: true, speed: 1.0 });
+      const out = fitsTrench(r.cfg) ? ROUTE_FY.trench : ROUTE_FY.bump; // over the BUMP if it's too tall
+      steps.push({ type: 'drive', pts: [[3.2, out], [5.6, out], [fxLine - 0.2, 1.25]], intake: true, speed: 1.0 });
       steps.push({ type: 'drive', pts: [[fxLine, 1.45], [fxLine, 4.4]], intake: true, shoot: small, speed: small ? 0.75 : 0.55 });
       steps.push({ type: 'drive', pts: [[6.3, 3.0], [5.2, 2.55], [3.3, 2.4]], intake: small, shoot: small ? true : 'hub', speed: back ? 0.9 : 1.0 });
       steps.push({ type: 'shoot', timeout: 2.5 });
@@ -199,7 +205,8 @@ export class AutoRunner {
     const bps = r.cfg.shooter.bps;
     const maxFx = HALF_L + r.halfW - 0.08; // BUMPERS past the CENTER LINE but not fully across
     const steps = [];
-    const lane = (kind, fy) => (fy > FIELD_W / 2 ? FIELD_W - ROUTE_FY[kind] : ROUTE_FY[kind]);
+    // a robot too tall for the TRENCH goes over the BUMP instead
+    const lane = (kind, fy) => { const k = fitsTrench(r.cfg) ? kind : 'bump'; return fy > FIELD_W / 2 ? FIELD_W - ROUTE_FY[k] : ROUTE_FY[k]; };
     const shootAll = () => steps.push({ type: 'shoot', timeout: r.maxCapacity() / bps + 1.2 });
     if (plan.preload === 'stand') steps.push({ type: 'shoot', timeout: 1.5 });
     let first = plan.preload !== 'stand';

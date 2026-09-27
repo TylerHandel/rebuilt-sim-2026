@@ -125,8 +125,11 @@ export class Hopper {
   topAt(x, z = 0) {
     const s = this.spec;
     if (s.above) return this.floorAt(x) + s.above;
-    // a lid that rises (1678's, on the climber) lifts the whole ceiling; netting closes the sides
-    const top = s.lift ? s.top + s.lift.h * this.liftScale : s.top;
+    // a lid that rises (1678's, on the climber) lifts the whole ceiling
+    let top = s.lift ? s.top + s.lift.h * this.liftScale : s.top;
+    // a net stretched diagonally from the hopper's top edge (slope.x) down to the front of the
+    // intake or extension (slope.y at the front), as on 1678 and 4946
+    if (s.slope && x > s.slope.x) top += (s.slope.y - top) * clamp((x - s.slope.x) / Math.max(0.05, this.front - s.slope.x), 0, 1);
     if (s.dome) return top + s.dome.h * this.domeScale * this.domeShape(x, z);
     if (s.extTop !== undefined && x > s.x1) return s.extTop;
     return top;

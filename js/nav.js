@@ -1,6 +1,6 @@
 // Grid A* navigation for the AI opponent. The only things a ROBOT can't drive over or under are
 // the HUBS, the bump-side TRENCH posts, the TOWERS and the field perimeter; BUMPS and the
-// TRENCH openings are free space.
+// TRENCH openings are free space (except for a robot too tall for the TRENCH).
 import { HALF_L, HALF_W, HUB, TRENCH, TOWER, BLUE, RED } from './constants.js';
 import { Field } from './field.js';
 
@@ -71,14 +71,26 @@ class Heap {
   }
 }
 
+// the TRENCH openings, for a robot too tall to fit under the arm
+const TRENCH_OPENINGS = (() => {
+  const out = [];
+  for (const a of [BLUE, RED]) {
+    const hx = Field.hubCenter(a).x, zOpen = HALF_W - TRENCH.clearWidth;
+    for (const sz of [1, -1]) out.push({ x: hx, z: (sz * (zOpen + HALF_W)) / 2, hx: TRENCH.depth / 2, hz: (HALF_W - zOpen) / 2 });
+  }
+  return out;
+})();
+
 export class NavGrid {
-  constructor(radius) {
+  // trench: false for a robot that doesn't fit under the TRENCH (it has to use the BUMPS)
+  constructor(radius, { trench = true } = {}) {
     this.r = radius;
     this.blocked = new Uint8Array(NX * NZ);
     for (let i = 0; i < NX; i++) {
       for (let j = 0; j < NZ; j++) {
         const x = -HALF_L + (i + 0.5) * CELL, z = -HALF_W + (j + 0.5) * CELL;
-        this.blocked[i * NZ + j] = obstacleAt(x, z, radius) ? 1 : 0;
+        const underArm = !trench && TRENCH_OPENINGS.some((o) => Math.abs(x - o.x) < o.hx + radius && Math.abs(z - o.z) < o.hz + radius);
+        this.blocked[i * NZ + j] = underArm || obstacleAt(x, z, radius) ? 1 : 0;
       }
     }
     this.g = new Float32Array(NX * NZ);
