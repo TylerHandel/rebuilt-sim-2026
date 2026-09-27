@@ -13,6 +13,6 @@ export const CAPACITY_TABLE = {
   '9c5c5ca6': 67,
   'ba25a5ea': 32,
   '30c30c0a': 63,
-  '37f72fab': 78,
-  '244c664c': 103,
+  '2c2a7f88': 84,
+  'b098c7ef': 114,
 };

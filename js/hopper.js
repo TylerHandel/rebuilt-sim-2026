@@ -111,6 +111,51 @@ export function hookPath(bay, n = 20) {
   return pts;
 }
 
+// Push a FUEL center p (robot frame) out of oriented boxes ({c, ax: [3 unit axes], h: [3 half
+// sizes], v: its velocity}, robot frame; ax[1] is up, ax[0] across the box's thin side) to r from
+// them, with friction as the box slides over (step: seconds of box motion this pass); returns how
+// far it moved (a Vector3), or null
+const _d = new THREE.Vector3(), _q = new THREE.Vector3(), _n = new THREE.Vector3(), _t = new THREE.Vector3();
+const ARM_FRICTION = 0.35; // nylon net on an aluminum TRENCH arm
+function pushOutOfBoxes(p, boxes, r, step = 0) {
+  let moved = null;
+  for (const b of boxes) {
+    _d.subVectors(p, b.c);
+    const l = [_d.dot(b.ax[0]), _d.dot(b.ax[1]), _d.dot(b.ax[2])];
+    if (Math.abs(l[0]) > b.h[0] + r || Math.abs(l[1]) > b.h[1] + r || Math.abs(l[2]) > b.h[2] + r) continue;
+    const q = [clamp(l[0], -b.h[0], b.h[0]), clamp(l[1], -b.h[1], b.h[1]), clamp(l[2], -b.h[2], b.h[2])];
+    let dx = l[0] - q[0], dy = l[1] - q[1], dz = l[2] - q[2];
+    const dist = Math.hypot(dx, dy, dz);
+    let mv;
+    if (dist > 1e-6) {
+      if (dist >= r) continue;
+      const k = (r - dist) / dist;
+      mv = [dx * k, dy * k, dz * k];
+    } else {
+      // center inside (a thin arm): out underneath, or back out the side it came in (b.v: how
+      // the box moves in the robot frame; the FUEL came in on the side the box is moving toward),
+      // never on through to the far side
+      const vin = b.v ? -b.v.dot(b.ax[0]) : 0;
+      const side = vin ? -Math.sign(vin) : Math.sign(l[0]) || 1;
+      const back = b.h[0] + side * l[0] + r, down = l[1] + b.h[1] + r;
+      mv = back < down ? [side * back, 0, 0] : [0, -down, 0];
+    }
+    _q.set(0, 0, 0).addScaledVector(b.ax[0], mv[0]).addScaledVector(b.ax[1], mv[1]).addScaledVector(b.ax[2], mv[2]);
+    // friction: the box drags the net and the FUEL under it along as it slides over (at most
+    // as far as the box moved this iteration, and mu times the push)
+    if (b.v && step) {
+      const n = _n.copy(_q).normalize(), push = _q.length();
+      _t.copy(b.v).multiplyScalar(step);
+      _t.addScaledVector(n, -_t.dot(n));
+      const tl = _t.length(), k = tl > 1e-9 ? Math.min(tl, ARM_FRICTION * push) / tl : 0;
+      _q.addScaledVector(_t, k);
+    }
+    p.add(_q);
+    (moved = moved || new THREE.Vector3()).add(_q);
+  }
+  return moved;
+}
+
 // piecewise linear through [x, y] points (sorted by x), flat past the ends
 function pwl(pts, x) {
   if (x <= pts[0][0]) return pts[0][1];
@@ -134,6 +179,8 @@ export class Hopper {
     this.domeScale = 1;
     this.liftScale = 1; // a lid on the climber (spec.lift): how far it's up, 0..1
     this.obstacles = [...(spec.obstacles || [])];
+    this.boxForce = new THREE.Vector3();
+    this.boxAt = new THREE.Vector3();
     if (spec.hook) {
       // the hook as a row of thin posts at its height over the rotor
       const h = spec.hook, y = spec.rotor.y;
@@ -330,6 +377,7 @@ export class Hopper {
     const running = env.feeding || env.intaking;
     if (env.intaking && list.some((e) => e.push)) this.quiet = 0;
     const still = Math.abs(w) < 0.05 && Math.hypot(ax, az) < 0.3 && !running && !spin && !list.some((e) => e.tr);
+    if (list.some((e) => e.ext)) this.quiet = 0; // something outside is pressing on the load
     if (still && this.quiet > 0.4) return;
 
     let maxV = 0;
@@ -383,6 +431,11 @@ export class Hopper {
       // the intake roller shoves the FUEL it just brought in back into the load (e.push, N) until
       // it's a ball's width in or the push runs out; that packs the load against the walls, the
       // floor and the nets as hard as the roller can squeeze
+      // pushed on from outside (a TRENCH arm pressing the net down onto it, Robot._readTopContacts)
+      if (e.ext) {
+        fx += e.ext.x / FUEL.mass; fy += e.ext.y / FUEL.mass; fz += e.ext.z / FUEL.mass;
+        e.ext = null;
+      }
       if (e.push) {
         if (env.intaking && e.pushT > 0 && this.front - p.x < D_BALL * 1.2) fx -= e.push / FUEL.mass;
         e.pushT -= dt;
@@ -398,6 +451,12 @@ export class Hopper {
       p.addScaledVector(v, dt);
     }
 
+    // rigid things outside the robot over the load (a TRENCH arm: env.boxes, oriented boxes in
+    // the robot frame) push FUEL out of the way, down into the load; what that takes pushes back
+    // on the robot (this.boxForce, N, and where: this.boxAt, robot frame)
+    const boxes = env.boxes && env.boxes.length ? env.boxes : null;
+    this.boxForce.set(0, 0, 0); this.boxAt.set(0, 0, 0);
+    let boxW = 0;
     // constraints: ball-ball contact, then the hopper around them
     list.sort((a, b) => a.p.x - b.p.x);
     const n = list.length;
@@ -442,7 +501,18 @@ export class Hopper {
         }
       }
       for (const e of list) if (!e.tr) this._bounds(e.p);
+      if (boxes) {
+        for (const e of list) {
+          if (e.tr) continue;
+          const d = pushOutOfBoxes(e.p, boxes, R_WALL, dt / ITER);
+          if (!d) continue;
+          this.boxForce.add(d);
+          const w = d.length();
+          this.boxAt.addScaledVector(e.p, w); boxW += w;
+        }
+      }
     }
+    if (boxW > 0) { this.boxAt.divideScalar(boxW); this.boxForce.multiplyScalar(FUEL.mass / (dt * dt)); this.quiet = 0; }
     this.pressure = squeeze;
 
     for (const e of list) {
@@ -468,7 +538,10 @@ export class Hopper {
     const hw = this.hwAt(p.x);
     wall(0, 0, 1, hw - p.z);
     wall(0, 0, -1, hw + p.z);
-    wall(-1, 0, 0, p.x - s.x0);
+    if (s.round && p.x < s.round.x) {
+      const dx = p.x - s.round.x, d = Math.hypot(dx, p.z) || 1;
+      wall(dx / d, 0, p.z / d, s.round.r - d);
+    } else wall(-1, 0, 0, p.x - s.x0);
     wall(1, 0, 0, Math.min(this.front, this.wall) - p.x);
     wall(0, -1, 0, p.y - this.floorAt(p.x, p.z));
     wall(0, 1, 0, this.topAt(p.x, p.z) - p.y);
@@ -505,6 +578,11 @@ export class Hopper {
       const gz = (this.topAt(p.x, p.z + e) - this.topAt(p.x, p.z - e)) / (2 * e);
       const k = (p.y - top) / (1 + gx * gx + gz * gz);
       p.x += gx * k; p.y -= k; p.z += gz * k;
+    }
+    if (s.round && p.x < s.round.x) {
+      // a round back (4946's hopper): inside the circle
+      const dx = p.x - s.round.x, d = Math.hypot(dx, p.z), lim = s.round.r - R_WALL;
+      if (d > lim) { p.x = s.round.x + (dx * lim) / d; p.z *= lim / d; }
     }
     if (s.chamfer) {
       // cut back corners: (x - x0) - |z| + hw - chamfer >= R * sqrt2
