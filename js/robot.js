@@ -5,7 +5,7 @@ import {
 } from './constants.js';
 import { BUMPER_T, BUMPER_Y0, BUMPER_Y1 } from './robotConfigs.js';
 import { buildRobotModel, addClimberVisual, BUMP_Y1 } from './robotModels.js';
-import { Hopper, measureCapacity } from './hopper.js';
+import { Hopper, measureCapacity, intakePush } from './hopper.js';
 import { ShotTable, solveMovingShot, trajectoryPoints } from './ballistics.js';
 import { Field } from './field.js';
 import { obstacleAt } from './nav.js';
@@ -64,7 +64,8 @@ export class Robot {
     this.hopper = new Hopper(cfg.bay);
     const ext = cfg.storage.extLen || 0;
     // retracted: hopper in and any lid (1678's, on the climber) down
-    this.geoCap = { retracted: measureCapacity(cfg.bay, cfg.bay.x1, 0), extended: measureCapacity(cfg.bay, cfg.bay.x1 + ext, 1) };
+    this.intakePush = intakePush(cfg); // N: how hard the intake shoves FUEL into the hopper
+    this.geoCap = { retracted: measureCapacity(cfg.bay, cfg.bay.x1, 0, this.intakePush), extended: measureCapacity(cfg.bay, cfg.bay.x1 + ext, 1, this.intakePush) };
     this._createBody();
     this.reset();
   }
@@ -466,7 +467,7 @@ export class Robot {
     if (on && this.cmd.outtake) want = true;
     const next = approach(this.intakeDeploy, want ? 1 : 0, dt / (want ? ic.deployTime : ic.retractTime ?? ic.deployTime));
     // a compacting intake pushes on the load as it comes in, and stalls while it can't squeeze more
-    if (!(ic.compacts && next < this.intakeDeploy && this.hopper.pressure > (this.cfg.bay.push ?? FUEL.intakePush))) this.intakeDeploy = next;
+    if (!(ic.compacts && next < this.intakeDeploy && this.hopper.pressure > (ic.compactPush ?? this.intakePush))) this.intakeDeploy = next;
     this.hopper.wall = ic.compacts ? this._compactorX() : Infinity;
     this._hopper(dt, on);
     const deployed = this.intakeDeploy > 0.85;
@@ -543,7 +544,9 @@ export class Robot {
         b.captor = null;
         this.stored.push(b);
         this.stats.intaked++;
-        this.hopper.add(b, l, new THREE.Vector3(lv.x, v.y, lv.z));
+        const e = this.hopper.add(b, l, new THREE.Vector3(lv.x, v.y, lv.z));
+        e.push = this.intakePush; // the roller shoves it on into the load
+        e.pushT = 0.4;
       } else if (lost || (!running && !cap.over)) {
         // not over the bumper yet: it drops back onto the carpet
         this.captured.splice(i, 1);

@@ -60,6 +60,9 @@ export const ROBOTS = {
     intake: {
       width: 25.5 * IN, reach: 7.8 * IN, rate: 200, pull: 5, deployTime: 0.35, retractTime: 1.6, side: 'front', latched: false,
       compacts: true, arm: { x: 0.273, y: 0.17, len: 0.338, stowDeg: 112.5, deployDeg: -15.5 },
+      // retracting over the load it crams it into the indexer, far harder than its roller pushes
+      // FUEL in (hopper.js intakePush): it stalls once the load pushes back this hard (N, estimate)
+      compactPush: 180,
     },
     // one-piece hopper (their CAD): its panels sit over the shooter at the start and slide out
     // along slotted rails with the first intake, then stay out for the match. capacity /
@@ -73,9 +76,6 @@ export const ROBOTS = {
       x0: -0.143, x1: 0.323, hw: 0.33, top: 0.54, extTop: 0.51, // under the hopper top (their CAD)
       floor: { a: 0.1, b: 0.266, lo: 0.09, hi: 0.17 },
       drive: 'floor', driveSpeed: 1.8,
-      // the intake retracting over the load crams it into the indexer, far harder than rollers
-      // can push (FUEL.intakePush); how hard it squeezes the load before it stalls (N, estimate)
-      push: 180,
       // up the roller ramp at the back of the hopper, under the hood to the drum (their CAD)
       feed: { x: -0.09, via: [[-0.1, 0.25], [-0.12, 0.38], [-0.2, 0.44]] },
     },
@@ -173,7 +173,7 @@ export const ROBOTS = {
     storage: { capacity: 12 },
     // no hopper: two lanes on the conveyor that climbs from the intake to the turret
     bay: {
-      x0: -0.13, x1: 0.3, hw: 0.16, above: 0.26,
+      x0: -0.13, x1: 0.3, hw: 0.16, above: 0.26, pack: false, // a ball path, not a hopper: poured, not packed
       floor: { a: 0.24, b: -0.543, lo: 0.115, hi: 0.28 },
       drive: 'belt', driveSpeed: 1.4,
       feed: { x: -0.08, via: [[-0.12, 0.42]] },
@@ -262,7 +262,9 @@ export const ROBOTS = {
     mass: 62,
     drive: { maxSpeed: 4.5, maxAccel: 9.8, maxOmega: 8.8, maxAlpha: 33 },
     // full-width slapdown: 2in silicone roller + 1.25in kicker bar, pivot at the front
-    intake: { width: 25 * IN, reach: 0.1, rate: 200, pull: 5, deployTime: 0.3, side: 'front', latched: false },
+    // a 2in silicone-covered carbon fiber roller (their reveal): rigid, so it squeezes FUEL a
+    // little less than compliant wheels do (hopper.js intakePush)
+    intake: { width: 25 * IN, reach: 0.1, rate: 200, pull: 5, deployTime: 0.3, side: 'front', latched: false, squeeze: 0.6 },
     // the horizontal extension rides out with the intake (a slanted slot in its side plates)
     storage: { extLen: 0.2, extend: 'intake' },
     // their CAD: roller floor (dead-axle rollers, then flex wheels) sloping down to the ball

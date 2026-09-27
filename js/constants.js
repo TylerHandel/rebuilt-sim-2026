@@ -41,8 +41,9 @@ export const FUEL = {
   // rate in AndyMark's 2026 Scoring Element Testing Report (FUEL firms up with age, to ~30-38).
   // Two FUEL pressed together squash the same (each contact is twice as stiff, in series).
   springRate: (20 * 4.448) / 0.0254, // N/m
-  // how hard intake rollers shove FUEL into a full hopper (roller grip on a squeezed FUEL)
-  intakePush: 45,          // N
+  // how hard an intake roller shoves FUEL into a hopper when nothing else says (hopper.js
+  // intakePush works it out per robot: 3/4in of squeeze -> ~67 N)
+  intakePush: 67,          // N
   total: 504,
   perDepot: 24,
   perChute: 24,

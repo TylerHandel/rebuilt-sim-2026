@@ -10,6 +10,7 @@
 import * as THREE from 'three';
 import { FUEL } from './constants.js';
 import { clamp } from './util.js';
+import { CAPACITY_TABLE } from './capacities.js';
 
 const R = FUEL.radius;
 const D_BALL = 2 * R; // FUEL touch at a full diameter and squash (softly) past that
@@ -19,12 +20,17 @@ const G = 9.81;
 const ITER = 3;
 const MAX_SPEED = 5;
 
-// How much FUEL a hopper holds: pour n in, let it settle, and see whether the intake could
-// have squeezed the last one in: no two FUEL pressed together harder than it pushes
-// (spec.push, e.g. 2910's compacting intake; FUEL.intakePush otherwise). Largest n that fits,
-// by bisection. Seeded, and cached per hopper, so it's the same every time. lift: how far a
-// lid that rises with the hopper (spec.lift) is up, 0..1.
+// How much FUEL a hopper holds, packed the way its intake packs it (push: how hard the intake
+// shoves FUEL in, N; see intakePush). Seeded, and cached per hopper, so it's the same every time.
+// lift: how far a lid that rises with the hopper (spec.lift) is up, 0..1.
 const capCache = new Map();
+
+// How hard a robot's intake shoves FUEL into its hopper: the roller grips a FUEL it squeezes
+// (intake.squeeze, in: how much smaller the gap is than a FUEL) with the foam's spring force,
+// and rubber on foam grips about as hard as it's pressed (INTAKE_GRIP). Teams squeeze FUEL
+// 3/4-1in with compliant wheels, 1/2-5/8in with rigid rollers (Chief Delphi, 2026).
+const INTAKE_GRIP = 1.0;
+export const intakePush = (cfg) => INTAKE_GRIP * FUEL.springRate * (cfg.intake.squeeze ?? 0.75) * 0.0254;
 
 // a held FUEL's contact patches, deepest kept: e.touch holds [nx, ny, nz, w] per contact (the
 // patch is the plane w from its center, facing n)
@@ -41,33 +47,55 @@ function touch(e, nx, ny, nz, w) {
   } else e.nTouch++;
   t[4 * i] = nx; t[4 * i + 1] = ny; t[4 * i + 2] = nz; t[4 * i + 3] = w;
 }
-export function measureCapacity(spec, front, lift = 1) {
+// a short fingerprint of a hopper and how it's filled, for the precomputed table
+export function capacityKey(spec, front, lift, push) {
+  const str = JSON.stringify(spec) + '|' + front.toFixed(3) + '|' + lift + '|' + push.toFixed(1);
+  let h = 5381;
+  for (let i = 0; i < str.length; i++) h = ((h * 33) ^ str.charCodeAt(i)) >>> 0;
+  return h.toString(16);
+}
+
+export function measureCapacity(spec, front, lift = 1, push = FUEL.intakePush) {
   const key = spec;
   let per = capCache.get(key);
   if (!per) { per = new Map(); capCache.set(key, per); }
-  const k = front.toFixed(3) + '|' + lift;
+  const k = front.toFixed(3) + '|' + lift + '|' + push.toFixed(1);
   if (per.has(k)) return per.get(k);
+  // measured ahead of time (tools/capacity.mjs) unless the hopper changed since
+  const pre = CAPACITY_TABLE[capacityKey(spec, front, lift, push)];
+  if (pre !== undefined) { per.set(k, pre); return pre; }
+  let s = 12345;
+  const rng = () => ((s = (s * 16807) % 2147483647) / 2147483647);
   const env = { acc: { x: 0, z: 0 }, w: 0, alpha: 0 };
-  const fits = (n) => {
-    let s = 12345;
-    const rng = () => ((s = (s * 16807) % 2147483647) / 2147483647);
+  let n;
+  if (spec.pack === false) {
+    // no hopper, just a ball path (8793): pour n in, and it holds n if no two are pressed together
+    // harder than the intake pushes. Largest n that fits, by bisection.
+    const fits = (n) => {
+      const h = new Hopper(spec);
+      h.front = front;
+      h.liftScale = lift;
+      h.fill(Array.from({ length: n }, () => ({})), rng);
+      let p = 0;
+      for (let i = 0; i < 240; i++) { h.step(1 / 120, env); if (i >= 210) p = Math.max(p, h.pressure); }
+      return p < push;
+    };
+    let lo = 1, hi = 8;
+    while (fits(hi) && hi < 400) { lo = hi; hi *= 2; }
+    while (hi - lo > 1) { const m = (lo + hi) >> 1; if (fits(m)) lo = m; else hi = m; }
+    n = lo;
+  } else {
     const h = new Hopper(spec);
     h.front = front;
     h.liftScale = lift;
-    h.fill(Array.from({ length: n }, () => ({})), rng);
-    let p = 0;
-    for (let i = 0; i < 240; i++) { h.step(1 / 120, env); if (i >= 210) p = Math.max(p, h.pressure); }
-    return p < (spec.push ?? FUEL.intakePush);
-  };
-  let lo = 1, hi = 8;
-  while (fits(hi) && hi < 400) { lo = hi; hi *= 2; }
-  while (hi - lo > 1) { const m = (lo + hi) >> 1; if (fits(m)) lo = m; else hi = m; }
-  per.set(k, lo);
-  return lo;
+    n = h.pack(Array.from({ length: 400 }, () => ({})), push, rng);
+  }
+  per.set(k, n);
+  return n;
 }
 
 // the most a robot holds (hopper out)
-export const modelCapacity = (cfg) => measureCapacity(cfg.bay, cfg.bay.x1 + (cfg.storage.extLen || 0), 1);
+export const modelCapacity = (cfg) => measureCapacity(cfg.bay, cfg.bay.x1 + (cfg.storage.extLen || 0), 1, intakePush(cfg));
 
 // A Dye Rotor's hook: a fixed curved guide over the rotor, from its rim in to the feeder at the
 // center column (FUEL carried round runs into it and slides in along it). Points [x, z] in the
@@ -202,6 +230,27 @@ export class Hopper {
     for (let i = 0; i < 30; i++) this.step(1 / 120, { acc: { x: 0, z: 0 }, w: 0, alpha: 0 });
   }
 
+  // Fill it the way the intake does: FUEL comes in one at a time at the front, on top of what's
+  // there, and the roller shoves each one in (push, N). One that stays pressed into the load
+  // harder than the roller pushes didn't fit; after a few of those across the intake, it's full.
+  // Returns how many of balls went in (the rest are left out).
+  pack(balls, push, rng = Math.random) {
+    const s = this.spec, env = { acc: { x: 0, z: 0 }, w: 0, alpha: 0, intaking: true };
+    let n = 0;
+    for (let fails = 0; fails < 3 && n < balls.length;) {
+      const z = (rng() - 0.5) * 2 * Math.max(0, s.hw - R - 0.02);
+      const x = this.front - R - 0.01;
+      const y = Math.min(this.dropHeight(x, z), this.topAt(x, z) - R);
+      const e = this.add(balls[n], new THREE.Vector3(x, y, z), new THREE.Vector3(-1.5, 0, 0));
+      e.push = push; e.pushT = 0.4;
+      for (let i = 0; i < 60; i++) this.step(1 / 120, env);
+      let w = R;
+      for (let j = 0; j < e.nTouch; j++) w = Math.min(w, e.touch[4 * j + 3]);
+      if ((D_BALL - 2 * w) * K_BALL > push * 1.25) { this.remove(e); fails++; } else { n++; fails = 0; }
+    }
+    return n;
+  }
+
   // Send a ball along a path (robot-frame points; end() gives the moving last point, e.g. a
   // turret exit). onDone(e) fires when it gets there.
   startTransit(e, via, end, speed, onDone) {
@@ -253,6 +302,7 @@ export class Hopper {
     const ax = env.acc.x, az = env.acc.z, ay = env.acc.y || 0;
     const gx = env.g ? env.g.x : 0, gy = env.g ? env.g.y : -G, gz = env.g ? env.g.z : 0;
     const running = env.feeding || env.intaking;
+    if (env.intaking && list.some((e) => e.push)) this.quiet = 0;
     const still = Math.abs(w) < 0.05 && Math.hypot(ax, az) < 0.3 && !running && !spin && !list.some((e) => e.tr);
     if (still && this.quiet > 0.4) return;
 
@@ -293,6 +343,14 @@ export class Hopper {
         fx += 15 * (sp * tx - v.x);
         fy += 15 * (sp * ty - v.y);
         fz += -4 * v.z;
+      }
+      // the intake roller shoves the FUEL it just brought in back into the load (e.push, N) until
+      // it's a ball's width in or the push runs out; that packs the load against the walls, the
+      // floor and the nets as hard as the roller can squeeze
+      if (e.push) {
+        if (env.intaking && e.pushT > 0 && this.front - p.x < D_BALL * 1.2) fx -= e.push / FUEL.mass;
+        e.pushT -= dt;
+        if (e.pushT <= 0) e.push = 0;
       }
       if (env.feeding && env.feedPoint) {
         const dx = env.feedPoint.x - p.x, dz = env.feedPoint.z - p.z, d = Math.hypot(dx, dz);
