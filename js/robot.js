@@ -3,7 +3,7 @@ import { RAPIER, yawQuat } from './physics.js';
 import {
   BLUE, RED, HALF_L, HALF_W, HUB, FUEL, TOWER, TRENCH, GROUP, groups, IN,
 } from './constants.js';
-import { BUMPER_T, BUMPER_Y0, BUMPER_Y1 } from './robotConfigs.js';
+import { BUMPER_T, BUMPER_Y0, BUMPER_Y1, fitsTrench } from './robotConfigs.js';
 import { buildRobotModel, addClimberVisual, BUMP_Y1 } from './robotModels.js';
 import { Hopper, measureCapacity, intakePush } from './hopper.js';
 import { ShotTable, solveMovingShot, trajectoryPoints } from './ballistics.js';
@@ -138,6 +138,20 @@ export class Robot {
           .setMass(0.5)
           .setFriction(0.05).setRestitution(0.1)
           .setCollisionGroups(0),
+        this.body,
+      );
+    }
+    // The top of the robot when a load bulges its net up, or a lid is raised (1678's): a slab at
+    // that height over the hopper, so it hits the TRENCH arm (a robot that's too tall gets stuck)
+    this.loadCollider = null;
+    this.topY = this.height;
+    const bay = cfg.bay;
+    if (bay.dome || bay.lift) {
+      const x1 = bay.x1 + (st.extLen || 0);
+      this.loadSlab = { x: (bay.x0 + x1) / 2, hx: (x1 - bay.x0) / 2 };
+      this.loadCollider = world.createCollider(
+        RAPIER.ColliderDesc.cuboid(this.loadSlab.hx, 0.03, bay.hw).setTranslation(this.loadSlab.x, this.height, 0)
+          .setMass(0.1).setFriction(0.05).setRestitution(0.1).setCollisionGroups(0),
         this.body,
       );
     }
@@ -427,13 +441,19 @@ export class Robot {
   }
 
   _stepHopper(dt) {
-    // a stretchy net over the top bulges only as far as there's room (the TRENCH arm presses it
-    // down, and the load under it with it)
-    const dome = this.cfg.bay.dome;
-    if (dome) this.hopper.domeScale = clamp((this._headroom() - 0.005 - this.cfg.bay.top) / dome.h, 0, 1);
-    // a lid that rises with the hopper (1678's, on the climber) comes back down under the TRENCH
-    const lift = this.cfg.bay.lift;
-    if (lift) this.hopper.liftScale = Math.min(this.hopperDeploy, clamp((this._headroom() - 0.005 - this.cfg.bay.top) / lift.h, 0, 1));
+    // A stretchy net over the top bulges as far as the load pushes it; nothing presses it back
+    // down (a TRENCH arm stops the robot instead). A lid that rises with the hopper (1678's, on
+    // the climber) comes down with it, but not onto FUEL that's piled up under it.
+    const bay = this.cfg.bay, lift = bay.lift;
+    let loadTop = 0;
+    for (const e of this.hopper.list) if (!e.tr) loadTop = Math.max(loadTop, e.p.y + R);
+    if (lift) this.hopper.liftScale = Math.max(this.hopperDeploy, clamp((loadTop - 0.01 - bay.top) / lift.h, 0, 1));
+    this.topY = Math.max(this.height, lift ? bay.top + lift.h * this.hopper.liftScale + 0.01 : bay.dome ? loadTop + 0.005 : 0);
+    if (this.loadCollider) {
+      const up = this.topY > this.height + 0.005;
+      this.loadCollider.setTranslationWrtParent({ x: this.loadSlab.x, y: this.topY - 0.03, z: 0 });
+      this.loadCollider.setCollisionGroups(up ? groups(GROUP.ROBOT, GROUP.STATIC) : 0);
+    }
     // the robot's acceleration and turn rate, felt by the FUEL inside
     let ax = 0, az = 0, alpha = 0;
     if (this.prevVel) {
@@ -1037,25 +1057,8 @@ export class Robot {
     }
   }
 
-  // how much room there is over the robot (the TRENCH arm), from the robot's origin up
-  _headroom() {
-    const ext = this.halfL + (this.cfg.storage.extLen || 0) * this.hopperDeploy, r = Math.hypot(ext, this.halfW);
-    const zOpen = HALF_W - TRENCH.clearWidth;
-    if (Math.abs(this.pos.z) + r < zOpen) return Infinity;
-    for (const a of [BLUE, RED]) {
-      const hx = Field.hubCenter(a).x;
-      if (Math.abs(this.pos.x - hx) > r + TRENCH.armThick / 2) continue;
-      // any corner of the footprint past the arm's near edge, and the footprint spans the arm
-      let minX = Infinity, maxX = -Infinity, far = false;
-      for (const [lx, lz] of [[ext, this.halfW], [ext, -this.halfW], [-this.halfL, this.halfW], [-this.halfL, -this.halfW]]) {
-        const p = this.localToWorld(lx, 0, lz);
-        minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
-        if (Math.abs(p.z) > zOpen) far = true;
-      }
-      if (far && minX < hx + TRENCH.armThick / 2 && maxX > hx - TRENCH.armThick / 2) return TRENCH.clearHeight - this.pos.y;
-    }
-    return Infinity;
-  }
+  // whether it fits under a TRENCH arm right now (a load bulging its net, or a raised lid, doesn't)
+  fitsTrenchNow() { return fitsTrench(this.cfg) && this.topY <= TRENCH.clearHeight - 0.005; }
 
   worldToLocalVec(x, z) {
     const c = Math.cos(this.yaw), s = Math.sin(this.yaw);

@@ -81,6 +81,9 @@ const TRENCH_OPENINGS = (() => {
   return out;
 })();
 
+// whether (x, z) is under a TRENCH arm's opening (margin: how far round it counts)
+export const underTrench = (x, z, margin = 0) => TRENCH_OPENINGS.some((o) => Math.abs(x - o.x) < o.hx + margin && Math.abs(z - o.z) < o.hz + margin);
+
 export class NavGrid {
   // trench: false for a robot that doesn't fit under the TRENCH (it has to use the BUMPS)
   constructor(radius, { trench = true } = {}) {
