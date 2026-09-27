@@ -686,8 +686,10 @@ function rod(parent, a, b, r, mat, segs = 8) {
 // turret), draped over whatever FUEL pokes up above the pins, taut everywhere else. An extending
 // hopper can carry its front edge out: the part past xFixed stretches to follow it.
 //   x0..x1: back and (stowed) front edge; x1Out: the front edge with the hopper out; hw: half width;
-//   y: height of the pinned edges. drape(load, ex): ex is how far the front has moved out.
-function hopperNet(parent, { x0, x1, x1Out = x1, xFixed = x1, hw, y, hole = null, NX = 36, NZ = 28, color = 0x15171a }) {
+//   y: height of the pinned edges (yFront: the front edge's, for a net stretched diagonally down
+//   to an intake). drape(load, ex, at): ex is how far the front has moved out; at { y, yFront }
+//   moves the pinned heights (a lid that lifts).
+function hopperNet(parent, { x0, x1, x1Out = x1, xFixed = x1, hw, y, yFront = y, hole = null, NX = 36, NZ = 28, color = 0x15171a }) {
   const mat = new THREE.MeshStandardMaterial({ map: fineNetTexture(), transparent: true, depthWrite: false, side: THREE.DoubleSide, roughness: 0.9, color });
   const nv = (NX + 1) * (NZ + 1);
   const base = new Float32Array(nv), pin = new Uint8Array(nv), hNow = new Float32Array(nv), hMin = new Float32Array(nv);
@@ -720,16 +722,20 @@ function hopperNet(parent, { x0, x1, x1Out = x1, xFixed = x1, hw, y, hole = null
   m.frustumCulled = false;
   m.userData.net = true;
   const R = FUEL.radius;
-  const drape = (load, ex = 0) => {
+  const hPin = new Float32Array(nv);
+  const drape = (load, ex = 0, at = null) => {
     const kx = x1Out > xFixed ? (x1 + ex - xFixed) / (x1Out - xFixed) : 1;
+    const yb = at?.y ?? y, yf = at?.yFront ?? yFront, xf = x1 + ex;
     for (let k = 0; k < nv; k++) {
-      pos[k * 3] = base[k] <= xFixed ? base[k] : xFixed + (base[k] - xFixed) * kx;
-      hMin[k] = y;
+      const x = base[k] <= xFixed ? base[k] : xFixed + (base[k] - xFixed) * kx;
+      pos[k * 3] = x;
+      hPin[k] = yb + (yf - yb) * Math.min(1, Math.max(0, (x - x0) / Math.max(0.01, xf - x0)));
+      hMin[k] = hPin[k];
     }
     // held up by the FUEL poking above the pins
     for (const e of load || []) {
       const p = e.p;
-      if (p.y + R < y) continue;
+      if (p.y + R < Math.min(yb, yf)) continue;
       for (let k = 0; k < nv; k++) {
         if (pin[k]) continue;
         const dx = pos[k * 3] - p.x, dz = pos[k * 3 + 2] - p.z, d2 = dx * dx + dz * dz;
@@ -746,7 +752,7 @@ function hopperNet(parent, { x0, x1, x1Out = x1, xFixed = x1, hw, y, hole = null
         }
       }
     }
-    for (let k = 0; k < nv; k++) pos[k * 3 + 1] = pin[k] ? y : hNow[k];
+    for (let k = 0; k < nv; k++) pos[k * 3 + 1] = pin[k] ? hPin[k] : hNow[k];
     geo.attributes.position.needsUpdate = true;
     geo.computeVertexNormals();
   };
@@ -1298,29 +1304,6 @@ function build8793(cfg, alliance) {
   return { root, anim, stored, modules, extLen: 0 };
 }
 
-// Vertical netting panels (1678's lifted lid): a panel of net across [a, b] (points [x, z]) from
-// y0 up to y1; setTop(y1) moves its top edge
-function netPanel(parent, a, b, y0, color = 0x15171a) {
-  const mat = new THREE.MeshStandardMaterial({ map: fineNetTexture(), transparent: true, depthWrite: false, side: THREE.DoubleSide, roughness: 0.9, color });
-  const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
-  const geo = new THREE.PlaneGeometry(1, 1);
-  geo.translate(0, 0.5, 0);
-  const m = mesh(geo, mat, parent, (a[0] + b[0]) / 2, y0, (a[1] + b[1]) / 2);
-  m.rotation.y = -Math.atan2(b[1] - a[1], b[0] - a[0]);
-  m.castShadow = false;
-  m.userData.net = true;
-  const tex = mat.map.clone();
-  tex.needsUpdate = true;
-  mat.map = tex;
-  let L = len, h = 0.001;
-  const fit = () => { m.scale.set(L, h, 1); tex.repeat.set(L / 0.1, h / 0.1); };
-  return {
-    mesh: m,
-    setTop(y1) { h = Math.max(0.001, y1 - y0); m.visible = h > 0.01; fit(); },
-    setLength(l) { L = l; fit(); },
-  };
-}
-
 // ============================================================ 971 Mixtape
 // From 971's public Onshape CAD ("2026 971 Robot Mixtape Public Release"), split into parts by
 // tools/extract-parts.mjs (cad/robots/971.json): the body (drivetrain, roller floor, separator,
@@ -1387,7 +1370,8 @@ function build971(cfg, alliance) {
     intake.rotation.z = st.intakeDeploy * INTAKE_971.swing;
     beater.rotation.y += st.intakeSpeed * dt * 40;
     for (const r of floorRollers.children) r.rotation.y -= st.feeding * dt * 30;
-    turrets.forEach((g, i) => { g.rotation.y = st.turretYaws ? st.turretYaws[i] : st.turretYaw; });
+    // the CAD's shooter fires out its back (over the flywheel, away from the hood): at yaw pi
+    turrets.forEach((g, i) => { g.rotation.y = (st.turretYaws ? st.turretYaws[i] : st.turretYaw) - Math.PI; });
     net.drape(st.load, ex);
   };
   return { root, anim, stored: [], modules, extLen };
@@ -1398,8 +1382,8 @@ function build971(cfg, alliance) {
 // (cad/robots/1678.json): the body (drivetrain with its polycarbonate walls on the bumper mounts,
 // roller floor, ball tunnel and drum shooter), the slapdown intake (exported folded up), the
 // polycarbonate side plates of the horizontal extension (they slide out with the intake), and the
-// climber with the corrugated lid, which lifts to make the hopper taller. Netting closes the sides
-// and front between the walls and the lifted lid.
+// climber with the corrugated lid, which lifts to make the hopper taller (its side skirts ride over
+// the walls). A net stretches diagonally from the lid's front edge down to the extension's front.
 const INTAKE_1678 = { pivot: [0.254, 0.194], swing: -2.905 };
 function build1678(cfg, alliance) {
   const root = new THREE.Group();
@@ -1439,32 +1423,10 @@ function build1678(cfg, alliance) {
   cadPart(slide, 'robots/1678-slide.glb', () => {});
   cadPart(lift, 'robots/1678-lift.glb', () => { lidDrawn.visible = false; });
   cadPart(intake, 'robots/1678-intake.glb', () => { intakeDrawn.visible = false; });
-  // netting round the lifted lid: both sides, the front (it rides out with the extension) and
-  // over the extension in front of the lid
-  const lidX0 = -0.03, lidX1 = 0.335;
-  const sideNets = [-1, 1].map((s) => netPanel(root, [0, 0], [1, 0], wallTop));
-  const frontNet = netPanel(root, [0, -hw], [0, hw], wallTop);
-  const topNet = netPanel(root, [0, 0], [1, 0], 0);
-  // lying flat: its length across the robot (z), its height out over the extension (x)
-  topNet.mesh.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3(0, 0, 1), new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 1, 0)));
-  const H = bay.lift.h;
-  const setNets = (ex, lidY) => {
-    const x1 = lidX1 + ex;
-    sideNets.forEach((n, i) => {
-      const s = i ? 1 : -1;
-      n.mesh.position.set((lidX0 + x1) / 2, wallTop, s * hw);
-      n.mesh.rotation.y = 0;
-      n.setLength(x1 - lidX0);
-      n.setTop(lidY);
-    });
-    frontNet.mesh.position.x = x1;
-    frontNet.setTop(lidY);
-    // flat over the extension, from the lid's front edge out
-    topNet.mesh.position.set(lidX1, lidY, 0);
-    topNet.setLength(2 * hw);
-    topNet.setTop(ex);
-    topNet.mesh.visible = ex > 0.01;
-  };
+  // a net stretched diagonally from the front edge of the lid down to the front of the
+  // extension (it rides out with it, and up with the lid)
+  const lidX1 = bay.slope.x, H = bay.lift.h, lidY0 = 0.54;
+  const net = hopperNet(root, { x0: lidX1, x1: lidX1 + 0.01, x1Out: lidX1 + extLen, xFixed: lidX1, hw, y: lidY0, yFront: bay.slope.y, NX: 12, NZ: 24 });
 
   const anim = (st, dt) => {
     slide.position.x = st.hopperDeploy * extLen;
@@ -1474,7 +1436,9 @@ function build1678(cfg, alliance) {
     // the lid rides up on the climber tubes (and all the way up to reach the rung for a climb)
     const up = st.climbState && st.climbState !== 'none' ? 0.26 : (st.lift ?? 0) * H;
     lift.position.y = up;
-    setNets(st.hopperDeploy * extLen, 0.54 + up - 0.02);
+    const ex = st.hopperDeploy * extLen;
+    net.mesh.visible = ex > 0.02;
+    net.drape(st.load, Math.max(0, ex - 0.01), { y: lidY0 + up - 0.01 });
   };
   return { root, anim, stored: [], modules, extLen };
 }
@@ -1650,6 +1614,142 @@ function build1690(cfg, alliance) {
   return { root, anim, stored: [], modules, extLen };
 }
 
+// ============================================================ 4946 Moto Moto
+// 4946's Onshape document is view-only (no export), so this is drawn from Onshape's scaled renders
+// of it and their engineering report: a round robot (half-circle drivetrain, 30in front edge) with
+// clear hopper walls on its bumpers, a Dye Rotor tray whose spinner carries FUEL round to the
+// center, the turret on the center of rotation (a tall column with a flared shroud and the shooter
+// in a bearing ring on top), a gantry of perforated tube over the front with the beacon, and an
+// intake box that slides out the front. A net stretches diagonally from the top of the hopper's
+// front wall down to the front of the intake box.
+function build4946(cfg, alliance) {
+  const root = new THREE.Group();
+  const L = cfg.frame.length, W = cfg.frame.width, bay = cfg.bay, sh = cfg.shooter;
+  const extLen = cfg.storage.extLen, ch = bay.chamfer;
+  addBumpers(root, cfg, alliance, ch);
+  const modules = addDrivebase(root, cfg, ch);
+  const grey = std(0x9aa0a8, 0.4, 0.7);
+  const dark = std(0x24262b, 0.5, 0.45);
+  const trayMat = std(0xa9bccb, 0.5, 0.4);
+  const green = std(0x5fb94a, 0.75, 0.05);
+  const bolts = boltSet(root, std(0xc4c8ce, 0.3, 0.9));
+  const top = bay.top, y0 = 0.17;
+  const t = sh.turretPos;
+
+  // ---- clear walls on the bumpers, following the frame round the back
+  const out = 0.025;
+  const pts = frameOutline(L + 2 * out, W + 2 * out, ch + out * 0.4);
+  const xFront = bay.x1 + 0.005;
+  pts[0][0] = pts[1][0] = xFront;
+  for (let i = 0; i < pts.length; i++) {
+    const [xa, za] = pts[i], [xb, zb] = pts[(i + 1) % pts.length];
+    const len = Math.hypot(xb - xa, zb - za);
+    const g = new THREE.Group();
+    g.position.set((xa + xb) / 2, 0, (za + zb) / 2);
+    g.rotation.y = -Math.atan2(zb - za, xb - xa);
+    root.add(g);
+    const pane = mesh(new THREE.PlaneGeometry(len, top - y0), M.poly, g, 0, (y0 + top) / 2, 0);
+    pane.castShadow = false;
+    rbx(len, 0.014, 0.014, 0.002, grey, g, 0, top, 0);
+    rbx(0.014, top - y0, 0.014, 0.002, grey, g, len / 2, (y0 + top) / 2, 0);
+  }
+
+  // ---- Dye Rotor tray: a round plate under the load, with the spinner's vanes on it
+  const rs = bay.rotor;
+  mesh(new THREE.CylinderGeometry(rs.r + 0.01, rs.r + 0.01, 0.012, 48), trayMat, root, rs.x, rs.y - 0.006, rs.z);
+  for (let i = 0; i < 16; i++) {
+    const a = (i / 16) * Math.PI * 2;
+    bolts.add(new THREE.Vector3(rs.x + Math.cos(a) * (rs.r - 0.02), rs.y + 0.001, rs.z - Math.sin(a) * (rs.r - 0.02)), new THREE.Vector3(0, 1, 0));
+  }
+  const rotor = new THREE.Group();
+  rotor.position.set(rs.x, rs.y, rs.z);
+  root.add(rotor);
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2;
+    const v = bx(rs.r - rs.finR0, 0.07, 0.008, dark, rotor, Math.cos(a) * (rs.r + rs.finR0) / 2, 0.035, -Math.sin(a) * (rs.r + rs.finR0) / 2);
+    v.rotation.y = a;
+  }
+  mesh(new THREE.CylinderGeometry(rs.finR0, rs.finR0, 0.04, 32), dark, rotor, 0, 0.02, 0);
+
+  // ---- the turret's column and, on top, the turret itself
+  cylY(0.15, 0.27, dark, root, t.x, 0.2 + 0.135, t.z, 40);
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2;
+    const slot = bx(0.012, 0.05, 0.02, std(0x0e0f11, 0.8, 0), root, t.x + Math.cos(a) * 0.152, 0.4, t.z - Math.sin(a) * 0.152);
+    slot.rotation.y = a;
+  }
+  const turret = new THREE.Group();
+  turret.position.set(t.x, 0.47, t.z);
+  root.add(turret);
+  const shroud = mesh(new THREE.CylinderGeometry(0.175, 0.15, 0.2, 40, 1, true), std(0x2c2f35, 0.5, 0.4, { side: THREE.DoubleSide }), turret, 0, 0.1, 0);
+  shroud.castShadow = true;
+  for (let i = 0; i < 10; i++) {
+    const a = (i / 10) * Math.PI * 2;
+    const w = bx(0.004, 0.03, 0.022, std(0x0e0f11, 0.8, 0), turret, Math.cos(a) * 0.165, 0.12, -Math.sin(a) * 0.165);
+    w.rotation.y = a;
+  }
+  mesh(new THREE.TorusGeometry(0.19, 0.012, 8, 48), grey, turret, 0, 0.24, 0).rotation.x = Math.PI / 2;
+  mesh(new THREE.RingGeometry(0.15, 0.2, 40), std(0x6b7078, 0.4, 0.6, { side: THREE.DoubleSide }), turret, 0, 0.245, 0).rotation.x = -Math.PI / 2;
+  // shooter in the ring: the flywheel across it, the hood on the exit side (+x, the shot direction)
+  const fly = wheelStack(turret, 0.2, 0.05, 4, green, -0.02, 0.2, 0, 0.035);
+  const hood = new THREE.Group();
+  hood.position.set(-0.02, 0.2, 0);
+  turret.add(hood);
+  const hoodShell = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.22, 20, 1, true, 0.1, 1.6), std(0x1b1d22, 0.45, 0.5, { side: THREE.DoubleSide }));
+  hoodShell.rotation.x = Math.PI / 2;
+  hood.add(hoodShell);
+  for (const s of [-1, 1]) kraken(turret, -0.08, 0.13, s * 0.12, false, 'z');
+
+  // ---- gantry over the front of the hopper: perforated tube, beacon on top
+  const gx = xFront - 0.06, gz = W / 2 - 0.02, gy = 0.74;
+  const tubeMat = std(0xb8bdc4, 0.35, 0.85);
+  for (const sz of [-1, 1]) rbx(0.025, gy - 0.12, 0.025, 0.003, tubeMat, root, gx, 0.12 + (gy - 0.12) / 2, sz * gz);
+  rbx(0.025, 0.025, 2 * gz + 0.025, 0.003, tubeMat, root, gx, gy, 0);
+  for (let z = -gz + 0.04; z < gz; z += 0.035) bolts.add(new THREE.Vector3(gx + 0.0126, gy, z), new THREE.Vector3(1, 0, 0));
+  cylY(0.02, 0.04, std(0xff8a1f, 0.4, 0.1, { emissive: 0x6a2c00 }), root, gx, gy + 0.03, -gz + 0.03, 14);
+  limelight(root, gx, gy - 0.08, 0, 0);
+
+  // ---- intake box: slides out the front
+  const box = new THREE.Group();
+  root.add(box);
+  const iw = cfg.intake.width / 2 + 0.012;
+  const xF = L / 2 + BUMPER_T + cfg.intake.reach - extLen; // front of the box, stowed
+  const bx0 = xF - 0.26; // back of its side plates
+  const plateShape = new THREE.Shape();
+  plateShape.moveTo(bx0, 0.05); plateShape.lineTo(xF, 0.05); plateShape.lineTo(xF, 0.44); plateShape.lineTo(xF - 0.07, bay.slope.y + 0.02); plateShape.lineTo(bx0, top - 0.03); plateShape.closePath();
+  const hole = new THREE.Path();
+  hole.moveTo(bx0 + 0.05, 0.2); hole.lineTo(xF - 0.06, 0.2); hole.lineTo(xF - 0.06, 0.38); hole.lineTo(bx0 + 0.05, top - 0.1); hole.closePath();
+  plateShape.holes.push(hole);
+  for (const sz of [-1, 1]) {
+    const g = new THREE.ExtrudeGeometry(plateShape, { depth: 0.006, bevelEnabled: false });
+    g.translate(0, 0, sz * iw - 0.003);
+    mesh(g, grey, box);
+  }
+  const intakeRollers = [
+    wheelStack(box, 2 * iw - 0.02, 0.032, 10, green, xF - 0.03, 0.26, 0, 0.022),
+    cylZ(0.022, 2 * iw - 0.02, M.black, box, xF - 0.02, 0.19, 0, 12),
+    cylZ(0.02, 2 * iw - 0.02, M.alu, box, xF - 0.1, 0.08, 0, 12),
+  ];
+  rbx(0.03, 0.03, 2 * iw, 0.004, tubeMat, box, xF - 0.015, 0.44, 0); // top crossbar
+  kraken(box, xF - 0.12, 0.3, iw + 0.04, true, 'z');
+  bolts.done();
+
+  // the net from the top of the front wall down to the intake box's top crossbar
+  const net = hopperNet(root, { x0: xFront, x1: xF - 0.02, x1Out: xF - 0.02 + extLen, xFixed: xFront, hw: iw - 0.01, y: top, yFront: 0.45, NX: 14, NZ: 24 });
+
+  const anim = (st, dt) => {
+    const ex = st.hopperDeploy * extLen;
+    box.position.x = ex;
+    for (const r of intakeRollers) r.rotation.y += st.intakeSpeed * dt * 40;
+    rotor.rotation.y = st.rotorAngle ?? 0;
+    turret.rotation.y = st.turretYaw;
+    fly.rotation.z -= st.flywheel * dt * 9;
+    hood.rotation.z = (st.hoodDeg - 60) * Math.PI / 180 * 0.4;
+    net.drape(st.load, ex);
+  };
+  return { root, anim, stored: [], modules, extLen };
+}
+
 export function buildRobotModel(cfg, alliance) {
   let m;
   if (cfg.key === '2910') m = build2910(cfg, alliance);
@@ -1657,6 +1757,7 @@ export function buildRobotModel(cfg, alliance) {
   else if (cfg.key === '971') m = build971(cfg, alliance);
   else if (cfg.key === '1678') m = build1678(cfg, alliance);
   else if (cfg.key === '1690') m = build1690(cfg, alliance);
+  else if (cfg.key === '4946') m = build4946(cfg, alliance);
   else m = build8793(cfg, alliance);
   // stored FUEL visual (instanced)
   const r = FUEL.radius;

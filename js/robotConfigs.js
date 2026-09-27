@@ -23,11 +23,19 @@
 //    intake with passive deploy, expanding hopper with a lattice frame over a powered roller floor
 //    (50-55 FUEL open-topped), vertical kicker into a compact gear-driven turret on an 8in bearing,
 //    shoot-on-the-move while intaking.
-//  Nets: all three carry netting over the open parts of their hoppers (the physics lets the load
-//  bulge it up, bay.dome; 1678's closes the sides of the lifted lid).
-import { IN } from './constants.js';
+//  - 4946 The Alpha Dogs "Moto Moto" (public Onshape CAD, view only, + engineering report): round
+//    robot (half-circle drivetrain, 30in front edge), 35in hopper with clear walls on the bumpers
+//    round a Dye Rotor tray, 11in turret on the center of rotation, sliding ground intake. Too tall
+//    for the TRENCH.
+//  Nets: 971 and 1690 carry netting over the open tops of their hoppers (the physics lets the load
+//  bulge it up, bay.dome); 1678 and 4946 stretch a net diagonally from the hopper's top edge down
+//  to the front of the intake (bay.slope).
+import { IN, TRENCH } from './constants.js';
 
 export const BUMPER_T = 3.25 * IN; // bumper thickness incl. backing
+
+// whether a robot fits under the TRENCH arm (4946 doesn't: it goes over the BUMPS)
+export const fitsTrench = (cfg) => cfg.height <= TRENCH.clearHeight - 0.005;
 
 export const ROBOTS = {
   2910: {
@@ -216,8 +224,11 @@ export const ROBOTS = {
     },
     shooter: {
       type: 'turret',
-      // two 10in X-contact bearings on the platform behind the hopper (their CAD)
-      turrets: [{ x: -0.148, z: -0.21 }, { x: -0.148, z: 0.21 }],
+      // two 10in X-contact bearings on the platform behind the hopper (their CAD). FUEL leaves
+      // over the flywheel, on the opposite side from the hood. Each turret's ~210deg of travel is
+      // centered pointing back and out to its own side (center, deg), so it shoots away from the
+      // robot, and together they cover everything but straight ahead
+      turrets: [{ x: -0.148, z: -0.21, center: 135 }, { x: -0.148, z: 0.21, center: -135 }],
       turretPos: { x: -0.148, z: -0.21 },
       exitRadius: 0.1,
       exitY: 0.54,
@@ -239,7 +250,7 @@ export const ROBOTS = {
     teamName: 'Citrus Circuits',
     robotName: 'Limestone',
     archetype: 'Drum + lift',
-    blurb: 'Milstein Division champion. A full-width drum with three hood rollers fires out the back, fed by a roller floor and ball tunnel. The hopper grows out with the intake and up with the climber, with netting around the lifted lid. Climbs Level 1.',
+    blurb: 'Milstein Division champion. A full-width drum with three hood rollers fires out the back, fed by a roller floor and ball tunnel. The hopper grows out with the intake and up with the climber, with a net stretched diagonally over the extension. Climbs Level 1.',
     frame: { length: 27.0 * IN, width: 27.0 * IN },
     height: 21.6 * IN,
     mass: 62,
@@ -250,10 +261,13 @@ export const ROBOTS = {
     storage: { extLen: 0.2, extend: 'intake' },
     // their CAD: roller floor (dead-axle rollers, then flex wheels) sloping down to the ball
     // tunnel at the back; the lid (corrugated plastic on the climber tubes) sits at 0.52 m and
-    // lifts lift.h with the climber (it comes back down under the TRENCH), netting on the sides
+    // lifts lift.h with the climber (it comes back down under the TRENCH); over the extension the
+    // ceiling is the diagonal net
     bay: {
       x0: -0.09, x1: 0.33, hw: 0.3, top: 0.52,
       lift: { h: 0.2 },
+      // the net from the lid's front edge down to the front of the extension
+      slope: { x: 0.335, y: 0.5 },
       floor: { a: 0.157, b: 0.3, lo: 0.12, hi: 0.23 },
       drive: 'floor', driveSpeed: 2.4,
       // up the ball tunnel (active backing rollers) to the drum
@@ -318,9 +332,55 @@ export const ROBOTS = {
     stats: { 'Shot rate': '12 BPS', Aiming: 'Turret', 'Top speed': '13.1 ft/s', Trench: 'Yes' },
     colors: { frame: 0x2a2d33, accent: 0x2d6fd6, trim: 0x9aa0a8 }, // black lattice, blue, aluminum
   },
+  4946: {
+    key: '4946',
+    team: 4946,
+    teamName: 'The Alpha Dogs',
+    robotName: 'Moto Moto',
+    archetype: 'Round Dye Rotor',
+    blurb: 'A round robot: a 35in hopper around a turret on the center of rotation, fed by a Dye Rotor tray. Its intake slides out with a net stretched from the hopper down to it. Too tall for the TRENCH, it goes over the BUMPS.',
+    // engineering report: a half-circle drivetrain tapering to a 30in front edge; Onshape views
+    frame: { length: 30.5 * IN, width: 30 * IN },
+    height: 29.5 * IN,
+    mass: 60,
+    drive: { maxSpeed: 3.9, maxAccel: 10.5, maxOmega: 8.0, maxAlpha: 30 }, // MK5n in its lowest gear
+    // ground intake that slides out the front in two pieces (rollers with compliant wheels, passive
+    // rollers behind that resist backpressure)
+    intake: { width: 27 * IN, reach: 0.22, rate: 200, pull: 5, deployTime: 0.35, side: 'front', latched: false },
+    // the intake box is part of the hopper while it's out
+    storage: { extLen: 0.2, extend: 'intake' },
+    // Onshape views: clear walls mounted on the bumpers round a Dye Rotor tray (FUEL is funneled
+    // onto it, and its spinner carries FUEL round and up into the turret at the center); the
+    // hopper's round back is cut by the chamfers. The net runs diagonally from the top of the
+    // hopper's front wall down to the front of the intake.
+    bay: {
+      x0: -0.4, x1: 0.37, hw: 0.4, top: 0.64, chamfer: 0.22,
+      slope: { x: 0.37, y: 0.46 },
+      floor: { a: 0.2, b: 0, lo: 0.2, hi: 0.2 },
+      obstacles: [{ x: 0.02, z: 0, r: 0.15, y0: 0.15, y1: 1 }], // the turret's column
+      drive: 'rotor', rotor: { x: 0.02, z: 0, y: 0.2, r: 0.4, grip: 30, drag: 6, finR0: 0.16, spin: 9, idle: -0.5 },
+      feed: { x: 0.02, z: 0.2, via: [[0.02, 0.3, 0.15], [0.02, 0.5, 0.05], [0.02, 0.66, 0]] },
+    },
+    shooter: {
+      type: 'turret',
+      turretPos: { x: 0.02, z: 0 }, // on the center of rotation
+      exitRadius: 0.1,
+      exitY: 0.72,
+      turretRange: 200, turretRate: 720,
+      bps: 20,
+      hoodMin: 40, hoodMax: 80, // worm-driven hood
+      speedMax: 17,
+      spinTau: 0.28,
+      shotDrop: 0.004,
+      speedSigma: 0.013, angleSigma: 0.6, yawSigma: 0.6,
+    },
+    climber: null,
+    stats: { 'Shot rate': '20 BPS', Aiming: 'Turret', 'Top speed': '12.8 ft/s', Trench: 'No (BUMPS)' },
+    colors: { frame: 0x9aa0a8, accent: 0xd32f2f, trim: 0x1d1f24 },
+  },
 };
 
-export const ROBOT_ORDER = ['2910', '4414', '8793', '971', '1678', '1690'];
+export const ROBOT_ORDER = ['2910', '4414', '8793', '971', '1678', '1690', '4946'];
 
 // Optional add-on climbers for robots without one (971 and 1678 have their own, cfg.climber)
 export const CLIMBER_OPTIONS = {

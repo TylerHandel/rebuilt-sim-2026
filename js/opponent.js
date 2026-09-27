@@ -14,6 +14,7 @@ import { NavGrid, obstacleAt } from './nav.js';
 import { towerProtected, PIN_RESET } from './rules.js';
 import { clamp, wrapAngle, rand } from './util.js';
 import { TRAINED_BRAIN } from './trainedBrain.js';
+import { fitsTrench } from './robotConfigs.js';
 
 export const OPP_STRATEGIES = {
   off: { name: 'Off (solo)', desc: 'No opponent: just you, the FUEL and the clock.' },
@@ -25,7 +26,7 @@ export const OPP_ORDER = ['off', 'scorer', 'defense', 'hybrid'];
 
 // Trainable strategy parameters: range searched by the trainer and the hand-tuned default
 export const BRAIN_SPEC = {
-  fill: { min: 0.25, max: 1.0, def: 0.85, group: 'Scoring', label: 'Cycle fill', unit: '%', desc: 'fraction of the hopper (up to 60 FUEL) collected before a cycle' },
+  fill: { min: 0.25, max: 1.0, def: 0.85, group: 'Scoring', label: 'Cycle fill', unit: '%', desc: 'fraction of the hopper collected before a cycle' },
   cycleTime: { min: 5, max: 24, def: 14, group: 'Scoring', label: 'Max collect time', unit: 's', desc: 's of collecting before it scores what it has while its HUB is active' },
   stageMargin: { min: 0, max: 6, def: 2, group: 'Scoring', label: 'Stage early by', unit: 's', desc: 's of slack when heading in to stage before its HUB turns active' },
   topUp: { min: 2, max: 14, def: 6, group: 'Scoring', label: 'Top-up window', unit: 's', desc: 'tops up its hopper if its HUB stays inactive this much longer than the trip back (s)' },
@@ -35,15 +36,15 @@ export const BRAIN_SPEC = {
   shootAccel: { min: 1, max: 10, def: 3, group: 'Scoring', label: 'Acceleration while shooting', unit: 'm/s²', desc: 'how quickly it changes velocity while shooting or passing (m/s²)' },
   pushThrough: { min: 0.3, max: 6, def: 1.5, group: 'Scoring', label: 'Push through a blocker after', unit: 's', desc: 's of being blocked on the way to its zone before it stops going around and drives through' },
   shuttle: { min: 0, max: 1, def: 1, group: 'Shuttling', label: 'Feed its zone in off shifts', unit: 'switch', desc: 'during an inactive shift, collect in the NEUTRAL ZONE and pass everything into its ALLIANCE ZONE, then load up just before its HUB turns on (on at 50% or more)' },
-  passBatch: { min: 2, max: 30, def: 10, group: 'Shuttling', label: 'Pass batch (2910)', unit: '', desc: 'a chassis-aimed shooter passes once it holds this many FUEL (turrets pass while they collect)' },
+  passBatch: { min: 2, max: 120, def: 45, group: 'Shuttling', label: 'Pass batch', unit: '', desc: 'passes once it holds this many FUEL (or its hopper is full, or there is nothing left to pick up), then dumps the whole load at once: one turn and one spin-up per batch' },
   dropFx: { min: 1.4, max: 3.6, def: 2.6, group: 'Shuttling', label: 'Where passes land', unit: 'm', desc: 'distance from its ALLIANCE WALL where its passes land (m)' },
   collectSpeed: { min: 0.3, max: 1.0, def: 0.7, group: 'Collecting', label: 'Speed through FUEL', unit: '%', desc: 'speed among FUEL (fraction of top speed)' },
-  density: { min: 0, max: 0.8, def: 0.35, group: 'Collecting', label: 'Cluster preference', unit: '', desc: 'preference for dense FUEL clusters over the nearest FUEL' },
+  density: { min: 0, max: 1, def: 0.6, group: 'Collecting', label: 'Cluster preference', unit: '', desc: 'how much each extra FUEL around a target counts: it goes where it gets the most FUEL per second of driving (0 = nearest FUEL)' },
   ownZone: { min: -1, max: 2, def: 0.4, group: 'Collecting', label: 'Own-zone FUEL bonus', unit: 'm', desc: 'preference for FUEL in its own ALLIANCE ZONE (m)' },
-  intakeDist: { min: 1.0, max: 4.0, def: 2.5, group: 'Collecting', label: 'Intake drop distance', unit: 'm', desc: 'distance from the target FUEL at which the intake drops (m)' },
+  intakeDist: { min: 1.0, max: 12.0, def: 8, group: 'Collecting', label: 'Intake drop distance', unit: 'm', desc: 'drops the intake once the FUEL it is going for is this close, then keeps it down while it collects (m)' },
   stockpile: { min: 0, max: 3, def: 1.5, group: 'Collecting', label: 'Stockpile pickup bonus', unit: 'm', desc: 'extra preference for FUEL in its own ALLIANCE ZONE while its HUB is active (m)' },
   steal: { min: 0, max: 3, def: 2.0, group: 'Collecting', label: 'Steal preference', unit: 'm', desc: "extra preference for FUEL in the opponent's ALLIANCE ZONE: taking it both denies them and feeds us (m)" },
-  zoneMin: { min: 1, max: 20, def: 6, group: 'Collecting', label: 'Min FUEL worth staying in zone', unit: '', desc: 'if fewer FUEL than this are lying in its own ALLIANCE ZONE it ignores them and goes to the NEUTRAL ZONE' },
+  zoneMin: { min: 1, max: 20, def: 6, group: 'Collecting', label: 'Min FUEL worth staying in zone', unit: '', desc: 'if fewer FUEL than this are lying in its own ALLIANCE ZONE it ignores them (unless they are right there) and goes where the FUEL is' },
   pinLimit: { min: 0.8, max: 2.9, def: 1.8, group: 'Defense', label: 'Pin hold time', unit: 's', desc: 's it holds a PIN before backing off' },
   pushSpeed: { min: 0.3, max: 1.0, def: 1.0, group: 'Defense', label: 'Shove / ram speed', unit: '%', desc: 'speed it hits the other robot at (fraction of top speed)' },
   ramDist: { min: 0.5, max: 5, def: 2.5, group: 'Defense', label: 'Ram distance', unit: 'm', desc: 'charges the other robot once it comes this close while guarding the lane to its zone (m)' },
@@ -95,7 +96,7 @@ export class OpponentAI {
     this.skillKey = skill;
     this.skill = OPP_SKILLS[skill] || OPP_SKILLS.regional;
     this.brain = brainFor(skill, brain);
-    this.nav = new NavGrid(Math.min(robot.halfL, robot.halfW) + 0.07);
+    this.nav = new NavGrid(Math.min(robot.halfL, robot.halfW) + 0.07, { trench: fitsTrench(robot.cfg) });
     this.state = 'collect';
     this.mode = 'score';
     this.label = 'Waiting';
@@ -121,7 +122,7 @@ export class OpponentAI {
     const cap = robot.maxCapacity();
     robot.noiseScale = this.skill.noise;
     this.maxLoad = cap < 20 ? cap : Math.max(10, Math.round(this.skill.load * cap));
-    this.fillTarget = cap < 20 ? cap : Math.min(this.maxLoad, Math.max(8, Math.round(this.brain.fill * Math.min(cap, 60))));
+    this.fillTarget = cap < 20 ? cap : Math.min(this.maxLoad, Math.max(8, Math.round(this.brain.fill * cap)));
   }
 
   get own() { return this.robot.alliance; }
@@ -137,7 +138,7 @@ export class OpponentAI {
       this.seen.push({ t: this.t, x: F.pos.x, z: F.pos.z });
       while (this.seen.length > 2 && this.seen[1].t < this.t - this.skill.lag) this.seen.shift();
     }
-    Object.assign(cmd, { vx: 0, vz: 0, omega: 0, intake: false, shoot: false, pass: false, outtake: false });
+    Object.assign(cmd, { vx: 0, vz: 0, omega: 0, intake: false, shoot: false, pass: false, outtake: false, prespin: false });
     if (!m.isTeleop) { this.label = m.isAuto ? 'AUTO' : 'Waiting'; return; }
 
     // mode selection (with nobody to defend against, everyone scores)
@@ -162,7 +163,7 @@ export class OpponentAI {
     this.shootingMode = false;
     if (this._climb()) return;
     if (this.mode === 'defend') this._defend(dt);
-    else this._score(dt);
+    else { this._score(dt); this._yieldToFoes(); }
     this._smooth(dt);
 
     // stuck detection (pushing against another robot isn't being stuck)
@@ -364,7 +365,7 @@ export class OpponentAI {
           || (stored >= 6 && active && this.collectT > B.cycleTime)
           || (stored > 0 && left < travel + 4);
         // a turret already in its zone just keeps collecting there and shoots as it goes
-        if (go && !(this.turret && r.lastInZone && canShoot && this._zoneFuel() >= B.zoneMin && stored < cap)) {
+        if (go && !(this.turret && r.lastInZone && canShoot && this._zoneWorthIt() && stored < cap)) {
           this.state = 'score'; this.path = null; this.progress = null;
         }
       } else if (stored === 0) {
@@ -372,11 +373,12 @@ export class OpponentAI {
         this.hesitateT = this.skill.hesitate;
       } else if (!canShoot && untilActive > travel + B.topUp && stored < cap) {
         this.state = 'collect'; this.path = null; // plenty of time: top up first
-      } else if (this.turret && canShoot && r.lastInZone && this._zoneFuel() >= B.zoneMin && stored < cap) {
+      } else if (this.turret && canShoot && r.lastInZone && this._zoneWorthIt() && stored < cap) {
         this.state = 'collect'; this.path = null; // shoot while picking up the stockpile
       }
     }
 
+    if (this.state !== this.intakeState) { this.intakeState = this.state; this.intakeDown = false; }
     if (this.state === 'feed') { this._feed(dt); return; }
     if (this.state === 'collect') {
       if (this.hesitateT > 0) { this.hesitateT -= dt; this.label = 'Deciding…'; return; }
@@ -386,7 +388,7 @@ export class OpponentAI {
       // shoot on the move while collecting in our zone: a turret aims on its own while the
       // intake faces the FUEL (a chassis-aimed shooter keeps its intake on the FUEL instead)
       if (this.turret && canShoot && r.lastInZone && this.skill.sotm) {
-        this.shootingMode = true;
+        this.shootingMode = stored > 0; // full speed when there's nothing to shoot
         r.cmd.shoot = stored > 0;
         this.label = `Shooting while collecting (${stored})`;
       }
@@ -410,10 +412,18 @@ export class OpponentAI {
     const toHome = Math.hypot(home.x - r.pos.x, home.z - r.pos.z);
     if (!this.progress || toHome < this.progress.d - 0.3 || dF > 3 || toHome < 0.8) this.progress = { d: toHome, t: this.t };
     const bully = this.t - this.progress.t > B.pushThrough;
-    const remain = this._drive(home.x, home.z, { avoid: !bully, speed: 1 });
+    // a chassis-aimed shooter turns its shooter to the HUB over the last few meters, so it arrives
+    // aimed instead of turning round once it gets there
+    let face = 'travel';
+    if (!this.turret && (toHome < 3 || r.lastInZone)) {
+      const c = Field.hubCenter(this.own);
+      face = Math.atan2(-(c.z - r.pos.z), c.x - r.pos.x) - r.aimOffset;
+    }
+    const remain = this._drive(home.x, home.z, { avoid: !bully, speed: 1, face });
     const settled = this.skill.sotm || (remain < 0.3 && Math.hypot(r.vel.x, r.vel.z) < 0.3);
     r.cmd.shoot = canShoot && r.lastInZone && settled;
-    if (r.capacity() < 20 && r.lastInZone) r.cmd.intake = true;
+    // pick up what's on the way (2910 keeps it up: retracting while it shoots compacts its load)
+    if (!r.cfg.intake.compacts && stored < this.maxLoad && !this._foeAhead() && !this._hubFuelNear()) r.cmd.intake = true;
     this.label = r.cmd.shoot ? (r.ready ? 'Shooting' : 'Aiming') : bully ? 'Pushing through' : remain > 0.3 ? 'Returning to score' : 'Staged — waiting for HUB';
   }
 
@@ -446,14 +456,14 @@ export class OpponentAI {
     const fromLine = this.own === BLUE ? r.pos.x - lineX : lineX - r.pos.x;
     const canPass = !r.lastInZone && fromLine < 6 && this._passClear(r.pos, target);
     const stored = r.stored.length;
-    if (this.turret) {
-      this.passing = canPass && stored > 0; // pass as it collects
-      this.shootingMode = canPass;
-    }
-    else {
-      if (canPass && stored >= Math.min(this.maxLoad, B.passBatch)) this.passing = true;
-      if (!canPass || stored === 0) this.passing = false;
-    }
+    // collect a batch, then dump it all in one go: one spin-up (and for a chassis-aimed shooter
+    // one turn) per batch instead of one per FUEL. It passes early if there's nothing left to get.
+    const batch = Math.min(this.maxLoad, Math.max(2, Math.round(B.passBatch)));
+    if (canPass && stored > 0 && (stored >= batch || !this.ball)) this.passing = true;
+    if (!canPass || stored === 0) this.passing = false;
+    this.shootingMode = !!this.passing;
+    // nearly there: spin the flywheel up (and aim a turret) ahead of the dump
+    r.cmd.prespin = canPass && stored >= 0.7 * batch;
     const b = stored >= this.maxLoad ? null : this.ball; // full: stop chasing FUEL, go pass it
     if (this.passing && !this.turret) {
       // chassis-aimed: ease off while the chassis turns and dumps the batch
@@ -463,7 +473,7 @@ export class OpponentAI {
       if (d < this.ballBest - 0.1) { this.ballBest = d; this.ballProgressT = 0; }
       else if ((this.ballProgressT += dt) > 2.5) { this.blacklist.set(b, this.t + 8); this.ball = null; }
       this._drive(b.pos.x, b.pos.z, { speed: d < 1.6 ? B.collectSpeed : 1, avoid: d >= 1.6, arrive: -0.3 });
-      r.cmd.intake = d < B.intakeDist && stored < this.maxLoad && !this._hubFuelNear() && !this._foeAhead();
+      r.cmd.intake = this._intakeFor(d);
     } else if (!stored) {
       // nothing left out there: wait at home
       const h = this._home();
@@ -478,15 +488,37 @@ export class OpponentAI {
     this.label = `Feeding its zone (${r.stats.passes} passed)`;
   }
 
+  // an opponent right in front of the intake: it would reach inside its FRAME PERIMETER (G415).
+  // "Right in front" allows for how fast we're closing and how long the intake takes to come up.
   _foeAhead() {
-    const r = this.robot, f = r.forward();
-    return this.others.some((P) => {
+    const r = this.robot, f = r.forward(), ic = r.cfg.intake;
+    const up = ic.latched ? 0.4 : ic.retractTime ?? ic.deployTime;
+    return this.foes.some((P) => {
       const toP = { x: P.pos.x - r.pos.x, z: P.pos.z - r.pos.z };
-      const dP = Math.hypot(toP.x, toP.z);
-      return dP < 2.2 && (toP.x * f.x + toP.z * f.z) / dP > -0.1;
+      const dP = Math.hypot(toP.x, toP.z) || 1;
+      if ((toP.x * f.x + toP.z * f.z) / dP < 0.3) return false;
+      const closing = Math.max(0, ((r.vel.x - P.vel.x) * toP.x + (r.vel.z - P.vel.z) * toP.z) / dP);
+      return dP < r.halfL + P.halfL + ic.reach + 0.25 + closing * up;
     });
   }
 
+  // with an opponent in front of an intake that's out (or can't come up, a latched one), don't
+  // drive into it (G415 is on the ROBOT driving in)
+  _yieldToFoes() {
+    const r = this.robot, cmd = r.cmd;
+    if (r.intakeDeploy < 0.3 || !this._foeAhead()) return;
+    for (const P of this.foes) {
+      const dx = P.pos.x - r.pos.x, dz = P.pos.z - r.pos.z, d = Math.hypot(dx, dz) || 1;
+      const into = (cmd.vx * dx + cmd.vz * dz) / d;
+      if (into > 0.2 && d < r.halfL + P.halfL + 1.2) { const k = (into - 0.2) / d; cmd.vx -= dx * k; cmd.vz -= dz * k; }
+    }
+  }
+
+  // Where to collect next: the FUEL that gets the most FUEL per second of driving. Each candidate
+  // is valued by the cluster around it (up to what still fits in the hopper), so a big pile a few
+  // meters away beats picking through scraps. A trip out of our zone also pays for the drive back
+  // before it can score; FUEL we can shoot while picking it up (our zone, HUB active) counts extra,
+  // and so does FUEL stolen from the other zone. FUEL behind us costs a turn.
   _pickBall({ feed = false } = {}) {
     const r = this.robot, B = this.brain, m = this.match;
     const oppZone = other(this.own);
@@ -494,41 +526,69 @@ export class OpponentAI {
     const lineX = Field.allianceLineX(this.own);
     const bins = new Map();
     const cands = [];
+    const CELL = 0.5;
     for (const b of this.fuel.balls) {
       if (b.state !== 'field' || b.inFlight || b.hubFresh || b.inCorral) continue;
       const p = b.pos;
       if (p.y > 0.32 || Math.abs(p.x) > HALF_L - 0.2 || Math.abs(p.z) > HALF_W - 0.2) continue;
-      if (feed && Field.inAllianceZone(this.own, p.x)) continue; // already on our side
       if (obstacleAt(p.x, p.z, 0.12)) continue;
       const bl = this.blacklist.get(b);
       if (bl && bl > this.t) continue;
-      const k = Math.floor(p.x / 0.7) * 1000 + Math.floor(p.z / 0.7);
-      bins.set(k, (bins.get(k) || 0) + 1);
-      cands.push([b, k]);
+      const i = Math.floor(p.x / CELL), j = Math.floor(p.z / CELL);
+      bins.set(i * 1000 + j, (bins.get(i * 1000 + j) || 0) + 1);
+      if (feed && Field.inAllianceZone(this.own, p.x)) continue; // already on our side
+      cands.push([b, i, j]);
     }
-    // too little FUEL in our own zone to be worth picking through: go to the NEUTRAL ZONE
+    // FUEL within about 0.75 m (the 3x3 cells round it)
+    const around = (i, j) => { let n = 0; for (let a = -1; a <= 1; a++) for (let c = -1; c <= 1; c++) n += bins.get((i + a) * 1000 + j + c) || 0; return n; };
     const inOwn = (b) => Field.inAllianceZone(this.own, b.pos.x);
     const sparse = this._zoneFuel() < B.zoneMin;
+    const room = Math.max(1, this.maxLoad - r.stored.length);
+    const f = r.forward();
     let best = null, bc = Infinity;
-    for (const [b, k] of cands) {
+    for (const [b, i, j] of cands) {
       const p = b.pos;
       const d = Math.hypot(p.x - r.pos.x, p.z - r.pos.z);
-      let c = d - B.density * Math.min(bins.get(k), 8);
-      for (const P of this.others) if (Math.hypot(p.x - P.pos.x, p.z - P.pos.z) < 1.3) c += 2.5; // leave it to them
+      const own = inOwn(b);
+      if (!feed && own && sparse && d > 1.0) continue; // scraps: only grab them if they're right here
+      let gain = 1 + B.density * (Math.min(room, around(i, j)) - 1);
+      for (const P of this.others) if (Math.hypot(p.x - P.pos.x, p.z - P.pos.z) < 1.3) gain *= 0.5; // leave it to them
       // stealing from the opponent's zone counts twice: one fewer for them, one more for us
-      if (Field.inAllianceZone(oppZone, p.x)) c -= B.steal;
+      if (Field.inAllianceZone(oppZone, p.x)) gain *= 1 + 0.3 * B.steal;
+      // turning round to go back for it
+      let dist = d + (d > 0.3 ? 0.5 * (1 - ((p.x - r.pos.x) * f.x + (p.z - r.pos.z) * f.z) / d) : 0);
       if (feed) {
         // feeding: stay on our half, and out of the HUB's shadow so the passes are clear
         const fromLine = this.own === BLUE ? p.x - lineX : lineX - p.x;
-        if (!Field.inAllianceZone(oppZone, p.x)) c += 0.35 * Math.max(0, fromLine - 2);
-        if (Math.abs(p.z) < 1.1) c += 1.5;
-      } else if (inOwn(b)) {
-        if (sparse && d > 1.0) continue; // scraps: only grab them if they're right here
-        c -= B.ownZone + (active ? B.stockpile : 0);
+        if (!Field.inAllianceZone(oppZone, p.x)) dist += 0.35 * Math.max(0, fromLine - 2);
+        if (Math.abs(p.z) < 1.1) dist += 1.5;
+      } else if (own) {
+        gain *= Math.max(0.2, 1 + 0.4 * (B.ownZone + (active ? B.stockpile : 0)));
+      } else {
+        // it has to come back into our zone before any of this scores
+        dist += Math.abs(p.x - lineX) * 0.5;
       }
+      const c = Math.max(0.2, dist) / gain;
       if (c < bc) { bc = c; best = b; }
     }
     return best;
+  }
+
+  // a turret collecting in its zone while its HUB is active: is our zone still the best place to
+  // collect (it shoots as it goes), or is there more to be had outside?
+  _zoneWorthIt() {
+    if (this._zoneFuel() < this.brain.zoneMin) return false;
+    const b = this._pickBall();
+    return !!b && Field.inAllianceZone(this.own, b.pos.x);
+  }
+
+  // the intake goes down once the FUEL it's going for is within intakeDist and stays down while
+  // it collects (up only when full, or to keep it off another robot or out of FUEL a HUB is
+  // releasing)
+  _intakeFor(d) {
+    const r = this.robot;
+    if (d < this.brain.intakeDist) this.intakeDown = true;
+    return this.intakeDown && r.stored.length < this.maxLoad && !this._foeAhead() && !this._hubFuelNear();
   }
 
   _collect(dt) {
@@ -550,16 +610,24 @@ export class OpponentAI {
     else if ((this.ballProgressT += dt) > 2.5) { this.blacklist.set(b, this.t + 8); this.ball = null; return; }
     const near = d < 1.6;
     this._drive(b.pos.x, b.pos.z, { speed: near ? B.collectSpeed : 1, avoid: !near, arrive: -0.3 });
-    // intake down when close, unless that would put it into the other robot (G415)
-    r.cmd.intake = d < B.intakeDist && !this._foeAhead() && r.stored.length < this.maxLoad && !this._hubFuelNear();
+    r.cmd.intake = this._intakeFor(d);
     this.label = `Collecting (${r.stored.length}/${r.capacity()})`;
   }
 
-  // FUEL just released by a HUB can't be caught before it touches the carpet (G408)
+  // FUEL just released by a HUB can't be caught before it touches the carpet (G408): is any of it
+  // about to come down into our intake? (Only then does the intake pause: it's in the air for a
+  // fraction of a second, and the piles in front of a HUB are where the FUEL is.)
   _hubFuelNear() {
-    const r = this.robot;
+    const r = this.robot, ic = r.cfg.intake, g = 9.81;
     for (const b of this.fuel.balls) {
-      if (b.state === 'field' && b.hubFresh && Math.abs(b.pos.x - r.pos.x) < 1.4 && Math.abs(b.pos.z - r.pos.z) < 1.4) return true;
+      if (b.state !== 'field' || !b.hubFresh) continue;
+      if (Math.abs(b.pos.x - r.pos.x) > 2.5 || Math.abs(b.pos.z - r.pos.z) > 2.5) continue;
+      const v = b.prevVel || { x: 0, y: 0, z: 0 };
+      // when it gets down to where the rollers could grab it, and where it is (relative to us) then
+      const h = b.pos.y - r.pos.y - 0.33;
+      const t = h <= 0 ? 0 : (v.y + Math.sqrt(v.y * v.y + 2 * g * h)) / g;
+      const l = r.worldToLocal(b.pos.x + (v.x - r.vel.x) * t, b.pos.z + (v.z - r.vel.z) * t);
+      if (l.x > r.halfL - 0.2 && l.x < r.halfL + ic.reach + 0.35 && Math.abs(l.z) < ic.width / 2 + 0.3) return true;
     }
     return false;
   }

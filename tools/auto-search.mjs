@@ -5,7 +5,7 @@
 import { Worker } from 'node:worker_threads';
 import { cpus } from 'node:os';
 import { BEST_AUTOS } from '../js/auto.js';
-import { ROBOTS } from '../js/robotConfigs.js';
+import { ROBOTS, fitsTrench } from '../js/robotConfigs.js';
 import { modelCapacity } from '../js/hopper.js';
 import { mulberry32 } from './headless.mjs';
 
@@ -51,7 +51,9 @@ function randomTrip(key, side) {
   const b = side === 'right' ? Math.min(6.7, a + len) : Math.max(1.3, a - len);
   const home = pick(['trench', 'bump']);
   const homeY = b > 4.03 ? 6.0 : 2.0;
-  return { out: pick(['trench', 'bump']), fx: round(U(7.35, 8.7)), a: round(a), b: round(b), speed: round(U(cap < 20 ? 0.2 : 0.35, 0.9)), home, shootAt: [round(U(2.2, 3.4)), round(homeY + U(-0.6, 0.6))] };
+  const trip = { out: pick(['trench', 'bump']), fx: round(U(7.35, 8.7)), a: round(a), b: round(b), speed: round(U(cap < 20 ? 0.2 : 0.35, 0.9)), home, shootAt: [round(U(2.2, 3.4)), round(homeY + U(-0.6, 0.6))] };
+  if (!fitsTrench(ROBOTS[key])) { trip.out = 'bump'; trip.home = 'bump'; } // too tall for the TRENCH
+  return trip;
 }
 function randomPlan(key) {
   const start = pick(['rightTrench', 'rightBump', 'hub', 'leftBump', 'leftTrench']);

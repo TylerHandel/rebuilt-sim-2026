@@ -5,6 +5,7 @@
 import { FIELD_W, ALLIANCE_ZONE_DEPTH, HALF_L, HUB, DEPOT, BUMP, fw } from './constants.js';
 import { clamp, wrapAngle } from './util.js';
 import { getCustom, customSteps } from './customAutos.js';
+import { fitsTrench } from './robotConfigs.js';
 
 export const START_POSITIONS = {
   leftTrench: { name: 'Left Trench', fy: FIELD_W - 0.64 },
@@ -55,18 +56,28 @@ export const BEST_AUTOS = {
   ] },
   // 66: clears the DEPOT while shooting, then short slow passes (it only holds 12 and intakes
   // slowly) with a trip home to shoot after each
-  // provisional (4414's), until tools/auto-search.mjs finds better
-  971: { start: 'rightTrench', preload: 'stand', trips: [
-    { out: 'trench', fx: 8.4, a: 2.32, b: 6.7, speed: 0.53, home: 'bump', shootAt: [2.21, 5.46] },
-    { out: 'bump', fx: 7.32, a: 6.65, b: 3.95, speed: 0.47, home: 'bump', shootAt: [2.95, 5.72] },
+  // 145: a sweep in from the right, a second from the left, then the DEPOT
+  971: { start: 'rightBump', preload: 'move', trips: [
+    { out: 'trench', fx: 8.21, a: 1.76, b: 4.14, speed: 0.39, home: 'bump', shootAt: [2.96, 5.55] },
+    { out: 'trench', fx: 8.41, a: 6.51, b: 4.77, speed: 0.58, home: 'bump', shootAt: [2.63, 5.65] },
+    { depot: true, speed: 0.56 },
   ] },
+  // 123: two long sweeps, one each way (2910's pattern)
   1678: { start: 'leftTrench', preload: 'stand', trips: [
     { out: 'trench', fx: 7.53, a: 6.44, b: 3.36, speed: 0.42, home: 'bump', shootAt: [2.31, 1.5] },
     { out: 'trench', fx: 7.88, a: 2.02, b: 6.7, speed: 0.52, home: 'trench', shootAt: [2.74, 6.2] },
   ] },
-  1690: { start: 'rightBump', preload: 'move', trips: [
-    { out: 'trench', fx: 8.4, a: 2.32, b: 6.7, speed: 0.53, home: 'bump', shootAt: [2.21, 5.46] },
-    { out: 'bump', fx: 7.32, a: 6.65, b: 3.95, speed: 0.47, home: 'bump', shootAt: [2.95, 5.72] },
+  // 108: a short slow sweep near the wall, then a fast pass across
+  1690: { start: 'rightTrench', preload: 'move', trips: [
+    { out: 'trench', fx: 8.42, a: 1.35, b: 2.57, speed: 0.32, home: 'bump', shootAt: [2.77, 2.44] },
+    { out: 'bump', fx: 7.54, a: 1.51, b: 5.27, speed: 0.87, home: 'trench', shootAt: [2.96, 5.6] },
+  ] },
+  // 174: over the BUMP both ways (too tall for the TRENCH), two sweeps, then the DEPOT twice
+  4946: { start: 'rightBump', preload: 'move', trips: [
+    { out: 'bump', fx: 7.66, a: 2.17, b: 4.03, speed: 0.72, home: 'bump', shootAt: [3.2, 2.32] },
+    { out: 'bump', fx: 7.44, a: 2.3, b: 5.7, speed: 0.67, home: 'bump', shootAt: [2.42, 6.47] },
+    { depot: true, speed: 0.49 },
+    { depot: true, speed: 0.35 },
   ] },
   8793: { start: 'leftTrench', preload: 'move', trips: [
     { depot: true, speed: 0.44 },
@@ -146,7 +157,8 @@ export class AutoRunner {
     const shootPreload = () => steps.push({ type: 'shoot', timeout: 3.0 });
     const sweep = (fxLine, back) => {
       // through the TRENCH into the NEUTRAL ZONE, sweep across the FUEL, back over the BUMP
-      steps.push({ type: 'drive', pts: [[3.2, 0.64], [5.6, 0.64], [fxLine - 0.2, 1.25]], intake: true, speed: 1.0 });
+      const out = fitsTrench(r.cfg) ? ROUTE_FY.trench : ROUTE_FY.bump; // over the BUMP if it's too tall
+      steps.push({ type: 'drive', pts: [[3.2, out], [5.6, out], [fxLine - 0.2, 1.25]], intake: true, speed: 1.0 });
       steps.push({ type: 'drive', pts: [[fxLine, 1.45], [fxLine, 4.4]], intake: true, shoot: small, speed: small ? 0.75 : 0.55 });
       steps.push({ type: 'drive', pts: [[6.3, 3.0], [5.2, 2.55], [3.3, 2.4]], intake: small, shoot: small ? true : 'hub', speed: back ? 0.9 : 1.0 });
       steps.push({ type: 'shoot', timeout: 2.5 });
@@ -199,7 +211,8 @@ export class AutoRunner {
     const bps = r.cfg.shooter.bps;
     const maxFx = HALF_L + r.halfW - 0.08; // BUMPERS past the CENTER LINE but not fully across
     const steps = [];
-    const lane = (kind, fy) => (fy > FIELD_W / 2 ? FIELD_W - ROUTE_FY[kind] : ROUTE_FY[kind]);
+    // a robot too tall for the TRENCH goes over the BUMP instead
+    const lane = (kind, fy) => { const k = fitsTrench(r.cfg) ? kind : 'bump'; return fy > FIELD_W / 2 ? FIELD_W - ROUTE_FY[k] : ROUTE_FY[k]; };
     const shootAll = () => steps.push({ type: 'shoot', timeout: r.maxCapacity() / bps + 1.2 });
     if (plan.preload === 'stand') steps.push({ type: 'shoot', timeout: 1.5 });
     let first = plan.preload !== 'stand';

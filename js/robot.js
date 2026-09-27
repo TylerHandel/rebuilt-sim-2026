@@ -148,7 +148,11 @@ export class Robot {
     this.flywheel = 0;
     this.hoodDeg = this.cfg.shooter.hoodMin;
     this.turretYaw = 0;
-    this.turretYaws = this.turrets.map(() => 0);
+    // each turret starts at the middle of its travel (971's point back and out to their sides)
+    this.turretYaws = this.turrets.map((t) => (t.center ?? 0) * DEG);
+    this.turretYaw = this.turretYaws[0] ?? 0;
+    // more than one turret: each has its own flywheel and hood (and knows whether it's on target)
+    this.tws = this.turrets.length > 1 ? this.turrets.map(() => ({ fly: 0, hood: this.cfg.shooter.hoodMin, holdV: 0, holdT: 0, ok: false, sol: null })) : [];
     this.feedTimer = 0;
     this.lane = 0;
     this.intakeTokens = 0;
@@ -552,16 +556,16 @@ export class Robot {
 
   // where a FUEL launched now would come down is on our half of the FIELD, clear of the walls,
   // and it doesn't drop into a HUB on the way (that would be a G407 from outside the zone)
-  _passLands() {
+  _passLands(ti = 0) {
     const sh = this.cfg.shooter;
-    const ti = this.turrets.length ? this.lane % this.turrets.length : 0;
     const psi = sh.type === 'fixed' ? this.yaw + this.aimOffset : this.yaw + this.turretYaws[ti];
     // from where it really leaves, moving with the (maybe turning) robot
     const exit = sh.type === 'fixed'
       ? this._exitPoint(sh.lanes[this.lane % sh.lanes.length])
       : this.localToWorld(...this._turretExit(ti));
     const lv = this.velocityAt(exit);
-    const th = this.hoodDeg * DEG, v = this.flywheel;
+    const w = this.tws[ti];
+    const th = (w ? w.hood : this.hoodDeg) * DEG, v = w ? w.fly : this.flywheel;
     const pts = trajectoryPoints(exit, { x: Math.cos(psi) * Math.cos(th) * v + lv.x, y: Math.sin(th) * v, z: -Math.sin(psi) * Math.cos(th) * v + lv.z });
     const x = pts[pts.length - 3], z = pts[pts.length - 1], s = this.alliance === BLUE ? 1 : -1;
     if (!(Math.abs(x) < HALF_L - 1.2 && Math.abs(z) < HALF_W - 1.2 && s * x < -0.5)) return false;
@@ -602,8 +606,11 @@ export class Robot {
     const tgt = this._target();
     const inZoneNow = tgt.inZone;
     this.lastInZone = inZoneNow;
-    const prespin = on && has && inZoneNow;
-    if ((wantShoot || prespin) && has) {
+    // spin up ahead of time: in our zone, or when the driver (an AI about to dump a pass) asks
+    const prespin = on && has && (inZoneNow || !!this.cmd.prespin);
+    const twin = this.turrets.length > 1;
+    if (twin) ({ ready, status } = this._twinTurrets(dt, t, tgt, (wantShoot || prespin) && has, wantShoot, status));
+    else if ((wantShoot || prespin) && has) {
       let exit, lv;
       if (sh.type === 'fixed') {
         // The drum sits on the robot's centerline, so once aimed the shot line passes through the
@@ -615,9 +622,8 @@ export class Robot {
         exit = new THREE.Vector3(this.pos.x + (dx / dd) * along, this.pos.y + sh.exit.y, this.pos.z + (dz / dd) * along);
         lv = { x: this.vel.x, z: this.vel.z };
       } else {
-        // FUEL leaves the hood exitRadius in front of the turret axis, along the shot line (the
-        // turret that fires next sets the shot)
-        const c = this._exitPoint(0, this.lane % this.turrets.length);
+        // FUEL leaves the hood exitRadius in front of the turret axis, along the shot line
+        const c = this._exitPoint(0, 0);
         const dx = tgt.x - c.x, dz = tgt.z - c.z;
         const dd = Math.hypot(dx, dz) || 1;
         exit = new THREE.Vector3(c.x + (dx / dd) * sh.exitRadius, c.y, c.z + (dz / dd) * sh.exitRadius);
@@ -641,33 +647,15 @@ export class Robot {
             this.aimOverride = clamp(Math.sign(aimErr) * w + ff, -d.maxOmega, d.maxOmega);
           }
         } else {
-          // every turret aims from where it sits at the same (lead-corrected) aim point
-          const lim = sh.turretRange * DEG, margin = 8 * DEG;
-          const ti = this.lane % this.turrets.length;
-          const c0 = this._exitPoint(0, ti);
-          const ax = sol.aim.x, az = sol.aim.z; // the lead-corrected aim point
-          aimErr = 0;
-          let over = 0;
-          this.turrets.forEach((t, i) => {
-            const c = i === ti ? c0 : this._exitPoint(0, i);
-            const psi = i === ti ? sol.psi : Math.atan2(-(az - c.z), ax - c.x);
-            const rel = wrapAngle(psi - this.yaw);
-            // choose the equivalent angle closest to the current turret position within limits
-            const cands = [rel, rel + 2 * Math.PI, rel - 2 * Math.PI].filter((a) => Math.abs(a) <= lim);
-            const cur = this.turretYaws[i];
-            const goal = cands.length ? cands.reduce((a, b) => (Math.abs(b - cur) < Math.abs(a - cur) ? b : a)) : clamp(rel, -lim, lim);
-            this.turretYaws[i] = approach(cur, goal, sh.turretRate * DEG * dt);
-            const err = wrapAngle(psi - (this.yaw + this.turretYaws[i]));
-            if (Math.abs(err) > Math.abs(aimErr)) aimErr = err;
-            // near a hard stop (turrets with limited travel): how far the chassis should turn
-            if (lim < Math.PI && Math.abs(rel) > lim - margin && Math.abs(rel) - (lim - margin) > Math.abs(over)) over = rel - clamp(rel, margin - lim, lim - margin);
-          });
-          this.turretYaw = this.turretYaws[0];
-          if (wantShoot && over) {
-            // the chassis turns to bring the target back inside the turrets' travel
-            const d = this.cfg.drive, a = Math.abs(over);
-            this.aimOverride = Math.sign(over) * Math.min(d.maxOmega, Math.sqrt(2 * 0.7 * d.maxAlpha * a), 7 * a);
-          }
+          // measured from the middle of the turret's travel (its hard stops are +-lim from there)
+          const lim = sh.turretRange * DEG, mid = (this.turrets[0].center ?? 0) * DEG;
+          const rel = wrapAngle(sol.psi - this.yaw - mid);
+          // choose the equivalent angle closest to the current turret position within limits
+          const cands = [rel, rel + 2 * Math.PI, rel - 2 * Math.PI].filter((a) => Math.abs(a) <= lim);
+          const cur = this.turretYaw - mid;
+          const goal = cands.length ? cands.reduce((a, b) => (Math.abs(b - cur) < Math.abs(a - cur) ? b : a)) : clamp(rel, -lim, lim);
+          this.turretYaw = this.turretYaws[0] = mid + approach(cur, goal, sh.turretRate * DEG * dt);
+          aimErr = wrapAngle(sol.psi - (this.yaw + this.turretYaw));
         }
         this._lastPsi = sol.psi;
         // a pass (shuttling FUEL back) doesn't have to be perfect: instead of waiting for a clean
@@ -690,17 +678,7 @@ export class Robot {
     }
     if (!this.shot) this._lastPsi = undefined;
     if (!on) status = this.enabled ? status : 'Disabled';
-
-    // keep the flywheel at its last shot speed for a moment after the trigger is released, so
-    // stop-and-go shooting (or passing) doesn't have to spin up from scratch every time
-    if (setpoint > 0) { this.spinHold = setpoint; this.spinHoldT = t; }
-    else if (on && this.spinHold && t - this.spinHoldT < 1.5) setpoint = this.spinHold;
-    // flywheel dynamics: torque-limited spin-up (0 -> max in spinTau*2), fast closed-loop
-    // settle near the setpoint, slow coast-down
-    const target = Math.min(setpoint, sh.speedMax);
-    const err = target - this.flywheel;
-    if (err > 0) this.flywheel += Math.min(err * (1 - Math.exp(-dt / 0.06)), (sh.speedMax / (2 * sh.spinTau)) * dt);
-    else this.flywheel += Math.max(err * (1 - Math.exp(-dt / 0.06)), -(sh.speedMax / 3) * dt);
+    if (!twin) this._flywheelStep(dt, t, on, setpoint);
 
     // feed
     const period = 1 / sh.bps;
@@ -715,12 +693,108 @@ export class Robot {
     this.ready = ready;
   }
 
+  // Flywheel dynamics (w: an object with fly / holdV / holdT; the robot itself for one shooter).
+  // It keeps its last shot speed for a moment after the trigger is released, so stop-and-go
+  // shooting (or passing) doesn't have to spin up from scratch every time. Torque-limited spin-up
+  // (0 -> max in spinTau*2), fast closed-loop settle near the setpoint, slow coast-down.
+  _spin(w, dt, t, on, setpoint) {
+    const sh = this.cfg.shooter;
+    if (setpoint > 0) { w.holdV = setpoint; w.holdT = t; }
+    else if (on && w.holdV && t - w.holdT < 1.5) setpoint = w.holdV;
+    const target = Math.min(setpoint, sh.speedMax);
+    const err = target - w.fly;
+    if (err > 0) w.fly += Math.min(err * (1 - Math.exp(-dt / 0.06)), (sh.speedMax / (2 * sh.spinTau)) * dt);
+    else w.fly += Math.max(err * (1 - Math.exp(-dt / 0.06)), -(sh.speedMax / 3) * dt);
+  }
+
+  _flywheelStep(dt, t, on, setpoint) {
+    const w = { fly: this.flywheel, holdV: this.spinHold, holdT: this.spinHoldT };
+    this._spin(w, dt, t, on, setpoint);
+    this.flywheel = w.fly; this.spinHold = w.holdV; this.spinHoldT = w.holdT;
+  }
+
+  // More than one turret (971): each is its own shooter, with its own flywheel and hood, solving
+  // its own shot from where it sits and turning within its own travel. Any turret that's on target
+  // can fire (the feed takes turns among them). If none can reach the target, the chassis turns
+  // to bring the nearest one into range.
+  _twinTurrets(dt, t, tgt, active, wantShoot, status) {
+    const sh = this.cfg.shooter, on = this.enabled && this.climbState === 'none';
+    const lim = sh.turretRange * DEG, margin = 8 * DEG, pass = tgt.mode === 'pass';
+    let need = Infinity, show = -1, anyReach = false, anySol = false, spun = false, aimed = false;
+    this.turrets.forEach((tt, i) => {
+      const w = this.tws[i];
+      w.ok = false;
+      w.sol = null;
+      let setpoint = 0;
+      if (active) {
+        // FUEL leaves the hood exitRadius out from the turret axis, along the shot line
+        const c = this._exitPoint(0, i);
+        const dx = tgt.x - c.x, dz = tgt.z - c.z, dd = Math.hypot(dx, dz) || 1;
+        const exit = new THREE.Vector3(c.x + (dx / dd) * sh.exitRadius, c.y, c.z + (dz / dd) * sh.exitRadius);
+        const lv = this.velocityAt(exit);
+        const sol = solveMovingShot(tgt.table, exit, lv, tgt);
+        if (sol) {
+          anySol = true;
+          // measured from the middle of this turret's travel (its hard stops are +-lim from there)
+          const mid = (tt.center ?? 0) * DEG;
+          const rel = wrapAngle(sol.psi - this.yaw - mid);
+          const cands = [rel, rel + 2 * Math.PI, rel - 2 * Math.PI].filter((a) => Math.abs(a) <= lim);
+          const cur = this.turretYaws[i] - mid;
+          const goal = cands.length ? cands.reduce((a, b) => (Math.abs(b - cur) < Math.abs(a - cur) ? b : a)) : clamp(rel, -lim, lim);
+          this.turretYaws[i] = mid + approach(cur, goal, sh.turretRate * DEG * dt);
+          const o = rel - clamp(rel, margin - lim, lim - margin);
+          if (Math.abs(o) < Math.abs(need)) need = o;
+          if (cands.length) {
+            anyReach = true;
+            setpoint = sol.v;
+            w.hood = approach(w.hood, sol.theta / DEG, 260 * dt);
+            w.sol = { ...sol, exit, lv };
+            const err = Math.abs(wrapAngle(sol.psi - (this.yaw + this.turretYaws[i])));
+            const tol = pass ? 4 * DEG : Math.max(0.6 * DEG, Math.atan2(0.14, sol.dist));
+            const spinOk = pass ? w.fly > 0.75 * sol.v : Math.abs(w.fly - sol.v) / sol.v < 0.025;
+            const hoodOk = Math.abs(w.hood - sol.theta / DEG) < 1.5;
+            spun ||= spinOk; aimed ||= err < tol;
+            w.ok = spinOk && err < tol && (pass || hoodOk);
+            if (show < 0 || (w.ok && !this.tws[show].ok)) show = i;
+          }
+        }
+      }
+      this._spin(w, dt, t, on, setpoint);
+    });
+    if (active && wantShoot && !anyReach && Number.isFinite(need) && need) {
+      const d = this.cfg.drive, a = Math.abs(need);
+      this.aimOverride = Math.sign(need) * Math.min(d.maxOmega, Math.sqrt(2 * 0.7 * d.maxAlpha * a), 7 * a);
+    }
+    // what the HUD, the preview and the anims show: the turret that's firing (or about to)
+    const k = show >= 0 ? show : 0, w = this.tws[k];
+    this.turretYaw = this.turretYaws[k];
+    this.flywheel = w.fly;
+    this.hoodDeg = w.hood;
+    if (pass) for (let i = 0; i < this.tws.length; i++) if (this.tws[i].ok && !this._passLands(i)) this.tws[i].ok = false;
+    const ready = this.tws.some((x) => x.ok);
+    if (w.sol) {
+      this.shot = { ...w.sol, mode: tgt.mode, target: tgt };
+      this.preview = { exit: w.sol.exit, lv: w.sol.lv, sol: w.sol };
+      status = ready ? 'READY' : !spun ? 'Spinning up' : !aimed ? 'Aiming' : 'Hood';
+      if (pass) status = ready ? 'PASS READY' : 'Pass: ' + status.toLowerCase();
+    } else if (active) status = anySol ? 'Turning to aim' : tgt.mode === 'hub' ? 'Out of range' : 'Pass out of range';
+    else if (!tgt.inZone && this.stored.length) status = 'Outside ALLIANCE ZONE';
+    return { ready, status };
+  }
+
   // The FUEL nearest the feed point starts up the feed path (indexer, ramp, turret) and leaves
   // the shooter when it gets there.
   _startFeed() {
     const sh = this.cfg.shooter, f = this.cfg.bay.feed;
     let laneZ = f.z ?? 0;
-    const ti = this.turrets.length ? this.lane % this.turrets.length : 0;
+    let ti = 0;
+    if (this.turrets.length > 1) {
+      // the next turret in turn that's on target
+      const n = this.turrets.length;
+      ti = -1;
+      for (let k = 0; k < n && ti < 0; k++) { const i = (this.lane + k) % n; if (this.tws[i].ok) { ti = i; this.lane = i; } }
+      if (ti < 0) return false;
+    }
     if (sh.type === 'fixed') laneZ = sh.lanes[this.lane % sh.lanes.length];
     else if (f.zs) laneZ = f.zs[ti]; // twin turrets: each has its own side of the separator
     const fp = new THREE.Vector3(f.x, this.hopper.floorAt(f.x, laneZ) + R, laneZ);
@@ -738,7 +812,9 @@ export class Robot {
       : () => new THREE.Vector3(...this._turretExit(ti));
     this.hopper.startTransit(best, via, end, FEED_SPEED, (e) => {
       // a FUEL that reaches the wheels while the shot isn't lined up waits there
-      if (this.ready && this.shot && this.enabled && (this.cmd.shoot || this.cmd.pass)) this._fire(e, this.shot.mode);
+      // (and with more than one turret, its own turret has to be on target)
+      const onTarget = this.turrets.length < 2 || this.tws[ti].ok;
+      if (this.ready && onTarget && this.shot && this.enabled && (this.cmd.shoot || this.cmd.pass)) this._fire(e, this.shot.mode);
     });
     best.tr.feed = true;
     best.tr.turret = ti;
@@ -751,11 +827,12 @@ export class Robot {
     this.hopper.remove(e);
     this._unstore(b);
     const exit = this.localToWorld(e.p.x, e.p.y, e.p.z);
-    let psi = sh.type === 'fixed' ? this.yaw + this.aimOffset : this.yaw + this.turretYaws[e.tr?.turret ?? 0];
+    const ti = e.tr?.turret ?? 0, w = this.tws[ti]; // w: that turret's own shooter (971)
+    let psi = sh.type === 'fixed' ? this.yaw + this.aimOffset : this.yaw + this.turretYaws[ti];
     const k = this.noiseScale ?? 1; // AI skill: extra scatter for weaker drivers
     psi += gauss() * sh.yawSigma * k * DEG;
-    const th = this.hoodDeg * DEG + gauss() * sh.angleSigma * k * DEG;
-    const v = this.flywheel * (1 + gauss() * sh.speedSigma * k);
+    const th = (w ? w.hood : this.hoodDeg) * DEG + gauss() * sh.angleSigma * k * DEG;
+    const v = (w ? w.fly : this.flywheel) * (1 + gauss() * sh.speedSigma * k);
     const lv = this.velocityAt(exit);
     const vel = {
       x: Math.cos(psi) * Math.cos(th) * v + lv.x,
@@ -763,7 +840,7 @@ export class Robot {
       z: -Math.sin(psi) * Math.cos(th) * v + lv.z,
     };
     this.fuel.launch(b, exit, vel, { by: 'robot', alliance: this.alliance, legal: this.lastInZone, t: this.lastT, ignoreRobot: 0.35, spin: true });
-    this.flywheel *= 1 - sh.shotDrop;
+    if (w) w.fly *= 1 - sh.shotDrop; else this.flywheel *= 1 - sh.shotDrop;
     this.stats.shots++;
     if (mode === 'pass') this.stats.passes++;
   }
