@@ -355,14 +355,17 @@ export const ROBOTS = {
     // a 2in silicone-covered carbon fiber roller (their reveal): rigid, so it squeezes FUEL a
     // little less than compliant wheels do (hopper.js intakePush)
     intake: { width: 25 * IN, reach: 0.1, rate: 200, pull: 5, deployTime: 0.3, side: 'front', latched: false, squeeze: 0.6 },
-    // the horizontal extension rides out with the intake (a slanted slot in its side plates)
-    storage: { extLen: 0.2, extend: 'intake' },
+    // the horizontal extension (polycarbonate sides, a corrugated front) slides straight out with
+    // the intake: a pin on the intake plate rides a slanted vertical slot in the side plates (their
+    // robot page and CAD), so as the intake swings down it pushes the extension forward. The pin
+    // is 0.135 m from the intake pivot; the 166deg swing carries it 0.225 m forward.
+    storage: { extLen: 0.225, extend: 'intake' },
     // their CAD: roller floor (dead-axle rollers, then flex wheels) sloping down to the ball
     // tunnel at the back; the lid (corrugated plastic on the climber tubes) sits at 0.52 m and
     // lifts lift.h with the climber (it comes back down under the TRENCH); over the extension the
     // ceiling is the diagonal net
     bay: {
-      x0: -0.09, x1: 0.33, hw: 0.3, top: 0.52,
+      x0: -0.09, x1: 0.33, hw: 0.34, top: 0.52, // walls at +-0.35 m (their CAD)
       lift: { h: 0.2 },
       // the net from the lid's front edge down to the front of the extension
       slope: { x: 0.335, y: 0.5 },

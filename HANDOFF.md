@@ -155,6 +155,12 @@ For a new Claude Code session. The latest work is on branch `claude/great-hypati
 - 8793's and 341's deployed intakes hold FUEL (`storage.extLen` 0.2 / 0.22, `extend: 'intake'`), and a folding intake stays down while it holds FUEL the path can't take. No sliding-hopper collider for them (the arm is one).
 - Matches vs a champs 1690 scorer, seed 3: 2910 588, 4414 890, 8793 387, 971 614, 1678 651, 1690 622, 4946 753, 3928 484, 341 244, 4930 656, 1706 643.
 
+## Done: 1678's extension and CAD
+- The extension's front panel and corner posts sat in the intake part and swung into the floor with the slapdown. They're in `1678-slide` now with the side plates, and slide straight out.
+- Their robot page: "The intake and output actuation is controlled by the slanted vertical slot on the side that interfaces with the intake plate" (the extension is driven by the intake, not independent). Travel from the geometry: the pin (0.135 m from the intake pivot) moves 0.225 m forward over the 166deg swing: `storage.extLen` 0.225 (was 0.2).
+- `bay.hw` 0.3 -> 0.34 (the walls are at +-0.35 m in their CAD; the roller floor is narrower). Holds 29 -> 63.
+- Re-exported through STEP (`tools/step2glb.py`, `like`-matched, smooth) like 2910's, so it has no faceted round parts; the recipe excludes the Limelight's FOV cone and the Kraken motors in the body.
+
 ## Other open items
 - The HUB and BUMP sizes were checked against the drawing. All element positions were checked against the field CAD. The TRENCH, TOWER, DEPOT and OUTPOST *sizes* still come from the game manual, so compare them with the drawing pages above or measure them in the CAD. Note that the Block CAD bounding box puts the inside edge of the fixed TRENCH about 8 cm closer to the guardrail than `TRENCH.width` does.
 - Optional: a longer AI self-play training run, `npm run train -- --gens 30 --pop 12 --scenarios 6 --resume`.
