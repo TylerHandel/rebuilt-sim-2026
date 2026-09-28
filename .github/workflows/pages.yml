@@ -30,6 +30,14 @@ jobs:
         run: |
           mkdir _site
           cp -r index.html js css cad _site/
+      # GitHub Pages lets browsers keep files for 10 minutes, so after a deploy a reload could mix
+      # new and old code. Tagging every code file with this commit makes each deploy's files new
+      # URLs, fetched fresh.
+      - name: Tag code files with the version
+        run: |
+          V=${GITHUB_SHA::8}
+          sed -i -E "s#(from '\./[^']+\.js)'#\1?v=$V'#g; s#(import\('\./[^']+\.js)'\)#\1?v=$V')#g" _site/js/*.js
+          sed -i -E "s#(src=\"js/main\.js)\"#\1?v=$V\"#; s#(href=\"css/style\.css)\"#\1?v=$V\"#" _site/index.html
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
