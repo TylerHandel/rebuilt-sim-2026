@@ -325,11 +325,15 @@ export class Robot {
   maxCapacity() { return this.geoCap.extended; }
 
   // how far forward the retracting intake arm reaches into the hopper (its roller), at a deploy
-  // fraction; a compacting intake only sweeps FUEL back as far as intake.compactMin
+  // fraction; a compacting intake only sweeps FUEL back as far as intake.compactMin. While the
+  // roller is still down below the hopper floor (out on the carpet, under a box pushed out over
+  // it) it isn't in the FUEL's way at all
   _compactorX(dep = this.intakeDeploy) {
     const a = this.cfg.intake.arm;
     const deg = a.stowDeg + (a.deployDeg - a.stowDeg) * dep;
-    return Math.max(a.x + a.len * Math.cos(deg * DEG), this.cfg.intake.compactMin ?? -Infinity);
+    const x = a.x + a.len * Math.cos(deg * DEG), y = a.y + a.len * Math.sin(deg * DEG);
+    if (y < this.hopper.floorAt(Math.min(x, this.hopper.front - 0.01), 0)) return Infinity;
+    return Math.max(x, this.cfg.intake.compactMin ?? -Infinity);
   }
 
   // How much FUEL fits behind a compacting intake whose roller is at x: all of it up to the

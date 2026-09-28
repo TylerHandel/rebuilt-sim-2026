@@ -196,6 +196,10 @@ For a new Claude Code session. The latest work is on branch `claude/great-hypati
 - Fill (1 m/s along the NEUTRAL ZONE line): 2910 68/73, 4414 100/101, 971 55/66, 1678 61/84, 1690 50/52, 4946 83/108, 3928 110/137, 4930 48/58, 1706 49/60; overlaps under 1.9 in. AUTO FUEL: 2910 145, 4414 128, 8793 67, 971 146, 1678 97, 1690 101, 4946 127, 3928 118, 341 29, 4930 69, 1706 75. Matches vs a champs 2910: 2910 627, 4414 731, 8793 345, 971 673, 1678 539, 1690 613, 4946 668, 3928 481, 341 208, 4930 472, 1706 471.
 - `pack()` (the rating) still drops FUEL in on top; ratings are for planning only.
 
+## Done: 1678's box fills to its front panel
+- A compacting intake's roller was a wall (`hopper.wall = _compactorX()`) even when it was down on the carpet under a box pushed out over it: 1678's FUEL stopped at x 0.38 with the box front at 0.555, leaving a strip empty against the front panel. `_compactorX` is now Infinity while the roller is below the hopper floor, so it only sweeps FUEL once it has folded up into the load. 1678 fills to 67 (was 61); folding in still compacts and stalls part way when full (1678, 971, 2910, 4930, 1706).
+- 1678's AUTO scores 8-20 FUEL less over seeds 1-4 (76-81 vs 82-97): its entry used to sit in front of that invisible wall, so new FUEL never had the pile to push.
+
 ## Other open items
 - The HUB and BUMP sizes were checked against the drawing. All element positions were checked against the field CAD. The TRENCH, TOWER, DEPOT and OUTPOST *sizes* still come from the game manual, so compare them with the drawing pages above or measure them in the CAD. Note that the Block CAD bounding box puts the inside edge of the fixed TRENCH about 8 cm closer to the guardrail than `TRENCH.width` does.
 - Optional: a longer AI self-play training run, `npm run train -- --gens 30 --pop 12 --scenarios 6 --resume`.
