@@ -27,9 +27,17 @@
 //    robot (half-circle drivetrain, 30in front edge), 35in hopper with clear walls on the bumpers
 //    round a Dye Rotor tray, 11in turret on the center of rotation, sliding ground intake. Too tall
 //    for the TRENCH.
-//  Nets: 971 and 1690 carry netting over the open tops of their hoppers (the physics lets the load
-//  bulge it up, bay.dome); 1678 and 4946 stretch a net diagonally from the hopper's top edge down
-//  to the front of the intake (bay.slope).
+//  - 3928 Team Neutrino (public Onshape CAD "26"): 27x27in swerve (MK5n), tall sheet hopper walls,
+//    a 5-spoke spindexer with a center cone, a tower in the back corner up to a turret on top, a
+//    slide-out intake box. Too tall for the TRENCH.
+//  - 341 Miss Daisy XXIV (public Onshape CAD): 27x27in swerve (WCP X2i), triple-roller slapdown,
+//    a one-layer serializer tray under the turret table (three flat 6in omni wheels), L1 climber.
+//  - 4930 Electric Mayhem "Floyd 2" (public Onshape CAD + Open Alliance thread): 28.5x26.5in swerve
+//    (MK4i/MK4n), belt floor to an updexer, three hooded flywheels on one shaft fixed to the chassis
+//    and firing forward over the intake. Too tall for the TRENCH.
+//  Nets: 971, 1690 and 3928 carry netting over the open tops of their hoppers (the physics lets the
+//  load bulge it up, bay.dome); 1678, 4946 and 4930 stretch a net diagonally from the hopper's top
+//  edge down to the front of the intake (bay.slope). None of the teams' CAD models its nets.
 import { IN, TRENCH } from './constants.js';
 import { Drivetrain } from './drivetrain.js';
 
@@ -469,6 +477,172 @@ export const ROBOTS = {
     stats: { 'Shot rate': '20 BPS', Aiming: 'Turret', 'Top speed': '12.8 ft/s', Trench: 'No (BUMPS)' },
     colors: { frame: 0x9aa0a8, accent: 0xd32f2f, trim: 0x1d1f24 },
   },
+  3928: {
+    key: '3928',
+    team: 3928,
+    teamName: 'Team Neutrino',
+    robotName: '', // not published; their CAD's top assembly is just "26"
+    archetype: 'Spindexer tower',
+    blurb: 'A 5-spoke spindexer with a cone in the middle turns the load round to a tower in the back corner, which lifts FUEL single file to a turret on top. Tall walls and a slide-out intake box make a deep hopper. Too tall for the TRENCH, it goes over the BUMPS.',
+    // their CAD: 27x27in frame (rails at +-0.343 m), bumpers at +-0.433 m
+    frame: { length: 27 * IN, width: 27 * IN },
+    height: 29.3 * IN, // top of the hopper walls and the intake box (their CAD)
+    mass: 64, // robot (up to 115 lb) + bumpers + battery
+    // SDS MK5n; the ratio isn't in the CAD, so R1 (7.03:1) is assumed
+    drive: { ratio: 7.03 },
+    // the intake is a tall box (its sides are hopper walls) that slides 0.3 m out the front on
+    // racks, with a 2in and a 1.5in roller at its lip; it stays out (their CAD, exported out)
+    intake: { width: 26 * IN, reach: 0.19, rate: 200, pull: 5, deployTime: 0.4, side: 'front', latched: true },
+    storage: { extLen: 0.3, extend: 'latched' },
+    // their CAD: walls to 0.74 m round a spindexer at the front middle: a spoked wheel (r 0.14 m)
+    // turning under the load with a printed cone over its hub, in a ring the floor wedges in the
+    // corners slope down into. The tower fills the back left corner; FUEL the spokes bring round
+    // to its foot rides a J-shaped ramp into its belts and up to the turret.
+    bay: {
+      x0: -0.33, x1: 0.33, hw: 0.33, top: 0.74,
+      // a net over the open top, from the wall tops to the intake box's top crossbar, with a hole
+      // round the turret; the load bulges it up
+      dome: { h: 0.15, x0: -0.33, cx: -0.154, cz: 0.0985, rHole: 0.22 },
+      floor: { a: 0.105, b: 0, lo: 0.105, hi: 0.105 },
+      funnel: { slope: 0.35, cap: 0.3 },
+      obstacles: [
+        { x: 0.1125, z: -0.0175, r: 0.055, y0: 0.1, y1: 0.29 }, // the cone
+        { box: [-0.33, -0.1, 0, 1, -0.02, 0.2] }, // the tower (its mouth faces the spindexer)
+        { box: [-0.04, 0.11, 0.2, 0.52, 0.19, 0.33] }, // a plate on the spindexer's far side
+      ],
+      drive: 'rotor', rotor: { x: 0.1125, z: -0.0175, y: 0.105, r: 0.2, grip: 80, drag: 8, finR0: 0.06, fins: 5, spin: -15, idle: -0.5 },
+      feed: { x: -0.05, z: 0.07, reach: 0.18, via: [[-0.09, 0.2, 0.09], [-0.15, 0.4, 0.09], [-0.15, 0.6, 0.095]] },
+    },
+    shooter: {
+      type: 'turret',
+      turretPos: { x: -0.154, z: 0.0985 }, // the bearing on top of the tower (their CAD)
+      exitRadius: 0.1, // over the flywheels at the turret's front edge
+      exitY: 0.76,
+      turretRange: 180, turretRate: 600,
+      bps: 12,
+      hoodMin: 42, hoodMax: 80,
+      speedMax: 16,
+      spinTau: 0.3,
+      shotDrop: 0.005,
+      speedSigma: 0.014, angleSigma: 0.7, yawSigma: 0.7,
+    },
+    climber: null,
+    stats: { 'Shot rate': '12 BPS', Aiming: 'Turret', 'Top speed': '', Trench: 'No (BUMPS)' },
+    colors: { frame: 0x2a2c31, accent: 0xf08a1c, trim: 0xb9bec5 }, // black tube, orange plates
+  },
+  341: {
+    key: '341',
+    team: 341,
+    teamName: 'Miss Daisy',
+    robotName: 'Miss Daisy XXIV',
+    archetype: 'Serializer',
+    blurb: 'Almost no hopper: a triple-roller slapdown lifts FUEL onto a single-layer tray under the turret table, where three spinning 6in omni wheels serialize it into the uptake to the turret. Shoots as fast as it intakes. Climbs Level 1.',
+    // their CAD: bumpers +-0.428 m, 27x27in frame
+    frame: { length: 27 * IN, width: 27 * IN },
+    height: 21.75 * IN, // the shooter on the table (their CAD)
+    mass: 62, // robot (up to 115 lb) + bumpers + battery
+    // WCP Swerve X2i in its low gearing (their CAD); ~7.1:1 assumed
+    drive: { ratio: 7.13 },
+    // "Main Slap Down (brontosaurus)" (their CAD): two silicone rollers at the bottom of an arm
+    // that swings down from a pivot 0.34 m up, three plastic rollers over them lift FUEL over the
+    // bumper. Stowed it stands up, too tall for the TRENCH: it has to be down to drive under.
+    // fold.hull: the arm's side outline round the pivot (m, x forward, y up), deployed.
+    intake: {
+      width: 24 * IN, reach: 0.18, rate: 20, deployTime: 0.3, side: 'front', latched: false,
+      fold: {
+        pivot: [0.2545, 0.3365], stowDeg: 95,
+        hull: [[-0.03, 0.035], [0.2, 0.03], [0.37, -0.09], [0.37, -0.13], [0.34, -0.2], [0.21, -0.3], [0.17, -0.305], [-0.02, -0.1]],
+      },
+    },
+    storage: { capacity: 12 },
+    // their CAD: a plate 0.175 m up across the front of the robot under the table the turret sits
+    // on (0.375 m): room for one layer of FUEL. Three 6in omni wheels lying flat at the FUEL's
+    // middle spin it round toward the uptake ramp at the back, which curls up into the turret.
+    bay: {
+      x0: -0.03, x1: 0.335, hw: 0.33, top: 0.37, pack: false,
+      floor: { a: 0.175, b: 0, lo: 0.175, hi: 0.175 },
+      // the omni wheels' hubs (r 0.076 m wheels: their rollers drive FUEL on, feed.pull, rather
+      // than stopping it)
+      obstacles: [
+        { x: -0.0445, z: 0.0755, r: 0.03, y0: 0.22, y1: 0.28, wheel: 0.076 },
+        { x: 0.108, z: 0.219, r: 0.03, y0: 0.22, y1: 0.28, wheel: 0.076 },
+        { x: 0.1205, z: -0.2285, r: 0.03, y0: 0.22, y1: 0.28, wheel: 0.076 },
+        { box: [-0.2, 0.095, 0, 1, -0.4, -0.148] }, // the wall beside the uptake, and the corner behind it
+      ],
+      drive: 'floor', driveSpeed: 1.6,
+      feed: { x: -0.01, z: -0.075, reach: 0.14, pull: 15, via: [[-0.06, 0.3, -0.075], [-0.1, 0.42, -0.077]] },
+    },
+    shooter: {
+      type: 'turret',
+      turretPos: { x: -0.1015, z: -0.0765 }, // the 92T turret gear under the shooter (their CAD)
+      exitRadius: 0.17, // the hood end of the shooter
+      exitY: 0.52,
+      turretRange: 180, turretRate: 600,
+      bps: 12,
+      hoodMin: 40, hoodMax: 80,
+      speedMax: 16,
+      spinTau: 0.3,
+      shotDrop: 0.006,
+      speedSigma: 0.014, angleSigma: 0.7, yawSigma: 0.7,
+    },
+    climber: { maxLevel: 1, times: [0, 1.8] }, // "L1 Climb": a telescoping tube in the back corner
+    stats: { 'Shot rate': '12 BPS', Aiming: 'Turret', 'Top speed': '', Trench: 'Intake down', Climb: 'Level 1' },
+    colors: { frame: 0xc3c8ce, accent: 0x2f5fb3, trim: 0xf2c318 }, // raw aluminum, blue, yellow
+  },
+  4930: {
+    key: '4930',
+    team: 4930,
+    teamName: 'Electric Mayhem',
+    robotName: 'Floyd 2',
+    archetype: 'Triple shooter',
+    blurb: 'Three hooded flywheel shooters side by side, fixed to the chassis and firing forward over the intake: the robot drives at the HUB to aim. A belt floor carries FUEL back to an updexer that lifts it into all three. Too tall for the TRENCH, it goes over the BUMPS.',
+    // their build thread and CAD: 28.5x26.5in drivebase (wide), bumpers 0.928 x 0.851 m
+    frame: { length: 26.5 * IN, width: 28.5 * IN },
+    height: 25.8 * IN, // the hoods (their CAD)
+    mass: 65, // robot (~120 lb stated before they took the climber off) + bumpers + battery
+    // SDS MK4i / MK4n; L2 (6.75:1) assumed
+    drive: { ratio: 6.75 },
+    // "Intake V2" (their CAD): polycarbonate side plates and rollers on an arm pivoting at the
+    // front of the frame, with its own belt floor. Stowed it swings up in front of the shooters.
+    // fold.hull: its side outline round the pivot (m, x forward, y up), deployed.
+    intake: {
+      width: 28 * IN, reach: 0.2, rate: 200, pull: 5, deployTime: 0.35, side: 'front', latched: false,
+      fold: {
+        pivot: [0.2355, 0.2005], stowDeg: 90,
+        hull: [[-0.03, 0.02], [0.2, 0.17], [0.37, 0.17], [0.39, 0.0], [0.39, -0.13], [0.35, -0.16], [0.02, -0.16], [-0.03, -0.05]],
+      },
+    },
+    // the intake "drives an expanding hopper" (build thread): with the arm down, the space over it
+    // is hopper too
+    storage: { extLen: 0.22, extend: 'intake' },
+    // their CAD: twenty belts make a floor sloping down from the intake to the updexer at the
+    // back, whose belts lift FUEL up behind the three flywheels on one long shaft; each FUEL goes
+    // round the back of its flywheel under the hood and out forward over the top.
+    bay: {
+      x0: -0.02, x1: 0.33, hw: 0.31, top: 0.55,
+      // a net stretched from the front of the shooters' side plates down to the top of the
+      // intake's side plates keeps the load in over the open front
+      slope: { x: 0.12, y: 0.37 },
+      floor: { a: 0.11, b: 0.385, lo: 0.11, hi: 0.23 },
+      drive: 'floor', driveSpeed: 2.2,
+      feed: { x: 0.0, via: [[-0.08, 0.2], [-0.19, 0.36], [-0.19, 0.52]] },
+    },
+    shooter: {
+      type: 'fixed',
+      facing: 'front', // over the top of the flywheels, forward over the intake
+      lanes: [-0.205, 0, 0.205],
+      exit: { x: -0.07, y: 0.68 }, // over the flywheels (their CAD)
+      bps: 18,
+      hoodMin: 40, hoodMax: 78,
+      speedMax: 17,
+      spinTau: 0.35,
+      shotDrop: 0.003,
+      speedSigma: 0.016, angleSigma: 0.8, yawSigma: 0.8,
+    },
+    climber: null, // taken off to make weight (build thread)
+    stats: { 'Shot rate': '18 BPS (3 lanes)', Aiming: 'Chassis', 'Top speed': '', Trench: 'No (BUMPS)' },
+    colors: { frame: 0xb4b9c1, accent: 0x3fa34d, trim: 0xc86bb5 }, // aluminum, green hoods, pink plates
+  },
 };
 
 // Top speed, turn rate and acceleration come from each robot's drivetrain (drivetrain.js): its
@@ -482,7 +656,7 @@ for (const cfg of Object.values(ROBOTS)) {
   if (cfg.stats) cfg.stats['Top speed'] = `${ft(dt.topSpeed)} ft/s (${ft(dt.freeSpeed)} free)`;
 }
 
-export const ROBOT_ORDER = ['2910', '4414', '8793', '971', '1678', '1690', '4946'];
+export const ROBOT_ORDER = ['2910', '4414', '8793', '971', '1678', '1690', '4946', '3928', '341', '4930'];
 
 // Optional add-on climbers for robots without one (971 and 1678 have their own, cfg.climber)
 export const CLIMBER_OPTIONS = {

@@ -1,0 +1,153 @@
+{
+  "source": "3928 Team Neutrino, \"26\" (Onshape 57c9f32575b97450a6090cdb, workspace 05c87b094e9a536a82f6159e, element 475266d70d4d89294ebea1cd), STEP through tools/step2glb.py",
+  "front": "-y",
+  "parts": [
+    {
+      "out": "cad/robots/3928-body.glb",
+      "include": [
+        "26-DT",
+        "26-SP",
+        "26-TW"
+      ],
+      "like": {
+        "glb": "r3928.glb",
+        "node": "26 <1>"
+      },
+      "exclude": [
+        "SDS MK5n",
+        "26-DT-BU",
+        "26-SP-FL",
+        "26-SP-CN",
+        "26-SP-06",
+        "spacer",
+        "bearing",
+        "chain",
+        "belt",
+        "standoff",
+        "REV-11-1850",
+        "REV-11-1863",
+        "3D-Print Adapter",
+        "Grommet",
+        "Hub \\(",
+        "MotionX"
+      ],
+      "skipBox": [
+        [
+          -0.36,
+          0.06,
+          0.545,
+          1.0,
+          -0.12,
+          0.31
+        ]
+      ],
+      "smooth": true,
+      "ratio": 0.06,
+      "error": 0.006
+    },
+    {
+      "out": "cad/robots/3928-spin.glb",
+      "include": [
+        "26-SP"
+      ],
+      "like": {
+        "glb": "r3928.glb",
+        "node": "26-SP <1>"
+      },
+      "exclude": [
+        "spacer",
+        "bearing",
+        "chain",
+        "belt",
+        "standoff",
+        "REV-11-1850",
+        "REV-11-1863",
+        "3D-Print Adapter",
+        "Grommet",
+        "Hub \\(",
+        "MotionX"
+      ],
+      "onlyName": [
+        "26-SP-FL",
+        "26-SP-CN",
+        "26-SP-06"
+      ],
+      "origin": [
+        0.1125,
+        0,
+        -0.0175
+      ],
+      "smooth": true,
+      "ratio": 0.3,
+      "error": 0.0015
+    },
+    {
+      "out": "cad/robots/3928-intake.glb",
+      "include": [
+        "26-IN-V2"
+      ],
+      "like": {
+        "glb": "r3928.glb",
+        "node": "26-IN-V2 <1>"
+      },
+      "exclude": [
+        "spacer",
+        "bearing",
+        "chain",
+        "belt",
+        "standoff",
+        "REV-11-1850",
+        "REV-11-1863",
+        "3D-Print Adapter",
+        "Grommet",
+        "Hub \\(",
+        "MotionX"
+      ],
+      "smooth": true,
+      "ratio": 0.12,
+      "error": 0.004
+    },
+    {
+      "out": "cad/robots/3928-turret.glb",
+      "include": [
+        "26-SH",
+        "26-TW"
+      ],
+      "like": {
+        "glb": "r3928.glb",
+        "node": "26 <1>"
+      },
+      "exclude": [
+        "spacer",
+        "bearing",
+        "chain",
+        "belt",
+        "standoff",
+        "REV-11-1850",
+        "REV-11-1863",
+        "3D-Print Adapter",
+        "Grommet",
+        "Hub \\(",
+        "MotionX"
+      ],
+      "onlyBox": [
+        [
+          -0.36,
+          0.06,
+          0.545,
+          1.0,
+          -0.12,
+          0.31
+        ]
+      ],
+      "origin": [
+        -0.154,
+        0,
+        0.0985
+      ],
+      "smooth": true,
+      "ratio": 0.25,
+      "error": 0.0015
+    }
+  ]
+}

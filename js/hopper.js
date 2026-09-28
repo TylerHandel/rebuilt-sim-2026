@@ -399,8 +399,10 @@ export class Hopper {
         const r = s.rotor, dx = p.x - r.x, dz = p.z - r.z, d = Math.hypot(dx, dz);
         if (d < r.r && d > 0.05 && spin) {
           const th = Math.atan2(-dz, dx); // same sense as the fin: direction (cos, 0, -sin)
-          let gap = (spin > 0 ? th - this.finAngle : this.finAngle - th) % (2 * Math.PI);
-          if (gap < 0) gap += 2 * Math.PI;
+          // a spindexer has several spokes (rotor.fins), evenly spaced: the nearest one ahead
+          const per = (2 * Math.PI) / (r.fins || 1);
+          let gap = (spin > 0 ? th - this.finAngle : this.finAngle - th) % per;
+          if (gap < 0) gap += per;
           const fin = d > (r.finR0 ?? 0) - R * 0.5 && gap < R / d + 0.08;
           const k = fin ? r.grip ?? 40 : r.drag ?? 0;
           const ux = -Math.sin(th) * spin * d, uz = -Math.cos(th) * spin * d;
@@ -443,7 +445,10 @@ export class Hopper {
       }
       if (env.feeding && env.feedPoint) {
         const dx = env.feedPoint.x - p.x, dz = env.feedPoint.z - p.z, d = Math.hypot(dx, dz);
-        if (d > 0.05) { fx += (2.5 * dx) / d; fz += (2.5 * dz) / d; }
+        // (feed.pull: a mechanism that drives the load to the feed harder, as 341's serializer
+        // omni wheels do; otherwise just the pile settling toward the gap FUEL leaves)
+        const k = (s.feed && s.feed.pull) || 2.5;
+        if (d > 0.05) { fx += (k * dx) / d; fz += (k * dz) / d; }
       }
       v.x += fx * dt; v.y += fy * dt; v.z += fz * dt;
       v.multiplyScalar(1 - 0.6 * dt);

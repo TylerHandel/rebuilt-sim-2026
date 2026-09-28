@@ -80,6 +80,27 @@ export const BEST_AUTOS = {
     { depot: true, speed: 0.49 },
     { depot: true, speed: 0.35 },
   ] },
+  // Set by reasoning, not searched: the NEUTRAL ZONE FUEL is 6 rows deep on each side of the
+  // CENTER LINE (fx ~7.4-8.2) across fy 1.5-6.6, so a sweep along fy at fx 7.8 takes ~30 FUEL/m.
+  // 139: 3928 holds 100+ but its spindexer feeds ~8.5/s, so one long sweep over the BUMPS, as much
+  // as it can shoot before the buzzer, turret firing on the way home
+  3928: { start: 'rightBump', preload: 'move', trips: [
+    { out: 'bump', fx: 7.8, a: 1.6, b: 6.4, speed: 0.5, home: 'bump', shootAt: [2.6, 5.5] },
+  ] },
+  // 38: 341 holds 7 and shoots while it intakes, so the DEPOT first (in the ALLIANCE ZONE, shooting
+  // all the way), then short trips under the TRENCH (intake lowered) to the nearest FUEL
+  341: { start: 'leftTrench', preload: 'move', trips: [
+    { depot: true, speed: 0.35 },
+    { out: 'trench', fx: 7.9, a: 6.4, b: 5.6, speed: 0.5, home: 'trench', shootAt: [3.2, 6.9] },
+    { out: 'trench', fx: 7.9, a: 6.4, b: 5.6, speed: 0.5, home: 'trench', shootAt: [3.2, 6.9] },
+  ] },
+  // 92: 4930 holds 41 and empties it in ~2 s, so short sweeps (a full load each) over the nearest
+  // BUMP, turning to face the HUB just past it
+  4930: { start: 'rightBump', preload: 'stand', trips: [
+    { out: 'bump', fx: 7.8, a: 1.6, b: 2.9, speed: 0.55, home: 'bump', shootAt: [2.9, 2.4] },
+    { out: 'bump', fx: 7.8, a: 2.9, b: 4.0, speed: 0.55, home: 'bump', shootAt: [2.9, 2.4] },
+    { out: 'bump', fx: 7.8, a: 1.6, b: 2.9, speed: 0.6, home: 'bump', shootAt: [2.9, 2.4] },
+  ] },
   8793: { start: 'leftTrench', preload: 'move', trips: [
     { depot: true, speed: 0.44 },
     { out: 'trench', fx: 8.15, a: 6.16, b: 5.18, speed: 0.42, home: 'trench', shootAt: [2.3, 6.2] },

@@ -1,0 +1,72 @@
+{
+  "source": "4930 Electric Mayhem, \"Floyd 2: Whole Robot Assembly\" (Onshape 83c8fa924839349576d211d0, workspace 9af803d0057b2f9fe7042ded, element 208bd6bbadd59d7f2b97c01f), STEP through tools/step2glb.py",
+  "front": "-y",
+  "parts": [
+    {
+      "out": "cad/robots/4930-body.glb",
+      "include": [
+        "Drivetrain V2 Assembly",
+        "Indexer/Shooter Assembly"
+      ],
+      "like": {
+        "glb": "r4930.glb",
+        "node": "Final Final Robotassembly"
+      },
+      "exclude": [
+        "SDS MK4",
+        "^Bumper",
+        "Clearance",
+        "spacer",
+        "bearing",
+        "chain",
+        "standoff",
+        "REV-11-1850",
+        "REV-11-1863",
+        "^(?!.*(hopper floor|intake-floor)).*belt",
+        "3D-Print Adapter",
+        "Grommet",
+        "Hub \\(",
+        "MotionX"
+      ],
+      "origin": [
+        -0.3555,
+        -0.145,
+        0.381
+      ],
+      "smooth": true,
+      "ratio": 0.06,
+      "error": 0.006
+    },
+    {
+      "out": "cad/robots/4930-intake.glb",
+      "include": [
+        "Intake V2 Assembly"
+      ],
+      "like": {
+        "glb": "r4930.glb",
+        "node": "Intake V2 Assembly <1>"
+      },
+      "exclude": [
+        "spacer",
+        "bearing",
+        "chain",
+        "standoff",
+        "REV-11-1850",
+        "REV-11-1863",
+        "^(?!.*(hopper floor|intake-floor)).*belt",
+        "3D-Print Adapter",
+        "Grommet",
+        "Hub \\(",
+        "MotionX"
+      ],
+      "origin": [
+        -0.12,
+        0.0555,
+        0.381
+      ],
+      "smooth": true,
+      "ratio": 0.08,
+      "error": 0.005
+    }
+  ]
+}
