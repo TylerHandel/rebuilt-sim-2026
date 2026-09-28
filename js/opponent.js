@@ -367,7 +367,7 @@ export class OpponentAI {
         const shootTime = (n) => 0.8 + n / r.cfg.shooter.bps;
         const toFill = Math.max(0, this.fillTarget - stored) / Math.max(0.8, this.rate);
         const noTimeToFill = active && stored >= 3 && toFill + travel + shootTime(this.fillTarget) > windowLeft;
-        const go = stored >= cap
+        const go = stored >= cap || (r.full && stored >= 0.5 * cap)
           || (stored >= this.fillTarget && active)
           || noTimeToFill
           || (stored >= 3 && !active && untilActive <= travel + B.stageMargin)
@@ -473,7 +473,7 @@ export class OpponentAI {
     this.shootingMode = !!this.passing;
     // nearly there: spin the flywheel up (and aim a turret) ahead of the dump
     r.cmd.prespin = canPass && stored >= 0.7 * batch;
-    const b = stored >= this.maxLoad ? null : this.ball; // full: stop chasing FUEL, go pass it
+    const b = stored >= this.maxLoad || r.full ? null : this.ball; // full: stop chasing FUEL, go pass it
     if (this.passing && !this.turret) {
       // chassis-aimed: ease off while the chassis turns and dumps the batch
       if (b) this._drive(b.pos.x, b.pos.z, { speed: 0.3, avoid: true });
@@ -629,7 +629,7 @@ export class OpponentAI {
     const near = d < 1.6;
     this._drive(b.pos.x, b.pos.z, { speed: near ? B.collectSpeed : 1, avoid: !near, arrive: -0.3 });
     r.cmd.intake = this._intakeFor(d);
-    this.label = `Collecting (${r.stored.length}/${r.capacity()})`;
+    this.label = `Collecting (${r.stored.length}${r.full ? ', full' : '/~' + r.capacity()})`;
   }
 
   // FUEL just released by a HUB can't be caught before it touches the carpet (G408): is any of it

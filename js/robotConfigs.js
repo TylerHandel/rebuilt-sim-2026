@@ -112,7 +112,7 @@ export const ROBOTS = {
     teamName: 'Jack in the Bot',
     robotName: 'Re•Blitz',
     archetype: 'Dumper',
-    blurb: 'Huge hopper and a 4-wide drum shooter fixed to the chassis — the whole robot rotates to aim. Unloads 45 FUEL per second.',
+    blurb: 'Huge hopper and a 4-wide drum shooter fixed to the chassis — the whole robot rotates to aim. Unloads 30+ FUEL per second.',
     frame: { length: 27.0 * IN, width: 27.5 * IN },
     height: 21.5 * IN,
     mass: 64, // robot (up to 115 lb) + bumpers + battery
@@ -150,7 +150,7 @@ export const ROBOTS = {
       facing: 'back', // the drum at the back fires away from the intake
       lanes: [-0.19, -0.063, 0.063, 0.19],
       exit: { x: -0.34, y: 0.5 }, // where FUEL leaves the hood, over the back of the drum (their CAD)
-      bps: 45,
+      bps: 32,
       hoodMin: 42, hoodMax: 74,
       speedMax: 17,
       spinTau: 0.33,
@@ -158,7 +158,7 @@ export const ROBOTS = {
       speedSigma: 0.016, angleSigma: 0.8, yawSigma: 0.8,
     },
     climber: null,
-    stats: { 'Shot rate': '45 BPS', Aiming: 'Chassis', 'Top speed': '14.1 ft/s', Trench: 'Yes' },
+    stats: { 'Shot rate': '32 BPS', Aiming: 'Chassis', 'Top speed': '14.1 ft/s', Trench: 'Yes' },
     colors: { frame: 0xb9bec5, accent: 0x5c6168, trim: 0xc6cbd1 }, // raw aluminum, grey plates (their CAD)
   },
   4414: {

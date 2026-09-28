@@ -619,15 +619,16 @@ export class UI {
     const cap = r.capacity();
     $('rpTeam').textContent = r.cfg.team;
     $('rpName').textContent = !r.cfg.robotName || r.cfg.robotName === r.cfg.archetype ? `${r.cfg.teamName} · ${r.cfg.archetype}` : `${r.cfg.robotName} · ${r.cfg.archetype}`;
-    $('fuelFill').style.width = (100 * r.stored.length) / cap + '%';
-    $('fuelText').textContent = `${r.stored.length} / ${cap} FUEL`;
+    // there's no count limit: the intake stalls when the load won't take more (cap is the rating)
+    $('fuelFill').style.width = (r.full ? 100 : Math.min(100, (100 * r.stored.length) / cap)) + '%';
+    $('fuelText').textContent = r.full ? `${r.stored.length} FUEL · FULL` : `${r.stored.length} / ~${cap} FUEL`;
     const st = $('rpShooter');
     st.textContent = r.status;
     st.className = 'v ' + (r.ready ? 'ok' : /range|Outside|Disabled/.test(r.status) ? 'bad' : r.status === 'Empty' ? '' : 'warn');
     const z = $('rpZone');
     z.textContent = r.lastInZone ? 'ALLIANCE ZONE (can score)' : 'Outside — pass only';
     z.className = 'v ' + (r.lastInZone ? 'ok' : 'warn');
-    $('rpIntake').textContent = r.intakeSpeed > 0 ? 'Intaking' : r.intakeSpeed < 0 ? 'Ejecting' : r.intakeDeploy > 0.5 ? 'Deployed' : 'Stowed';
+    $('rpIntake').textContent = r.intakeSpeed > 0 ? (r.stalled ? 'Stalled (full)' : r.rollerSpeed < 1 ? 'Intaking (packing)' : 'Intaking') : r.intakeSpeed < 0 ? 'Ejecting' : r.intakeDeploy > 0.5 ? 'Deployed' : 'Stowed';
     $('rpClimbRow').classList.toggle('hidden', !r.climberCfg);
     if (r.climberCfg) $('rpClimb').textContent = `${r.climbState === 'none' ? 'Ready' : r.climbState} · target L${r.climbTarget}${r.climbLevel ? ' · at L' + r.climbLevel : ''}`;
     const ai = game.driverAI || (lead && lead.ai);
@@ -652,7 +653,7 @@ export class UI {
       $('oppStrat').textContent = `${other(me).toUpperCase()} fouls: ${of.length} (${of.reduce((a, b) => a + b.pts, 0)} pts to ${me.toUpperCase()})`;
       $('oppList').innerHTML = others.map((u) => {
         const o = u.robot;
-        return `<div class="orow"><span class="dot ${o.alliance}"></span><b>${o.cfg.team}</b><span class="od">${u.human ? 'You' : u.ai.label}</span><span class="of">${o.stored.length}/${o.capacity()}</span></div>`;
+        return `<div class="orow"><span class="dot ${o.alliance}"></span><b>${o.cfg.team}</b><span class="od">${u.human ? 'You' : u.ai.label}</span><span class="of">${o.stored.length}${o.full ? " FULL" : "/~" + o.capacity()}</span></div>`;
       }).join('');
     }
     // PINS against any opponent (yours first)

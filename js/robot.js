@@ -5,7 +5,7 @@ import {
 } from './constants.js';
 import { BUMPER_T, BUMPER_Y0, BUMPER_Y1, fitsTrench, foldTop, frameShape, offsetShape, modulePoints } from './robotConfigs.js';
 import { buildRobotModel, addClimberVisual, BUMP_Y1 } from './robotModels.js';
-import { Hopper, measureCapacity, intakePush } from './hopper.js';
+import { Hopper, measureCapacity, intakePush, fuelForce } from './hopper.js';
 import { ShotTable, solveMovingShot, trajectoryPoints } from './ballistics.js';
 import { Field } from './field.js';
 import { TRENCH_ARMS } from './nav.js';
@@ -20,6 +20,15 @@ const R = FUEL.radius;
 // this robot, other FUEL, or the floor features the robot is driving over
 const CAPTURED_GROUPS = groups(GROUP.BALL, GROUP.STATIC);
 const INTAKE_SPEED = 3.5; // m/s the rollers pull FUEL in (cfg.intake.pull overrides)
+// A FUEL goes in only once the one before it is out of the way: while one is within BLOCK_D of
+// the entry, the next waits in the mouth HOLD_GAP out from it and pushes it on in. The rollers
+// stall once one has waited STALL_T (the hopper is full, for now), and it sits in the roller
+// (sticking HOLD_OUT past the front of the intake) until the load gives way.
+const BLOCK_D = 2 * R * 0.85;
+const HOLD_GAP = 2 * R * 0.9;
+const HOLD_OUT = 0.06;
+const STALL_T = 0.35;
+const FULL_T = 0.75; // s stalled: full
 const FEED_SPEED = 7;     // m/s up the feed path into the shooter
 const CLIMB_LIFT = [0, 0.16, 0.74, 1.2]; // body lift to satisfy LEVEL 1/2/3 criteria
 
@@ -235,7 +244,10 @@ export class Robot {
     this.feedTimer = 0;
     this.lane = 0;
     this.intakeTokens = 0;
-    this.full = false; // the hopper holds all it can
+    this.full = false; // the intake has stalled against the load
+    this.stalled = false;
+    this.rollerSpeed = 1;
+    this.wallPush = 0; // N: something outside pushing FUEL in the mouth on in (a wall)
     this.outtakeTimer = 0;
     this.enabled = false;
     this.cmd = { vx: 0, vz: 0, omega: 0, intake: false, outtake: false, shoot: false, pass: false };
@@ -456,6 +468,24 @@ export class Robot {
     return { lipX, lipY, entryX, entryY, liftY: Math.max(entryY, lipY) };
   }
 
+  // Where a FUEL that can't get in yet waits (cap.slot), and the way it goes in from there: in the
+  // mouth, a ball's width out from the entry toward the lip (or at the lip, if that's farther),
+  // pushing on what's in the way; once the rollers have stalled, back down in the roller at the
+  // front of the intake, on the carpet, sticking out a little past the intake, so a wall can squash it
+  _holdPoint(path, slot) {
+    let x, y;
+    if (slot === 'roller') { x = this.halfL + this.cfg.intake.reach + 0.04 - R + HOLD_OUT; y = R + 0.01; }
+    else {
+      let dx = path.lipX - path.entryX, dy = path.liftY - path.entryY;
+      const len = Math.hypot(dx, dy);
+      if (len > 0.01) { dx /= len; dy /= len; } else { dx = 1; dy = 0; }
+      const k = Math.max(len, HOLD_GAP);
+      x = path.entryX + dx * k; y = path.entryY + dy * k;
+    }
+    const dx = path.entryX - x, dy = path.entryY - y, len = Math.hypot(dx, dy) || 1;
+    return { x, y, ix: dx / len, iy: dy / len };
+  }
+
   // The intake rollers drag grabbed FUEL up over the bumper and into the hopper
   _guideCaptured(dt) {
     if (!this.captured.length) return;
@@ -467,20 +497,27 @@ export class Robot {
       const dx = p.x - tr.x, dz = p.z - tr.z;
       const lx = dx * c - dz * sn, lz = dx * sn + dz * c, ly = p.y - tr.y;
       const path = this._intakePath(cap.z);
-      // up the intake arm to just over the bumper, then into the hopper
+      // up the intake arm to just over the bumper, then into the hopper; while the way in is
+      // blocked, the rollers hold it in the mouth (cap.wait, the hold point)
       if (!cap.over && ly >= path.liftY - 0.03) cap.over = true;
       const up = !cap.over;
-      const tx = up ? path.lipX : path.entryX, ty = up ? path.liftY : path.entryY;
+      let tx = up ? path.lipX : path.entryX, ty = up ? path.liftY : path.entryY;
+      if (cap.wait) {
+        const h = this._holdPoint(path, cap.slot);
+        tx = h.x; ty = h.y;
+        if (cap.slot === 'roller') cap.over = false; // back down to the roller: up over the bumper again
+      }
       let vx = tx - lx, vy = ty - ly, vz = cap.z - lz;
       const dist = Math.hypot(vx, vy, vz) || 1;
       const sp = Math.min(this.cfg.intake.pull ?? INTAKE_SPEED, dist / (2 * dt));
       vx *= sp / dist; vy *= sp / dist; vz *= sp / dist;
       // robot point velocity + the pull, in world axes
-      b.body.setLinvel({
+      cap.vs = {
         x: lv.x + w * dz + vx * c + vz * sn,
         y: vy + 9.81 * dt,
         z: lv.z - w * dx - vx * sn + vz * c,
-      }, true);
+      };
+      b.body.setLinvel(cap.vs, true);
     }
   }
 
@@ -633,14 +670,19 @@ export class Robot {
 
     const running = on && this.cmd.intake && deployed;
     this.intakeSpeed = on && this.cmd.outtake ? -1 : running ? 1 : 0;
-    this.full = this.stored.length + this.captured.length >= this.capacity();
-    if (running && !this.full) {
+    // full: the rollers have stalled against the load (nothing more gets in until it gives way);
+    // there's no count limit, so a load packed harder (a wall shoving FUEL in) holds more
+    // (stalled for a while: a moment's stall while the load shifts isn't full)
+    this.full = this.stallT > FULL_T;
+    // the rollers hold about a row of FUEL across
+    const row = Math.max(2, Math.floor(ic.width / (2 * R)));
+    if (running && !this.stalled && this.captured.length < row && this.stored.length < this.maxCapacity() * 2 + 10) {
       this.intakeTokens = Math.min(Math.max(4, 2 * ic.rate * dt), this.intakeTokens + ic.rate * dt);
       const front = this.halfL - 0.04;
       const reach = this.halfL + ic.reach + R + 0.02;
       const hw = ic.width / 2 + 0.02;
       const balls = this.fuel.balls;
-      for (let i = 0; i < balls.length && this.intakeTokens >= 1; i++) {
+      for (let i = 0; i < balls.length && this.intakeTokens >= 1 && this.captured.length < row; i++) {
         const b = balls[i];
         if (b.state !== 'field' || b.captor) continue;
         const p = b.pos;
@@ -660,12 +702,11 @@ export class Robot {
         const hz = this.cfg.bay.hw - R - 0.01;
         this.captured.push({ b, t0: t, z: clamp(l.z, -Math.min(hz, ic.width / 2 - R), Math.min(hz, ic.width / 2 - R)) });
         this.intakeTokens -= 1;
-        if (this.stored.length + this.captured.length >= this.capacity()) break;
       }
     } else {
       this.intakeTokens = 0;
     }
-    this._settleCaptured(t, running);
+    this._settleCaptured(t, dt, running);
     // outtake: FUEL goes back out over the intake
     if (on && this.cmd.outtake && this.stored.length) {
       this.outtakeTimer += dt;
@@ -676,15 +717,30 @@ export class Robot {
     } else this.outtakeTimer = 0;
   }
 
-  // Grabbed FUEL that reached the hopper joins it; FUEL the intake lets go of is released
-  _settleCaptured(t, running) {
+  // Grabbed FUEL that reached the hopper joins it; FUEL the intake lets go of is released.
+  // A FUEL only goes in once the entry is clear. Until then the rollers hold it in the mouth and
+  // push it into the FUEL in the way, as hard as they can grip (intakePush), and that one into the
+  // load: it goes in if the load gives way, and the rollers stall if it doesn't. Something outside
+  // pushing the held FUEL in (driving it into a wall) adds its push, as hard as the FUEL is squashed.
+  _settleCaptured(t, dt, running) {
+    const deployed = this.intakeDeploy > 0.85;
+    let waited = 0, outside = 0;
     for (let i = this.captured.length - 1; i >= 0; i--) {
       const cap = this.captured[i];
       const b = cap.b;
       const l = this.worldToLocal3(b.pos);
       const path = this._intakePath(cap.z);
-      const lost = b.state !== 'field' || t - cap.t0 > 0.8;
-      if (!lost && l.x <= path.entryX + 0.02 && l.y >= path.entryY - 0.04) {
+      // what's in the way at the entry
+      const block = [];
+      for (const e of this.hopper.list) {
+        if (e.tr) continue;
+        const dx = e.p.x - path.entryX, dy = e.p.y - path.entryY, dz = e.p.z - cap.z;
+        if (dx * dx + dy * dy + dz * dz < BLOCK_D * BLOCK_D) block.push(e);
+      }
+      // (8793's single-file ball path isn't packed by pushing: it holds what its path fits)
+      const shut = this.cfg.bay.pack === false && this.stored.length >= this.capacity();
+      const lost = b.state !== 'field' || (!cap.waitT && t - cap.t0 > 0.8) || (cap.waitT && !deployed);
+      if (!lost && !block.length && !shut && l.x <= path.entryX + 0.02 && l.y >= path.entryY - 0.04) {
         this.captured.splice(i, 1);
         const v = b.body.linvel();
         const pv = this.velocityAt(b.pos);
@@ -696,14 +752,59 @@ export class Robot {
         const e = this.hopper.add(b, l, new THREE.Vector3(lv.x, v.y, lv.z));
         e.push = this.intakePush; // the roller shoves it on into the load
         e.pushT = 0.4;
-      } else if (lost || (!running && !cap.over)) {
-        // not over the bumper yet: it drops back onto the carpet
+      } else if (lost || (!running && !cap.over && !cap.waitT)) {
+        // not over the bumper yet (or let go of): it drops back onto the carpet
         this.captured.splice(i, 1);
         b.captor = null;
         this.stats.dropped++;
         if (b.state === 'field') { b.ignoring = true; b.ignoreUntil = t + 0.25; }
+      } else if (block.length || shut) {
+        // waiting, pushing on what's in the way
+        cap.wait = true;
+        cap.t0 = t;
+        cap.waitT = (cap.waitT || 0) + dt;
+        // once the rollers stall, the load pushes it back down the intake into the stalled roller
+        cap.slot = cap.waitT > STALL_T ? 'roller' : 'mouth';
+        const h = this._holdPoint(path, cap.slot);
+        const hx = l.x - h.x, hy = l.y - h.y;
+        if (Math.hypot(hx, hy, l.z - cap.z) < 0.02) cap.held = true;
+        // pushed in past where it's held by something outside (it didn't move back out as fast as
+        // the rollers moved it: something's in the way): it's squashed that much, and pushes on
+        // the FUEL ahead of it (and back on the robot) as hard
+        const c = Math.cos(this.yaw), sn = Math.sin(this.yaw);
+        const v = b.body.linvel(), vs = cap.vs || v;
+        const blocked = (vs.x - v.x) * -h.ix * c + (vs.z - v.z) * h.ix * sn + (vs.y - v.y) * -h.iy > 0.15;
+        // (in the roller it's pressed straight back; in the mouth, along the way in)
+        const into = cap.slot === 'roller' ? -hx : hx * h.ix + hy * h.iy;
+        const sq = cap.held && blocked ? Math.max(0, into - 0.005) : 0;
+        const f = fuelForce(sq);
+        if (f > 0) {
+          outside += f;
+          const J = f * dt;
+          this.body.applyImpulse({ x: (h.ix * c) * J, y: 0, z: (-h.ix * sn) * J }, true);
+        }
+        // it pushes what's in the way on in, as hard as the rollers grip it plus whatever's
+        // pushing it in from outside
+        const F = (running ? this.intakePush : 0) + f;
+        for (const e of block) {
+          const dx = e.p.x - h.x, dy = e.p.y - h.y, dz = e.p.z - cap.z, d = Math.hypot(dx, dy, dz) || 1;
+          const k = F / block.length / d;
+          e.ext = e.ext || new THREE.Vector3();
+          e.ext.x += dx * k; e.ext.y += dy * k; e.ext.z += dz * k;
+        }
+        waited = Math.max(waited, cap.waitT);
+      } else {
+        // the way in just opened: it heads in (still counting as waiting until it's in, so a load
+        // that keeps pushing back into the way still stalls the rollers)
+        cap.wait = false;
+        if (cap.waitT) { cap.waitT += dt; waited = Math.max(waited, cap.waitT); }
       }
     }
+    this.wallPush = outside;
+    this.stalled = waited > STALL_T;
+    this.stallT = this.stalled ? (this.stallT || 0) + dt : 0;
+    // the rollers slow while FUEL waits in them, and stop when they've stalled
+    this.rollerSpeed = this.stalled ? 0 : waited > 0 ? 0.35 : 1;
   }
 
   _startOuttake() {
@@ -1173,7 +1274,7 @@ export class Robot {
     const sh = this.cfg.shooter;
     m.anim({
       intakeDeploy: this.intakeDeploy,
-      intakeSpeed: this.intakeSpeed,
+      intakeSpeed: this.intakeSpeed * (this.intakeSpeed > 0 ? this.rollerSpeed ?? 1 : 1),
       hopperDeploy: this.hopperDeploy,
       flywheel: this.flywheel,
       feeding: this.feeding,

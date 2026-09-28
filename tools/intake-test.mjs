@@ -1,5 +1,6 @@
 // Controlled intake check: each robot drives straight through the NEUTRAL ZONE FUEL with its
-// intake running; prints FUEL collected and how long it took.
+// intake running; prints FUEL collected, the count every half second, and when the intake stalled
+// against the load (full).
 //   node --import ./tools/node-env.mjs tools/intake-test.mjs [speed m/s] [--along] [--time s] [--robots 2910,4414]
 // --along drives down the length of the FUEL line (the most FUEL per meter) instead of across it
 import { createWorld, mulberry32 } from './headless.mjs';
@@ -24,7 +25,7 @@ for (const key of arg('--robots', ROBOT_ORDER.join(',')).split(',')) {
     else r.spawn(-2.4, z, 0);
     fuel.stage(0);
     r.enabled = true;
-    let t = 0, first = null, full = null;
+    let t = 0, first = null, full = null; const curve = [];
     for (let i = 0; i < T / PHYSICS_DT; i++) {
       Object.assign(r.cmd, { vx: along ? 0 : speed, vz: along ? -speed : 0, omega: 0, intake: true, shoot: false, pass: false, outtake: false });
       r.preStep(PHYSICS_DT);
@@ -35,9 +36,10 @@ for (const key of arg('--robots', ROBOT_ORDER.join(',')).split(',')) {
       r.postStep(PHYSICS_DT, t);
       if (i % 2) fuel.update(2 * PHYSICS_DT, t);
       if (first === null && r.stored.length) first = t;
-      if (full === null && r.stored.length >= r.capacity()) full = t;
+      if (full === null && r.full) full = t;
+      if ((i + 1) % Math.round(0.5 / PHYSICS_DT) === 0) curve.push(r.stored.length);
     }
-    console.log(`${key} z=${z}: collected ${r.stored.length}/${r.capacity()} (in rollers ${r.captured?.length}, dropped ${r.stats.dropped}), first after ${first?.toFixed(2)}s, ${full ? `full after ${full.toFixed(2)}s (${(r.capacity() / (full - first)).toFixed(0)}/s)` : 'not full'}, ended at x=${r.pos.x.toFixed(2)} z=${r.pos.z.toFixed(2)}`);
+    console.log(`${key} z=${z}: collected ${r.stored.length}/${r.capacity()} (in rollers ${r.captured?.length}, dropped ${r.stats.dropped}), first after ${first?.toFixed(2)}s, ${full ? `stalled after ${full.toFixed(2)}s` : 'not stalled'}, every 0.5 s ${curve.join(' ')}, ended at x=${r.pos.x.toFixed(2)} z=${r.pos.z.toFixed(2)}`);
     physics.world.free();
   }
 }
