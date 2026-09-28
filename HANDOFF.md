@@ -179,6 +179,16 @@ For a new Claude Code session. The latest work is on branch `claude/great-hypati
 - Effect: robots hold less than the packing rating (which crushed FUEL at up to 1 kN): max held in AUTO 2910 57 (was 69), 971 47 (69), 3928 89 (137). AUTO FUEL: 2910 112 (143), 4414 125 (132), 971 122 (170), 3928 99 (134), 4946 124 (163), 1706 97 (109); BEST_AUTOS were searched with the old capacities and could be re-searched.
 - `tools/intake-test.mjs` prints the count every 0.5 s and when it stalled.
 
+## Done: hopper bounds checked against the CAD
+- Each robot's model (CAD parts where there are any) was sliced headless in Chromium (top views at three heights, side views at two z, a cross-section) with the hopper's walls, floor, top and obstacles drawn over it, intake down and hopper out. Fixed:
+  - 2910: `hw` 0.33 -> 0.345 (walls at +-0.35), `x1` 0.323 -> 0.335 (front panel 0.34 in, 0.61 out), `extTop` replaced by `bay.bevel` {dx 0.16, y 0.41}: the top panel's front edge bevels down, moving with the hopper front (hopper.js `topAt`).
+  - 971: `hw` 0.345 -> 0.37 (walls at +-0.375); the floor follows the rollers (`floor.pts`: level 0.165-0.175 to x 0.09, up to 0.255 by x 0.24 over the front swerve modules; it was a straight 0.14-0.22 slope).
+  - 1678: `top` 0.52 -> 0.545 (the lid's underside; 0.745 lifted).
+  - 1706: four `box` obstacles for the polycarbonate wall in front of the turrets above the spindexers (x -0.025 from 0.33 m up, slanting back to -0.11 in the middle), `dome.x0` -0.025. That wall cut its feed to 8.7/s; spindexer `spin` 16 -> 20 and `feed.reach` 0.18 -> 0.2 bring it back to 18.4/s.
+  - Within ~2 cm, left: 4414, 8793, 1690, 4946, 3928 (tower box a few cm short of the tower posts, so it clears the spindexer), 341, 4930 (its intake area is a little wider than `hw`).
+- Rated capacities now: 2910 48 -> 73, 971 33 -> 66, 1678 35 -> 84, 1706 42 -> 60.
+- AUTO FUEL after both changes: 2910 122, 4414 125, 8793 56, 971 122, 1678 95, 1690 83, 4946 124, 3928 99, 341 37, 4930 74, 1706 82. Matches (champs scorer vs champs 2910, seed 1): 2910 560, 4414 713, 8793 345, 971 543, 1678 494, 1690 562, 4946 698, 3928 404, 341 216, 4930 479, 1706 596.
+
 ## Other open items
 - The HUB and BUMP sizes were checked against the drawing. All element positions were checked against the field CAD. The TRENCH, TOWER, DEPOT and OUTPOST *sizes* still come from the game manual, so compare them with the drawing pages above or measure them in the CAD. Note that the Block CAD bounding box puts the inside edge of the fixed TRENCH about 8 cm closer to the guardrail than `TRENCH.width` does.
 - Optional: a longer AI self-play training run, `npm run train -- --gens 30 --pop 12 --scenarios 6 --resume`.

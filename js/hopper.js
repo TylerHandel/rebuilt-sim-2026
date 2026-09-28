@@ -263,7 +263,8 @@ export class Hopper {
     // intake or extension (slope.y at the front), as on 1678 and 4946
     if (s.slope && x > s.slope.x) top += (s.slope.y - top) * clamp((x - s.slope.x) / Math.max(0.05, this.front - s.slope.x), 0, 1);
     if (s.dome) return top + s.dome.h * this.domeScale * this.domeShape(x, z);
-    if (s.extTop !== undefined && x > s.x1) return s.extTop;
+    // the top panel's front edge bevels down (2910's), moving with a hopper that slides out
+    if (s.bevel && x > this.front - s.bevel.dx) top += ((s.bevel.y - top) * (x - this.front + s.bevel.dx)) / s.bevel.dx;
     return top;
   }
 

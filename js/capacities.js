@@ -1,16 +1,16 @@
 // Hopper capacities measured ahead of time by tools/capacity.mjs (packing a hopper takes a second
 // or two), keyed by hopper.js capacityKey. A hopper that's changed since is measured live.
 export const CAPACITY_TABLE = {
-  '42db8d67': 42,
-  'f3c6c04b': 69,
+  'af2102d8': 48,
+  'ced8ff5f': 73,
   '2c825868': 66,
   'd5c95806': 101,
   'f9f8d0f3': 10,
   '538ec714': 16,
-  '107b433e': 39,
-  'cb8c59bc': 69,
-  '391c6c51': 33,
-  '828ae015': 82,
+  '6ca79078': 33,
+  '70582bfa': 66,
+  '54e64fe2': 35,
+  '33483c26': 84,
   '3dfea056': 27,
   'f3812936': 52,
   '9d0af9f4': 80,
@@ -21,6 +21,6 @@ export const CAPACITY_TABLE = {
   '1721fb0c': 14,
   '7566a70e': 31,
   '449c906f': 58,
-  'b8027532': 60,
-  '112a8cb3': 73,
+  'b9a610d3': 42,
+  '5a0f96d2': 60,
 };

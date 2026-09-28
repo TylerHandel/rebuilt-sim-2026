@@ -139,7 +139,9 @@ export const ROBOTS = {
     // Powered floor rollers slope down to the back, where compliant indexer wheels lift FUEL
     // into the drum.
     bay: {
-      x0: -0.143, x1: 0.323, hw: 0.33, top: 0.54, extTop: 0.51, // under the hopper top (their CAD)
+      // walls 0.69 m apart, its front panel 0.34 m out when in and 0.61 m out; the top panel's
+      // front edge bevels down to 0.41 m over the last 0.16 m (their CAD)
+      x0: -0.143, x1: 0.335, hw: 0.345, top: 0.54, bevel: { dx: 0.16, y: 0.41 },
       floor: { a: 0.1, b: 0.266, lo: 0.09, hi: 0.17 },
       drive: 'floor', driveSpeed: 1.8,
       // up the roller ramp at the back of the hopper, under the hood to the drum (their CAD)
@@ -309,13 +311,14 @@ export const ROBOTS = {
       arm: { x: 0.217, y: 0.143, len: 0.3065, stowDeg: 118.2, deployDeg: -9.4 },
     },
     storage: { extLen: 0.28, extend: 'latched' },
-    // the hopper as the FUEL sees it (their CAD): polycarbonate walls to 0.54 m, 0.7 m apart; the
-    // roller floor slopes down to the back wall, under which the separator and kicker take FUEL
-    // to the two ramps. The net over the open top bulges up with the load.
+    // the hopper as the FUEL sees it (their CAD): polycarbonate walls to 0.54 m, 0.75 m apart
+    // (the frame's full width); the roller floor is level at the back wall, under which the
+    // separator and kicker take FUEL to the two ramps, and climbs over the front swerve modules.
+    // The net over the open top bulges up with the load.
     bay: {
-      x0: 0.0, x1: 0.34, hw: 0.345, top: 0.54,
+      x0: 0.0, x1: 0.34, hw: 0.37, top: 0.54,
       dome: { h: 0.15, x0: 0.0, cx: 0, cz: 0, rHole: -1 },
-      floor: { a: 0.14, b: 0.12, lo: 0.14, hi: 0.22 },
+      floor: { pts: [[-0.1, 0.165], [0.09, 0.175], [0.14, 0.19], [0.19, 0.23], [0.24, 0.255], [1, 0.255]] },
       drive: 'floor', driveSpeed: 2.0,
       // separator in the middle at the back wall: each side goes up its own ramp into its turret
       feed: {
@@ -381,11 +384,11 @@ export const ROBOTS = {
     // it back).
     storage: { extLen: 0.225, extend: 'latched' },
     // their CAD: roller floor (dead-axle rollers, then flex wheels) sloping down to the ball
-    // tunnel at the back; the lid (corrugated plastic on the climber tubes) sits at 0.52 m and
+    // tunnel at the back; the lid (corrugated plastic on the climber tubes) sits at 0.545 m and
     // lifts lift.h with the climber (it comes back down under the TRENCH); over the extension the
     // ceiling is the diagonal net
     bay: {
-      x0: -0.09, x1: 0.33, hw: 0.34, top: 0.52, // walls at +-0.35 m (their CAD)
+      x0: -0.09, x1: 0.33, hw: 0.34, top: 0.545, // walls at +-0.35 m, under the lid (their CAD)
       lift: { h: 0.2 },
       // the net from the lid's front edge down to the front of the extension
       slope: { x: 0.335, y: 0.5 },
@@ -714,20 +717,26 @@ export const ROBOTS = {
       x0: -0.14, x1: 0.318, hw: 0.37, top: 0.548,
       // a net over the open top (their CAD doesn't model it), pinned to the wall tops and riding out
       // with the hopper box; the load bulges it up (the turrets are behind the hopper, no hole)
-      dome: { h: 0.15, x0: -0.14, cx: 0, cz: 0, rHole: -1 },
+      dome: { h: 0.15, x0: -0.025, cx: 0, cz: 0, rHole: -1 },
       floor: { a: 0.16, b: 0, lo: 0.16, hi: 0.16 },
       funnel: { slope: 0.45, cap: 0.2 },
       obstacles: [
         { x: 0.0865, z: -0.1735, r: 0.05, y0: 0.2, y1: 0.32 },
         { x: 0.0865, z: 0.1735, r: 0.05, y0: 0.2, y1: 0.32 },
+        // above the spindexers the back wall is a polycarbonate panel in front of the turrets
+        // (their CAD): at x -0.025 from 0.33 m up, slanting back to -0.11 m in the middle
+        { box: [-0.5, -0.025, 0.33, 1.5, -0.5, -0.07] },
+        { box: [-0.5, -0.025, 0.33, 1.5, 0.07, 0.5] },
+        { box: [-0.5, -0.07, 0.43, 1.5, -0.07, 0.07] },
+        { box: [-0.5, -0.11, 0.33, 0.43, -0.07, 0.07] },
       ],
       drive: 'rotor',
       rotors: [
-        { x: 0.0885, z: -0.1775, y: 0.16, r: 0.138, grip: 70, drag: 60, finR0: 0, spin: 16, idle: -0.5, dir: 1 },
-        { x: 0.0885, z: 0.1775, y: 0.16, r: 0.138, grip: 70, drag: 60, finR0: 0, spin: 16, idle: -0.5, dir: -1 },
+        { x: 0.0885, z: -0.1775, y: 0.16, r: 0.138, grip: 70, drag: 60, finR0: 0, spin: 20, idle: -0.5, dir: 1 },
+        { x: 0.0885, z: 0.1775, y: 0.16, r: 0.138, grip: 70, drag: 60, finR0: 0, spin: 20, idle: -0.5, dir: -1 },
       ],
       feed: {
-        x: -0.03, zs: [-0.19, 0.19], reach: 0.18,
+        x: -0.03, zs: [-0.19, 0.19], reach: 0.2,
         vias: [
           [[-0.09, 0.28, -0.2], [-0.15, 0.42, -0.22]],
           [[-0.09, 0.28, 0.2], [-0.15, 0.42, 0.22]],
