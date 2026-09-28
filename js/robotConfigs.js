@@ -35,6 +35,9 @@
 //  - 4930 Electric Mayhem "Floyd 2" (public Onshape CAD + Open Alliance thread): 28.5x26.5in swerve
 //    (MK4i/MK4n), belt floor to an updexer, three hooded flywheels on one shaft fixed to the chassis
 //    and firing forward over the intake. Too tall for the TRENCH.
+//  - 1706 Ratchet Rockers "Mirage" (public Onshape CAD + CAD release thread): 25.2x29.5in swerve,
+//    a deep hopper over two spindexers side by side, each feeding its own turret; the intake folds
+//    up inside the hopper and pushes it out. Climber removed.
 //  Nets: 971, 1690 and 3928 carry netting over the open tops of their hoppers (the physics lets the
 //  load bulge it up, bay.dome); 1678, 4946 and 4930 stretch a net diagonally from the hopper's top
 //  edge down to the front of the intake (bay.slope). None of the teams' CAD models its nets.
@@ -643,6 +646,68 @@ export const ROBOTS = {
     stats: { 'Shot rate': '18 BPS (3 lanes)', Aiming: 'Chassis', 'Top speed': '', Trench: 'No (BUMPS)' },
     colors: { frame: 0xb4b9c1, accent: 0x3fa34d, trim: 0xc86bb5 }, // aluminum, green hoods, pink plates
   },
+  1706: {
+    key: '1706',
+    team: 1706,
+    teamName: 'Ratchet Rockers',
+    robotName: 'Mirage',
+    archetype: 'Twin spindexers',
+    blurb: 'Seeing double: two spindexers side by side under a deep hopper, each feeding its own turret. The intake folds up inside the hopper and pushes it out as it deploys. 45-2 in 2026.',
+    // their CAD: frame 0.64 x 0.75 m (25.2 x 29.5in), bumpers 0.797 x 0.914 m. The team calls the
+    // turret end the front; the sim's front is the intake end.
+    frame: { length: 25.2 * IN, width: 29.5 * IN },
+    height: 21.6 * IN, // top of the hopper walls (their CAD)
+    mass: 64, // robot (up to 115 lb) + bumpers + battery
+    // Thrifty Swerve; the ratio isn't in the CAD, 6.75:1 assumed
+    drive: { ratio: 6.75 },
+    // rollers on an arm that folds up inside the hopper (as exported) and swings out over the
+    // bumper about a pivot low in the frame; deploying it pushes the hopper box out
+    intake: { width: 26 * IN, reach: 0.1, rate: 200, pull: 5, deployTime: 0.35, side: 'front', latched: false },
+    storage: { extLen: 0.15, extend: 'intake' },
+    // their CAD: walls to 0.548 m round two spindexers side by side (flat discs, r 0.138 m, 0.16 m
+    // up) with a hub over each; the floor slopes down into them from the corners. Each spindexer
+    // carries FUEL round to its back edge, where a ramp takes it up into the turret behind it.
+    bay: {
+      x0: -0.14, x1: 0.318, hw: 0.37, top: 0.548,
+      floor: { a: 0.16, b: 0, lo: 0.16, hi: 0.16 },
+      funnel: { slope: 0.45, cap: 0.2 },
+      obstacles: [
+        { x: 0.0865, z: -0.1735, r: 0.05, y0: 0.2, y1: 0.32 },
+        { x: 0.0865, z: 0.1735, r: 0.05, y0: 0.2, y1: 0.32 },
+      ],
+      drive: 'rotor',
+      rotors: [
+        { x: 0.0885, z: -0.1775, y: 0.16, r: 0.138, grip: 20, drag: 20, finR0: 0, spin: 12, idle: -0.5, dir: 1 },
+        { x: 0.0885, z: 0.1775, y: 0.16, r: 0.138, grip: 20, drag: 20, finR0: 0, spin: 12, idle: -0.5, dir: -1 },
+      ],
+      feed: {
+        x: -0.03, zs: [-0.19, 0.19], reach: 0.22,
+        vias: [
+          [[-0.09, 0.28, -0.2], [-0.15, 0.42, -0.22]],
+          [[-0.09, 0.28, 0.2], [-0.15, 0.42, 0.22]],
+        ],
+      },
+    },
+    shooter: {
+      type: 'turret',
+      // on the turret rings behind the hopper (their CAD); each one's travel is centered pointing out
+      // to its own side, so they can't shoot across each other
+      turrets: [{ x: -0.165, z: -0.2225, center: 90 }, { x: -0.165, z: 0.2225, center: -90 }],
+      turretPos: { x: -0.165, z: -0.2225 },
+      exitRadius: 0.12, // the 5in front wheel (their CAD)
+      exitY: 0.52,
+      turretRange: 170, turretRate: 600,
+      bps: 24, // both together
+      hoodMin: 40, hoodMax: 80,
+      speedMax: 17,
+      spinTau: 0.3,
+      shotDrop: 0.004,
+      speedSigma: 0.013, angleSigma: 0.6, yawSigma: 0.6,
+    },
+    climber: null, // taken off (remnants in the CAD)
+    stats: { 'Shot rate': '24 BPS (2 turrets)', Aiming: 'Twin turrets', 'Top speed': '', Trench: 'Yes' },
+    colors: { frame: 0xc3c8ce, accent: 0x2a4fb5, trim: 0x2a2d33 },
+  },
 };
 
 // Top speed, turn rate and acceleration come from each robot's drivetrain (drivetrain.js): its
@@ -656,7 +721,7 @@ for (const cfg of Object.values(ROBOTS)) {
   if (cfg.stats) cfg.stats['Top speed'] = `${ft(dt.topSpeed)} ft/s (${ft(dt.freeSpeed)} free)`;
 }
 
-export const ROBOT_ORDER = ['2910', '4414', '8793', '971', '1678', '1690', '4946', '3928', '341', '4930'];
+export const ROBOT_ORDER = ['2910', '4414', '8793', '971', '1678', '1690', '4946', '3928', '341', '4930', '1706'];
 
 // Optional add-on climbers for robots without one (971 and 1678 have their own, cfg.climber)
 export const CLIMBER_OPTIONS = {

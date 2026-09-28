@@ -1,0 +1,288 @@
+{
+  "source": "1706 Ratchet Rockers, \"Mirage Public Release\" (Onshape 23ba2ed5b3893ab97929c8b6, workspace d7012e1e8978e09c9756ee4c, element 70526e43c92b434a946b53a6), STEP through tools/step2glb.py",
+  "front": "-x",
+  "parts": [
+    {
+      "out": "cad/robots/1706-body.glb",
+      "include": [
+        "A-RB-10-CHASSIS",
+        "A-RB-70-Spindexer",
+        "B-RB-60",
+        "A-RB-90-1XX"
+      ],
+      "like": {
+        "glb": "r1706.glb",
+        "node": "A-RB-00-FUJIWHARA <1>"
+      },
+      "exclude": [
+        "Thrifty Swerve",
+        "Front Bumper",
+        "Rear Bumper",
+        "^Part 5$",
+        "PDP",
+        "roboRIO",
+        "RB-70-FOREHEAD",
+        "WCP-0972",
+        "spacer",
+        "bearing",
+        "chain",
+        "belt",
+        "standoff",
+        "3D-Print Adapter",
+        "Grommet",
+        "ZIP TYE"
+      ],
+      "smooth": true,
+      "ratio": 0.06,
+      "error": 0.006
+    },
+    {
+      "out": "cad/robots/1706-mount.glb",
+      "include": [
+        "C-RB-20-INTAKE"
+      ],
+      "like": {
+        "glb": "r1706.glb",
+        "node": "C-RB-20-INTAKE <1>"
+      },
+      "exclude": [
+        "spacer",
+        "bearing",
+        "chain",
+        "belt",
+        "standoff",
+        "3D-Print Adapter",
+        "Grommet",
+        "ZIP TYE"
+      ],
+      "onlyName": [
+        "PLATE_FRAME",
+        "SHEET_MOUNT_SLIDE",
+        "^Part 36",
+        "A-RB-20-109",
+        "RB-20-A-29"
+      ],
+      "smooth": true,
+      "ratio": 0.2,
+      "error": 0.002
+    },
+    {
+      "out": "cad/robots/1706-hopper.glb",
+      "include": [
+        "C-RB-20-INTAKE"
+      ],
+      "like": {
+        "glb": "r1706.glb",
+        "node": "C-RB-20-INTAKE <1>"
+      },
+      "exclude": [
+        "spacer",
+        "bearing",
+        "chain",
+        "belt",
+        "standoff",
+        "3D-Print Adapter",
+        "Grommet",
+        "ZIP TYE"
+      ],
+      "onlyName": [
+        "HOPPER_SIDE",
+        "HOPPER_FRONT",
+        "CORNER_HOPPER",
+        "^Part 41",
+        "^Part 42"
+      ],
+      "smooth": true,
+      "ratio": 0.3,
+      "error": 0.0015
+    },
+    {
+      "out": "cad/robots/1706-intake.glb",
+      "include": [
+        "C-RB-20-INTAKE"
+      ],
+      "like": {
+        "glb": "r1706.glb",
+        "node": "C-RB-20-INTAKE <1>"
+      },
+      "exclude": [
+        "spacer",
+        "bearing",
+        "chain",
+        "belt",
+        "standoff",
+        "3D-Print Adapter",
+        "Grommet",
+        "ZIP TYE",
+        "HOPPER_SIDE",
+        "HOPPER_FRONT",
+        "CORNER_HOPPER",
+        "^Part 41",
+        "^Part 42",
+        "PLATE_FRAME",
+        "SHEET_MOUNT_SLIDE",
+        "^Part 36",
+        "A-RB-20-109",
+        "RB-20-A-29"
+      ],
+      "skipBox": [
+        [
+          -1,
+          1,
+          -1,
+          0.15,
+          -1,
+          1
+        ]
+      ],
+      "origin": [
+        0.149,
+        0.127,
+        0
+      ],
+      "smooth": true,
+      "ratio": 0.25,
+      "error": 0.0015
+    },
+    {
+      "out": "cad/robots/1706-spin-b.glb",
+      "include": [
+        "A-RB-70-Spindexer"
+      ],
+      "like": {
+        "glb": "r1706.glb",
+        "node": "A-RB-70-Spindexer <1>"
+      },
+      "exclude": [
+        "spacer",
+        "bearing",
+        "chain",
+        "belt",
+        "standoff",
+        "3D-Print Adapter",
+        "Grommet",
+        "ZIP TYE"
+      ],
+      "onlyName": [
+        "RB-70-FOREHEAD",
+        "WCP-0972"
+      ],
+      "skipBox": [
+        [
+          -1,
+          1,
+          -1,
+          1,
+          -1,
+          0
+        ]
+      ],
+      "origin": [
+        0.0885,
+        0,
+        0.1775
+      ],
+      "smooth": true,
+      "ratio": 0.3,
+      "error": 0.0015
+    },
+    {
+      "out": "cad/robots/1706-spin-a.glb",
+      "include": [
+        "A-RB-70-Spindexer"
+      ],
+      "like": {
+        "glb": "r1706.glb",
+        "node": "A-RB-70-Spindexer <1>"
+      },
+      "exclude": [
+        "spacer",
+        "bearing",
+        "chain",
+        "belt",
+        "standoff",
+        "3D-Print Adapter",
+        "Grommet",
+        "ZIP TYE"
+      ],
+      "onlyName": [
+        "RB-70-FOREHEAD",
+        "WCP-0972"
+      ],
+      "skipBox": [
+        [
+          -1,
+          1,
+          -1,
+          1,
+          0,
+          1
+        ]
+      ],
+      "origin": [
+        0.0885,
+        0,
+        -0.1775
+      ],
+      "smooth": true,
+      "ratio": 0.3,
+      "error": 0.0015
+    },
+    {
+      "out": "cad/robots/1706-turret-a.glb",
+      "include": [
+        "A-RB-50-SHOOTER <1>"
+      ],
+      "like": {
+        "glb": "r1706.glb",
+        "node": "A-RB-50-SHOOTER <1>"
+      },
+      "exclude": [
+        "spacer",
+        "bearing",
+        "chain",
+        "belt",
+        "standoff",
+        "3D-Print Adapter",
+        "Grommet",
+        "ZIP TYE"
+      ],
+      "origin": [
+        -0.165,
+        0,
+        -0.2225
+      ],
+      "smooth": true,
+      "ratio": 0.25,
+      "error": 0.0015
+    },
+    {
+      "out": "cad/robots/1706-turret-b.glb",
+      "include": [
+        "A-RB-50-SHOOTER <2>"
+      ],
+      "like": {
+        "glb": "r1706.glb",
+        "node": "A-RB-50-SHOOTER <2>"
+      },
+      "exclude": [
+        "spacer",
+        "bearing",
+        "chain",
+        "belt",
+        "standoff",
+        "3D-Print Adapter",
+        "Grommet",
+        "ZIP TYE"
+      ],
+      "origin": [
+        -0.165,
+        0,
+        0.2225
+      ],
+      "smooth": true,
+      "ratio": 0.25,
+      "error": 0.0015
+    }
+  ]
+}

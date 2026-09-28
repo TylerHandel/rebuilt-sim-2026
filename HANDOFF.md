@@ -133,6 +133,12 @@ For a new Claude Code session. The latest work is on branch `claude/great-hypati
 - UI: a card shows the team name alone when `robotName` is empty (3928) and the robot name alone when it starts with the team name (341).
 - Headless vs a champs 2910 scorer, seeds 3/5, before the nets and AUTOs: 3928 480/559, 341 251/275, 4930 419/424 (for comparison: 8793 348, 4946 753, 1690 604 on seed 3). With the nets and the AUTOs, seed 3: 3928 592, 341 253, 4930 610 (4414 783).
 
+## Done: 1706 Mirage
+- Their 2026 robot is "Mirage" (document 23ba2ed5b3893ab97929c8b6, from their Chief Delphi CAD release). The "RS-000 Singularity" document that Onshape's name search finds is their 2025 robot (it has an "Algae" part).
+- Twin spindexers: `bay.rotors` (new in hopper.js; `bay.rotor` still works for one). They share the speed, and `rotor.dir` is each one's sense. The funnel slopes toward the nearest one. Plain discs: grip = drag = 20, spin 12, `feed.reach` 0.18 at each disc's back edge (`feed.zs`, one per turret). 40 FUEL out at 19.4/s (`bps` 24 for both).
+- Twin turrets like 971's, but each one's 340° of travel is centered pointing out to its own side (`center` ±90). Hopper box `storage.extLen` 0.15, `extend: 'intake'`. No climber (removed). Holds 49 -> 71. Ratio 6.75 (Thrifty Swerve) and the BPS are assumptions.
+- AUTO by reasoning: two full-load sweeps (TRENCH out / BUMP home, then BUMP out / other TRENCH home), 154-155 AUTO FUEL. Matches vs a champs 2910, seeds 3/5: 655/599.
+
 ## Other open items
 - The HUB and BUMP sizes were checked against the drawing. All element positions were checked against the field CAD. The TRENCH, TOWER, DEPOT and OUTPOST *sizes* still come from the game manual, so compare them with the drawing pages above or measure them in the CAD. Note that the Block CAD bounding box puts the inside edge of the fixed TRENCH about 8 cm closer to the guardrail than `TRENCH.width` does.
 - Optional: a longer AI self-play training run, `npm run train -- --gens 30 --pop 12 --scenarios 6 --resume`.

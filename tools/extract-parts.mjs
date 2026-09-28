@@ -3,7 +3,7 @@
 // pivot or axis so the game can move it. A recipe lists the outputs:
 //   npm i --no-save @gltf-transform/core @gltf-transform/extensions @gltf-transform/functions meshoptimizer
 //   node tools/extract-parts.mjs robot.glb cad/robots/971.json
-// Recipe: { "front": "+y" | "-y" (which CAD axis the robot's front is; CAD is Z up),
+// Recipe: { "front": "+y" | "-y" | "-x" (which CAD axis the robot's front is; CAD is Z up),
 //   "parts": [{ "out": "cad/robots/971-turret.glb", "include": ["shooter assembly <1>"],
 //               "exclude": ["regex", ...], "origin": [x, y, z] (model frame), "ratio": 0.08 }] }
 // include: node names (prefix match) whose subtrees are kept; exclude: regexes on any node name
@@ -36,6 +36,7 @@ await MeshoptSimplifier.ready;
 const AXES = {
   '+y': [0, 0, 1, 0, 1, 0, 0, 0, 0, 1, 0, 0], // model = (y, z, x)
   '-y': [0, 0, -1, 0, -1, 0, 0, 0, 0, 1, 0, 0], // model = (-y, z, -x)
+  '-x': [-1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0], // model = (-x, z, y)
 };
 
 const center = (n) => { const b = getBounds(n); return [0, 1, 2].map((i) => (b.min[i] + b.max[i]) / 2); };

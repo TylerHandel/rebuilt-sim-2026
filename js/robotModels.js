@@ -1963,6 +1963,81 @@ function build4930(cfg, alliance) {
 }
 const clamp01 = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
+// ============================================================ 1706 Ratchet Rockers, Mirage
+// From 1706's public Onshape CAD ("Mirage Public Release"), split by tools/extract-parts.mjs
+// (cad/robots/1706.json): the body (drivetrain, spindexer floor, the outer hopper walls, the
+// turret rings), the intake's fixed frame plates, the hopper box that slides out, the intake arm
+// (exported folded up inside the hopper; origin on its pivot), the two spindexer discs and the two
+// shooters (origins on their turret axes). The team's front is the turret end; this model's +x is
+// the intake end, like every other robot here.
+const INTAKE_1706 = { pivot: [0.149, 0.127], swing: -104 * Math.PI / 180 }; // folded up -> rollers on the carpet
+const TURRET_1706_YAW = 27.8 * Math.PI / 180; // where the CAD's shooters point as exported
+function build1706(cfg, alliance) {
+  const root = new THREE.Group();
+  const L = cfg.frame.length, W = cfg.frame.width, bay = cfg.bay, sh = cfg.shooter;
+  const extLen = cfg.storage.extLen;
+  addBumpers(root, cfg, alliance);
+  const modules = addDrivebase(root, cfg, 0, false);
+  const blue = std(cfg.colors.accent, 0.5, 0.2);
+  const drawn = new THREE.Group();
+  root.add(drawn);
+  addDrivebase(drawn, cfg, 0, true).forEach((md) => md.pivot.parent.removeFromParent());
+  for (const s of [-1, 1]) polyWall(drawn, bay.x1 - bay.x0, bay.top - 0.22, (bay.x0 + bay.x1) / 2, 0.22 + (bay.top - 0.22) / 2, s * (bay.hw + 0.004));
+  // the hopper box's front wall (slides out)
+  const box = new THREE.Group();
+  root.add(box);
+  const boxDrawn = new THREE.Group();
+  box.add(boxDrawn);
+  polyWall(boxDrawn, 2 * bay.hw, bay.top - 0.22, bay.x1, 0.22 + (bay.top - 0.22) / 2, 0, Math.PI / 2);
+  // the spindexers
+  const spins = bay.rotors.map((r) => {
+    const g = new THREE.Group();
+    g.position.set(r.x, 0, r.z);
+    root.add(g);
+    const d = mesh(new THREE.CylinderGeometry(r.r, r.r, 0.004, 32), M.anodBlack, g, 0, r.y, 0);
+    cylY(0.05, 0.1, blue, g, 0, r.y + 0.1, 0, 16);
+    return { g, d, r };
+  });
+  // the intake arm, folded up inside the hopper
+  const arm = new THREE.Group();
+  arm.position.set(INTAKE_1706.pivot[0], INTAKE_1706.pivot[1], 0);
+  root.add(arm);
+  const armDrawn = new THREE.Group();
+  arm.add(armDrawn);
+  for (const s of [-1, 1]) rod(armDrawn, new THREE.Vector3(0, 0, s * 0.33), new THREE.Vector3(0, 0.32, s * 0.33), 0.012, M.alu);
+  const rollers = [cylZ(0.025, 0.66, M.alu, armDrawn, 0.0, 0.32, 0, 14), cylZ(0.025, 0.66, M.alu, armDrawn, -0.08, 0.25, 0, 14)];
+  // two turrets
+  const turrets = sh.turrets.map((t, i) => {
+    const g = new THREE.Group();
+    g.position.set(t.x, 0, t.z);
+    root.add(g);
+    const d = new THREE.Group();
+    g.add(d);
+    mesh(new THREE.TorusGeometry(0.11, 0.01, 8, 36), blue, d, 0, 0.35, 0).rotation.x = Math.PI / 2;
+    for (const s of [-1, 1]) pocketPlate(d, 0.24, 0.15, 0.006, M.alu, [[-0.05, 0, 0.03], [0.05, 0.02, 0.03]], 0, 0.43, s * 0.06);
+    wheelStack(d, 0.1, 0.063, 1, M.black, 0.1, 0.45, 0, 0.05);
+    const cad = new THREE.Group();
+    cad.rotation.y = -TURRET_1706_YAW;
+    g.add(cad);
+    cadPart(cad, `robots/1706-turret-${i ? 'b' : 'a'}.glb`, () => { d.visible = false; });
+    return g;
+  });
+  cadPart(root, 'robots/1706-body.glb', () => { drawn.visible = false; });
+  cadPart(root, 'robots/1706-mount.glb', () => {});
+  cadPart(box, 'robots/1706-hopper.glb', () => { boxDrawn.visible = false; });
+  cadPart(arm, 'robots/1706-intake.glb', () => { armDrawn.visible = false; });
+  spins.forEach((s, i) => cadPart(s.g, `robots/1706-spin-${i ? 'b' : 'a'}.glb`, () => { s.d.visible = false; }));
+
+  const anim = (st, dt) => {
+    box.position.x = st.hopperDeploy * extLen; // exported in
+    arm.rotation.z = st.intakeDeploy * INTAKE_1706.swing;
+    for (const r of rollers) r.rotation.z -= st.intakeSpeed * dt * 40;
+    for (const s of spins) s.g.rotation.y = (st.rotorAngle ?? 0) * (s.r.dir ?? 1);
+    turrets.forEach((g, i) => { g.rotation.y = st.turretYaws ? st.turretYaws[i] : st.turretYaw; });
+  };
+  return { root, anim, stored: [], modules, extLen };
+}
+
 export function buildRobotModel(cfg, alliance) {
   let m;
   if (cfg.key === '2910') m = build2910(cfg, alliance);
@@ -1974,6 +2049,7 @@ export function buildRobotModel(cfg, alliance) {
   else if (cfg.key === '3928') m = build3928(cfg, alliance);
   else if (cfg.key === '341') m = build341(cfg, alliance);
   else if (cfg.key === '4930') m = build4930(cfg, alliance);
+  else if (cfg.key === '1706') m = build1706(cfg, alliance);
   else m = build8793(cfg, alliance);
   // stored FUEL visual (instanced)
   const r = FUEL.radius;

@@ -179,6 +179,9 @@ export class Hopper {
     this.domeScale = 1;
     this.liftScale = 1; // a lid on the climber (spec.lift): how far it's up, 0..1
     this.obstacles = [...(spec.obstacles || [])];
+    // spinning floors: one (spec.rotor: a Dye Rotor, a spindexer) or several side by side
+    // (spec.rotors, 1706's twin spindexers; each turns the same speed, rotor.dir its sense)
+    this.rotors = spec.rotors || (spec.rotor ? [spec.rotor] : []);
     this.boxForce = new THREE.Vector3();
     this.boxAt = new THREE.Vector3();
     if (spec.hook) {
@@ -207,7 +210,8 @@ export class Hopper {
     let y = f.pts ? pwl(f.pts, x) : clamp(f.a + f.b * x, f.lo, f.hi);
     if (s.funnel) {
       // terraces around the rotor slope down into it
-      const r = s.rotor, d = Math.hypot(x - r.x, z - r.z) - r.r;
+      let d = Infinity;
+      for (const r of this.rotors) d = Math.min(d, Math.hypot(x - r.x, z - r.z) - r.r);
       if (d > 0) y += Math.min(s.funnel.cap, d * s.funnel.slope);
     }
     return y;
@@ -368,7 +372,7 @@ export class Hopper {
     }
     let spin = 0;
     if (s.drive === 'rotor') {
-      spin = env.feeding ? s.rotor.spin : s.rotor.idle;
+      spin = env.feeding ? this.rotors[0].spin : this.rotors[0].idle;
       this.finAngle = (this.finAngle + spin * dt) % (2 * Math.PI);
     }
     const w = env.w || 0, al = env.alpha || 0;
@@ -396,16 +400,21 @@ export class Hopper {
       } else if (s.drive === 'rotor' && onFloor) {
         // the rotor spins under the FUEL on it and carries it round (friction), and the Dolphin
         // Fin on its rim pushes the FUEL touching its leading face, which pushes the rest along
-        const r = s.rotor, dx = p.x - r.x, dz = p.z - r.z, d = Math.hypot(dx, dz);
-        if (d < r.r && d > 0.05 && spin) {
+        let r = null, dx = 0, dz = 0, d = Infinity;
+        for (const q of this.rotors) {
+          const qx = p.x - q.x, qz = p.z - q.z, qd = Math.hypot(qx, qz);
+          if (qd < q.r && qd < d) { r = q; dx = qx; dz = qz; d = qd; }
+        }
+        const sp = r ? spin * (r.dir ?? 1) : 0, fa = r ? this.finAngle * (r.dir ?? 1) : 0;
+        if (r && d > 0.05 && sp) {
           const th = Math.atan2(-dz, dx); // same sense as the fin: direction (cos, 0, -sin)
           // a spindexer has several spokes (rotor.fins), evenly spaced: the nearest one ahead
           const per = (2 * Math.PI) / (r.fins || 1);
-          let gap = (spin > 0 ? th - this.finAngle : this.finAngle - th) % per;
+          let gap = (sp > 0 ? th - fa : fa - th) % per;
           if (gap < 0) gap += per;
           const fin = d > (r.finR0 ?? 0) - R * 0.5 && gap < R / d + 0.08;
           const k = fin ? r.grip ?? 40 : r.drag ?? 0;
-          const ux = -Math.sin(th) * spin * d, uz = -Math.cos(th) * spin * d;
+          const ux = -Math.sin(th) * sp * d, uz = -Math.cos(th) * sp * d;
           fx += k * (ux - v.x);
           fz += k * (uz - v.z);
         }
