@@ -1,0 +1,136 @@
+{
+  "source": "341 Miss Daisy, \"Miss Daisy XXIV\" (Onshape 412a0db47e00e2399ebca57e, workspace b607133da9f21b6baa148170, element e3c2dacd85e82dde2bb28dd9), STEP through tools/step2glb.py",
+  "front": "-y",
+  "parts": [
+    {
+      "out": "cad/robots/341-body.glb",
+      "include": [
+        "Serializer",
+        "L1 Climb",
+        "Shooter + Table",
+        "Configurable Drivebase"
+      ],
+      "like": {
+        "glb": "r341.glb",
+        "node": "Miss Daisy XXIV"
+      },
+      "exclude": [
+        "Swerve",
+        "Bumper Assembly",
+        "67 SIGMA",
+        "RoboRIO",
+        "spacer",
+        "bearing",
+        "chain",
+        "belt",
+        "standoff",
+        "REV-11-1850",
+        "REV-11-1863",
+        "3D-Print Adapter",
+        "Grommet",
+        "Hub \\(",
+        "MotionX",
+        "Kraken X60 powered",
+        "TTB-0027",
+        "WCP-0370",
+        "Right Hub",
+        "Left Hub"
+      ],
+      "skipBox": [
+        [
+          -0.33,
+          0.13,
+          0.384,
+          0.7,
+          -0.31,
+          0.16
+        ]
+      ],
+      "smooth": true,
+      "ratio": 0.06,
+      "error": 0.006
+    },
+    {
+      "out": "cad/robots/341-turret.glb",
+      "include": [
+        "Shooter + Table"
+      ],
+      "like": {
+        "glb": "r341.glb",
+        "node": "Shooter + Table <1>"
+      },
+      "exclude": [
+        "spacer",
+        "bearing",
+        "chain",
+        "belt",
+        "standoff",
+        "REV-11-1850",
+        "REV-11-1863",
+        "3D-Print Adapter",
+        "Grommet",
+        "Hub \\(",
+        "MotionX",
+        "Kraken X60 powered",
+        "TTB-0027",
+        "WCP-0370",
+        "Right Hub",
+        "Left Hub"
+      ],
+      "onlyBox": [
+        [
+          -0.33,
+          0.13,
+          0.384,
+          0.7,
+          -0.31,
+          0.16
+        ]
+      ],
+      "origin": [
+        -0.1015,
+        0,
+        -0.0765
+      ],
+      "smooth": true,
+      "ratio": 0.25,
+      "error": 0.0015
+    },
+    {
+      "out": "cad/robots/341-intake.glb",
+      "include": [
+        "Intake Assembly"
+      ],
+      "like": {
+        "glb": "r341.glb",
+        "node": "Intake Assembly <1>"
+      },
+      "exclude": [
+        "spacer",
+        "bearing",
+        "chain",
+        "belt",
+        "standoff",
+        "REV-11-1850",
+        "REV-11-1863",
+        "3D-Print Adapter",
+        "Grommet",
+        "Hub \\(",
+        "MotionX",
+        "Kraken X60 powered",
+        "TTB-0027",
+        "WCP-0370",
+        "Right Hub",
+        "Left Hub"
+      ],
+      "origin": [
+        0.2545,
+        0.3365,
+        0
+      ],
+      "smooth": true,
+      "ratio": 0.25,
+      "error": 0.0015
+    }
+  ]
+}

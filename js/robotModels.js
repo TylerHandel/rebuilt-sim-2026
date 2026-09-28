@@ -1782,6 +1782,187 @@ function build4946(cfg, alliance) {
   return { root, anim, stored: [], modules, extLen };
 }
 
+// ============================================================ 3928 (Team Neutrino)
+// From 3928's public Onshape CAD ("26"), split by tools/extract-parts.mjs (cad/robots/3928.json):
+// the body (drivetrain, hopper walls, spindexer ring and corner wedges, the tower), the
+// spindexer's spoked wheel and cone (it turns), the intake box (exported slid out) and the turret
+// (the shooter on its bearing plate with the curved guard over its front). Drawn stand-ins show
+// until the CAD loads, and in headless runs.
+function build3928(cfg, alliance) {
+  const root = new THREE.Group();
+  const L = cfg.frame.length, W = cfg.frame.width, bay = cfg.bay, rs = bay.rotor, sh = cfg.shooter;
+  const extLen = cfg.storage.extLen;
+  addBumpers(root, cfg, alliance);
+  const modules = addDrivebase(root, cfg, 0, false);
+  const orange = std(cfg.colors.accent, 0.5, 0.2), dark = std(cfg.colors.frame, 0.45, 0.5);
+  const sheet = std(0xc4c8cd, 0.45, 0.6, { side: THREE.DoubleSide });
+  const drawn = new THREE.Group();
+  root.add(drawn);
+  addDrivebase(drawn, cfg, 0, true).forEach((md) => md.pivot.parent.removeFromParent());
+  // tall sheet walls on the sides and back, the tower in the back corner
+  for (const s of [-1, 1]) bx(L - 0.02, bay.top - 0.1, 0.004, sheet, drawn, 0, 0.1 + (bay.top - 0.1) / 2, s * (W / 2 - 0.005));
+  bx(0.004, bay.top - 0.1, W - 0.02, sheet, drawn, -L / 2 + 0.005, 0.1 + (bay.top - 0.1) / 2, 0);
+  const tw = bay.obstacles[1].box;
+  for (const [x, z] of [[tw[0] + 0.03, tw[4] + 0.02], [tw[1] - 0.02, tw[4] + 0.02], [tw[0] + 0.03, tw[5] - 0.02], [tw[1] - 0.02, tw[5] - 0.02]]) bx(0.025, 0.52, 0.025, dark, drawn, x, 0.3, z);
+  mesh(new THREE.TorusGeometry(0.2, 0.012, 8, 40), orange, drawn, sh.turretPos.x, 0.545, sh.turretPos.z).rotation.x = Math.PI / 2;
+  // the spindexer: spoked wheel and cone
+  const spin = new THREE.Group();
+  spin.position.set(rs.x, 0, rs.z);
+  root.add(spin);
+  const spinDrawn = new THREE.Group();
+  spin.add(spinDrawn);
+  mesh(new THREE.TorusGeometry(0.13, 0.01, 6, 36), dark, spinDrawn, 0, rs.y, 0).rotation.x = Math.PI / 2;
+  for (let i = 0; i < rs.fins; i++) { const a = (i / rs.fins) * 2 * Math.PI; bx(0.13, 0.01, 0.02, dark, spinDrawn, Math.cos(a) * 0.065, rs.y, -Math.sin(a) * 0.065).rotation.y = a; }
+  mesh(new THREE.ConeGeometry(0.055, 0.18, 16), dark, spinDrawn, 0, rs.y + 0.09, 0);
+  // the intake box (slides out with the hopper extension)
+  const box = new THREE.Group();
+  root.add(box);
+  const boxDrawn = new THREE.Group();
+  box.add(boxDrawn);
+  for (const s of [-1, 1]) bx(0.5, 0.55, 0.004, sheet, boxDrawn, L / 2 + extLen - 0.25, 0.4, s * (W / 2 - 0.01));
+  const rollers = [cylZ(0.025, cfg.intake.width, orange, boxDrawn, L / 2 + extLen + 0.09, 0.16, 0, 14), cylZ(0.019, cfg.intake.width, orange, boxDrawn, L / 2 + extLen + 0.07, 0.225, 0, 12)];
+  // turret on top of the tower
+  const turret = new THREE.Group();
+  turret.position.set(sh.turretPos.x, 0, sh.turretPos.z);
+  root.add(turret);
+  const tDrawn = new THREE.Group();
+  turret.add(tDrawn);
+  for (const s of [-1, 1]) bx(0.28, 0.14, 0.008, orange, tDrawn, 0, 0.64, s * 0.1);
+  const fly = wheelStack(tDrawn, 0.18, 0.05, 2, std(0xd8c9a0, 0.5, 0.3), 0.1, 0.645, 0, 0.04);
+  // net over the top (their CAD doesn't model it): pinned to the wall tops, the intake box's top
+  // crossbar and round the turret
+  const net = hopperNet(root, {
+    x0: bay.x0, x1: bay.x1, x1Out: bay.x1 + extLen, xFixed: bay.x1, hw: bay.hw, y: bay.top + 0.004, yFront: 0.685,
+    hole: { x: sh.turretPos.x, z: sh.turretPos.z, r: bay.dome.rHole - 0.005 },
+  });
+  cadPart(root, 'robots/3928-body.glb', () => { drawn.visible = false; });
+  cadPart(spin, 'robots/3928-spin.glb', () => { spinDrawn.visible = false; });
+  cadPart(box, 'robots/3928-intake.glb', () => { boxDrawn.visible = false; });
+  cadPart(turret, 'robots/3928-turret.glb', () => { tDrawn.visible = false; });
+
+  const anim = (st, dt) => {
+    box.position.x = (st.hopperDeploy - 1) * extLen; // exported slid out
+    net.drape(st.load, st.hopperDeploy * extLen);
+    for (const r of rollers) r.rotation.y += st.intakeSpeed * dt * 40;
+    spin.rotation.y = st.rotorAngle ?? 0;
+    turret.rotation.y = st.turretYaw; // the CAD's shooter faces forward
+    fly.rotation.z -= st.flywheel * dt * 8;
+  };
+  return { root, anim, stored: [], modules, extLen };
+}
+
+// ============================================================ 341 Miss Daisy XXIV
+// From 341's public Onshape CAD ("Miss Daisy XXIV"), split by tools/extract-parts.mjs
+// (cad/robots/341.json): the body (drivetrain, the serializer tray with its three omni wheels,
+// the table and uptake, the L1 climber), the "brontosaurus" slapdown (exported down; origin on its
+// pivot) and the shooter on its turret (origin on the 92T turret gear's axis).
+const TURRET_341_YAW = -150 * Math.PI / 180; // where the CAD's shooter points as exported
+function build341(cfg, alliance) {
+  const root = new THREE.Group();
+  const L = cfg.frame.length, W = cfg.frame.width, bay = cfg.bay, sh = cfg.shooter, fold = cfg.intake.fold;
+  addBumpers(root, cfg, alliance);
+  const modules = addDrivebase(root, cfg, 0, false);
+  const blue = std(cfg.colors.accent, 0.5, 0.2), yellow = std(cfg.colors.trim, 0.5, 0.15);
+  const drawn = new THREE.Group();
+  root.add(drawn);
+  addDrivebase(drawn, cfg, 0, true).forEach((md) => md.pivot.parent.removeFromParent());
+  addElectronics(drawn, -0.2, 0.15, Math.PI / 2);
+  rbx(bay.x1 - bay.x0, 0.004, 2 * bay.hw, 0.002, M.alu, drawn, (bay.x0 + bay.x1) / 2, bay.floor.a - 0.002, 0); // the tray
+  const omnis = bay.obstacles.map((o) => cylY(o.wheel, 0.035, M.black, drawn, o.x, 0.25, o.z, 20));
+  rbx(0.62, 0.004, 0.62, 0.002, M.alu, drawn, -0.03, 0.376, 0); // the table
+  for (const [x, z] of [[-0.31, -0.3], [-0.31, 0.3], [0.16, -0.3], [0.16, 0.3]]) bx(0.025, 0.36, 0.025, M.alu, drawn, x, 0.19, z);
+  // the slapdown
+  const arm = new THREE.Group();
+  arm.position.set(fold.pivot[0], fold.pivot[1], 0);
+  root.add(arm);
+  const armDrawn = new THREE.Group();
+  arm.add(armDrawn);
+  for (const s of [-1, 1]) {
+    const shp = new THREE.Shape(fold.hull.map(([x, y]) => new THREE.Vector2(x, y)));
+    const g = new THREE.ExtrudeGeometry(shp, { depth: 0.006, bevelEnabled: false });
+    mesh(g, M.anodBlack, armDrawn, 0, 0, s * (cfg.intake.width / 2 + 0.01) - 0.003);
+  }
+  const rollers = [[0.19, -0.29], [0.325, -0.18], [0.29, -0.06], [0.2, -0.02], [0.09, 0.0]].map(([x, y], i) => cylZ(i < 2 ? 0.018 : 0.025, cfg.intake.width, i < 2 ? M.black : M.anodBlack, armDrawn, x, y, 0, 14));
+  // the turret
+  const turret = new THREE.Group();
+  turret.position.set(sh.turretPos.x, 0, sh.turretPos.z);
+  root.add(turret);
+  const tDrawn = new THREE.Group();
+  turret.add(tDrawn);
+  for (const s of [-1, 1]) bx(0.4, 0.15, 0.006, M.alu, tDrawn, 0, 0.46, s * 0.1);
+  const fly = wheelStack(tDrawn, 0.18, 0.05, 2, blue, 0.14, 0.47, 0, 0.05);
+  cylZ(0.05, 0.12, std(0x1e9a8c, 0.6, 0.1), tDrawn, -0.14, 0.47, 0, 20);
+  for (let i = 0; i < 3; i++) cylZ(0.016, 0.2, yellow, tDrawn, 0.08 + i * 0.05, 0.53, 0, 10);
+  const cadTurret = new THREE.Group();
+  turret.add(cadTurret);
+  cadTurret.rotation.y = -TURRET_341_YAW;
+  cadTurret.position.set(0, 0, 0);
+  cadPart(root, 'robots/341-body.glb', () => { drawn.visible = false; });
+  cadPart(arm, 'robots/341-intake.glb', () => { armDrawn.visible = false; });
+  cadPart(cadTurret, 'robots/341-turret.glb', () => { tDrawn.visible = false; });
+
+  const anim = (st, dt) => {
+    arm.rotation.z = (1 - st.intakeDeploy) * fold.stowDeg * Math.PI / 180;
+    for (const r of rollers) r.rotation.z -= st.intakeSpeed * dt * 40;
+    for (const w of omnis) w.rotation.y += (st.feeding + 0.3 * st.intakeSpeed) * dt * 20;
+    turret.rotation.y = st.turretYaw;
+    fly.rotation.z -= st.flywheel * dt * 8;
+  };
+  return { root, anim, stored: [], modules, extLen: 0 };
+}
+
+// ============================================================ 4930 Electric Mayhem, Floyd 2
+// From 4930's public Onshape CAD ("Floyd 2: Whole Robot Assembly"), split by
+// tools/extract-parts.mjs (cad/robots/4930.json): the body (drivetrain, the belt floor, the updexer
+// and the three shooters on one long flywheel shaft) and the intake (exported down; origin on its
+// pivot). Its CAD isn't centered on its origin, so the recipe moves it to the frame's middle.
+function build4930(cfg, alliance) {
+  const root = new THREE.Group();
+  const L = cfg.frame.length, W = cfg.frame.width, bay = cfg.bay, sh = cfg.shooter, fold = cfg.intake.fold;
+  addBumpers(root, cfg, alliance);
+  const modules = addDrivebase(root, cfg, 0, false);
+  const green = std(cfg.colors.accent, 0.55, 0.1), pink = std(cfg.colors.trim, 0.5, 0.15);
+  const drawn = new THREE.Group();
+  root.add(drawn);
+  addDrivebase(drawn, cfg, 0, true).forEach((md) => md.pivot.parent.removeFromParent());
+  // belt floor down to the updexer, side plates, three hooded shooters on one shaft
+  const f = bay.floor, fx0 = 0.04, fx1 = 0.3, fy = (x) => clamp01(f.a + f.b * x, f.lo, f.hi);
+  const belt = rbx(Math.hypot(fx1 - fx0, fy(fx1) - fy(fx0)), 0.01, 2 * bay.hw - 0.04, 0.003, M.polyBelt, drawn, (fx0 + fx1) / 2, (fy(fx0) + fy(fx1)) / 2 - 0.08, 0);
+  belt.rotation.z = Math.atan2(fy(fx1) - fy(fx0), fx1 - fx0);
+  for (const z of [-0.31, -0.105, 0.105, 0.31]) bx(0.4, 0.5, 0.006, z === -0.31 || z === 0.31 ? M.alu : pink, drawn, -0.12, 0.3, z);
+  const shaft = cylZ(0.006, 0.72, M.alu, drawn, -0.113, 0.57, 0, 8);
+  const flys = sh.lanes.map((z) => cylZ(0.05, 0.04, std(0xd8c9a0, 0.5, 0.3), drawn, -0.113, 0.57, z, 20));
+  for (const z of sh.lanes) { const hood = mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.1, 16, 1, true, 0, Math.PI * 0.9), green, drawn, -0.113, 0.57, z); hood.rotation.x = Math.PI / 2; hood.rotation.y = Math.PI; }
+  // the intake
+  const arm = new THREE.Group();
+  arm.position.set(fold.pivot[0], fold.pivot[1], 0);
+  root.add(arm);
+  const armDrawn = new THREE.Group();
+  arm.add(armDrawn);
+  for (const s of [-1, 1]) {
+    const shp = new THREE.Shape(fold.hull.map(([x, y]) => new THREE.Vector2(x, y)));
+    const p = mesh(new THREE.ShapeGeometry(shp), M.poly, armDrawn, 0, 0, s * (cfg.intake.width / 2 + 0.01));
+    p.castShadow = false;
+  }
+  const rollers = [[0.36, -0.12], [0.3, -0.03]].map(([x, y]) => cylZ(0.024, cfg.intake.width, green, armDrawn, x, y, 0, 14));
+  // the net from the front of the shooters' side plates down to the intake (their CAD doesn't
+  // model it); it rides out and down with the intake
+  const extLen = cfg.storage.extLen;
+  const net = hopperNet(root, { x0: bay.slope.x, x1: bay.x1, x1Out: bay.x1 + extLen, xFixed: bay.slope.x, hw: bay.hw, y: bay.top, yFront: bay.slope.y, NX: 14, NZ: 24 });
+  cadPart(root, 'robots/4930-body.glb', () => { drawn.visible = false; });
+  cadPart(arm, 'robots/4930-intake.glb', () => { armDrawn.visible = false; });
+
+  const anim = (st, dt) => {
+    arm.rotation.z = (1 - st.intakeDeploy) * fold.stowDeg * Math.PI / 180;
+    for (const r of rollers) r.rotation.z -= st.intakeSpeed * dt * 40;
+    for (const w of flys) w.rotation.z += st.flywheel * dt * 8;
+    shaft.rotation.z = flys[0].rotation.z;
+    net.drape(st.load, st.hopperDeploy * extLen);
+  };
+  return { root, anim, stored: [], modules, extLen };
+}
+const clamp01 = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+
 export function buildRobotModel(cfg, alliance) {
   let m;
   if (cfg.key === '2910') m = build2910(cfg, alliance);
@@ -1790,6 +1971,9 @@ export function buildRobotModel(cfg, alliance) {
   else if (cfg.key === '1678') m = build1678(cfg, alliance);
   else if (cfg.key === '1690') m = build1690(cfg, alliance);
   else if (cfg.key === '4946') m = build4946(cfg, alliance);
+  else if (cfg.key === '3928') m = build3928(cfg, alliance);
+  else if (cfg.key === '341') m = build341(cfg, alliance);
+  else if (cfg.key === '4930') m = build4930(cfg, alliance);
   else m = build8793(cfg, alliance);
   // stored FUEL visual (instanced)
   const r = FUEL.radius;

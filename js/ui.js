@@ -307,7 +307,7 @@ export class UI {
       // capacity: what the modeled hopper holds (measured), not the team's stated number
       const stats = Object.entries({ Capacity: modelCapacity(r), ...r.stats }).map(([a, b]) => `<tr><td class="muted">${a}</td><td>${b}</td></tr>`).join('');
       return `<div class="rcard ${s.robot === k ? 'sel' : ''}" data-robot="${k}">
-        <div class="num">${r.team}</div><div class="nm">${r.teamName} · ${r.robotName}</div>
+        <div class="num">${r.team}</div><div class="nm">${!r.robotName ? r.teamName : r.robotName.startsWith(r.teamName) ? r.robotName : `${r.teamName} · ${r.robotName}`}</div>
         <div class="arch">${r.archetype}</div><div class="desc">${r.blurb}</div><table>${stats}</table></div>`;
     }).join('');
   }
@@ -618,7 +618,7 @@ export class UI {
     // robot panel
     const cap = r.capacity();
     $('rpTeam').textContent = r.cfg.team;
-    $('rpName').textContent = r.cfg.robotName === r.cfg.archetype ? `${r.cfg.teamName} · ${r.cfg.archetype}` : `${r.cfg.robotName} · ${r.cfg.archetype}`;
+    $('rpName').textContent = !r.cfg.robotName || r.cfg.robotName === r.cfg.archetype ? `${r.cfg.teamName} · ${r.cfg.archetype}` : `${r.cfg.robotName} · ${r.cfg.archetype}`;
     $('fuelFill').style.width = (100 * r.stored.length) / cap + '%';
     $('fuelText').textContent = `${r.stored.length} / ${cap} FUEL`;
     const st = $('rpShooter');
