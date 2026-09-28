@@ -21,6 +21,6 @@ export const CAPACITY_TABLE = {
   '17eb9d50': 7,
   'efe3f1c9': 27,
   '92faebe8': 41,
-  'c60c11c5': 49,
-  '4591e984': 71,
+  'b88bc6e7': 57,
+  'd28dea6': 74,
 };

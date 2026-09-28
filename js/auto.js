@@ -101,7 +101,7 @@ export const BEST_AUTOS = {
     { out: 'bump', fx: 7.8, a: 2.9, b: 4.0, speed: 0.55, home: 'bump', shootAt: [2.9, 2.4] },
     { out: 'bump', fx: 7.8, a: 1.6, b: 2.9, speed: 0.6, home: 'bump', shootAt: [2.9, 2.4] },
   ] },
-  // 155: 1706 holds 71 and both turrets fire ~19/s on the move, so two full-load sweeps, one on
+  // 158: 1706 holds 74 and both turrets fire ~19/s on the move, so two full-load sweeps, one on
   // each half of the line: out under the TRENCH and home over the BUMP, then back out over the BUMP
   // and home under the other TRENCH (the DEPOT after that doesn't fit in the time)
   1706: { start: 'rightTrench', preload: 'move', trips: [

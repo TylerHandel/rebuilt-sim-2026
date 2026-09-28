@@ -38,7 +38,7 @@
 //  - 1706 Ratchet Rockers "Mirage" (public Onshape CAD + CAD release thread): 25.2x29.5in swerve,
 //    a deep hopper over two spindexers side by side, each feeding its own turret; the intake folds
 //    up inside the hopper and pushes it out. Climber removed.
-//  Nets: 971, 1690 and 3928 carry netting over the open tops of their hoppers (the physics lets the
+//  Nets: 971, 1690, 3928 and 1706 carry netting over the open tops of their hoppers (the physics lets the
 //  load bulge it up, bay.dome); 1678, 4946 and 4930 stretch a net diagonally from the hopper's top
 //  edge down to the front of the intake (bay.slope). None of the teams' CAD models its nets.
 import { IN, TRENCH } from './constants.js';
@@ -652,7 +652,7 @@ export const ROBOTS = {
     teamName: 'Ratchet Rockers',
     robotName: 'Mirage',
     archetype: 'Twin spindexers',
-    blurb: 'Seeing double: two spindexers side by side under a deep hopper, each feeding its own turret. The intake folds up inside the hopper and pushes it out as it deploys. 45-2 in 2026.',
+    blurb: 'Seeing double: two spindexers side by side under a deep hopper, each feeding its own turret. The intake folds up inside the hopper and pushes it out as it deploys, and a net over the top stretches as the load grows. 45-2 in 2026.',
     // their CAD: frame 0.64 x 0.75 m (25.2 x 29.5in), bumpers 0.797 x 0.914 m. The team calls the
     // turret end the front; the sim's front is the intake end.
     frame: { length: 25.2 * IN, width: 29.5 * IN },
@@ -669,6 +669,9 @@ export const ROBOTS = {
     // carries FUEL round to its back edge, where a ramp takes it up into the turret behind it.
     bay: {
       x0: -0.14, x1: 0.318, hw: 0.37, top: 0.548,
+      // a net over the open top (their CAD doesn't model it), pinned to the wall tops and riding out
+      // with the hopper box; the load bulges it up (the turrets are behind the hopper, no hole)
+      dome: { h: 0.15, x0: -0.14, cx: 0, cz: 0, rHole: -1 },
       floor: { a: 0.16, b: 0, lo: 0.16, hi: 0.16 },
       funnel: { slope: 0.45, cap: 0.2 },
       obstacles: [

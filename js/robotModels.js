@@ -2022,6 +2022,9 @@ function build1706(cfg, alliance) {
     cadPart(cad, `robots/1706-turret-${i ? 'b' : 'a'}.glb`, () => { d.visible = false; });
     return g;
   });
+  // net over the open top (their CAD doesn't model it): pinned to the wall tops, stretching out with
+  // the hopper box, bulged up by the load
+  const net = hopperNet(root, { x0: bay.x0, x1: bay.x1, x1Out: bay.x1 + extLen, xFixed: bay.x0, hw: bay.hw, y: bay.top + 0.004 });
   cadPart(root, 'robots/1706-body.glb', () => { drawn.visible = false; });
   cadPart(root, 'robots/1706-mount.glb', () => {});
   cadPart(box, 'robots/1706-hopper.glb', () => { boxDrawn.visible = false; });
@@ -2030,6 +2033,7 @@ function build1706(cfg, alliance) {
 
   const anim = (st, dt) => {
     box.position.x = st.hopperDeploy * extLen; // exported in
+    net.drape(st.load, st.hopperDeploy * extLen);
     arm.rotation.z = st.intakeDeploy * INTAKE_1706.swing;
     for (const r of rollers) r.rotation.z -= st.intakeSpeed * dt * 40;
     for (const s of spins) s.g.rotation.y = (st.rotorAngle ?? 0) * (s.r.dir ?? 1);
