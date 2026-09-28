@@ -258,11 +258,12 @@ function finishMatch() {
 let last = performance.now();
 let menuOrbit = 0;
 let debugInput = null; // test hook: merged into the polled controller state
+let hold = false; // cover mode steps the game itself (js/cover.js)
 function frame(now) {
   requestAnimationFrame(frame);
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
-  tick(dt, true);
+  if (!hold) tick(dt, true);
 }
 
 function tick(dt, render) {
@@ -351,4 +352,10 @@ window.__sim = {
     const n = Math.round(seconds * fps);
     for (let i = 0; i < n; i++) tick(1 / fps, i === n - 1);
   },
+  // pause the live loop (the cover renderer steps the game with advance())
+  set hold(v) { hold = v; },
+  get hold() { return hold; },
 };
+
+// ?cover: the cover-art renderer (stages a shot, renders it on this computer's GPU, exports a PNG)
+if (new URLSearchParams(location.search).has('cover')) import('./cover.js').then((m) => m.startCover(window.__sim));

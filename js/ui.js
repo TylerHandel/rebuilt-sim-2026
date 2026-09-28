@@ -137,6 +137,7 @@ const PAGES = {
     { type: 'tiles' },
     btn('AUTO EDITOR', 'editor', { half: true, secondary: true }), btn('AI TUNING', 'tuning', { half: true, secondary: true }),
     btn('CONTROLS', 'controls', { half: true, secondary: true }), btn('SETTINGS', 'settings', { half: true, secondary: true }),
+    btn('COVER RENDER', 'cover', { secondary: true }),
   ],
   practice: () => [
     sec('Robot'), { type: 'cards' },
@@ -382,6 +383,7 @@ export class UI {
         else if (it.act === 'editor') this.show('editor');
         else if (it.act === 'tuning') this.show('tuning');
         else if (it.act === 'controls') { this.prevScreen = 'menu'; this.show('controls'); }
+        else if (it.act === 'cover') location.search = '?cover'; // js/cover.js: render and export cover art
         return;
       default:
     }

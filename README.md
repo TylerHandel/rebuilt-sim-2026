@@ -23,6 +23,18 @@ ES modules won't load from `file://`, so always use `serve.py` instead of openin
 
 **Controller:** connect an Xbox controller (USB or Bluetooth) and press any button so the browser detects it. The menus, the match, the Auto Editor and the pause/results screens all work from the controller.
 
+## Cover art
+
+**COVER RENDER** on the home screen (or add `?cover` to the address) opens the cover renderer.
+It plays a 3v3 up to TELEOP, lines three robots up in the blue ALLIANCE ZONE with full hoppers, and has them shoot into the HUB. Then it renders that moment on your computer's GPU, a few seconds on a decent graphics card.
+The render uses nicer lighting than the game (reflections, arena spotlights), smooth edges, motion blur on the flying FUEL only, and the title.
+- **Export:** **Download PNG** (1920×1080, or 3840×2160 under Output), **GitHub preview 1280×640** (for the repository's social preview image), or **Copy** to the clipboard.
+- **Shot:** camera angle, height and zoom; motion blur (a shutter from off to 1/20 s; the default 1/125 s is a slight streak); and the moment (how long they've been shooting).
+- **Robots:** all six robots.
+- **Title:** the title text, or no title.
+- Camera, blur and title changes re-render the same moment. Changing the robots or the moment replays the match.
+- Your settings are remembered in the browser; **Reset settings** goes back to the defaults.
+
 ## Controls
 
 | Action | Xbox controller | Keyboard |
