@@ -31,6 +31,7 @@
 //  bulge it up, bay.dome); 1678 and 4946 stretch a net diagonally from the hopper's top edge down
 //  to the front of the intake (bay.slope).
 import { IN, TRENCH } from './constants.js';
+import { Drivetrain } from './drivetrain.js';
 
 export const BUMPER_T = 3.25 * IN; // bumper thickness incl. backing
 // bumper height off the carpet: 1.25in up (clear of the 1.125in DEPOT barrier) and 5in tall, like real FRC bumpers (two pool
@@ -103,8 +104,9 @@ export const ROBOTS = {
     blurb: 'Huge hopper and a 4-wide drum shooter fixed to the chassis — the whole robot rotates to aim. Unloads 45 FUEL per second.',
     frame: { length: 27.0 * IN, width: 27.5 * IN },
     height: 21.5 * IN,
-    mass: 61,
-    drive: { maxSpeed: 4.3, maxAccel: 9.5, maxOmega: 8.5, maxAlpha: 32 },
+    mass: 64, // robot (up to 115 lb) + bumpers + battery
+    // SDS MK5n R1 (7.03:1, 4in wheels), Kraken X60s (see drivetrain.js)
+    drive: { ratio: 7.03 },
     // slap-down intake from 2910's CAD: its 2in roller reaches ~7.8in past the bumper
     // rate: fast enough that driving through FUEL is the only limit; pull: roller surface speed
     // arm: the CAD intake's pivot and its 2in roller's reach and angle, stowed (as exported) and
@@ -157,8 +159,9 @@ export const ROBOTS = {
     blurb: 'Extending hopper holds about 88 FUEL under a stretchy net. A Dye Rotor single-streams FUEL into a fast turret shooter with precomputed shoot-on-the-move.',
     frame: { length: 25.0 * IN, width: 32.0 * IN, chamfer: 0.12 }, // back corners cut off
     height: 21.75 * IN,
-    mass: 60,
-    drive: { maxSpeed: 4.0, maxAccel: 9.0, maxOmega: 8.0, maxAlpha: 30 },
+    mass: 64, // robot (up to 115 lb) + bumpers + battery
+    // 7.67:1 on 4in wheels (tech binder), Kraken X60s
+    drive: { ratio: 7.67 },
     // the intake is a box that slides out on racks (extLen) with its roller at the lip
     // rate: fast enough that driving through FUEL is the only limit; pull: roller surface speed
     // lip: FUEL rides up the box's ramp to the ridge over the front bumper here, then drops in
@@ -220,8 +223,9 @@ export const ROBOTS = {
     blurb: 'No hopper: a 4-wide intake feeds a conveyor that funnels FUEL to single file, up through the turret and out a hooded flywheel. Holds only what fits in the ball path — intake and shoot at the same time.',
     frame: { length: 27.5 * IN, width: 27.5 * IN },
     height: 21.5 * IN, // top of the shooter (their CAD)
-    mass: 52,
-    drive: { maxSpeed: 4.5, maxAccel: 10.0, maxOmega: 9.0, maxAlpha: 34 },
+    mass: 58, // robot (up to 115 lb) + bumpers + battery
+    // WCP Swerve X2t, geared for their stated 14.8 ft/s free speed (6.84:1 on 4in wheels)
+    drive: { ratio: 6.84 },
     // Intake V3 (their CAD): three silicone rollers on an arm that swings down from a pivot over
     // the front of the frame. Stowed, it folds back up inside the frame perimeter and stands
     // 0.69 m tall, too tall for the TRENCH: it has to be down to drive under. fold.hull is the
@@ -276,8 +280,9 @@ export const ROBOTS = {
     // their CAD: bumpers +-0.394 x +-0.457 m
     frame: { length: 24.5 * IN, width: 29.5 * IN },
     height: 22 * IN,
-    mass: 60,
-    drive: { maxSpeed: 4.4, maxAccel: 9.5, maxOmega: 8.5, maxAlpha: 32 },
+    mass: 64, // robot (up to 115 lb) + bumpers + battery
+    // SDS MK5 at 7.03:1 on 4in wheels (their stated 14.4 ft/s free speed)
+    drive: { ratio: 7.03 },
     // 4-bar ground intake under the hopper's front (their CAD: the beater tube folds up inside the
     // hopper, and deploying it pushes the hopper out)
     intake: { width: 29 * IN, reach: 0.18, rate: 200, pull: 5, deployTime: 0.35, side: 'front', latched: false },
@@ -330,8 +335,9 @@ export const ROBOTS = {
     blurb: 'Milstein Division champion. A full-width drum with three hood rollers fires out the back, fed by a roller floor and ball tunnel. The hopper grows out with the intake and up with the climber, with a net stretched diagonally over the extension. Climbs Level 1.',
     frame: { length: 27.0 * IN, width: 27.0 * IN },
     height: 21.6 * IN,
-    mass: 62,
-    drive: { maxSpeed: 4.5, maxAccel: 9.8, maxOmega: 8.8, maxAlpha: 33 },
+    mass: 65, // robot (up to 115 lb) + bumpers + battery
+    // SDS MK5n R1 (7.03:1, 4in wheels)
+    drive: { ratio: 7.03 },
     // full-width slapdown: 2in silicone roller + 1.25in kicker bar, pivot at the front
     // a 2in silicone-covered carbon fiber roller (their reveal): rigid, so it squeezes FUEL a
     // little less than compliant wheels do (hopper.js intakePush)
@@ -377,9 +383,10 @@ export const ROBOTS = {
     blurb: 'A compact gear-driven turret on an 8in bearing shoots on the move while the intake keeps running. The hopper expands forward under a lattice frame, and netting over the top stops FUEL bouncing out.',
     frame: { length: 25.0 * IN, width: 29.0 * IN },
     height: 21.5 * IN,
-    mass: 58,
+    mass: 63, // robot (up to 115 lb) + bumpers + battery
     // they geared down and went to spiked wheels mid-season for the BUMP, TRENCH and defense
-    drive: { maxSpeed: 4.0, maxAccel: 10.5, maxOmega: 8.5, maxAlpha: 34 },
+    // geared down (and spiked wheels) mid-season for the BUMP, TRENCH and defense: 13.1 ft/s free
+    drive: { ratio: 7.73 },
     // over-bumper: motorized main roller with light compression over an aluminum bottom roller,
     // deployed by surgical tubing (it stays down)
     intake: { width: 27 * IN, reach: 0.2, rate: 200, pull: 5, deployTime: 0.3, side: 'front', latched: true },
@@ -423,8 +430,9 @@ export const ROBOTS = {
     // front edge: 32.75in across, 30.3in front to back
     frame: { length: 0.77, width: 2 * 16.375 * IN, round: { r: 16.375 * IN, cx: 16.375 * IN - 0.77 / 2, front: 30 * IN } }, // cx: the back is at -length/2
     height: 29.5 * IN,
-    mass: 60,
-    drive: { maxSpeed: 3.9, maxAccel: 10.5, maxOmega: 8.0, maxAlpha: 30 }, // MK5n in its lowest gear
+    mass: 66, // robot (up to 115 lb) + bumpers + battery
+    // MK5n in its lowest gear, their stated 12.8 ft/s free speed
+    drive: { ratio: 7.91 },
     // ground intake that slides out the front in two pieces (rollers with compliant wheels, passive
     // rollers behind that resist backpressure)
     intake: { width: 27 * IN, reach: 0.22, rate: 200, pull: 5, deployTime: 0.35, side: 'front', latched: false },
@@ -462,6 +470,17 @@ export const ROBOTS = {
     colors: { frame: 0x9aa0a8, accent: 0xd32f2f, trim: 0x1d1f24 },
   },
 };
+
+// Top speed, turn rate and acceleration come from each robot's drivetrain (drivetrain.js): its
+// gear ratio, wheels and motors, current limits, battery and mass. The robot card shows the real
+// top speed next to the gearing's free speed.
+for (const cfg of Object.values(ROBOTS)) {
+  const [mx, mz] = modulePoints(cfg)[0];
+  const dt = new Drivetrain(cfg.drive, cfg.mass, cfg.frame.length, cfg.frame.width, Math.hypot(mx, mz));
+  Object.assign(cfg.drive, dt.stats());
+  const ft = (v) => (v / 0.3048).toFixed(1);
+  if (cfg.stats) cfg.stats['Top speed'] = `${ft(dt.topSpeed)} ft/s (${ft(dt.freeSpeed)} free)`;
+}
 
 export const ROBOT_ORDER = ['2910', '4414', '8793', '971', '1678', '1690', '4946'];
 

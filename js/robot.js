@@ -9,6 +9,7 @@ import { Hopper, measureCapacity, intakePush } from './hopper.js';
 import { ShotTable, solveMovingShot, trajectoryPoints } from './ballistics.js';
 import { Field } from './field.js';
 import { TRENCH_ARMS } from './nav.js';
+import { Drivetrain } from './drivetrain.js';
 import { clamp, wrapAngle, approach, approachAngle, gauss, DEG, rand } from './util.js';
 
 const WHEEL_R = 0.05;
@@ -64,6 +65,9 @@ export class Robot {
     // turret shooters: one or more turrets (971 has two), each aiming itself
     this.turrets = sh.type === 'turret' ? (sh.turrets || [sh.turretPos]) : [];
     this.hopper = new Hopper(cfg.bay);
+    // the drivetrain: force vs speed from its motors, gearing, battery and tires
+    const [mx, mz] = modulePoints(cfg)[0];
+    this.drivetrain = new Drivetrain(cfg.drive, cfg.mass, cfg.frame.length, cfg.frame.width, Math.hypot(mx, mz));
     const ext = cfg.storage.extLen || 0;
     // retracted: hopper in and any lid (1678's, on the climber) down
     this.intakePush = intakePush(cfg); // N: how hard the intake shoves FUEL into the hopper
@@ -372,6 +376,10 @@ export class Robot {
     const sp = Math.hypot(tvx, tvz);
     if (sp > d.maxSpeed) { tvx *= d.maxSpeed / sp; tvz *= d.maxSpeed / sp; }
     tw = clamp(tw, -d.maxOmega, d.maxOmega);
+    // driving and turning share the wheels (swerve desaturation): a wheel can't go faster than
+    // the top speed, so turning hard at full speed takes some of the speed
+    const wheel = Math.hypot(tvx, tvz) + Math.abs(tw) * this.drivetrain.r;
+    if (wheel > d.maxSpeed) { const k = d.maxSpeed / wheel; tvx *= k; tvz *= k; tw *= k; }
     // the wheels only push on what they're touching: the drive has as much grip as the share of
     // wheels on the floor (carpet, BUMPS, DEPOT barriers). Up on FUEL or another robot, it
     // coasts instead of climbing further.
@@ -387,7 +395,10 @@ export class Robot {
     if (grip > 0) {
       const lv = this.body.linvel();
       let dvx = tvx - lv.x, dvz = tvz - lv.z;
-      const dm = Math.hypot(dvx, dvz), maxDv = d.maxAccel * dt * grip;
+      // how much the speed can change this step (drivetrain.js): speeding up, the motors' force
+      // falls off with speed (back-EMF, battery sag, current limits); slowing down, they brake
+      const v = Math.hypot(lv.x, lv.z);
+      const dm = Math.hypot(dvx, dvz), maxDv = this.drivetrain.maxDv(v, Math.hypot(tvx, tvz) > v - 0.05, dt) * grip;
       if (dm > maxDv) { dvx *= maxDv / dm; dvz *= maxDv / dm; }
       this.body.setLinvel({ x: lv.x + dvx, y: lv.y, z: lv.z + dvz }, true);
       const av = this.body.angvel();
