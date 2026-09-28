@@ -188,12 +188,14 @@ function driverCommand(inp, dt) {
   }
   game.slow = inp.held.ls;
   const scale = game.slow ? 0.4 : 1;
-  // field-relative: stick up is away from the camera, so it flips when the camera turns around
-  const s = (game.me === BLUE ? 1 : -1) * (rig.flip ? -1 : 1);
+  // field-relative: stick up is away from the camera, toward the robot, from wherever the camera is
+  // (it turns as the robot moves past a fixed camera, and round when the camera turns around);
+  // stick right is to the right on screen
   let vx, vz;
   if (game.fieldRelative) {
-    vx = s * up * d.maxSpeed * scale;
-    vz = s * right * d.maxSpeed * scale;
+    const f = rig.driveForward(r);
+    vx = (f.x * up - f.z * right) * d.maxSpeed * scale;
+    vz = (f.z * up + f.x * right) * d.maxSpeed * scale;
   } else {
     const f = r.forward(), rt = r.right();
     vx = (f.x * up + rt.x * right) * d.maxSpeed * scale;

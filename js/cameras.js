@@ -39,12 +39,32 @@ export class CameraRig {
     return CAMERA_NAMES[this.mode];
   }
 
+  // Which way "up" on the stick drives, field-relative: away from the camera, toward the robot (the
+  // way you're looking at it), so forward is forward whichever camera you watch from, even a fixed
+  // one the robot drives around in front of. Overhead: up the screen. Returns a unit {x, z}.
+  driveForward(robot) {
+    const cam = this.camera;
+    let x, z;
+    if (this.mode === 'overhead') { x = cam.up.x; z = cam.up.z; }
+    else {
+      x = (robot ? robot.pos.x : this.look.x) - cam.position.x;
+      z = (robot ? robot.pos.z : this.look.z) - cam.position.z;
+      // right under the camera: the way it looks instead
+      if (Math.hypot(x, z) < 0.6) { x = this.look.x - cam.position.x; z = this.look.z - cam.position.z; }
+    }
+    const n = Math.hypot(x, z) || 1;
+    return { x: x / n, z: z / n };
+  }
+
   update(dt, robot) {
     if (this.mode === 'free') return; // externally positioned (debug / photo)
     const s = this.alliance === BLUE ? 1 : -1; // +X is "downfield" for blue
     const cam = this.camera;
     let p, l, fov = 55;
     const rp = robot ? robot.pos : new THREE.Vector3();
+    // turned around, a shot is mirrored through the robot, so it keeps its angle and distance (a
+    // fixed camera then watches from the robot's other side, moving with it)
+    const c = rp;
     switch (this.mode) {
       case 'driver': {
         const fy = DRIVER_STATIONS[this.ds].fy;
@@ -81,8 +101,11 @@ export class CameraRig {
         break;
       }
     }
-    // turned around: the same shot from the other side of what it looks at
-    if (this.flip && this.mode !== 'overhead') { p.x = 2 * l.x - p.x; p.z = 2 * l.z - p.z; }
+    // turned around: the same shot from the other side of the robot
+    if (this.flip && this.mode !== 'overhead') {
+      p.x = 2 * c.x - p.x; p.z = 2 * c.z - p.z;
+      l.x = 2 * c.x - l.x; l.z = 2 * c.z - l.z;
+    }
     if (this.snap) {
       this.pos.copy(p);
       this.look.copy(l);

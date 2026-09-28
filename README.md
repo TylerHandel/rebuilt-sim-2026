@@ -39,7 +39,7 @@ The render uses nicer lighting than the game (reflections, arena spotlights), sm
 
 | Action | Xbox controller | Keyboard |
 |---|---|---|
-| Drive (field-relative) | Left stick | W A S D |
+| Drive (field-relative: up is away from the camera, toward your robot, whichever camera you use) | Left stick | W A S D |
 | Rotate | Right stick X | Q / E or ← → |
 | Shoot: auto-aim, shoot on the move | RT | Space |
 | Intake | LT | Shift |
@@ -50,7 +50,7 @@ The render uses nicer lighting than the game (reflections, arena spotlights), sm
 | Climb / cancel / lower (climber add-on only) | A | C |
 | Climb level up / down | D-pad ↑ / ↓ | ↑ / ↓ |
 | Camera (Driver Station, Follow, Chase, Overhead, Broadcast) | D-pad ← / → | [ / ] |
-| Turn the camera around 180° (field-relative drive turns with it) | Right stick click | T |
+| Turn the camera around 180° (the same shot from the other side of your robot; drive turns with it) | Right stick click | T |
 | Field- / robot-relative drive | B | B |
 | Slow mode (hold) | Left stick click | X |
 | Pause | Menu (☰) | Esc |

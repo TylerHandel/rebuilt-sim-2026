@@ -21,7 +21,7 @@ const TOP_FRACTION = 0.88; // real top speed / the gearing's free speed at 12 V:
 
 // Defaults for what a team doesn't state: 4 Kraken X60s on 4in wheels, CTRE's usual 70 A supply
 // limit with an 80 A stator limit, tread on carpet
-const DEFAULTS = { motor: 'krakenX60', motors: 4, wheel: 4 * IN, stator: 80, supply: 70, mu: 1.1 };
+const DEFAULTS = { motor: 'krakenX60', motors: 4, wheel: 4 * IN, stator: 80, supply: 70, mu: 1.3 };
 
 export class Drivetrain {
   // d: cfg.drive ({ ratio, wheel, motor, stator, supply, mu }), m: robot mass (kg),
