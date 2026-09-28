@@ -189,6 +189,13 @@ For a new Claude Code session. The latest work is on branch `claude/great-hypati
 - Rated capacities now: 2910 48 -> 73, 971 33 -> 66, 1678 35 -> 84, 1706 42 -> 60.
 - AUTO FUEL after both changes: 2910 122, 4414 125, 8793 56, 971 122, 1678 95, 1690 83, 4946 124, 3928 99, 341 37, 4930 74, 1706 82. Matches (champs scorer vs champs 2910, seed 1): 2910 560, 4414 713, 8793 345, 971 543, 1678 494, 1690 562, 4946 698, 3928 404, 341 216, 4930 479, 1706 596.
 
+## Done: intaken FUEL goes in under the pile
+- `_intakePath`: the entry is the hopper floor at its front (`front - R - 0.02`, `floorAt + R`), not the top of the pile; `intake.lip.entry` (4414) is no longer used, since its box is part of the hopper and FUEL comes in at the box's front.
+- The waiting FUEL pushes each FUEL in the way from a point in front of and below the entry (`entryX + R`, `entryY - R/2`), so it goes back and up and the roller lifts the pile's weight. Each FUEL in the way takes one roller's push per step (`pushed` set): five FUEL waiting across 4414's intake used to add up on the same ones and crush the load (64 pairs overlapping over an inch at 1 kN).
+- Entering at the bumper line (the old `min(.., halfL + 0.02)`) put FUEL behind whatever was already in an extended hopper's front, pushing it into the front wall: 971 stalled at 23.
+- Fill (1 m/s along the NEUTRAL ZONE line): 2910 68/73, 4414 100/101, 971 55/66, 1678 61/84, 1690 50/52, 4946 83/108, 3928 110/137, 4930 48/58, 1706 49/60; overlaps under 1.9 in. AUTO FUEL: 2910 145, 4414 128, 8793 67, 971 146, 1678 97, 1690 101, 4946 127, 3928 118, 341 29, 4930 69, 1706 75. Matches vs a champs 2910: 2910 627, 4414 731, 8793 345, 971 673, 1678 539, 1690 613, 4946 668, 3928 481, 341 208, 4930 472, 1706 471.
+- `pack()` (the rating) still drops FUEL in on top; ratings are for planning only.
+
 ## Other open items
 - The HUB and BUMP sizes were checked against the drawing. All element positions were checked against the field CAD. The TRENCH, TOWER, DEPOT and OUTPOST *sizes* still come from the game manual, so compare them with the drawing pages above or measure them in the CAD. Note that the Block CAD bounding box puts the inside edge of the fixed TRENCH about 8 cm closer to the guardrail than `TRENCH.width` does.
 - Optional: a longer AI self-play training run, `npm run train -- --gens 30 --pop 12 --scenarios 6 --resume`.

@@ -458,12 +458,12 @@ export class Robot {
   // Where FUEL crosses into the hopper: over the bumper, then in at the front of the hopper
   _intakePath(z) {
     const front = this.bayFront();
-    // just over the bumper (an extended hopper already reaches out over it)
+    // in at the front of the hopper (a hopper pushed out over the intake takes it in at its front)
     const lip = this.cfg.intake.lip;
-    const entryX = lip?.entry ?? Math.min(front - R - 0.02, this.halfL + 0.02);
-    // it drops in on top of whatever FUEL is already by the entry (and when that's up to the
-    // top, the rollers push it in and the load gives way)
-    const entryY = Math.min(this.hopper.dropHeight(entryX, z), this.hopper.topAt(entryX, z) - R) + 0.015;
+    const entryX = front - R - 0.02;
+    // it goes in at the bottom, on the hopper floor at the front: under whatever FUEL is already
+    // there, which it has to push back and lift (the rollers push it in under the pile)
+    const entryY = this.hopper.floorAt(entryX, z) + R + 0.005;
     const lipX = lip ? lip.x : this.halfL + 0.04, lipY = lip ? lip.y : BUMP_Y1 + R + 0.025;
     return { lipX, lipY, entryX, entryY, liftY: Math.max(entryY, lipY) };
   }
@@ -725,6 +725,7 @@ export class Robot {
   _settleCaptured(t, dt, running) {
     const deployed = this.intakeDeploy > 0.85;
     let waited = 0, outside = 0;
+    const pushed = new Set(); // a FUEL in the way takes one roller's push, however many FUEL wait behind it
     for (let i = this.captured.length - 1; i >= 0; i--) {
       const cap = this.captured[i];
       const b = cap.b;
@@ -783,11 +784,16 @@ export class Robot {
           const J = f * dt;
           this.body.applyImpulse({ x: (h.ix * c) * J, y: 0, z: (-h.ix * sn) * J }, true);
         }
-        // it pushes what's in the way on in, as hard as the rollers grip it plus whatever's
-        // pushing it in from outside
+        // it pushes what's in the way out of the entry (back into the load, and up under the
+        // weight of the pile over it), as hard as the rollers grip it plus whatever's pushing it
+        // in from outside
         const F = (running ? this.intakePush : 0) + f;
+        // (it comes in from the front and below: what's in its way goes back and up)
         for (const e of block) {
-          const dx = e.p.x - h.x, dy = e.p.y - h.y, dz = e.p.z - cap.z, d = Math.hypot(dx, dy, dz) || 1;
+          if (pushed.has(e)) continue;
+          pushed.add(e);
+          const dx = e.p.x - path.entryX - R, dy = e.p.y - path.entryY + 0.5 * R, dz = e.p.z - cap.z;
+          const d = Math.hypot(dx, dy, dz) || 1;
           const k = F / block.length / d;
           e.ext = e.ext || new THREE.Vector3();
           e.ext.x += dx * k; e.ext.y += dy * k; e.ext.z += dz * k;
