@@ -145,7 +145,7 @@ export class OpponentAI {
     }
     Object.assign(cmd, { vx: 0, vz: 0, omega: 0, intake: false, shoot: false, pass: false, outtake: false, prespin: false, lower: false });
     // an intake that stows folded up (8793's) comes down on the way under a TRENCH
-    if (r.cfg.intake.fold && underTrench(r.pos.x, r.pos.z, r.halfL + 1.2)) cmd.lower = true;
+    if (r.cfg.intake.fold && fitsTrench(r.cfg) && underTrench(r.pos.x, r.pos.z, r.halfL + 1.2)) cmd.lower = true;
     if (!m.isTeleop) { this.label = m.isAuto ? 'AUTO' : 'Waiting'; return; }
 
     // mode selection (with nobody to defend against, everyone scores)
@@ -599,8 +599,13 @@ export class OpponentAI {
   _intakeFor(d) {
     const r = this.robot;
     if (d < this.brain.intakeDist) this.intakeDown = true;
-    // near a TRENCH with the load almost up to the arm: more FUEL would wedge it under there
-    const wedge = underTrench(r.pos.x, r.pos.z, 1.0) && r.growTop > TRENCH.clearHeight - 0.06;
+    // near a TRENCH with the FUEL almost up to the arm: more would wedge it under there (held
+    // until the load drops, so the intake doesn't bob as the load settles). An intake that raises
+    // the top when it's out (1678's lid) stays in near the arm.
+    const near = underTrench(r.pos.x, r.pos.z, 1.0);
+    if (r.loadNearTrench()) this.tallHold = true;
+    else if (r.loadTop < TRENCH.clearHeight - 0.08) this.tallHold = false;
+    const wedge = near && (this.tallHold || r.deployRaisesTop);
     return this.intakeDown && r.stored.length < this.maxLoad && !wedge && !this._foeAhead() && !this._hubFuelNear();
   }
 

@@ -248,7 +248,9 @@ export const ROBOTS = {
         hull: [[-0.026, -0.018], [0.161, -0.305], [0.176, -0.306], [0.298, -0.196], [0.328, -0.105], [0.191, 0.009], [0.005, 0.032], [-0.025, 0.02]],
       },
     },
-    storage: { capacity: 12 },
+    // the intake's rollers hold FUEL too: with the arm down, the ball path runs out over it
+    // (it stays down while it's holding FUEL the path can't take)
+    storage: { capacity: 12, extLen: 0.2, extend: 'intake' },
     // no hopper, a ball path (their CAD). FUEL comes in 4 wide over the front of the frame (the
     // outer two ride the swerve covers) and Conveyor V2's overhead wheels (4in omnis on the sides
     // push in) carry it back down its polycarbonate floor, 2 wide, to the middle of the robot.
@@ -513,7 +515,7 @@ export const ROBOTS = {
         { box: [-0.33, -0.1, 0, 1, -0.02, 0.2] }, // the tower (its mouth faces the spindexer)
         { box: [-0.04, 0.11, 0.2, 0.52, 0.19, 0.33] }, // a plate on the spindexer's far side
       ],
-      drive: 'rotor', rotor: { x: 0.1125, z: -0.0175, y: 0.105, r: 0.2, grip: 80, drag: 8, finR0: 0.06, fins: 5, spin: -15, idle: -0.5 },
+      drive: 'rotor', rotor: { x: 0.1125, z: -0.0175, y: 0.105, r: 0.2, grip: 160, drag: 35, finR0: 0.06, fins: 5, spin: -18, idle: -0.5 },
       feed: { x: -0.05, z: 0.07, reach: 0.18, via: [[-0.09, 0.2, 0.09], [-0.15, 0.4, 0.09], [-0.15, 0.6, 0.095]] },
     },
     shooter: {
@@ -557,7 +559,9 @@ export const ROBOTS = {
         hull: [[-0.03, 0.035], [0.2, 0.03], [0.37, -0.09], [0.37, -0.13], [0.34, -0.2], [0.21, -0.3], [0.17, -0.305], [-0.02, -0.1]],
       },
     },
-    storage: { capacity: 12 },
+    // the slapdown holds FUEL too: with it down, the tray runs out over its rollers (it stays down
+    // while it's holding FUEL the tray can't take)
+    storage: { capacity: 12, extLen: 0.22, extend: 'intake' },
     // their CAD: a plate 0.175 m up across the front of the robot under the table the turret sits
     // on (0.375 m): room for one layer of FUEL. Three 6in omni wheels lying flat at the FUEL's
     // middle spin it round toward the uptake ramp at the back, which curls up into the turret.
@@ -624,8 +628,10 @@ export const ROBOTS = {
     bay: {
       x0: -0.02, x1: 0.33, hw: 0.31, top: 0.55,
       // a net stretched from the front of the shooters' side plates down to the top of the
-      // intake's side plates keeps the load in over the open front
+      // intake's side plates keeps the load in over the open front; it stretches, so the load
+      // bulges it up over the slope
       slope: { x: 0.12, y: 0.37 },
+      dome: { h: 0.3, x0: 0.12, cx: 0, cz: 0, rHole: -1 },
       floor: { a: 0.11, b: 0.385, lo: 0.11, hi: 0.23 },
       drive: 'floor', driveSpeed: 2.2,
       feed: { x: 0.0, via: [[-0.08, 0.2], [-0.19, 0.36], [-0.19, 0.52]] },
@@ -680,11 +686,11 @@ export const ROBOTS = {
       ],
       drive: 'rotor',
       rotors: [
-        { x: 0.0885, z: -0.1775, y: 0.16, r: 0.138, grip: 20, drag: 20, finR0: 0, spin: 12, idle: -0.5, dir: 1 },
-        { x: 0.0885, z: 0.1775, y: 0.16, r: 0.138, grip: 20, drag: 20, finR0: 0, spin: 12, idle: -0.5, dir: -1 },
+        { x: 0.0885, z: -0.1775, y: 0.16, r: 0.138, grip: 70, drag: 60, finR0: 0, spin: 16, idle: -0.5, dir: 1 },
+        { x: 0.0885, z: 0.1775, y: 0.16, r: 0.138, grip: 70, drag: 60, finR0: 0, spin: 16, idle: -0.5, dir: -1 },
       ],
       feed: {
-        x: -0.03, zs: [-0.19, 0.19], reach: 0.22,
+        x: -0.03, zs: [-0.19, 0.19], reach: 0.18,
         vias: [
           [[-0.09, 0.28, -0.2], [-0.15, 0.42, -0.22]],
           [[-0.09, 0.28, 0.2], [-0.15, 0.42, 0.22]],

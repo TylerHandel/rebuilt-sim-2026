@@ -141,7 +141,9 @@ export class Robot {
     // extending hopper section: a real collider that slides out with the hopper
     const st = this.cfg.storage;
     this.hopperCollider = null;
-    if (st.extLen) {
+    // (not where the extension is the space over a folding intake, 8793's and 341's: the arm is
+    // its own collider)
+    if (st.extLen && !cfg.intake.fold) {
       this.hopperHalfH = (this.height - 0.17) / 2;
       this.hopperCollider = world.createCollider(
         RAPIER.ColliderDesc.cuboid(st.extLen / 2, this.hopperHalfH, cfg.frame.width / 2 - 0.02)
@@ -157,8 +159,8 @@ export class Robot {
     // a load pushes up under a net (the net lies over it; a sphere per FUEL above the frame's top,
     // moved with it each step, for other robots). A TRENCH arm meets that FUEL in the hopper
     // instead, where it's soft: pushed hard enough, the load squashes down and goes under.
-    this.topY = this.topLoad = this.height;
-    this.growTop = 0;
+    this.topY = this.topLoad = this.topStowed = this.height;
+    this.growTop = this.loadTop = this.loadHighT = 0;
     const bay = cfg.bay;
     const solid = groups(GROUP.ROBOT, GROUP.STATIC | GROUP.ROBOT | GROUP.INTAKE);
     this.loadBalls = [];
@@ -552,6 +554,13 @@ export class Robot {
     // growTop: the part that grows with the load (a net it bulges up, a lid it holds up), 0 if none
     this.growTop = lift ? bay.top + lift.h * this.hopper.liftScale + 0.01 : bay.dome ? loadTop + 0.005 : 0;
     this.topLoad = Math.max(this.height, this.growTop);
+    // loadTop: the top of the FUEL itself; topStowed: the top once the intake (and a hopper that
+    // rides out with it) is back in, so a lid that lifts with the hopper (1678's) is down on
+    // whatever FUEL holds it up: what has to fit under a TRENCH arm
+    this.loadTop = loadTop;
+    this.loadHighT = (bay.dome || lift) && loadTop > TRENCH.clearHeight - 0.035 ? (this.loadHighT || 0) + dt : 0;
+    const held = lift ? bay.top + lift.h * clamp((loadTop - 0.01 - bay.top) / lift.h, 0, 1) + 0.01 : this.growTop;
+    this.topStowed = Math.max(this.height, held);
     const fold = foldTop(this.cfg.intake, this.intakeDeploy);
     this.topY = Math.max(this.topLoad, fold);
     this._stepTopColliders();
@@ -589,6 +598,9 @@ export class Robot {
     // Re•Blitz retracts the intake while shooting to compact FUEL into the indexer
     if (ic.compacts && on && (this.cmd.shoot || this.cmd.pass) && !this.cmd.intake) want = false;
     if (on && this.cmd.outtake) want = true;
+    // a folding intake whose rollers hold FUEL (8793's, 341's: the space over the deployed arm is
+    // part of the ball path) stays down while that FUEL has nowhere else to go
+    if (ic.fold && this.cfg.storage.extend === 'intake' && this.stored.length > this.geoCap.retracted) want = true;
     const next = approach(this.intakeDeploy, want ? 1 : 0, dt / (want ? ic.deployTime : ic.retractTime ?? ic.deployTime));
     // a compacting intake pushes on the load as it comes in, and stalls while it can't squeeze more
     if (!(ic.compacts && next < this.intakeDeploy && this.hopper.pressure > (ic.compactPush ?? this.intakePush))) this.intakeDeploy = next;
@@ -1159,7 +1171,14 @@ export class Robot {
   // whether it fits under a TRENCH arm right now (a load bulging its net, or a raised lid, doesn't)
   fitsTrenchNow() { return fitsTrench(this.cfg) && this.topY <= TRENCH.clearHeight - 0.005; }
   // fits once a folded intake is lowered (the AI lowers it on its way under)
-  fitsTrenchLowered() { return fitsTrench(this.cfg) && this.topLoad <= TRENCH.clearHeight - 0.005; }
+  fitsTrenchLowered() { return fitsTrench(this.cfg) && this.topStowed <= TRENCH.clearHeight - 0.005; }
+  // the load is nearly up to a TRENCH arm: more FUEL would make it too tall to get under
+  // (only where the load can push the top up: under a net or a lid; a fixed hopper top already fits)
+  // (after it's stayed that high a moment: a FUEL tumbling in on top doesn't count)
+  loadNearTrench() { return this.loadHighT > 0.3; }
+  // deploying the intake raises the top (1678's lid rides up with the hopper extension), so it
+  // stays in near a TRENCH arm
+  get deployRaisesTop() { return !!this.cfg.bay.lift; }
 
   worldToLocalVec(x, z) {
     const c = Math.cos(this.yaw), s = Math.sin(this.yaw);

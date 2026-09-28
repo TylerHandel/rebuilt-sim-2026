@@ -1,7 +1,7 @@
 // FUEL inside a robot. Held FUEL is simulated in the robot's own frame with a light
 // position-based solver instead of full rigid bodies: gravity, the robot's acceleration and
 // rotation (so the load sloshes when it brakes or spins), soft ball-to-ball contact (FUEL is
-// foam: a spring at its measured rate, FUEL.springRate), the hopper's walls, floor and internal parts, and what the mechanisms do to it (a
+// foam: a spring that firms up as it's squeezed, fuelForce), the hopper's walls, floor and internal parts, and what the mechanisms do to it (a
 // powered floor, a rotor, a conveyor). Every ball moves on its own; nothing snaps to a slot.
 // FUEL on its way to the shooter (or back out through the intake) follows that path.
 //
@@ -14,10 +14,16 @@ import { CAPACITY_TABLE } from './capacities.js';
 
 const R = FUEL.radius;
 const D_BALL = 2 * R; // FUEL touch at a full diameter and squash (softly) past that
-const K_BALL = FUEL.springRate;
+// FUEL's spring: the force (N) it pushes back with squeezed by x (m), and its stiffness there (N/m).
+// Exponential: soft at first, firming up as the foam's cells close (constants.js FUEL).
+const X_MAX = 3 * 0.0254; // past 3in the curve is only there to stop it, not to be accurate
+export const fuelForce = (x) => (x <= 0 ? 0 : FUEL.springRate0 * FUEL.stiffen * (Math.exp(Math.min(x, X_MAX) / FUEL.stiffen) - 1));
+const fuelStiffness = (x) => FUEL.springRate0 * Math.exp(Math.min(Math.max(0, x), X_MAX) / FUEL.stiffen);
 const R_WALL = R * 0.96;
 const G = 9.81;
 const ITER = 3;
+// foam on foam: FUEL grips FUEL (rough foam skins). Higher jams spindexers (the pile bridges over them)
+const MU_FUEL = 0.5;
 const MAX_SPEED = 5;
 
 // How much FUEL a hopper holds, packed the way its intake packs it (push: how hard the intake
@@ -28,9 +34,9 @@ const capCache = new Map();
 // How hard a robot's intake shoves FUEL into its hopper: the roller grips a FUEL it squeezes
 // (intake.squeeze, in: how much smaller the gap is than a FUEL) with the foam's spring force,
 // and rubber on foam grips about as hard as it's pressed (INTAKE_GRIP). Teams squeeze FUEL
-// 3/4-1in with compliant wheels, 1/2-5/8in with rigid rollers (Chief Delphi, 2026).
+// 3/4-1in with compliant wheels, 1/2-5/8in with rigid rollers (Chief Delphi, 2026): about 60 N at 3/4in.
 const INTAKE_GRIP = 1.0;
-export const intakePush = (cfg) => INTAKE_GRIP * FUEL.springRate * (cfg.intake.squeeze ?? 0.75) * 0.0254;
+export const intakePush = (cfg) => INTAKE_GRIP * fuelForce((cfg.intake.squeeze ?? 0.75) * 0.0254);
 
 // a held FUEL's contact patches, deepest kept: e.touch holds [nx, ny, nz, w] per contact (the
 // patch is the plane w from its center, facing n)
@@ -48,8 +54,10 @@ function touch(e, nx, ny, nz, w) {
   t[4 * i] = nx; t[4 * i + 1] = ny; t[4 * i + 2] = nz; t[4 * i + 3] = w;
 }
 // a short fingerprint of a hopper and how it's filled, for the precomputed table
+// bump HOPPER_MODEL when the held-FUEL physics changes, so the precomputed capacities are remeasured
+const HOPPER_MODEL = 'exp-spring, fuel friction 0.5';
 export function capacityKey(spec, front, lift, push) {
-  const str = JSON.stringify(spec) + '|' + front.toFixed(3) + '|' + lift + '|' + push.toFixed(1);
+  const str = HOPPER_MODEL + '|' + JSON.stringify(spec) + '|' + front.toFixed(3) + '|' + lift + '|' + push.toFixed(1);
   let h = 5381;
   for (let i = 0; i < str.length; i++) h = ((h * 33) ^ str.charCodeAt(i)) >>> 0;
   return h.toString(16);
@@ -323,7 +331,7 @@ export class Hopper {
       for (let i = 0; i < 60; i++) this.step(1 / 120, env);
       let w = R;
       for (let j = 0; j < e.nTouch; j++) w = Math.min(w, e.touch[4 * j + 3]);
-      if ((D_BALL - 2 * w) * K_BALL > push * 1.25) { this.remove(e); fails++; } else { n++; fails = 0; }
+      if (fuelForce(D_BALL - 2 * w) > push * 1.25) { this.remove(e); fails++; } else { n++; fails = 0; }
     }
     return n;
   }
@@ -428,8 +436,7 @@ export class Hopper {
         // at a funnel's throat, two wheels on opposite sides spin FUEL against each other
         // (taper.spin: the side whose wheel drives FUEL in; the other's pushes it back out), so
         // two arriving abreast roll round each other and go in single file instead of wedging.
-        // (Held FUEL here has no ball-on-ball friction, so a pair can't lock up the way real
-        // foam does; the wheels only act on a pair that's actually abreast in the throat.)
+        // (The wheels only act on a pair that's actually abreast in the throat.)
         const t = s.taper;
         let k = s.grip ?? 15; // how hard the wheels grab FUEL (1/s)
         if (t && t.spin && sp && p.z * t.spin < -0.02 && this._abreast(e)) { sp = -0.5 * sp; k *= 0.5; }
@@ -474,12 +481,14 @@ export class Hopper {
     // constraints: ball-ball contact, then the hopper around them
     list.sort((a, b) => a.p.x - b.p.x);
     const n = list.length;
-    // soft contacts (XPBD): each pair pushes apart with the foam's spring rate, so a load only
-    // squashes as hard as something presses it (gravity, braking, an intake cramming FUEL in)
+    // soft contacts (XPBD): each pair pushes apart as hard as the foam does squeezed that much
+    // (fuelForce: firmer the more it's squashed), so a load only squashes as hard as something
+    // presses it (gravity, braking, an intake cramming FUEL in)
     let squeeze = 0;
     const lam = this.lam;
     lam.clear();
-    const soft = 1 / (K_BALL * dt * dt), W = 2 / FUEL.mass;
+    const W = 2 / FUEL.mass;
+    const pairs = []; // the touching pairs (last pass), for friction
     for (const e of list) e.nTouch = 0;
     for (let it = 0; it < ITER; it++) {
       for (let i = 0; i < n; i++) {
@@ -494,17 +503,22 @@ export class Hopper {
           if (a.tr && b.tr) continue;
           const d = Math.sqrt(d2) || 1e-4;
           if (it === ITER - 1) {
-            squeeze = Math.max(squeeze, (D_BALL - d) * K_BALL);
+            squeeze = Math.max(squeeze, fuelForce(D_BALL - d));
             // each is flattened halfway between the centers, for drawing it
             if (!a.tr && !b.tr) {
               touch(a, dx / d, dy / d, dz / d, d / 2);
               touch(b, -dx / d, -dy / d, -dz / d, d / 2);
+              pairs.push(a, b, i * 4096 + j);
             }
           }
           let corr = (D_BALL - d) / d; // FUEL on its way to the shooter shoves the rest aside
           if (!a.tr && !b.tr) {
-            const key = i * 4096 + j, l0 = lam.get(key) || 0;
-            const dl = Math.max(-l0, (D_BALL - d - soft * l0) / (W + soft)); // pushes, never pulls
+            // the foam's curve linearized where this contact is now: its stiffness here, and the
+            // squeeze a spring that stiff would need for the force the foam gives (for a linear
+            // spring that's just the overlap: plain XPBD)
+            const key = i * 4096 + j, l0 = lam.get(key) || 0, x = D_BALL - d;
+            const k = fuelStiffness(x), soft = 1 / (k * dt * dt);
+            const dl = Math.max(-l0, (fuelForce(x) / k - soft * l0) / (W + soft)); // pushes, never pulls
             lam.set(key, l0 + dl);
             corr = (dl * W) / d;
           }
@@ -526,6 +540,24 @@ export class Hopper {
         }
       }
     }
+    // friction between touching FUEL: a pair resists sliding past each other (position-based
+    // Coulomb friction): the sliding this step is taken back, up to MU_FUEL times how far their
+    // contact pushed them apart (how hard they're pressed together), half from each
+    for (let q = 0; q < pairs.length; q += 3) {
+      const a = pairs[q], b = pairs[q + 1], ln = lam.get(pairs[q + 2]) || 0;
+      if (ln <= 0) continue;
+      let nx = b.p.x - a.p.x, ny = b.p.y - a.p.y, nz = b.p.z - a.p.z;
+      const nd = Math.hypot(nx, ny, nz) || 1;
+      nx /= nd; ny /= nd; nz /= nd;
+      const rx = (b.p.x - b.prev.x) - (a.p.x - a.prev.x), ry = (b.p.y - b.prev.y) - (a.p.y - a.prev.y), rz = (b.p.z - b.prev.z) - (a.p.z - a.prev.z);
+      const rn = rx * nx + ry * ny + rz * nz;
+      const tx = rx - rn * nx, ty = ry - rn * ny, tz = rz - rn * nz, tl = Math.hypot(tx, ty, tz);
+      if (tl < 1e-7) continue;
+      const f = 0.5 * Math.min(1, (MU_FUEL * ln * W) / tl);
+      a.p.x += tx * f; a.p.y += ty * f; a.p.z += tz * f;
+      b.p.x -= tx * f; b.p.y -= ty * f; b.p.z -= tz * f;
+    }
+    if (pairs.length) for (const e of list) if (!e.tr) this._bounds(e.p);
     if (boxW > 0) { this.boxAt.divideScalar(boxW); this.boxForce.multiplyScalar(FUEL.mass / (dt * dt)); this.quiet = 0; }
     this.pressure = squeeze;
 

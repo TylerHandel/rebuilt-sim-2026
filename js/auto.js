@@ -82,26 +82,26 @@ export const BEST_AUTOS = {
   ] },
   // Set by reasoning, not searched: the NEUTRAL ZONE FUEL is 6 rows deep on each side of the
   // CENTER LINE (fx ~7.4-8.2) across fy 1.5-6.6, so a sweep along fy at fx 7.8 takes ~30 FUEL/m.
-  // 139: 3928 holds 100+ but its spindexer feeds ~8.5/s, so one long sweep over the BUMPS, as much
+  // 112: 3928 holds 80-120 but its spindexer feeds ~8.5/s, so one long sweep over the BUMPS, as much
   // as it can shoot before the buzzer, turret firing on the way home
   3928: { start: 'rightBump', preload: 'move', trips: [
     { out: 'bump', fx: 7.8, a: 1.6, b: 6.4, speed: 0.5, home: 'bump', shootAt: [2.6, 5.5] },
   ] },
-  // 38: 341 holds 7 and shoots while it intakes, so the DEPOT first (in the ALLIANCE ZONE, shooting
+  // 34: 341 holds 7-11 and shoots while it intakes, so the DEPOT first (in the ALLIANCE ZONE, shooting
   // all the way), then short trips under the TRENCH (intake lowered) to the nearest FUEL
   341: { start: 'leftTrench', preload: 'move', trips: [
     { depot: true, speed: 0.35 },
     { out: 'trench', fx: 7.9, a: 6.4, b: 5.6, speed: 0.5, home: 'trench', shootAt: [3.2, 6.9] },
     { out: 'trench', fx: 7.9, a: 6.4, b: 5.6, speed: 0.5, home: 'trench', shootAt: [3.2, 6.9] },
   ] },
-  // 92: 4930 holds 41 and empties it in ~2 s, so short sweeps (a full load each) over the nearest
+  // 90: 4930 holds 52 and empties it in ~2 s, so short sweeps (a full load each) over the nearest
   // BUMP, turning to face the HUB just past it
   4930: { start: 'rightBump', preload: 'stand', trips: [
     { out: 'bump', fx: 7.8, a: 1.6, b: 2.9, speed: 0.55, home: 'bump', shootAt: [2.9, 2.4] },
     { out: 'bump', fx: 7.8, a: 2.9, b: 4.0, speed: 0.55, home: 'bump', shootAt: [2.9, 2.4] },
     { out: 'bump', fx: 7.8, a: 1.6, b: 2.9, speed: 0.6, home: 'bump', shootAt: [2.9, 2.4] },
   ] },
-  // 158: 1706 holds 74 and both turrets fire ~19/s on the move, so two full-load sweeps, one on
+  // 102: 1706 holds 64 and both turrets fire ~19/s on the move, so two full-load sweeps, one on
   // each half of the line: out under the TRENCH and home over the BUMP, then back out over the BUMP
   // and home under the other TRENCH (the DEPOT after that doesn't fit in the time)
   1706: { start: 'rightTrench', preload: 'move', trips: [
@@ -267,14 +267,17 @@ export class AutoRunner {
     return steps;
   }
 
-  // whether what's left of this route passes under a TRENCH arm
+  // whether the route passes under a TRENCH arm before the robot next empties (a shoot step
+  // unloads it, so a TRENCH after that doesn't limit what it can carry now)
   _trenchAhead() {
     if (this._taI === this.i) return this._ta;
     let under = false;
     for (let k = this.i; k < this.steps.length && !under; k++) {
       const s = this.steps[k];
+      if (s.type === 'shoot') break;
       if (s.type !== 'drive') continue;
       const pts = s.pts.map(([fx, fy]) => this.P(fx, fy, s.mirror !== false));
+      if (k === this.i) pts.unshift(this.robot.pos.clone()); // from where it is now
       for (let j = 0; j + 1 < pts.length && !under; j++) {
         const a = pts[j], b = pts[j + 1], n = Math.ceil(Math.hypot(b.x - a.x, b.z - a.z) / 0.25);
         for (let q = 0; q <= n && !under; q++) under = underTrench(a.x + ((b.x - a.x) * q) / n, a.z + ((b.z - a.z) * q) / n);
@@ -290,7 +293,8 @@ export class AutoRunner {
     cmd.vx = 0; cmd.vz = 0; cmd.omega = 0;
     cmd.intake = false; cmd.shoot = false; cmd.pass = false; cmd.outtake = false;
     // an intake that stows folded up (8793's) comes down on the way under a TRENCH
-    cmd.lower = !!r.cfg.intake.fold && underTrench(r.pos.x, r.pos.z, r.halfL + 1.2);
+    // (only a robot that fits under it: the others go over the BUMPS and leave it stowed)
+    cmd.lower = !!r.cfg.intake.fold && fitsTrench(r.cfg) && underTrench(r.pos.x, r.pos.z, r.halfL + 1.2);
     if (this.done || this.i >= this.steps.length) {
       this.done = true;
       return;
@@ -347,9 +351,14 @@ export class AutoRunner {
       // arm (it would bulge the net or hold the lid up too high to get under), and if it's still
       // too tall right before the arm, stop and spit FUEL out until it fits.
       if (fitsTrench(r.cfg) && this._trenchAhead()) {
-        if (r.growTop > TRENCH.clearHeight - 0.06) cmd.intake = false;
+        // once the FUEL nears the arm's height, no more for the rest of this leg (held, so the
+        // intake doesn't bob up and down as the load settles)
+        if (r.loadNearTrench()) this.fullHold = this.i;
+        if (this.fullHold === this.i) cmd.intake = false;
+        // an intake that raises the top when it's out (1678's lid) stays in near the arm
+        if (r.deployRaisesTop && underTrench(r.pos.x, r.pos.z, Math.max(r.halfL, r.halfW) + 2.0)) cmd.intake = false;
         const ahead = [0.4, 0.8, 1.2].some((k) => d > 1e-3 && underTrench(r.pos.x + (dx / d) * k, r.pos.z + (dz / d) * k, Math.max(r.halfL, r.halfW)));
-        if (ahead && !r.fitsTrenchLowered()) { cmd.vx = 0; cmd.vz = 0; cmd.intake = false; cmd.outtake = true; cmd.shoot = false; return; }
+        if (ahead && !r.fitsTrenchLowered()) { this.fullHold = this.i; cmd.vx = 0; cmd.vz = 0; cmd.intake = false; cmd.outtake = true; cmd.shoot = false; return; }
       }
       // 'hub' = shoot on the move only once back in our ALLIANCE ZONE (don't pass the FUEL away)
       cmd.shoot = s.shoot === 'hub' ? r.lastInZone : !!s.shoot;
