@@ -158,8 +158,17 @@ For a new Claude Code session. The latest work is on branch `claude/great-hypati
 ## Done: 1678's extension and CAD
 - The extension's front panel and corner posts sat in the intake part and swung into the floor with the slapdown. They're in `1678-slide` now with the side plates, and slide straight out.
 - Their robot page: "The intake and output actuation is controlled by the slanted vertical slot on the side that interfaces with the intake plate" (the extension is driven by the intake, not independent). Travel from the geometry: the pin (0.135 m from the intake pivot) moves 0.225 m forward over the 166deg swing: `storage.extLen` 0.225 (was 0.2).
-- `bay.hw` 0.3 -> 0.34 (the walls are at +-0.35 m in their CAD; the roller floor is narrower). Holds 29 -> 63.
+- `bay.hw` 0.3 -> 0.34 (the walls are at +-0.35 m in their CAD; the roller floor is narrower). Holds 29 -> 63 (82 with the dome net, below).
 - Re-exported through STEP (`tools/step2glb.py`, `like`-matched, smooth) like 2910's, so it has no faceted round parts; the recipe excludes the Limelight's FOV cone and the Kraken motors in the body.
+
+## Done: compacting intakes, 1678 latched extension, friction fix, dumper lanes
+- 1678: the extension slides out with the first intake and stays out (`storage.extend: 'latched'`); folding the intake in compacts the load instead. The lid gets a dome net too (`bay.dome`, with the diagonal `slope`), so the load bulges it. Holds 33 -> 82.
+- Compacting intakes: `intake.compacts` with `intake.arm` ({x, y, len, stowDeg, deployDeg}: pivot and roller end, measured from each CAD) on 2910, 971, 1678, 4930 and 1706. `Robot._compactorX(deploy)` is the roller end's x, clamped to `compactMin`, and `hopper.wall` follows it, so the folding intake really touches the FUEL out over it and sweeps it in. The fold stalls on a count, not pressure (under-converged jams made pressure unreliable): `_capBehind(x)` interpolates the capacity behind a wall at x, from `geoCap.compacted` (the hopper to x1 packed at `compactPush`, 180 N) at x1 up to the full capacity at the extension's front. Compacted: 2910 61, 971 51, 1678 41, 4930 34, 1706 77 (capped at its full 73: a full 1706 folds all the way).
+- The AI keeps a compacting intake up on the way home (`opponent.js`, as 2910 did).
+- Friction between held FUEL could crush rows (3 in overlaps, 1 kN contacts): it now runs before the last contact pass (`it === ITER - 2`) with its normal force capped at `FRICTION_FN` 20 N. `HOPPER_MODEL` bumped, capacities regenerated.
+- Dumper lanes (`shooter.type: 'fixed'`, 2910 / 1678 / 4930): each FUEL goes to a random other lane, and the gap to the next is 0.5-1.5x the period, so the average rate is unchanged (2910 46/s, 1678 28, 4930 18.5).
+- 1706's spindexers (`grip` 70, `drag` 60, `spin` 16, `feed.reach` 0.18) now feed 17.6/s (was 8.2); 3928's spindexer `grip` 160, `drag` 35, `spin` -18.
+- Checks: every robot shoots 40 (or its max) dry; AUTO FUEL vs the committed code: 2910 112 -> 143, 4414 127 -> 132, 8793 55 -> 63, 971 150 -> 170, 1678 89 -> 107, 1690 78 -> 80, 4946 166 -> 163, 3928 112 -> 134, 341 34 -> 42, 4930 81 -> 98, 1706 102 -> 109. Matches (champs scorer vs a champs 2910, seed 1): 2910 689, 4414 848, 8793 361, 971 713, 1678 575, 1690 555, 4946 717, 3928 608, 341 282, 4930 585, 1706 657.
 
 ## Other open items
 - The HUB and BUMP sizes were checked against the drawing. All element positions were checked against the field CAD. The TRENCH, TOWER, DEPOT and OUTPOST *sizes* still come from the game manual, so compare them with the drawing pages above or measure them in the CAD. Note that the Block CAD bounding box puts the inside edge of the fixed TRENCH about 8 cm closer to the guardrail than `TRENCH.width` does.

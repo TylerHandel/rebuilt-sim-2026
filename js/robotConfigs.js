@@ -298,7 +298,16 @@ export const ROBOTS = {
     drive: { ratio: 7.03 },
     // 4-bar ground intake under the hopper's front (their CAD: the beater tube folds up inside the
     // hopper, and deploying it pushes the hopper out)
-    intake: { width: 29 * IN, reach: 0.18, rate: 200, pull: 5, deployTime: 0.35, side: 'front', latched: false },
+    // Folding back in, the beater sweeps the FUEL in the extension back into the hopper
+    // (compacts) and stalls against the load when it can't squeeze more (compactPush, an
+    // estimate). arm: the 4-bar's pivot and the beater's reach and angle, folded up (as exported)
+    // and down on the carpet (their CAD); compactMin: the hopper's fixed front (past that the
+    // beater is up over the load).
+    intake: {
+      width: 29 * IN, reach: 0.18, rate: 200, pull: 5, deployTime: 0.35, retractTime: 0.8, side: 'front', latched: false,
+      compacts: true, compactPush: 180, compactMin: 0.34,
+      arm: { x: 0.217, y: 0.143, len: 0.3065, stowDeg: 118.2, deployDeg: -9.4 },
+    },
     storage: { extLen: 0.28, extend: 'latched' },
     // the hopper as the FUEL sees it (their CAD): polycarbonate walls to 0.54 m, 0.7 m apart; the
     // roller floor slopes down to the back wall, under which the separator and kicker take FUEL
@@ -354,12 +363,23 @@ export const ROBOTS = {
     // full-width slapdown: 2in silicone roller + 1.25in kicker bar, pivot at the front
     // a 2in silicone-covered carbon fiber roller (their reveal): rigid, so it squeezes FUEL a
     // little less than compliant wheels do (hopper.js intakePush)
-    intake: { width: 25 * IN, reach: 0.1, rate: 200, pull: 5, deployTime: 0.3, side: 'front', latched: false, squeeze: 0.6 },
-    // the horizontal extension (polycarbonate sides, a corrugated front) slides straight out with
-    // the intake: a pin on the intake plate rides a slanted vertical slot in the side plates (their
-    // robot page and CAD), so as the intake swings down it pushes the extension forward. The pin
+    // Folding back in, it sweeps the FUEL in the extension back into the hopper (compacts), and
+    // stalls against the load when it can't squeeze more (compactPush, an estimate). arm: its
+    // pivot and the 2in roller's reach and angle, stowed (folded up inside the hopper, as exported)
+    // and down on the carpet (their CAD); compactMin: it only pushes FUEL back as far as the front
+    // of the frame (past that it's up over the load).
+    intake: {
+      width: 25 * IN, reach: 0.1, rate: 200, pull: 5, deployTime: 0.3, retractTime: 0.9, side: 'front', latched: false, squeeze: 0.6,
+      compacts: true, compactPush: 180, compactMin: 0.33,
+      arm: { x: 0.254, y: 0.194, len: 0.259, stowDeg: 127, deployDeg: -39 },
+    },
+    // the horizontal extension (polycarbonate sides, a corrugated front) slides straight out: a pin
+    // on the intake plate rides a slanted vertical slot in the side plates (their robot page and
+    // CAD), so the intake swinging down pushes the extension forward. The pin
     // is 0.135 m from the intake pivot; the 166deg swing carries it 0.225 m forward.
-    storage: { extLen: 0.225, extend: 'intake' },
+    // It comes out with the first intake and stays out (the intake folding back in doesn't pull
+    // it back).
+    storage: { extLen: 0.225, extend: 'latched' },
     // their CAD: roller floor (dead-axle rollers, then flex wheels) sloping down to the ball
     // tunnel at the back; the lid (corrugated plastic on the climber tubes) sits at 0.52 m and
     // lifts lift.h with the climber (it comes back down under the TRENCH); over the extension the
@@ -369,6 +389,8 @@ export const ROBOTS = {
       lift: { h: 0.2 },
       // the net from the lid's front edge down to the front of the extension
       slope: { x: 0.335, y: 0.5 },
+      // and it stretches: the load bulges it up and out over the extension
+      dome: { h: 0.25, x0: 0.335, cx: 0, cz: 0, rHole: -1 },
       floor: { a: 0.157, b: 0.3, lo: 0.12, hi: 0.23 },
       drive: 'floor', driveSpeed: 2.4,
       // up the ball tunnel (active backing rollers) to the drum
@@ -615,8 +637,13 @@ export const ROBOTS = {
     // "Intake V2" (their CAD): polycarbonate side plates and rollers on an arm pivoting at the
     // front of the frame, with its own belt floor. Stowed it swings up in front of the shooters.
     // fold.hull: its side outline round the pivot (m, x forward, y up), deployed.
+    // Folding up, it sweeps the FUEL over the intake back into the hopper (compacts) and stalls
+    // against the load when it can't squeeze more (compactPush, an estimate); arm: its roller's
+    // reach and angle about the pivot, down and folded up.
     intake: {
-      width: 28 * IN, reach: 0.2, rate: 200, pull: 5, deployTime: 0.35, side: 'front', latched: false,
+      width: 28 * IN, reach: 0.2, rate: 200, pull: 5, deployTime: 0.35, retractTime: 0.8, side: 'front', latched: false,
+      compacts: true, compactPush: 180, compactMin: 0.33,
+      arm: { x: 0.2355, y: 0.2005, len: 0.401, stowDeg: 67.3, deployDeg: -22.7 },
       fold: {
         pivot: [0.2355, 0.2005], stowDeg: 90,
         hull: [[-0.03, 0.02], [0.2, 0.17], [0.37, 0.17], [0.39, 0.0], [0.39, -0.13], [0.35, -0.16], [0.02, -0.16], [-0.03, -0.05]],
@@ -671,7 +698,14 @@ export const ROBOTS = {
     drive: { ratio: 6.75 },
     // rollers on an arm that folds up inside the hopper (as exported) and swings out over the
     // bumper about a pivot low in the frame; deploying it pushes the hopper box out
-    intake: { width: 26 * IN, reach: 0.1, rate: 200, pull: 5, deployTime: 0.35, side: 'front', latched: false },
+    // Folding back in, the rollers sweep the FUEL over the bumper back into the hopper (compacts)
+    // and stall against the load when it can't squeeze more (compactPush, an estimate). arm: the
+    // pivot and the bottom roller's reach and angle, folded up (as exported) and down (their CAD).
+    intake: {
+      width: 26 * IN, reach: 0.1, rate: 200, pull: 5, deployTime: 0.35, retractTime: 0.8, side: 'front', latched: false,
+      compacts: true, compactPush: 180, compactMin: 0.318,
+      arm: { x: 0.149, y: 0.127, len: 0.322, stowDeg: 89.8, deployDeg: -14.2 },
+    },
     storage: { extLen: 0.15, extend: 'intake' },
     // their CAD: walls to 0.548 m round two spindexers side by side (flat discs, r 0.138 m, 0.16 m
     // up) with a hub over each; the floor slopes down into them from the corners. Each spindexer

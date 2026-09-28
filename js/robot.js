@@ -72,6 +72,9 @@ export class Robot {
     // retracted: hopper in and any lid (1678's, on the climber) down
     this.intakePush = intakePush(cfg); // N: how hard the intake shoves FUEL into the hopper
     this.geoCap = { retracted: measureCapacity(cfg.bay, cfg.bay.x1, 0, this.intakePush), extended: measureCapacity(cfg.bay, cfg.bay.x1 + ext, 1, this.intakePush) };
+    // a compacting intake folding in crams the load harder than the roller packs it (compactPush):
+    // what the hopper holds without its extension, packed that hard
+    if (cfg.intake.compacts) this.geoCap.compacted = Math.max(this.geoCap.retracted, measureCapacity(cfg.bay, cfg.bay.x1, 0, cfg.intake.compactPush ?? this.intakePush));
     this._createBody();
     this.reset();
   }
@@ -309,11 +312,23 @@ export class Robot {
 
   maxCapacity() { return this.geoCap.extended; }
 
-  // how far forward the retracting intake arm reaches into the hopper (its roller)
-  _compactorX() {
+  // how far forward the retracting intake arm reaches into the hopper (its roller), at a deploy
+  // fraction; a compacting intake only sweeps FUEL back as far as intake.compactMin
+  _compactorX(dep = this.intakeDeploy) {
     const a = this.cfg.intake.arm;
-    const deg = a.stowDeg + (a.deployDeg - a.stowDeg) * this.intakeDeploy;
-    return a.x + a.len * Math.cos(deg * DEG);
+    const deg = a.stowDeg + (a.deployDeg - a.stowDeg) * dep;
+    return Math.max(a.x + a.len * Math.cos(deg * DEG), this.cfg.intake.compactMin ?? -Infinity);
+  }
+
+  // How much FUEL fits behind a compacting intake whose roller is at x: all of it up to the
+  // hopper's front; between the fixed front (x1) and there, from the compacted capacity up; past
+  // x1 (2910's arm stows inside the hopper), in proportion to the room left
+  _capBehind(x) {
+    const b = this.cfg.bay, g = this.geoCap, front = this.bayFront(), full = this.capacity();
+    const c = Math.min(full, g.compacted ?? g.retracted);
+    if (x >= front) return full;
+    if (x >= b.x1) return c + ((full - c) * (x - b.x1)) / Math.max(0.01, front - b.x1);
+    return (c * Math.max(0, x - b.x0)) / Math.max(0.01, b.x1 - b.x0);
   }
 
   // front of the hopper right now (an extending hopper moves it forward)
@@ -343,7 +358,9 @@ export class Robot {
     // follow the intake. Either way the hopper can't close on FUEL that needs the room.
     let want = st.extend === 'latched' ? (this.hopperDeploy > 0.02 || this.intakeDeploy > 0.3 ? 1 : 0) : this.intakeDeploy;
     const gc = this.geoCap;
-    const need = Math.min(1, Math.max(0, (this.stored.length - gc.retracted) / Math.max(1, gc.extended - gc.retracted)));
+    // (a compacting intake crams the load into the fixed part harder: gc.compacted)
+    const inFixed = gc.compacted ?? gc.retracted;
+    const need = Math.min(1, Math.max(0, (this.stored.length - inFixed) / Math.max(1, gc.extended - inFixed)));
     want = Math.max(want, need);
     if (on || want < this.hopperDeploy) this.hopperDeploy = approach(this.hopperDeploy, want, dt / 0.45);
     if (!this.hopperCollider) return;
@@ -549,7 +566,8 @@ export class Robot {
     const bay = this.cfg.bay, lift = bay.lift;
     let loadTop = 0;
     for (const e of this.hopper.list) if (!e.tr) loadTop = Math.max(loadTop, e.p.y + R);
-    if (lift) this.hopper.liftScale = Math.max(this.hopperDeploy, clamp((loadTop - 0.01 - bay.top) / lift.h, 0, 1));
+    // (the lid rides up with the intake, 1678's: its climber lifts it while the intake is down)
+    if (lift) this.hopper.liftScale = Math.max(this.intakeDeploy, clamp((loadTop - 0.01 - bay.top) / lift.h, 0, 1));
     // topLoad: the top with the intake down; topY: the true top, with a folded intake as it is now
     // growTop: the part that grows with the load (a net it bulges up, a lid it holds up), 0 if none
     this.growTop = lift ? bay.top + lift.h * this.hopper.liftScale + 0.01 : bay.dome ? loadTop + 0.005 : 0;
@@ -600,10 +618,12 @@ export class Robot {
     if (on && this.cmd.outtake) want = true;
     // a folding intake whose rollers hold FUEL (8793's, 341's: the space over the deployed arm is
     // part of the ball path) stays down while that FUEL has nowhere else to go
-    if (ic.fold && this.cfg.storage.extend === 'intake' && this.stored.length > this.geoCap.retracted) want = true;
+    if (ic.fold && !ic.compacts && this.cfg.storage.extend === 'intake' && this.stored.length > this.geoCap.retracted) want = true;
     const next = approach(this.intakeDeploy, want ? 1 : 0, dt / (want ? ic.deployTime : ic.retractTime ?? ic.deployTime));
     // a compacting intake pushes on the load as it comes in, and stalls while it can't squeeze more
-    if (!(ic.compacts && next < this.intakeDeploy && this.hopper.pressure > (ic.compactPush ?? this.intakePush))) this.intakeDeploy = next;
+    // folding in, it pushes the FUEL in front of it back into the hopper; it stalls where the load
+    // behind it is packed as hard as it can squeeze (compactPush)
+    if (!(ic.compacts && next < this.intakeDeploy && this.stored.length > this._capBehind(this._compactorX(next)))) this.intakeDeploy = next;
     this.hopper.wall = ic.compacts ? this._compactorX() : Infinity;
     this._hopper(dt, on);
     const deployed = this.intakeDeploy > 0.85;
@@ -861,10 +881,16 @@ export class Robot {
 
     // feed
     const period = 1 / sh.bps;
-    this.feedTimer = Math.min(this.feedTimer + dt, period * 1.5);
+    // a fixed shooter's lanes each go when their FUEL gets there: the gaps vary (random, 0.5-1.5x
+    // the period, the same rate on average); a single stream keeps its beat
+    if (!this.nextPeriod) this.nextPeriod = period;
+    this.feedTimer = Math.min(this.feedTimer + dt, period * 2);
     if (wantShoot && ready && has && this.shot) {
-      // same rate as ever: one FUEL starts up the feed path every period
-      while (this.feedTimer >= period && this._startFeed()) this.feedTimer -= period;
+      // one FUEL starts up the feed path every period
+      while (this.feedTimer >= this.nextPeriod && this._startFeed()) {
+        this.feedTimer -= this.nextPeriod;
+        this.nextPeriod = sh.type === 'fixed' ? period * (0.5 + Math.random()) : period;
+      }
       this.feeding = 1;
     }
     if (this.hopper.list.some((e) => e.tr && e.tr.feed && e.tr.t < e.tr.T)) this.feeding = 1;
@@ -974,7 +1000,13 @@ export class Robot {
       for (let k = 0; k < n && ti < 0; k++) { const i = (this.lane + k) % n; if (this.tws[i].ok) { ti = i; this.lane = i; } }
       if (ti < 0) return false;
     }
-    if (sh.type === 'fixed') laneZ = sh.lanes[this.lane % sh.lanes.length];
+    // a fixed shooter's lanes don't take turns in a perfect order: whichever lane's FUEL gets to
+    // its wheels first goes (random, never the same lane twice running)
+    if (sh.type === 'fixed') {
+      const n = sh.lanes.length, prev = this.lane % n;
+      this.lane = n > 1 ? (prev + 1 + Math.floor(Math.random() * (n - 1))) % n : 0;
+      laneZ = sh.lanes[this.lane];
+    }
     else if (f.zs) laneZ = f.zs[ti]; // twin turrets: each has its own side of the separator
     const fp = new THREE.Vector3(f.x, this.hopper.floorAt(f.x, laneZ) + R, laneZ);
     let best = null, bd = Infinity;
@@ -986,7 +1018,7 @@ export class Robot {
     if (!best) return false;
     // a single-file indexer only takes the FUEL that's got to it (the conveyor brings the rest)
     if (f.reach && bd > f.reach * f.reach) return false;
-    this.lane++;
+    if (sh.type !== 'fixed') this.lane++;
     const via = (f.vias ? f.vias[ti] : f.via).map(([x, y, z]) => new THREE.Vector3(x, y, z ?? laneZ));
     const end = sh.type === 'fixed'
       ? () => new THREE.Vector3(sh.exit.x, sh.exit.y, laneZ)

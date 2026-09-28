@@ -24,6 +24,7 @@ const G = 9.81;
 const ITER = 3;
 // foam on foam: FUEL grips FUEL (rough foam skins). Higher jams spindexers (the pile bridges over them)
 const MU_FUEL = 0.5;
+const FRICTION_FN = 20; // N: friction grips up to about this much pressing (the weight of ~10 FUEL)
 const MAX_SPEED = 5;
 
 // How much FUEL a hopper holds, packed the way its intake packs it (push: how hard the intake
@@ -55,7 +56,7 @@ function touch(e, nx, ny, nz, w) {
 }
 // a short fingerprint of a hopper and how it's filled, for the precomputed table
 // bump HOPPER_MODEL when the held-FUEL physics changes, so the precomputed capacities are remeasured
-const HOPPER_MODEL = 'exp-spring, fuel friction 0.5';
+const HOPPER_MODEL = 'exp-spring, fuel friction 0.5 capped 20N, friction before last pass';
 export function capacityKey(spec, front, lift, push) {
   const str = HOPPER_MODEL + '|' + JSON.stringify(spec) + '|' + front.toFixed(3) + '|' + lift + '|' + push.toFixed(1);
   let h = 5381;
@@ -181,6 +182,7 @@ export class Hopper {
     this.front = spec.x1;
     this.wall = Infinity; // a mechanism sweeping in from the front (2910's intake compacting)
     this.pressure = 0;    // how hard the load is squeezed (hardest ball-to-ball contact, N)
+    this.wallPressure = 0; // the same, just behind a compacting intake (Hopper.wall)
     this.lam = new Map(); // contact impulses, per step (soft contacts)
     this.quiet = 0;
     this.finAngle = 0; // Dye Rotor: how far it has turned (where the Dolphin Fin is, robot frame, about +y)
@@ -484,7 +486,7 @@ export class Hopper {
     // soft contacts (XPBD): each pair pushes apart as hard as the foam does squeezed that much
     // (fuelForce: firmer the more it's squashed), so a load only squashes as hard as something
     // presses it (gravity, braking, an intake cramming FUEL in)
-    let squeeze = 0;
+    let squeeze = 0, wallSqueeze = 0;
     const lam = this.lam;
     lam.clear();
     const W = 2 / FUEL.mass;
@@ -504,13 +506,15 @@ export class Hopper {
           const d = Math.sqrt(d2) || 1e-4;
           if (it === ITER - 1) {
             squeeze = Math.max(squeeze, fuelForce(D_BALL - d));
+            // what a compacting intake (the moving wall) feels: the contacts right behind it
+            if (this.wall < this.front && Math.max(a.p.x, b.p.x) > this.wall - D_BALL - R) wallSqueeze = Math.max(wallSqueeze, fuelForce(D_BALL - d));
             // each is flattened halfway between the centers, for drawing it
             if (!a.tr && !b.tr) {
               touch(a, dx / d, dy / d, dz / d, d / 2);
               touch(b, -dx / d, -dy / d, -dz / d, d / 2);
-              pairs.push(a, b, i * 4096 + j);
             }
           }
+          if (it === 0 && !a.tr && !b.tr) pairs.push(a, b, i * 4096 + j);
           let corr = (D_BALL - d) / d; // FUEL on its way to the shooter shoves the rest aside
           if (!a.tr && !b.tr) {
             // the foam's curve linearized where this contact is now: its stiffness here, and the
@@ -528,6 +532,28 @@ export class Hopper {
           b.p.x += cx * kb; b.p.y += cy * kb; b.p.z += cz * kb;
         }
       }
+      if (it === ITER - 2) {
+        // friction between touching FUEL, before the last pass (so contacts get the last word and
+        // friction can't crush a row): a pair resists sliding past each other (position-based
+        // Coulomb friction): the sliding this step is taken back, up to MU_FUEL times how far their
+        // contact has pushed them apart so far (how hard they're pressed together), half from each
+        for (let q = 0; q < pairs.length; q += 3) {
+          const a = pairs[q], b = pairs[q + 1], ln = lam.get(pairs[q + 2]) || 0;
+          if (ln <= 0) continue;
+          let nx = b.p.x - a.p.x, ny = b.p.y - a.p.y, nz = b.p.z - a.p.z;
+          const nd = Math.hypot(nx, ny, nz) || 1;
+          nx /= nd; ny /= nd; nz /= nd;
+          const rx = (b.p.x - b.prev.x) - (a.p.x - a.prev.x), ry = (b.p.y - b.prev.y) - (a.p.y - a.prev.y), rz = (b.p.z - b.prev.z) - (a.p.z - a.prev.z);
+          const rn = rx * nx + ry * ny + rz * nz;
+          const tx = rx - rn * nx, ty = ry - rn * ny, tz = rz - rn * nz, tl = Math.hypot(tx, ty, tz);
+          if (tl < 1e-7) continue;
+          // (up to what the load's own weight presses, FRICTION_FN: balls roll past each other
+          // where they're jammed hard, so a crushed chain still relaxes rather than locking up)
+          const f = 0.5 * Math.min(1, (MU_FUEL * Math.min(ln, FRICTION_FN * dt * dt) * W) / tl);
+          a.p.x += tx * f; a.p.y += ty * f; a.p.z += tz * f;
+          b.p.x -= tx * f; b.p.y -= ty * f; b.p.z -= tz * f;
+        }
+      }
       for (const e of list) if (!e.tr) this._bounds(e.p);
       if (boxes) {
         for (const e of list) {
@@ -540,26 +566,9 @@ export class Hopper {
         }
       }
     }
-    // friction between touching FUEL: a pair resists sliding past each other (position-based
-    // Coulomb friction): the sliding this step is taken back, up to MU_FUEL times how far their
-    // contact pushed them apart (how hard they're pressed together), half from each
-    for (let q = 0; q < pairs.length; q += 3) {
-      const a = pairs[q], b = pairs[q + 1], ln = lam.get(pairs[q + 2]) || 0;
-      if (ln <= 0) continue;
-      let nx = b.p.x - a.p.x, ny = b.p.y - a.p.y, nz = b.p.z - a.p.z;
-      const nd = Math.hypot(nx, ny, nz) || 1;
-      nx /= nd; ny /= nd; nz /= nd;
-      const rx = (b.p.x - b.prev.x) - (a.p.x - a.prev.x), ry = (b.p.y - b.prev.y) - (a.p.y - a.prev.y), rz = (b.p.z - b.prev.z) - (a.p.z - a.prev.z);
-      const rn = rx * nx + ry * ny + rz * nz;
-      const tx = rx - rn * nx, ty = ry - rn * ny, tz = rz - rn * nz, tl = Math.hypot(tx, ty, tz);
-      if (tl < 1e-7) continue;
-      const f = 0.5 * Math.min(1, (MU_FUEL * ln * W) / tl);
-      a.p.x += tx * f; a.p.y += ty * f; a.p.z += tz * f;
-      b.p.x -= tx * f; b.p.y -= ty * f; b.p.z -= tz * f;
-    }
-    if (pairs.length) for (const e of list) if (!e.tr) this._bounds(e.p);
     if (boxW > 0) { this.boxAt.divideScalar(boxW); this.boxForce.multiplyScalar(FUEL.mass / (dt * dt)); this.quiet = 0; }
     this.pressure = squeeze;
+    this.wallPressure = wallSqueeze; // how hard the load pushes back on a compacting intake
 
     for (const e of list) {
       if (e.tr) continue;
