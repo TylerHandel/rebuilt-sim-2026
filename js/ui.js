@@ -66,8 +66,8 @@ const OPTIONS = [
   { key: 'oppSkill', label: 'Opponent skill', values: SKILL_ORDER.map((k) => [k, OPP_SKILLS[k].name]), descFn: (s) => OPP_SKILLS[s.oppSkill].desc },
   {
     key: 'driver', label: 'Your robot driven by',
-    values: [['human', 'You'], ['scorer', 'AI Scorer (watch)'], ['defense', 'AI Defense (watch)'], ['hybrid', 'AI Hybrid (watch)']],
-    desc: 'Watch mode: an AI drives your robot in TELEOP (AUTO still runs your auto routine). Pair it with an opponent to watch AI vs AI.',
+    values: [['human', 'You'], ['scorer', 'AI Scorer (watch)'], ['defense', 'AI Defense (watch)'], ['hybrid', 'AI Hybrid (watch)'], ['nn', 'Neural net (watch)']],
+    desc: 'Watch mode: an AI drives your robot in TELEOP (AUTO still runs your auto routine; the neural net drives AUTO too). Pair it with an opponent to watch AI vs AI.',
   },
   { key: 'driverSkill', label: 'Your AI skill', values: SKILL_ORDER.map((k) => [k, OPP_SKILLS[k].name]), descFn: (s) => 'Only used in watch mode. ' + OPP_SKILLS[s.driverSkill].desc },
 ];

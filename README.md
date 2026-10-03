@@ -162,6 +162,18 @@ Each side of `npm run match` is `strategy:skill:robot`. Training options:
 
 A match takes about 30 s of CPU, so more cores train faster.
 
+## Neural-net driver (end-to-end)
+
+The self-play trainer above tunes the scripted AI's strategy values. The neural-net driver takes a different approach: a neural network drives the robot directly, like you with a controller. Ten times a second it chooses the movement, rotation, intake, shoot, pass and outtake, for the whole match.
+
+- **Setup (Windows):** run `nn-setup.bat` once. It installs PyTorch for your NVIDIA GPU.
+- **Train:** run `nn-train.bat`. It uses every CPU thread for simulation and the GPU for learning. Ctrl+C saves; `--resume` continues.
+- **Watch progress:** `nn-dashboard.bat` opens a live chart page.
+- **Play with it:** in the menu set **Your robot driven by → Neural net (watch)**, or **Opponent → Neural net**.
+- **Start from your own driving:** every full match you drive is recorded for it. Download the recordings from **AI TUNING** and train with `nn-train.bat --bc recordings`.
+
+Details, hardware use and expected training times: [tools/nn/README.md](tools/nn/README.md).
+
 ## The robots
 
 | | 2910 Jack in the Bot "Re•Blitz" | 4414 HighTide "RIPCURRENT" | 8793 Pumpkin Bots |
@@ -299,7 +311,11 @@ js/main.js                  game loop
 serve.py                    local server
 tools/train.mjs             self-play trainer (Node); tools/match.mjs runs one headless match
 tools/headless.mjs          headless match runner; tools/node-env.mjs + resolve-hook.mjs load the game in Node
+js/nn/                      neural-net driver: observations, policy (plain-JS MLP), in-game driver, recorder
+tools/nn/                   neural-net trainer (train.py, PyTorch) and its simulation worker (worker.mjs)
+nn.html                     neural-net training dashboard
 start.bat / start.command   double-click launchers (Windows / macOS)
+nn-setup.bat, nn-train.bat, nn-dashboard.bat   neural-net setup / training / dashboard (Windows)
 ```
 
 To tune a robot, edit `js/robotConfigs.js`: speed, capacity, BPS, hood range, exit speed and accuracy.

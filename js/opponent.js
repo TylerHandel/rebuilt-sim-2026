@@ -20,8 +20,9 @@ export const OPP_STRATEGIES = {
   scorer: { name: 'Scorer', desc: 'Runs its own cycles: collects FUEL, stages when its HUB is inactive and shoots on the move when it is active.' },
   defense: { name: 'Defense', desc: 'Blocks your path to your HUB and pushes you while you shoot. Backs off before a 3 s PIN (G418).' },
   hybrid: { name: 'Hybrid', desc: 'Shift-aware: plays defense while only your HUB is active and scores whenever its own HUB is active.' },
+  nn: { name: 'Neural net', desc: 'The neural-network driver trained with tools/nn/train.py (js/nn/driver.json). It drives the whole match, AUTO included.' },
 };
-export const OPP_ORDER = ['off', 'scorer', 'defense', 'hybrid'];
+export const OPP_ORDER = ['off', 'scorer', 'defense', 'hybrid', 'nn'];
 
 // Trainable strategy parameters: range searched by the trainer and the hand-tuned default
 export const BRAIN_SPEC = {

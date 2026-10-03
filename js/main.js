@@ -6,6 +6,8 @@ import { OpponentAI } from './opponent.js';
 import { createGame, stepGame, frameGame } from './game.js';
 import { AutoEditor } from './editor.js';
 import { Learner, DrivingRecorder } from './learning.js';
+import { NNRecorder } from './nn/recorder.js';
+import { Policy } from './nn/policy.js';
 import { TuningScreen } from './tuning.js';
 import { loadCadModels } from './cadModels.js';
 import { Input } from './input.js';
@@ -58,6 +60,14 @@ const fuel = new FuelManager(physics, scene, field);
 loadCadModels(scene, field).then((l) => { if (l.length) console.info('CAD loaded:', l.join(', ')); });
 fuel.stage(8);
 const input = new Input();
+
+// the neural-network driver, reloaded after every match so a running training session's
+// latest network is picked up without refreshing the page
+let nnPolicy = null, nnError = '';
+async function loadNN() {
+  try { nnPolicy = await Policy.load('js/nn/driver.json'); nnError = ''; } catch (e) { nnError = String(e.message || e); }
+}
+loadNN();
 const rig = new CameraRig(camera);
 const settings = loadSettings();
 const world = { physics, scene, field, fuel };
@@ -140,7 +150,16 @@ function matchSettings() {
   const role = settings.role === 'defense' ? 'defense' : 'score';
   const training = settings.mode === 'training';
   if (role === 'defense') eff.opponent = 'scorer'; // you defend, it scores
-  else if (training && eff.opponent === 'off') eff.opponent = 'hybrid';
+  else if (training && (eff.opponent === 'off' || eff.opponent === 'nn')) eff.opponent = 'hybrid';
+  // neural-network driver (js/nn/driver.json from tools/nn/train.py)
+  for (const [k, pk] of [['driver', 'driverPolicy'], ['opponent', 'oppPolicy']]) {
+    if (eff[k] !== 'nn') continue;
+    if (nnPolicy) eff[pk] = nnPolicy;
+    else {
+      eff[k] = 'scorer';
+      ui.toast(`No trained neural net found (js/nn/driver.json${nnError ? ': ' + nnError : ''}) — using the Scorer AI`, 'foul');
+    }
+  }
   let cand = null;
   if (training) {
     cand = learner.candidate(role);
@@ -159,6 +178,7 @@ function startMatch() {
   game.defenseTarget = learner.defenseAverage();
   game.training = training ? { cand, number: learner.s.matches + 1 } : null;
   game.recorder = eff.driver === 'human' ? new DrivingRecorder(game) : null;
+  game.nnRecorder = eff.driver === 'human' ? new NNRecorder(game) : null;
   const alliance = settings.alliance;
   rig.alliance = alliance;
   rig.ds = settings.ds;
@@ -231,11 +251,14 @@ function handleGameInput(inp, dt) {
 function stepSim(dt) {
   stepGame(game, world, dt);
   if (game.recorder) game.recorder.step(dt);
+  if (game.nnRecorder) game.nnRecorder.step(dt);
 }
 
 // final buzzer: remember how you drove, and let the AI learn from the match in Training mode
 function finishMatch() {
   const obs = game.recorder ? game.recorder.finish() : null;
+  loadNN();
+  if (game.nnRecorder) game.nnRecorder.finish().then((n) => { if (n) ui.toast('Driving recorded for the neural net (AI TUNING → download)', 'info'); });
   if (obs) learner.addDemo(obs);
   if (game.training && game.opp) {
     const me = game.robot.alliance, m = game.match;

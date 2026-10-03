@@ -3,6 +3,7 @@
 import { BRAIN_SPEC, DEFAULT_BRAIN } from './opponent.js';
 import { TRAINED_BRAIN } from './trainedBrain.js';
 import { KEYS, EXPLORE_LEVELS, IMITATE_LEVELS } from './learning.js';
+import { NNDemos } from './nn/recorder.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -15,6 +16,8 @@ const BUTTONS = [
   ['import', 'Import JSON / trainedBrain.js…'],
   ['clearDemo', 'Clear my driving data'],
   ['clearStats', 'Reset training record'],
+  ['nnExport', 'Download my driving for the neural net'],
+  ['nnClear', 'Clear neural-net recordings'],
   ['done', 'Done'],
 ];
 const ROWS = [...KEYS, 'explore', 'imitate', ...BUTTONS.map((b) => b[0])];
@@ -44,7 +47,12 @@ export class TuningScreen {
     };
   }
 
-  show() { this.open = true; this.msg = ''; this.render(); }
+  show() {
+    this.open = true;
+    this.msg = '';
+    this.render();
+    NNDemos.summary().then((s) => { this.nn = s; this.render(); });
+  }
   close() { this.open = false; this.onClose(); }
 
   handleInput(inp) {
@@ -100,6 +108,14 @@ export class TuningScreen {
       }
       case 'clearDemo': L.clearDemo(); this.msg = 'Your recorded driving was cleared.'; break;
       case 'clearStats': L.resetStats(); this.msg = 'Training record reset (the brain is unchanged).'; break;
+      case 'nnExport': {
+        const sum = await NNDemos.summary();
+        if (!sum.matches) { this.msg = 'No driving recorded for the neural net yet: play full matches yourself first (each one is saved at the final buzzer).'; break; }
+        download(`rebuilt-driving-${new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-')}.json`, await NNDemos.exportText(), 'application/json');
+        this.msg = `Downloaded ${sum.matches} matches (${sum.minutes.toFixed(1)} min). Put the file in the repo's recordings/ folder and run: python tools/nn/train.py --bc recordings`;
+        break;
+      }
+      case 'nnClear': await NNDemos.clear(); this.nn = await NNDemos.summary(); this.msg = 'Neural-net recordings cleared.'; break;
       case 'done': this.close(); return;
       default: this._change(row, 1); return;
     }
@@ -135,7 +151,8 @@ export class TuningScreen {
         html += `<div class="opt ${f}" data-row="${k}"><span class="ol">${label}</span><span class="ov"><span class="arr">◀</span>${cur}<span class="arr">▶</span></span></div>`;
       } else {
         if (k === BUTTONS[0][0]) html += `<div class="tuMsg">${this.msg}</div><div class="tuBtns">`;
-        const label = BUTTONS.find((b) => b[0] === k)[1];
+        let label = BUTTONS.find((b) => b[0] === k)[1];
+        if (k === 'nnExport' && this.nn) label += ` (${this.nn.matches} matches, ${this.nn.minutes.toFixed(1)} min)`;
         html += `<div class="btn ${k === 'done' ? '' : 'secondary'} small ${f}" data-row="${k}">${label}</div>`;
         if (k === 'done') html += '</div>';
       }

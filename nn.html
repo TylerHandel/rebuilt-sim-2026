@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Neural Net Training</title>
+<style>
+  :root {
+    color-scheme: light;
+    --surface-0: #f4f4f1; --surface-1: #fcfcfb; --border: #e2e1dc;
+    --text-primary: #0b0b0b; --text-secondary: #52514e; --text-muted: #8a8984;
+    --grid: #ecebe7; --series-1: #2a78d6; --series-2: #eb6834; --good: #1a7f37;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --surface-0: #111110; --surface-1: #1a1a19; --border: #2e2e2c;
+      --text-primary: #ffffff; --text-secondary: #c3c2b7; --text-muted: #8b8a82;
+      --grid: #262624; --series-1: #3987e5; --series-2: #d95926; --good: #4cc26a;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --surface-0: #111110; --surface-1: #1a1a19; --border: #2e2e2c;
+    --text-primary: #ffffff; --text-secondary: #c3c2b7; --text-muted: #8b8a82;
+    --grid: #262624; --series-1: #3987e5; --series-2: #d95926; --good: #4cc26a;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--surface-0); color: var(--text-primary); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 1100px; margin: 0 auto; padding: 24px 16px 48px; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .sub { color: var(--text-secondary); margin: 0 0 20px; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 16px; }
+  .tile, .card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+  .tile .k { color: var(--text-secondary); font-size: 12px; }
+  .tile .v { font-size: 26px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 12px; margin-bottom: 12px; }
+  .card h2 { font-size: 14px; margin: 0 0 2px; }
+  .card .note { color: var(--text-muted); font-size: 12px; margin: 0 0 8px; }
+  .chart { position: relative; height: 220px; }
+  .chart svg { width: 100%; height: 100%; display: block; overflow: visible; }
+  .tip { position: absolute; pointer-events: none; background: var(--surface-1); border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px; font-size: 12px; white-space: nowrap; display: none; box-shadow: 0 2px 8px rgb(0 0 0 / .15); }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); }
+  th { color: var(--text-secondary); font-weight: 500; font-size: 12px; }
+  td.num, th.num { text-align: right; }
+  .bar { height: 8px; border-radius: 4px; background: var(--series-1); }
+  .barbg { background: var(--grid); border-radius: 4px; width: 120px; display: inline-block; vertical-align: middle; }
+  .muted { color: var(--text-muted); }
+  .err { color: var(--series-2); }
+  select { font: inherit; background: var(--surface-1); color: var(--text-primary); border: 1px solid var(--border); border-radius: 6px; padding: 2px 6px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Neural net training</h1>
+  <p class="sub">Live progress of <code>tools/nn/train.py</code>. Refreshes every 10 s. Run <select id="run"></select> <span id="status" class="muted"></span></p>
+  <div class="tiles" id="tiles"></div>
+  <div class="grid2">
+    <div class="card"><h2>Points per match</h2><p class="note">The network's own score, averaged per update (FUEL, plus fouls by the other robot)</p><div class="chart" id="cPts"></div></div>
+    <div class="card"><h2>Simulation speed</h2><p class="note">Decisions per second across all workers (10 per robot per match-second)</p><div class="chart" id="cSps"></div></div>
+  </div>
+  <div class="card"><h2>Against each opponent</h2><p class="note">Last 5 updates. An opponent level unlocks at a 55% win rate against everything in the level before it.</p><div id="vs"></div></div>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const fmt = (n, d = 0) => Number(n).toLocaleString(undefined, { maximumFractionDigits: d, minimumFractionDigits: d });
+const runs = (new URLSearchParams(location.search).get('runs') || 'driver').split(',');
+let run = new URLSearchParams(location.search).get('run') || runs[0];
+$('run').innerHTML = [...new Set([run, ...runs])].map((r) => `<option>${r}</option>`).join('');
+$('run').onchange = () => { run = $('run').value; load(); };
+
+function lineChart(el, pts, { y, label, unit = '', digits = 0 }) {
+  const W = el.clientWidth, H = el.clientHeight, L = 44, R = 8, T = 8, B = 24;
+  if (pts.length < 2) { el.innerHTML = '<p class="muted">Waiting for data…</p>'; return; }
+  const xs = pts.map((p) => p.steps / 1e6), ys = pts.map(y);
+  const x0 = Math.min(...xs), x1 = Math.max(...xs);
+  let y0 = Math.min(0, ...ys), y1 = Math.max(...ys) * 1.08 || 1;
+  const sx = (v) => L + ((v - x0) / (x1 - x0 || 1)) * (W - L - R), sy = (v) => T + (1 - (v - y0) / (y1 - y0 || 1)) * (H - T - B);
+  const dec = (st) => Math.max(0, -Math.floor(Math.log10(st) + 1e-9));
+  const ticks = (a, b, n) => { const s = Math.pow(10, Math.floor(Math.log10((b - a) / n || 1))); const st = [1, 2, 5, 10].map((m) => m * s).find((m) => (b - a) / m <= n) || s * 10; const out = []; for (let v = Math.ceil(a / st) * st; v <= b + 1e-9; v += st) out.push(v); return out; };
+  let s = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${label}">`;
+  const yt = ticks(y0, y1, 4), xt = ticks(x0, x1, 5);
+  const yd = yt.length > 1 ? dec(yt[1] - yt[0]) : 0, xd = xt.length > 1 ? dec(xt[1] - xt[0]) : 2;
+  for (const t of yt) s += `<line x1="${L}" x2="${W - R}" y1="${sy(t)}" y2="${sy(t)}" stroke="${css('--grid')}"/><text x="${L - 6}" y="${sy(t) + 4}" text-anchor="end" font-size="11" fill="${css('--text-muted')}">${fmt(t, yd)}</text>`;
+  for (const t of xt) s += `<text x="${sx(t)}" y="${H - 6}" text-anchor="middle" font-size="11" fill="${css('--text-muted')}">${fmt(t, xd)}M</text>`;
+  s += `<path d="${xs.map((v, i) => `${i ? 'L' : 'M'}${sx(v).toFixed(1)},${sy(ys[i]).toFixed(1)}`).join('')}" fill="none" stroke="${css('--series-1')}" stroke-width="2" stroke-linejoin="round"/>`;
+  s += `<line id="xh" y1="${T}" y2="${H - B}" stroke="${css('--text-muted')}" stroke-dasharray="3 3" visibility="hidden"/><circle id="dot" r="4" fill="${css('--series-1')}" stroke="${css('--surface-1')}" stroke-width="2" visibility="hidden"/>`;
+  s += `<rect x="${L}" y="${T}" width="${W - L - R}" height="${H - T - B}" fill="transparent"/></svg><div class="tip"></div>`;
+  el.innerHTML = s;
+  const svg = el.querySelector('svg'), tip = el.querySelector('.tip'), xh = svg.querySelector('#xh'), dot = svg.querySelector('#dot');
+  svg.onmousemove = (e) => {
+    const r = svg.getBoundingClientRect(), mx = ((e.clientX - r.left) / r.width) * W;
+    let i = 0; for (let k = 1; k < xs.length; k++) if (Math.abs(sx(xs[k]) - mx) < Math.abs(sx(xs[i]) - mx)) i = k;
+    const px = sx(xs[i]), py = sy(ys[i]);
+    xh.setAttribute('x1', px); xh.setAttribute('x2', px); xh.setAttribute('visibility', 'visible');
+    dot.setAttribute('cx', px); dot.setAttribute('cy', py); dot.setAttribute('visibility', 'visible');
+    tip.style.display = 'block';
+    tip.innerHTML = `<b>${fmt(ys[i], digits)}${unit}</b> <span class="muted">at ${fmt(xs[i], 2)}M steps · ${fmt(pts[i].t / 3600, 1)} h</span>`;
+    tip.style.left = Math.min(px + 10, W - tip.offsetWidth) + 'px'; tip.style.top = Math.max(0, py - 34) + 'px';
+  };
+  svg.onmouseleave = () => { tip.style.display = 'none'; xh.setAttribute('visibility', 'hidden'); dot.setAttribute('visibility', 'hidden'); };
+}
+
+// average over neighbouring updates so the line shows the trend, not each update's noise
+const smooth = (rows, key, k = 5) => rows.map((r, i) => { const w = rows.slice(Math.max(0, i - k + 1), i + 1); return { ...r, [key + 'S']: w.reduce((s, x) => s + x[key], 0) / w.length }; });
+
+let rows = [];
+async function load() {
+  try {
+    const res = await fetch(`runs/${run}/progress.jsonl`, { cache: 'no-store' });
+    if (!res.ok) throw new Error(res.status === 404 ? `no runs/${run}/progress.jsonl yet — start training first` : `HTTP ${res.status}`);
+    rows = (await res.text()).trim().split('\n').filter(Boolean).map((l) => JSON.parse(l));
+    $('status').textContent = `· updated ${new Date().toLocaleTimeString()}`;
+    $('status').className = 'muted';
+  } catch (e) { $('status').textContent = '· ' + e.message; $('status').className = 'err'; }
+  render();
+}
+
+function render() {
+  const last = rows[rows.length - 1];
+  const tile = (k, v) => `<div class="tile"><div class="k">${k}</div><div class="v">${v}</div></div>`;
+  $('tiles').innerHTML = last
+    ? tile('Training time', `${fmt(last.t / 3600, 1)} h`) + tile('Decisions learned', `${fmt(last.steps / 1e6, 2)}M`) + tile('Matches played', fmt(last.steps / 1600)) + tile('Opponent level', `${last.level} / 5`) + tile('Speed', `${fmt(last.sps)}/s`)
+    : '';
+  const sm = smooth(smooth(rows, 'own'), 'sps');
+  lineChart($('cPts'), sm, { y: (r) => r.ownS, label: 'Points per match', digits: 1 });
+  lineChart($('cSps'), sm, { y: (r) => r.spsS, label: 'Decisions per second', unit: '/s' });
+  const recent = rows.slice(-5), agg = {};
+  for (const r of recent) for (const [k, v] of Object.entries(r.vs || {})) { const a = (agg[k] ||= { m: [], w: [] }); a.m.push(v); a.w.push(r.win[k]); }
+  const keys = Object.keys(agg).sort();
+  $('vs').innerHTML = keys.length
+    ? `<table><thead><tr><th>Opponent</th><th class="num">Avg margin</th><th>Win rate</th></tr></thead><tbody>${keys.map((k) => {
+        const m = agg[k].m.reduce((a, b) => a + b, 0) / agg[k].m.length, w = agg[k].w.reduce((a, b) => a + b, 0) / agg[k].w.length;
+        const name = k === 'off' ? 'Solo (no opponent)' : k === 'self' ? 'Itself (older versions)' : k.replace(':', ' · ');
+        if (k === 'off') return `<tr><td>${name}</td><td class="num">${fmt(m)} pts</td><td class="muted">level 0 is passed at 100 pts per match</td></tr>`;
+        return `<tr><td>${name}</td><td class="num">${m > 0 ? '+' : ''}${fmt(m)}</td><td><span class="barbg"><span class="bar" style="display:block;width:${Math.round(w * 100)}%"></span></span> ${fmt(w * 100)}%</td></tr>`;
+      }).join('')}</tbody></table>`
+    : '<p class="muted">No matches finished yet.</p>';
+}
+window.addEventListener('resize', render);
+load();
+setInterval(load, 10000);
+</script>
+</body>
+</html>

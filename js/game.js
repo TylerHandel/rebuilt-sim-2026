@@ -6,6 +6,7 @@ import { HumanPlayer } from './humanPlayer.js';
 import { AutoRunner, startPose, customSelection } from './auto.js';
 import { OpponentAI, opponentAuto } from './opponent.js';
 import { RobotRules } from './rules.js';
+import { NNDriver } from './nn/driver.js';
 import { ROBOTS, CLIMBER_OPTIONS } from './robotConfigs.js';
 import { other } from './constants.js';
 
@@ -13,6 +14,9 @@ const IDLE_CMD = { vx: 0, vz: 0, omega: 0, intake: false, shoot: false, pass: fa
 
 // world: { physics, scene, field, fuel }. settings: the menu settings (see ui.js DEFAULT_SETTINGS),
 // plus optional driverBrain / oppBrain overrides for training.
+// Neural-network drivers: driver / opponent 'nn' with settings.driverPolicy / oppPolicy (a
+// js/nn/policy.js Policy). driver 'external': the caller sets robot.cmd itself every step (the
+// training workers do this), and AUTO doesn't run a routine.
 export function createGame(world, settings, { onEvent = () => {}, prev = null } = {}) {
   const { physics, scene, field, fuel } = world;
   if (prev) for (const r of prev.robots) r.destroy();
@@ -27,6 +31,7 @@ export function createGame(world, settings, { onEvent = () => {}, prev = null } 
   const pre = fuel.stage(settings.preload + (oppOn ? 8 : 0));
   robot.stored.push(...pre.slice(0, settings.preload));
   const aiDriven = settings.driver && settings.driver !== 'human';
+  const external = settings.driver === 'external';
   const hp = new HumanPlayer({ alliance, field, fuel, match });
   hp.auto = settings.hp === 'auto' || aiDriven;
   const auto = new AutoRunner(robot, settings.auto, settings.start, alliance, custom);
@@ -36,8 +41,9 @@ export function createGame(world, settings, { onEvent = () => {}, prev = null } 
   if (oppOn) {
     const oa = other(alliance);
     const orobot = new Robot({ cfg: ROBOTS[settings.oppRobot] || ROBOTS['4414'], alliance: oa, physics, scene, field, fuel, match, climber: null });
-    const plan = opponentAuto(settings.opponent);
-    const op = startPose(plan.start, orobot, oa);
+    const oppNN = settings.opponent === 'nn';
+    const plan = opponentAuto(oppNN ? 'scorer' : settings.opponent);
+    const op = startPose(settings.oppStart || plan.start, orobot, oa);
     orobot.spawn(op.x, op.z, op.yaw);
     orobot.stored.push(...pre.slice(settings.preload));
     const ohp = new HumanPlayer({ alliance: oa, field, fuel, match });
@@ -46,16 +52,20 @@ export function createGame(world, settings, { onEvent = () => {}, prev = null } 
       robot: orobot,
       hp: ohp,
       auto: new AutoRunner(orobot, plan.routine, plan.start, oa),
-      ai: new OpponentAI({ robot: orobot, foe: robot, match, fuel, rules, strategy: settings.opponent, skill: settings.oppSkill, brain: settings.oppBrain }),
+      ai: oppNN
+        ? new NNDriver({ robot: orobot, foe: robot, match, fuel, policy: settings.oppPolicy })
+        : new OpponentAI({ robot: orobot, foe: robot, match, fuel, rules, strategy: settings.opponent, skill: settings.oppSkill, brain: settings.oppBrain }),
     };
     robots.push(orobot);
   }
   // watch mode / training: an AI drives the player's robot in TELEOP
-  const driverAI = aiDriven
+  const driverAI = external ? null : settings.driver === 'nn'
+    ? new NNDriver({ robot, foe: opp ? opp.robot : null, match, fuel, policy: settings.driverPolicy })
+    : aiDriven
     ? new OpponentAI({ robot, foe: opp ? opp.robot : null, match, fuel, rules, strategy: settings.driver, skill: settings.driverSkill, brain: settings.driverBrain })
     : null;
   return {
-    match, robot, robots, opp, rules, hp, auto, fuel, settings, driverAI,
+    match, robot, robots, opp, rules, hp, auto, fuel, settings, driverAI, external,
     fieldRelative: true, slow: false, driver: null, hpControls: {},
   };
 }
@@ -70,12 +80,15 @@ export function stepGame(game, world, dt) {
     if (r.forceDeploy && r.intakeDeploy >= 1) r.forceDeploy = false;
     r.enabled = match.robotEnabled;
   }
-  if (match.isAuto) auto.update(dt);
-  else if (match.isTeleop && game.driverAI) game.driverAI.update(dt);
+  const dAI = game.driverAI;
+  if (game.external) { /* robot.cmd is set by the caller */ }
+  else if (match.isAuto && dAI && dAI.drivesAuto) dAI.update(dt);
+  else if (match.isAuto) auto.update(dt);
+  else if (match.isTeleop && dAI) dAI.update(dt);
   else if (match.isTeleop && game.driver) Object.assign(robot.cmd, game.driver);
   else Object.assign(robot.cmd, IDLE_CMD);
   if (opp) {
-    if (match.isAuto) { opp.auto.update(dt); opp.ai.label = 'AUTO routine'; }
+    if (match.isAuto && !opp.ai.drivesAuto) { opp.auto.update(dt); opp.ai.label = 'AUTO routine'; }
     else opp.ai.update(dt);
   }
   for (const r of robots) r.preStep(dt);
