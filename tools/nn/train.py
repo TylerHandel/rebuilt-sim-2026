@@ -140,14 +140,35 @@ def upgrade_inputs(ck, new_dim):
     old = ck['obs_dim']
     if old >= new_dim:
         return False
-    for net, key in (('actor', 'body.0.weight'), ('critic', '0.weight')):
-        w = ck[net][key]
-        ck[net][key] = torch.cat([w, torch.zeros(w.shape[0], new_dim - old, dtype=w.dtype, device=w.device)], 1)
+    pad = lambda w: torch.cat([w, torch.zeros(w.shape[0], new_dim - old, dtype=w.dtype, device=w.device)], 1)
+    ck['actor']['body.0.weight'] = pad(ck['actor']['body.0.weight'])
+    w = ck['critic']['0.weight']
+    k = w.shape[1] // old  # a team critic sees 3 views: grow each
+    ck['critic']['0.weight'] = torch.cat([pad(b) for b in w.split(old, 1)], 1) if k > 1 else pad(w)
     n = ck['norm']
     n['mean'] = list(n['mean']) + [0.0] * (new_dim - old)
     n['var'] = list(n['var']) + [1.0] * (new_dim - old)
     ck['obs_dim'] = new_dim
     ck['opt'] = None  # the optimizer state no longer matches the first layers: start it fresh
+    return True
+
+
+def team_critic(ck):
+    """Give a checkpoint's critic the team view (its own observation, then its two teammates'):
+    the new inputs get zero weights, so it judges exactly as before until it learns to use them.
+    Returns True if it changed anything."""
+    if ck.get('critic_in') == 'team':
+        return False
+    D = ck['obs_dim']
+    w = ck['critic']['0.weight']
+    ck['critic']['0.weight'] = torch.cat([w, torch.zeros(w.shape[0], 2 * D, dtype=w.dtype, device=w.device)], 1)
+    opt = ck.get('opt')
+    if opt:  # the critic's first layer comes right after the actor's parameters
+        st = opt['state'].get(len(ck['actor']))
+        for key in ('exp_avg', 'exp_avg_sq'):
+            if st and key in st and st[key].shape == w.shape:
+                st[key] = torch.cat([st[key], torch.zeros(w.shape[0], 2 * D, dtype=st[key].dtype, device=st[key].device)], 1)
+    ck['critic_in'] = 'team'
     return True
 
 
@@ -322,11 +343,12 @@ class Trainer:
         self.demos = None
 
     # ---- setup
-    def build(self, obs_dim):
+    def build(self, obs_dim, team=False):
         a = self.a
         self.obs_dim = obs_dim
+        self.team = team  # a team critic (from the GPU trainer) also sees two teammates' views: zeros here
         self.actor = Actor(obs_dim, a.hidden).to(self.dev)
-        self.critic = mlp([obs_dim, *a.critic, 1]).to(self.dev)
+        self.critic = mlp([obs_dim * (3 if team else 1), *a.critic, 1]).to(self.dev)
         self.opt = torch.optim.Adam([*self.actor.parameters(), *self.critic.parameters()], lr=a.lr, eps=1e-5)
         self.norm = RunningNorm(obs_dim)
 
@@ -335,7 +357,7 @@ class Trainer:
             'actor': self.actor.state_dict(), 'critic': self.critic.state_dict(), 'opt': self.opt.state_dict(),
             'norm': self.norm.state(), 'version': self.version, 'steps': self.steps, 'updates': self.updates,
             'level': self.level, 'pool': self.pool, 'obs_dim': self.obs_dim, 'hidden': self.a.hidden,
-            'critic_sizes': self.a.critic, 'episodes': self.episodes,
+            'critic_sizes': self.a.critic, 'critic_in': 'team' if self.team else 'own', 'episodes': self.episodes,
             'hist': {k: list(v) for k, v in self.hist.items()}, 'own_hist': {k: list(v) for k, v in self.own_hist.items()},
             'elapsed': self.elapsed(),
         }
@@ -352,7 +374,7 @@ class Trainer:
         if self.obs_dim and upgrade_inputs(ck, self.obs_dim):
             print(f'Upgraded the network to the new observation ({self.obs_dim} inputs: teammates and all opponents for 3v3)')
         self.a.hidden, self.a.critic = ck['hidden'], ck['critic_sizes']
-        self.build(ck['obs_dim'])
+        self.build(ck['obs_dim'], team=ck.get('critic_in') == 'team')
         self.actor.load_state_dict(ck['actor'])
         self.critic.load_state_dict(ck['critic'])
         if ck.get('opt'):
@@ -494,12 +516,17 @@ class Trainer:
         r = r + k * (0.03 * rew[:, 2] - 0.02 * rew[:, 3])
         return r.astype(np.float32)
 
+    def value(self, x):
+        if self.team:
+            x = torch.cat([x, torch.zeros(x.shape[0], 2 * self.obs_dim, device=x.device)], 1)
+        return self.critic(x).squeeze(-1)
+
     def update(self, chunks):
         a = self.a
         obs = np.concatenate([c['obs'] for c in chunks])
         self.norm.update(obs)
         with torch.no_grad():
-            V = lambda x: self.critic(torch.tensor(self.norm.apply(x), device=self.dev)).squeeze(-1).cpu().numpy()
+            V = lambda x: self.value(torch.tensor(self.norm.apply(x), device=self.dev)).cpu().numpy()
             adv_l, ret_l = [], []
             for c in chunks:
                 v = V(c['obs'])
@@ -533,7 +560,7 @@ class Trainer:
                 ad = ADV[idx]
                 ad = (ad - ad.mean()) / (ad.std() + 1e-8)
                 pl = -torch.min(ratio * ad, ratio.clamp(1 - a.clip, 1 + a.clip) * ad).mean()
-                vl = 0.5 * ((self.critic(X[idx]).squeeze(-1) - RET[idx]) ** 2).mean()
+                vl = 0.5 * ((self.value(X[idx]) - RET[idx]) ** 2).mean()
                 loss = pl + a.vf * vl - a.ent * ent.mean()
                 if bc_w > 0:
                     bl = self.bc_loss(len(idx))

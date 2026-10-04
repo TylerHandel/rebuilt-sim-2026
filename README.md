@@ -203,11 +203,11 @@ A match takes about 30 s of CPU, so more cores train faster.
 The self-play trainer above tunes the scripted AI's strategy values. The neural-net driver takes a different approach: a neural network drives the robot directly, like you with a controller. Ten times a second it chooses the movement, rotation, intake, shoot, pass and outtake, for the whole match.
 
 - **Setup (Windows):** run `nn-setup.bat` once. It installs PyTorch for your NVIDIA GPU.
-- **Train fast on the GPU:** run `nn-train-gpu.bat`. It plays thousands of simplified matches at once on your graphics card. Ctrl+C saves; `--resume` continues.
+- **Train fast on the GPU:** run `nn-train-gpu.bat`. It plays thousands of simplified matches at once on your graphics card, each decision replayed as a CUDA graph. Ctrl+C saves; `--resume` continues; `--compile` is faster still.
 - **Fine-tune in the real game:** run `nn-train.bat --resume --level 3`. It uses every CPU thread for the full simulation and the GPU for learning.
 - **Watch progress:** `nn-dashboard.bat` opens a live chart page.
 - **Play with it:** in the menu set **Your robot driven by → Neural net (watch)**, or **Opponent → Neural net**. In a 3v3, set any slot to **Neural net**.
-- **Watch it learn:** the dashboard shows a live bird's-eye grid of the matches the GPU trainer is playing.
+- **Watch it learn:** the dashboard shows a live bird's-eye grid of the matches the GPU trainer is playing. It also shows a real-game scoreboard: while the GPU trains, the CPU plays the latest network in full-game matches against the Champs AIs.
 - **Start from your own driving:** every full match you drive is recorded for it. Download the recordings from **AI TUNING** and train with `nn-train.bat --bc recordings`.
 
 Details, hardware use and expected training times: [tools/nn/README.md](tools/nn/README.md).

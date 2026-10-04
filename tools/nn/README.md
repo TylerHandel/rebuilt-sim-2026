@@ -59,19 +59,30 @@ The dashboard shows whether it's improving. If points per match stay flat for ma
 - **To start:** scripted bots (80%, some of them defending) and nobody (20%).
 - **Self-play:** once it beats the bots 60% of the time, it switches to:
   - 35% of matches against itself, with both alliances learning;
-  - 35% against older snapshots of itself;
+  - 35% against older versions of itself (a new one is saved every 50 updates; it keeps the last 16);
   - 25% against the bots;
   - 5% alone.
+- **Older versions it loses to come up more often** (prioritized self-play). It keeps a win rate against each one and picks the ones it struggles with. Every 25 updates the console lists them as `v<version> <its win rate>/<share of those matches>`. `--no-pfsp` plays them all equally.
+
+**Team critic:** the value network (the critic, which judges how well things are going during training) sees the robot's own view and both teammates' views. It can judge the alliance as a whole, so credit for teamwork lands where it belongs. Only the driving network goes into the game; it still sees just its own view.
 
 **Winning, not just points:** while it learns the game, the reward is the points margin. Once self-play is on, the reward shifts over 50M decisions (`--win-ramp`) toward winning:
 - a squashed margin, so closing a 10-point gap in a close match counts far more than adding 10 to a blowout;
 - a bonus for winning, or a penalty for losing, at the final buzzer.
 
-The console shows the current `win-weight` (0 = points only, 1 = mostly winning). `--win-weight 1` sets it straight away.
+The console shows the current `win-weight` (0 = points only, 1 = mostly winning). `--win-weight 1` sets it straight away. As the win weight rises, it also looks further ahead: `gamma` goes from 0.995 to 0.998, which is about 20 s to 50 s of match time.
+
+**Real-game scoreboard:** while the GPU trains, the CPU has little to do. So the trainer runs 2 full-game matches at a time there, at low priority: the latest network against the Scorer, Defense and Hybrid AIs at Champs skill, 1v1 and 3v3, with every robot on its alliance driven by the network. The dashboard shows its real-game win rate over time and by opponent. A full match takes a minute or two of CPU. `--eval 0` turns this off; `--eval 4` plays more at once.
 
 **Live view:** the dashboard (`nn-dashboard.bat`) shows a grid of the matches the trainer is playing right now, as a bird's-eye view: robots in alliance colors, learning robots outlined, FUEL, HUB lights, score and clock. It shows 4 matches by default; `--live 0` turns it off and `--live 9` shows more, at a small cost in speed.
 
-**Your earlier network carries over.** The observation grew for 3v3: teammates and the 2nd and 3rd opponents were added at the end. When you `--resume` a run trained before that, it's upgraded automatically with zero weights on the new inputs, so it plays exactly as before until it learns to use them. Older driving recordings still load too.
+**Your earlier network carries over.** The observation grew for 3v3: teammates and the 2nd and 3rd opponents were added at the end. When you `--resume` a run trained before that, it's upgraded automatically with zero weights on the new inputs, so it plays exactly as before until it learns to use them. The same goes for the team critic. Older driving recordings still load too.
+
+**How it uses the GPU:**
+- Every match has the same array sizes at every step, and no step waits for the CPU. So the trainer records a whole decision once as a **CUDA graph** and replays it: the networks, the physics, the resets and the observations for all 4,096 matches in one go, without Python in between.
+- `--compile` also fuses the simulator's math into a few large GPU kernels. The first start with `--compile` takes a few minutes; later starts reuse the cache.
+- The rollout is stored in half precision, and only one minibatch at a time is normalized. That uses about half the memory, which leaves room for more matches (`--envs 8192`).
+- If the graph can't be recorded on your setup, the trainer says so and trains without it.
 
 **Then fine-tune in the real game.** The two trainers save the same checkpoint format, so `nn-train.bat --resume --level 3` continues the same run (`runs/driver`) in the full game. It plays 1v1 and 3v3 there (`--teams`), with its teammates driven by the network too.
 
@@ -86,13 +97,18 @@ The console shows the current `win-weight` (0 = points only, 1 = mostly winning)
 | `--robots` | all 11 | robots it learns to drive |
 | `--selfplay` | | turn self-play on right away instead of waiting until it beats the bots |
 | `--mix A B O I` | 0.05 0.25 0.35 0.35 | during self-play, the share of matches alone / vs the bots / vs older versions / vs itself. `--mix 0 0.1 0.45 0.45` is almost all self-play. |
+| `--pool-size` | 16 | older versions kept to play against |
+| `--no-pfsp` | | play all older versions equally, instead of the ones it loses to more often |
 | `--win-ramp` | 50M | decisions over which the reward shifts to winning once self-play is on |
 | `--win-weight` | | fix the win weight (0 to 1) instead |
-| `--live` | 4 | matches shown on the dashboard. Each one costs a little speed; 0 turns it off. |
-| `--amp` | on | the critic (the bigger network) runs in bf16 on the tensor cores. `--no-amp` turns it off. |
-| `--compile` | off | `torch.compile` fuses the observation code into a few GPU kernels. On Windows it needs `.venv\Scripts\pip install triton-windows` first; without it the trainer says so and carries on normally. |
+| `--gamma` | 0.995 → 0.998 | how far ahead it looks; by default it rises with the win weight |
+| `--live` | 4 | matches shown on the dashboard. 0 turns it off. |
+| `--eval` | 2 | full-game matches played at a time on the CPU for the real-game scoreboard. 0 turns it off. |
+| `--compile` | off | `torch.compile` fuses the simulator into a few GPU kernels. On Windows it needs `.venv\Scripts\pip install triton-windows` first; without it the trainer says so and carries on normally. |
+| `--no-graph` | | don't record the decision as a CUDA graph (only to rule it out if something looks wrong) |
+| `--no-amp` | | run the critic in full precision instead of bf16 on the tensor cores |
 
-The console prints decisions per second and roughly how many matches per hour that is. On this project's 4-thread cloud CPU, with no GPU, it runs about 1,000–2,500 robot decisions/s with a few dozen matches; the full game manages about 20–50. It hasn't been measured on a GPU yet.
+The console prints decisions per second and roughly how many matches per hour that is. On this project's 4-thread cloud CPU, with no GPU, it runs about 1,000–2,500 robot decisions/s with a few dozen matches; the full game manages about 20–50. On an RTX 3070, before the CUDA graph, it ran about 45,000–50,000 decisions/s (about 30,000 matches an hour).
 
 ## Setup (Windows)
 1. Install **Node.js LTS** (https://nodejs.org) and **Python 3.11+** (https://python.org). In the Python installer, tick "Add python.exe to PATH".
@@ -165,6 +181,7 @@ Opponents it doesn't beat yet get picked more often. Use `--level N` to start at
 | `tools/nn/gpusim.py` | The simplified game on the GPU (PyTorch). |
 | `tools/nn/gpusim-export.mjs` → `gpusim-params.json` | Robot specs, field and FUEL layout taken from the real game. Re-run the export after changing robots or the field. |
 | `tools/nn/train_gpu.py` | The GPU trainer (`nn-train-gpu.bat`). |
+| `tools/nn/eval.mjs` | The real-game scoreboard: full-game matches of the latest network against the Champs AIs, started by the GPU trainer. Results go to `runs/<run>/eval.jsonl`. |
 | `tools/nn/train.py` | The trainer: PPO with GAE, observation normalization, the curriculum, self-play, imitation and checkpoints. |
 | `nn.html` | The training dashboard. |
 
