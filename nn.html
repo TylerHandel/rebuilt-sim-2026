@@ -60,7 +60,7 @@
     <div class="card"><h2>Points per match</h2><p class="note">The network's own score, averaged per update (FUEL, plus fouls by the other robot)</p><div class="chart" id="cPts"></div></div>
     <div class="card"><h2>Simulation speed</h2><p class="note">Decisions per second across all workers (10 per robot per match-second)</p><div class="chart" id="cSps"></div></div>
   </div>
-  <div class="card"><h2>Against each opponent</h2><p class="note">Last 5 updates. An opponent level unlocks at a 55% win rate against everything in the level before it.</p><div id="vs"></div></div>
+  <div class="card"><h2>Against each opponent</h2><p class="note">Last 5 updates. Real-game trainer: an opponent level unlocks at a 55% win rate against everything in the level before it. GPU trainer: self-play turns on at a 60% win rate against the bot.</p><div id="vs"></div></div>
 </main>
 <script>
 const $ = (id) => document.getElementById(id);
@@ -122,7 +122,7 @@ function render() {
   const last = rows[rows.length - 1];
   const tile = (k, v) => `<div class="tile"><div class="k">${k}</div><div class="v">${v}</div></div>`;
   $('tiles').innerHTML = last
-    ? tile('Training time', `${fmt(last.t / 3600, 1)} h`) + tile('Decisions learned', `${fmt(last.steps / 1e6, 2)}M`) + tile('Matches played', fmt(last.steps / 1600)) + tile('Opponent level', `${last.level} / 5`) + tile('Speed', `${fmt(last.sps)}/s`)
+    ? tile('Training time', `${fmt(last.t / 3600, 1)} h`) + tile('Decisions learned', `${fmt(last.steps / 1e6, 2)}M`) + tile('Matches played', fmt(last.steps / 1600)) + (last.trainer === 'gpu' ? tile('Self-play', last.level ? 'On' : 'Off (beat the bot first)') : tile('Opponent level', `${last.level} / 5`)) + tile('Speed', `${fmt(last.sps)}/s`)
     : '';
   const sm = smooth(smooth(rows, 'own'), 'sps');
   lineChart($('cPts'), sm, { y: (r) => r.ownS, label: 'Points per match', digits: 1 });
@@ -133,7 +133,8 @@ function render() {
   $('vs').innerHTML = keys.length
     ? `<table><thead><tr><th>Opponent</th><th class="num">Avg margin</th><th>Win rate</th></tr></thead><tbody>${keys.map((k) => {
         const m = agg[k].m.reduce((a, b) => a + b, 0) / agg[k].m.length, w = agg[k].w.reduce((a, b) => a + b, 0) / agg[k].w.length;
-        const name = k === 'off' ? 'Solo (no opponent)' : k === 'self' ? 'Itself (older versions)' : k.replace(':', ' · ');
+        const name = { off: 'Solo (no opponent)', none: 'Solo (no opponent)', self: last && last.trainer === 'gpu' ? 'Itself (both robots learning)' : 'Itself (older versions)', snapshot: 'Older versions of itself', bot: 'Scripted bot (GPU sim)' }[k] || k.replace(':', ' · ');
+        if (k === 'none') return `<tr><td>${name}</td><td class="num">${fmt(m)} pts</td><td class="muted">alone on the field</td></tr>`;
         if (k === 'off') return `<tr><td>${name}</td><td class="num">${fmt(m)} pts</td><td class="muted">level 0 is passed at 100 pts per match</td></tr>`;
         return `<tr><td>${name}</td><td class="num">${m > 0 ? '+' : ''}${fmt(m)}</td><td><span class="barbg"><span class="bar" style="display:block;width:${Math.round(w * 100)}%"></span></span> ${fmt(w * 100)}%</td></tr>`;
       }).join('')}</tbody></table>`

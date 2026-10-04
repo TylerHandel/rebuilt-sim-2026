@@ -21,5 +21,5 @@ echo === Installing PyTorch with CUDA (about 3 GB, takes a while) ===
 echo === Checking the GPU ===
 .venv\Scripts\python -c "import torch, os; ok = torch.cuda.is_available(); print('CUDA GPU:', torch.cuda.get_device_name(0) if ok else 'NOT FOUND - update your NVIDIA driver'); print('CPU threads:', os.cpu_count(), '-> training workers:', os.cpu_count() - 1)"
 echo.
-echo Setup done. Start training with nn-train.bat and watch it with nn-dashboard.bat.
+echo Setup done. Train on the GPU with nn-train-gpu.bat (fastest), in the real game with nn-train.bat, and watch with nn-dashboard.bat.
 pause

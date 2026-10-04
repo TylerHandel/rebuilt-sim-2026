@@ -32,6 +32,39 @@ Starting from your recorded driving (`--bc`) saves a lot of that.
 
 The dashboard shows whether it's improving. If points per match stay flat for many hours, see Tips below.
 
+## Fast training on the GPU (recommended start)
+`nn-train-gpu.bat` runs `tools/nn/train_gpu.py`, which trains in a **simplified copy of the game that runs on the graphics card**. It plays 4,096 matches at once as tensor math, so the RTX 3070 does the simulation and the learning. The full game, by contrast, needs one CPU thread per match.
+
+**How it's simplified** (`tools/nn/gpusim.py`):
+- **Robots:** the real speed, acceleration and turning limits, and the real sizes, intake width, capacity, shot rate, flywheel spin-up and aiming. Each robot's numbers are exported from the real game into `tools/nn/gpusim-params.json` by `tools/nn/gpusim-export.mjs`.
+- **Collisions:** robots are rounded bodies that collide with the walls, HUBs, TRENCH posts, TOWERs and each other. Robots too tall for the TRENCH are stopped by its arm.
+- **FUEL:** points that roll, slow down, bounce off walls and field elements, and get pushed or swallowed by robots. FUEL doesn't touch other FUEL, so piles don't resist a robot driving through them.
+- **Shots and passes:** timed flights with a hit chance (lower while moving fast) instead of full ballistics. Scored FUEL goes through the HUB and comes back out the exit opening into the NEUTRAL ZONE.
+- **Match rules:** the real ones: AUTO, the gap, the TELEOP shifts with the active-HUB rules, the 3 s scoring grace, and human players throwing from the CHUTE. Fouls, the TOWER and BUMP slopes aren't modeled.
+
+**Same network:** the observation is built exactly like the real game's. I checked all 386 numbers against real-game snapshots at four points in different matches, and they match. The controls are the same too. So `js/nn/driver.json` from the GPU trainer drives in the real game as is.
+
+**Opponents:**
+- **Alone (25%) and a scripted Scorer bot (75%):** these are its only opponents to start.
+- **Self-play:** once it beats the bot 60% of the time, it switches to self-play:
+  - 35% of matches against itself, with both robots learning;
+  - 35% against older snapshots of itself;
+  - 25% against the bot;
+  - 5% alone.
+
+**Then fine-tune in the real game.** The two trainers save the same checkpoint format, so `nn-train.bat --resume --level 3` continues the same run (`runs/driver`) in the full game. It then learns the details the simple version leaves out (piles of FUEL, real shots, fouls).
+
+**Speed settings** (`tools/nn/train_gpu.py --help`):
+
+| Option | Default | |
+|---|---|---|
+| `--envs` | 4096 | matches at once. More means more matches per hour, until the GPU is full. Try 8192 if GPU memory allows. |
+| `--substeps` | 4 | physics steps per 0.1 s decision. 2 is faster and a bit coarser. |
+| `--rollout` | 32 | decisions per match between updates |
+| `--robots` | all 11 | robots it learns to drive |
+
+The console prints decisions per second and matches per hour; the dashboard shows the same. On this project's 4-thread cloud CPU, with no GPU, it already runs about 2,000 decisions/s with 256 matches, against about 50/s for the full game. It hasn't been measured on a GPU yet.
+
 ## Setup (Windows)
 1. Install **Node.js LTS** (https://nodejs.org) and **Python 3.11+** (https://python.org). In the Python installer, tick "Add python.exe to PATH".
 2. Update your **NVIDIA driver** (GeForce Experience or nvidia.com).
@@ -98,6 +131,9 @@ Opponents it doesn't beat yet get picked more often. Use `--level N` to start at
 | `js/nn/driver.js` | Lets the network drive in the game (Neural net option). |
 | `js/nn/recorder.js` | Records your driving and handles the download. |
 | `tools/nn/worker.mjs` | A simulation worker. |
+| `tools/nn/gpusim.py` | The simplified game on the GPU (PyTorch). |
+| `tools/nn/gpusim-export.mjs` → `gpusim-params.json` | Robot specs, field and FUEL layout taken from the real game. Re-run the export after changing robots or the field. |
+| `tools/nn/train_gpu.py` | The GPU trainer (`nn-train-gpu.bat`). |
 | `tools/nn/train.py` | The trainer: PPO with GAE, observation normalization, the curriculum, self-play, imitation and checkpoints. |
 | `nn.html` | The training dashboard. |
 
