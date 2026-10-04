@@ -204,6 +204,7 @@ The self-play trainer above tunes the scripted AI's strategy values. The neural-
 
 - **Setup (Windows):** run `nn-setup.bat` once. It installs PyTorch for your NVIDIA GPU.
 - **Train fast on the GPU:** run `nn-train-gpu.bat`. It plays thousands of simplified matches at once on your graphics card, each decision replayed as a CUDA graph. Ctrl+C saves; `--resume` continues; `--compile` is faster still.
+- **Keep training a network you already have:** double-click `nn-continue-gpu.bat` (GPU) or `nn-continue-champs.bat` (full game against the Champs AIs).
 - **Fine-tune in the real game:** run `nn-train.bat --resume --level 3`. It uses every CPU thread for the full simulation and the GPU for learning.
 - **Watch progress:** `nn-dashboard.bat` opens a live chart page.
 - **Play with it:** in the menu set **Your robot driven by → Neural net (watch)**, or **Opponent → Neural net**. In a 3v3, set any slot to **Neural net**.

@@ -86,6 +86,10 @@ The console shows the current `win-weight` (0 = points only, 1 = mostly winning)
 
 **Then fine-tune in the real game.** The two trainers save the same checkpoint format, so `nn-train.bat --resume --level 3` continues the same run (`runs/driver`) in the full game. It plays 1v1 and 3v3 there (`--teams`), with its teammates driven by the network too.
 
+**Continuing a trained network** (double-click):
+- `nn-continue-gpu.bat`: resumes `runs\driver` on the GPU with `--compile` and a mix of mostly older versions of itself, itself, and the bots. Add options after it, for example `nn-continue-gpu.bat --envs 8192`.
+- `nn-continue-champs.bat`: backs up `runs\driver` to `runs\driver-gpu`, then trains in the full game against the Champs AIs, 1v1 and 3v3. It's slower, but it learns the real physics.
+
 **Options** (`tools/nn/train_gpu.py --help`):
 
 | Option | Default | |
