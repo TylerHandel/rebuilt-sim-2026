@@ -20,6 +20,7 @@ const SAMPLES = +arg('samples', 1000000);
 const WORKERS = +arg('workers', Math.max(1, os.cpus().length - 1));
 const SKILL = arg('skill', 'champs');
 const TEAMS = arg('teams', '1,3').split(',').map(Number);
+const ONLY = arg('robots', '') ? arg('robots').split(',') : null; // record only these robots (blue drives them)
 const PARENT = +arg('parent', 0); // the trainer that started it: stop when it's gone
 const alive = (pid) => { try { process.kill(pid, 0); return true; } catch (e) { return e.code === 'EPERM'; } };
 
@@ -79,7 +80,7 @@ if (!args.includes('--worker')) {
     const slots = [];
     for (const a of [BLUE, RED]) {
       const st = [...START_ORDER].sort(() => Math.random() - 0.5);
-      for (let i = 0; i < 3; i++) slots.push(i < k ? { driver: strategy(), robot: pick(ROBOT_ORDER), auto: 'best', start: st[i], skill: SKILL } : { driver: 'empty', robot: '2910' });
+      for (let i = 0; i < 3; i++) slots.push(i < k ? { driver: strategy(), robot: pick(ONLY && a === BLUE ? ONLY : ROBOT_ORDER), auto: 'best', start: st[i], skill: SKILL } : { driver: 'empty', robot: '2910' });
     }
     const world = await createWorld();
     const obs = [], act = [];
@@ -94,6 +95,7 @@ if (!args.includes('--worker')) {
         stepGame(game, world, PHYSICS_DT); // the AIs set their commands in here
         if (m.robotEnabled && step % every === 0) {
           robots.forEach((r, i) => {
+            if (ONLY && !ONLY.includes(r.cfg.key)) return;
             buildObs(r, others[i], m, world.fuel, o);
             cmdToAction(r, r.cmd, a);
             obs.push(Uint16Array.from(o, toHalf));

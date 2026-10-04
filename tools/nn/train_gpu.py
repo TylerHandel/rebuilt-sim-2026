@@ -520,7 +520,7 @@ class GpuTrainer:
         for i in range(self.a.eval):
             teams = '3,1' if self.a.eval == 1 else '3' if i % 2 == 0 else '1'
             cmd = [node, '--import', hook, str(ROOT / 'tools' / 'nn' / 'eval.mjs'), '--out', str(out), '--teams', teams,
-                   '--seed', str(i + self.updates), '--parent', str(os.getpid())]
+                   '--seed', str(i + self.updates), '--parent', str(os.getpid())] + (['--robots', ','.join(self.a.robots)] if self.a.robots else [])
             try:
                 p = subprocess.Popen(cmd, cwd=str(ROOT), stdout=subprocess.DEVNULL, stderr=open(self.run / f'eval{i}.log', 'w'), **flags)
             except OSError as e:
@@ -574,7 +574,7 @@ class GpuTrainer:
             return
         flags = {'creationflags': subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.BELOW_NORMAL_PRIORITY_CLASS} if os.name == 'nt' else {'start_new_session': True}
         cmd = [node, '--import', (ROOT / 'tools' / 'node-env.mjs').as_uri(), str(ROOT / 'tools' / 'nn' / 'record-ai.mjs'), '--out', str(self.bc_dir),
-               '--samples', str(a.bc_max), '--workers', str(a.record_ai), '--parent', str(os.getpid())]
+               '--samples', str(a.bc_max), '--workers', str(a.record_ai), '--parent', str(os.getpid())] + (['--robots', ','.join(a.robots)] if a.robots else [])
         try:
             p = subprocess.Popen(cmd, cwd=str(ROOT), stdout=subprocess.DEVNULL, stderr=open(self.run / 'record-ai.log', 'w'), **flags)
         except OSError as e:

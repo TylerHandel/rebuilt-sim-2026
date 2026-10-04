@@ -23,6 +23,7 @@ const TEAMS = (arg('teams', '3')).split(',').map(Number);
 const PARENT = +arg('parent', 0);
 const MATCHES = +arg('matches', Infinity);
 const STRATEGIES = ['scorer', 'defense', 'hybrid'];
+const MINE = arg('robots', '') ? arg('robots').split(',') : null; // robots the network drives (default: any)
 let turn = +arg('seed', 0);
 
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
@@ -51,7 +52,7 @@ async function playMatch(k, strategy) {
   for (const a of [BLUE, RED]) {
     const st = [...START_ORDER].sort(() => Math.random() - 0.5);
     for (let i = 0; i < 3; i++) {
-      const robot = pick(ROBOT_ORDER);
+      const robot = a === nnSide && MINE ? pick(MINE) : pick(ROBOT_ORDER);
       if (i >= k) slots.push({ driver: 'empty', robot });
       else if (a === nnSide) slots.push({ driver: 'nn', policy: pol, robot, auto: 'none', start: st[i], skill: 'champs' });
       else slots.push({ driver: strategy, robot, auto: 'best', start: st[i], skill: 'champs' });

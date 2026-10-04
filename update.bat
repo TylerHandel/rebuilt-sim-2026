@@ -11,7 +11,7 @@ powershell -NoProfile -Command "$ProgressPreference='SilentlyContinue'; Invoke-W
 if exist "%TMPDIR%" rmdir /s /q "%TMPDIR%"
 powershell -NoProfile -Command "Expand-Archive -Path '%ZIP%' -DestinationPath '%TMPDIR%' -Force" || (echo Could not unzip the download. & pause & exit /b 1)
 echo Copying the new code over this folder (your data stays) ...
-robocopy "%TMPDIR%\rebuilt-sim-2026-main" "%CD%" /E /NFL /NDL /NJH /NJS /NP /XD runs recordings recordings-ai .venv node_modules /XF driver.json update.bat >nul
+robocopy "%TMPDIR%\rebuilt-sim-2026-main" "%CD%" /E /NFL /NDL /NJH /NJS /NP /XD runs recordings recordings-ai recordings-ai-2910 .venv node_modules /XF driver.json update.bat >nul
 if errorlevel 8 (echo Copy failed. & pause & exit /b 1)
 rmdir /s /q "%TMPDIR%" & del "%ZIP%"
 where node >nul 2>nul && (echo Updating Node packages ... & call npm install --no-audit --no-fund >nul)
