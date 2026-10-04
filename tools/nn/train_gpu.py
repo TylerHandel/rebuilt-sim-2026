@@ -172,7 +172,10 @@ class GpuTrainer:
     # ---- opponents
     def set_opponents(self):
         if self.selfplay:
-            probs = [0.05, 0.25, 0.35 if self.pool else 0.0, 0.35]
+            probs = list(self.a.mix) if self.a.mix else [0.05, 0.25, 0.35, 0.35]
+            if not self.pool:  # no snapshots yet: play the current version instead
+                probs[3] += probs[2]
+                probs[2] = 0.0
         else:
             probs = [0.25, 0.75, 0.0, 0.0]
         self.sim.opp_probs = torch.tensor(probs, device=self.dev)
@@ -226,6 +229,10 @@ class GpuTrainer:
         a, sim, N, D, dev = self.a, self.sim, self.N, self.D, self.dev
         if a.resume:
             self.load()
+        if a.selfplay and not self.selfplay:
+            self.selfplay = True
+            self.snapshot()
+            print('Self-play on (--selfplay)')
         self.set_opponents()
         sim.reset(torch.ones(N, dtype=torch.bool, device=dev))
         # spread the first matches out in time (each starts at a random point of the match with a
@@ -391,6 +398,9 @@ def main():
     p.add_argument('--shaping-steps', type=float, default=200e6, help='decisions over which the pickup bonus fades out')
     p.add_argument('--robots', nargs='+', default=None, help='robots it learns to drive (default: all)')
     p.add_argument('--selfplay-at', type=float, default=0.6, help='win rate against the bot that turns on self-play')
+    p.add_argument('--selfplay', action='store_true', help='turn self-play on now (without waiting to beat the bot)')
+    p.add_argument('--mix', type=float, nargs=4, metavar=('ALONE', 'BOT', 'OLDER', 'ITSELF'),
+                   help='share of self-play matches alone / vs the bot / vs older versions / vs itself (default 0.05 0.25 0.35 0.35)')
     p.add_argument('--snapshot-every', type=int, default=50)
     p.add_argument('--pool-size', type=int, default=8)
     p.add_argument('--publish-every', type=int, default=10)

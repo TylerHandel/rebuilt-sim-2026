@@ -62,6 +62,8 @@ The dashboard shows whether it's improving. If points per match stay flat for ma
 | `--substeps` | 4 | physics steps per 0.1 s decision. 2 is faster and a bit coarser. |
 | `--rollout` | 32 | decisions per match between updates |
 | `--robots` | all 11 | robots it learns to drive |
+| `--selfplay` | | turn self-play on right away instead of waiting until it beats the bot |
+| `--mix A B O I` | 0.05 0.25 0.35 0.35 | during self-play, the share of matches alone / vs the bot / vs older versions / vs itself. `--mix 0 0.1 0.45 0.45` is almost all self-play. |
 
 The console prints decisions per second and matches per hour; the dashboard shows the same. On this project's 4-thread cloud CPU, with no GPU, it already runs about 2,000 decisions/s with 256 matches, against about 50/s for the full game. It hasn't been measured on a GPU yet.
 
