@@ -98,6 +98,12 @@ class GpuSim:
         self.S['packs'] = spec('packs') > 0.5
         tab = lambda k: torch.tensor([[float('nan') if v is None else v for v in P['robots'][r][k]] for r in self.order], device=d)
         self.hubV, self.passV = tab('hubV'), tab('passV')
+        # share of shots that score, by robot, at 0 / 33 / 66 / 100% of its top speed (measured in
+        # the full game by tools/nn/shoot-test.mjs: chassis-aimed shooters miss a lot on the move)
+        cal_p = Path(params).with_name('shoot-calib.json')
+        cal = json.loads(cal_p.read_text()) if cal_p.exists() else {}
+        fr = ['0', '0.33', '0.66', '1']
+        self.shotAcc = torch.tensor([[(cal.get(r, {}).get(f, {}).get('acc') or 0.95) for f in fr] for r in self.order], device=d)
         self.starts = torch.tensor([[P['robots'][r]['starts'][k] for k in P['startOrder']] for r in self.order], device=d)  # [NR,5,2] blue
         self.allowed = torch.tensor([self.order.index(r) for r in (robots or self.order)], device=d)
 
@@ -204,6 +210,7 @@ class GpuSim:
         self.ready, self.shot, self.feeding = zb(n, RS), zb(n, RS), zb(n, RS)
         self.holdV, self.holdT = z(n, RS), z(n, RS) - 99
         self.cmd = z(n, RS, 7)
+        self.prev_a = z(n, RS, 3)          # last decision's drive / turn command (smoothness)
         self.intaked, self.shots, self.passes, self._prevIntaked = z(n, RS), z(n, RS), z(n, RS), z(n, RS)
         self.t = z(n)
         self.firstInactive = zl(n)
@@ -305,7 +312,7 @@ class GpuSim:
         self.pos = sel(p, self.pos)
         self.yaw = sel(torch.where(s > 0, 0.0, math.pi), self.yaw)
         for name in ['vel', 'omega', 'deploy', 'hopper', 'fly', 'turret', 'tokens', 'feedT', 'holdV', 'intaked', 'shots', 'passes',
-                     '_prevIntaked', 'hpCool', 'cmd', 't', 'score', 'btim', 'bvel', 'bkind']:
+                     '_prevIntaked', 'hpCool', 'cmd', 'prev_a', 't', 'score', 'btim', 'bvel', 'bkind']:
             cur = getattr(self, name)
             setattr(self, name, sel(torch.zeros_like(cur), cur))
         for name in ['ready', 'shot', 'feeding', 'prevActive']:
@@ -521,14 +528,19 @@ class GpuSim:
 
     # ------------------------------------------------------------------ one decision (0.1 s)
     def step(self, act):
-        """act: [N,RS,7] network actions (own frame). Returns reward parts per robot [N,RS,5]
-        (own alliance pts, their pts, FUEL this robot intaked, own inactive-HUB FUEL, margin after)
-        and done [N]."""
+        """act: [N,RS,7] network actions (own frame). Returns reward parts per robot [N,RS,7]
+        (own alliance pts, their pts, FUEL this robot intaked, own inactive-HUB FUEL, margin after,
+        how much the drive / turn command changed since the last decision (squared), how hard it
+        turns (0-1)) and done [N]."""
         before = torch.stack([self.totals(), self.score[:, :, 2]], -1)
         auto, gap, tele, post, tt = self.phase()
         enabled = (auto | tele)[:, None] & self.present
-        a = torch.cat([act[..., :3].clamp(-1, 1), act[..., 3:]], -1)
+        a3 = act[..., :3].clamp(-1, 1)
+        a = torch.cat([a3, act[..., 3:]], -1)
         self.cmd = torch.where(enabled[..., None], a, 0.0)
+        jerk = ((a3 - self.prev_a) ** 2).sum(-1) * enabled
+        spin = a3[..., 2].abs() * enabled
+        self.prev_a = torch.where(enabled[..., None], a3, self.prev_a)
         h = self.dt / self.sub
         for i in range(self.sub):
             # crowded FUEL spreads out every other substep (plenty)
@@ -540,7 +552,7 @@ class GpuSim:
         al = self.alliance_idx()
         own = diff.gather(1, al[..., None].expand(-1, -1, 2))
         oth = diff.gather(1, (1 - al)[..., None].expand(-1, -1, 2))
-        rew = torch.stack([own[..., 0], oth[..., 0], self.intaked - self._prevIntaked, own[..., 1], self.margin()], -1)
+        rew = torch.stack([own[..., 0], oth[..., 0], self.intaked - self._prevIntaked, own[..., 1], self.margin(), jerk, spin], -1)
         self._prevIntaked = self.intaked
         done = self.t >= self.T_DONE - 1e-6
         self._commit()
@@ -735,7 +747,11 @@ class GpuSim:
         first = mine.to(torch.uint8).argmax(-1)
         last = (mine.to(torch.int16) * self._ar_bb16).argmax(-1)
         spd = self.vel.norm(dim=-1)
-        p_hit = (0.95 - 0.04 * spd + self.dr_hit).clamp(0.6, 0.97)
+        fr = (spd / ms.clamp(min=0.1)).clamp(0, 1) * 3
+        i0 = fr.floor().long().clamp(max=2)
+        acc = self.shotAcc[self.rtype]
+        a0, a1 = acc.gather(-1, i0[..., None]).squeeze(-1), acc.gather(-1, (i0 + 1)[..., None]).squeeze(-1)
+        p_hit = (a0 + (a1 - a0) * (fr - i0) + self.dr_hit).clamp(0.4, 0.99)
         hitb = self.rand(N, RS) < p_hit
         kind = torch.where(passMode, FLY_LAND, torch.where(hitb, FLY_HIT, FLY_MISS))
         tf = torch.where(passMode, 0.5 + 0.1 * dist, 0.35 + 0.12 * dist) * (0.9 + 0.2 * self.rand(N, RS))

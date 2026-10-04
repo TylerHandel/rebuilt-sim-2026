@@ -49,7 +49,7 @@ The dashboard shows whether it's improving. If points per match stay flat for ma
   - pushed FUEL takes momentum from the robot;
   - FUEL can't stack: crowded FUEL is pushed apart, so a pile spreads instead of being swallowed in one spot.
   - It's still simpler than the real game, which simulates every FUEL-FUEL contact.
-- **Shots and passes:** timed flights with a hit chance, lower while moving fast, instead of full ballistics. Scored FUEL goes through the HUB and comes back out the exit opening into the NEUTRAL ZONE.
+- **Shots and passes:** timed flights with a hit chance instead of full ballistics. The hit chance per robot and speed is measured in the full game by `tools/nn/shoot-test.mjs` (saved in `tools/nn/shoot-calib.json`). Turret robots score nearly every shot even at full speed; robots that aim with the chassis (2910, 1678) drop to about 60–70% at full speed. Scored FUEL goes through the HUB and comes back out the exit opening into the NEUTRAL ZONE.
 - **Match rules:** the real ones: AUTO, the gap, the TELEOP shifts with the active-HUB rules, the 3 s scoring grace, and human players throwing from the CHUTE. Fouls, the TOWER and BUMP slopes aren't modeled.
 - **Domain randomization:** each robot's speed, acceleration, intake and accuracy, and the carpet's rolling resistance, vary a little from match to match. That way it learns habits that still work when the real game differs a bit. `--no-randomize` turns this off.
 
@@ -72,7 +72,7 @@ The dashboard shows whether it's improving. If points per match stay flat for ma
 
 The console shows the current `win-weight` (0 = points only, 1 = mostly winning). `--win-weight 1` sets it straight away. As the win weight rises, it also looks further ahead: `gamma` goes from 0.995 to 0.998, which is about 20 s to 50 s of match time.
 
-**Real-game scoreboard:** while the GPU trains, the CPU has little to do. So the trainer runs 2 full-game matches at a time there, at low priority: the latest network against the Scorer, Defense and Hybrid AIs at Champs skill, 1v1 and 3v3, with every robot on its alliance driven by the network. The dashboard shows its real-game win rate over time and by opponent. A full match takes a minute or two of CPU. `--eval 0` turns this off; `--eval 4` plays more at once.
+**Real-game scoreboard:** while the GPU trains, the CPU has little to do. So the trainer runs 2 full-game matches at a time there, at low priority: the latest network against the Scorer, Defense and Hybrid AIs at Champs skill, 1v1 and 3v3, with every robot on its alliance driven by the network. The dashboard shows its real-game win rate over time and by opponent, and a table comparing the simulator with the real game: FUEL picked up, shots, how much it turns, and how often it flips its turn direction. A big difference there points to what the simulator gets wrong. A full match takes a minute or two of CPU. `--eval 0` turns this off; `--eval 4` plays more at once.
 
 **Live view:** the dashboard (`nn-dashboard.bat`) shows a grid of the matches the trainer is playing right now, as a bird's-eye view: robots in alliance colors, learning robots outlined, FUEL, HUB lights, score and clock. It shows 4 matches by default; `--live 0` turns it off and `--live 9` shows more, at a small cost in speed.
 
@@ -102,6 +102,8 @@ The console shows the current `win-weight` (0 = points only, 1 = mostly winning)
 | `--win-ramp` | 50M | decisions over which the reward shifts to winning once self-play is on |
 | `--win-weight` | | fix the win weight (0 to 1) instead |
 | `--gamma` | 0.995 → 0.998 | how far ahead it looks; by default it rises with the win weight |
+| `--smooth` | 0.005 | cost of changing the drive or turn command between decisions, so it holds a heading instead of twitching back and forth. `--smooth 0` turns it off. |
+| `--spin` | 0.003 | cost of turning, so it turns when it needs to rather than all the time |
 | `--live` | 4 | matches shown on the dashboard. 0 turns it off. |
 | `--eval` | 2 | full-game matches played at a time on the CPU for the real-game scoreboard. 0 turns it off. |
 | `--compile` | off | `torch.compile` fuses the simulator into a few GPU kernels. On Windows it needs `.venv\Scripts\pip install triton-windows` first; without it the trainer says so and carries on normally. |
@@ -181,6 +183,7 @@ Opponents it doesn't beat yet get picked more often. Use `--level N` to start at
 | `tools/nn/gpusim.py` | The simplified game on the GPU (PyTorch). |
 | `tools/nn/gpusim-export.mjs` → `gpusim-params.json` | Robot specs, field and FUEL layout taken from the real game. Re-run the export after changing robots or the field. |
 | `tools/nn/train_gpu.py` | The GPU trainer (`nn-train-gpu.bat`). |
+| `tools/nn/shoot-test.mjs` → `shoot-calib.json` | Measures each robot's shooting accuracy at different speeds in the full game, for the GPU simulator. |
 | `tools/nn/eval.mjs` | The real-game scoreboard: full-game matches of the latest network against the Champs AIs, started by the GPU trainer. Results go to `runs/<run>/eval.jsonl`. |
 | `tools/nn/train.py` | The trainer: PPO with GAE, observation normalization, the curriculum, self-play, imitation and checkpoints. |
 | `nn.html` | The training dashboard. |

@@ -99,7 +99,7 @@ def sample(actor, x):
     a_b = (torch.rand_like(p) < p).float()
     lp_c = (-0.5 * ((a_c - mu) / ls.exp()) ** 2 - ls - 0.5 * math.log(2 * math.pi)).sum(-1)
     lp_b = -nn.functional.binary_cross_entropy_with_logits(lg, a_b, reduction='none').sum(-1)
-    return torch.cat([a_c, a_b], -1), lp_c + lp_b
+    return torch.cat([a_c, a_b], -1), lp_c + lp_b, mu
 
 
 class SnapBank:
@@ -335,8 +335,10 @@ class GpuTrainer:
         return self.a.gamma if self.a.gamma is not None else 0.995 + 0.003 * self.win_weight()
 
     def reward(self, rew, done):
-        """rew [...,5]: own alliance pts, their pts, FUEL this robot intaked, own inactive-HUB FUEL,
-        margin after the step. A rising win weight w moves the reward from the points margin to:
+        """rew [...,7]: own alliance pts, their pts, FUEL this robot intaked, own inactive-HUB FUEL,
+        margin after the step, change of the drive / turn command, how hard it turns. Jerky
+        driving costs a little (--smooth, --spin): the network has to hold a heading and a line
+        instead of twitching back and forth. A rising win weight w moves the reward from the points margin to:
           * a squashed margin, A*tanh(margin/S): closing a 10-point gap in a close match counts far
             more than adding 10 to a blowout,
           * a bonus of +-B at the final buzzer for winning or losing.
@@ -349,6 +351,7 @@ class GpuTrainer:
         r = (1 - 0.7 * w) * d_pts / 10.0
         r = r + w * A * (torch.tanh(m_after / S) - torch.tanh(m_before / S))
         r = r + w * Bw * torch.sign(m_after) * done.float()
+        r = r - self.a.smooth * rew[..., 5] - self.a.spin * rew[..., 6]
         return r + k * (0.03 * rew[..., 2] - 0.02 * rew[..., 3])
 
     # ---- the fixed layout of a rollout
@@ -384,6 +387,7 @@ class GpuTrainer:
             'obs': z(T, NL, D, dtype=torch.float16), 'act': z(T, NL, ACT_CONT + ACT_BIN), 'lp': z(T, NL), 'v': z(T, NL), 'r': z(T, NL),
             'pres': z(T, NL, dtype=torch.bool), 'valid': z(T, NL, dtype=torch.bool),
             'done': z(T, N, dtype=torch.bool), 'margin': z(T, N), 'own': z(T, N), 'k': z(T, N, dtype=torch.long), 'slot': z(T, N, dtype=torch.long),
+            'turn': z(T, NL), 'robot': z(T, N, 2),
         }
         nl = min(a.live, N)
         self.live_idx = torch.tensor([int((i + 0.5) * N / nl) for i in range(nl)], device=dev) if nl else None
@@ -417,7 +421,7 @@ class GpuTrainer:
         raw = of.index_select(0, self.L_flat).half()                     # stored like this, and what the network sees
         x = self.norm.apply(raw.float())
         pres = sim.present.view(-1).index_select(0, self.L_flat)
-        a_l, lp_l = sample(self.actor, x)
+        a_l, lp_l, mu_l = sample(self.actor, x)
         v_l = self.V(self.team_in(x, pres))
         act = torch.zeros(N * RS, ACT_CONT + ACT_BIN, device=self.dev).index_copy(0, self.L_flat, a_l)
         if self.S_flat is not None:
@@ -433,7 +437,8 @@ class GpuTrainer:
         r_l = self.reward(rew.view(N * RS, -1).index_select(0, self.L_flat), done.index_select(0, self.L_env))
         totA = sim.totals().gather(1, sim.alliance_idx()[:, :1]).squeeze(1)
         for k, v in (('obs', raw), ('act', a_l), ('lp', lp_l), ('v', v_l), ('r', r_l), ('pres', pres), ('valid', valid),
-                     ('done', done), ('margin', rew[:, 0, 4]), ('own', totA), ('k', sim.k), ('slot', sim.snap_slot)):
+                     ('done', done), ('margin', rew[:, 0, 4]), ('own', totA), ('k', sim.k), ('slot', sim.snap_slot),
+                     ('turn', mu_l[:, 2]), ('robot', torch.stack([sim.intaked[:, 0], sim.shots[:, 0]], -1))):
             b[k].index_copy_(0, t, v.unsqueeze(0))
         if self.live_idx is not None:
             b['live'].index_copy_(0, t, sim.live_pack(self.live_idx).unsqueeze(0))
@@ -566,6 +571,7 @@ class GpuTrainer:
         self.live_seq = 0
         self.live_q = collections.deque(maxlen=96)
         ep = collections.defaultdict(list)
+        robot_st = []
         try:
             while not stop['flag'] and self.steps < a.total_steps:
                 t0 = time.time()
@@ -578,7 +584,12 @@ class GpuTrainer:
                     else:
                         self.decide()
                 b = self.buf
-                res = torch.stack([b['done'].float(), b['margin'], b['own'], b['k'].float(), b['slot'].float()]).cpu().numpy()
+                res = torch.stack([b['done'].float(), b['margin'], b['own'], b['k'].float(), b['slot'].float(), b['robot'][..., 0], b['robot'][..., 1]]).cpu().numpy()
+                # how it turns (its intended turn, as the game sees it): how hard, and how often it flips direction
+                with torch.no_grad():
+                    mw, vd = b['turn'], b['valid']
+                    flip = (mw[1:].sign() != mw[:-1].sign()) & (mw[1:].abs() > 0.3) & (mw[:-1].abs() > 0.3) & vd[1:] & vd[:-1]
+                    turn_stats = torch.stack([(mw.abs().clamp(max=1) * vd).sum() / vd.sum().clamp(min=1), flip.sum() / (vd[1:] & vd[:-1]).sum().clamp(min=1)]).tolist()
                 live = b['live'].cpu().numpy() if self.live_idx is not None else None
                 t1 = time.time()
                 sim_s = t1 - t0
@@ -594,6 +605,7 @@ class GpuTrainer:
                         key = f'{KIND[kind]} {k}v{k}'
                         self.hist[key].append(m)
                         ep[key].append((float(res[2, t, e]), m))
+                        robot_st.append((float(res[5, t, e]), float(res[6, t, e])))
                         self.episodes += 1
                         s = int(res[4, t, e])
                         if kind == OPP_SNAP and s < len(self.pool):
@@ -688,7 +700,7 @@ class GpuTrainer:
                 own_all = [o for v in ep.values() for o, _ in v]
                 gpu = f'  gpu {torch.cuda.max_memory_allocated() / 2**30:.1f}GB' if dev.type == 'cuda' else ''
                 print(f'[{self.elapsed() / 3600:5.2f}h] upd {self.updates:5d}  {self.steps / 1e6:8.2f}M decisions  {sps:7.0f}/s (~{mph:,.0f} matches/h)  '
-                      f'pts {np.mean(own_all) if own_all else 0:5.1f}  win-weight {self.win_weight():.2f}  gamma {gamma:.4f}  ent {ent_m:+.2f}  kl {kl_m:+.4f}  '
+                      f'pts {np.mean(own_all) if own_all else 0:5.1f}  turn flips {turn_stats[1] * 600:4.0f}/min  win-weight {self.win_weight():.2f}  gamma {gamma:.4f}  ent {ent_m:+.2f}  kl {kl_m:+.4f}  '
                       f'sim {sim_s:.1f}s upd {upd_s:.1f}s{gpu}')
                 if vs:
                     print(f'      vs {vs}')
@@ -704,9 +716,13 @@ class GpuTrainer:
                            'ent': round(ent_m, 5), 'kl': round(kl_m, 5),
                            'vs': {k: round(float(np.mean([m for _, m in v])), 2) for k, v in ep.items()},
                            'win': {k: round(sum(m > 0 for _, m in v) / len(v), 3) for k, v in ep.items()}, 'trainer': 'gpu'}
+                    if robot_st:
+                        rec['sim'] = {'intaked': round(float(np.mean([x for x, _ in robot_st])), 1), 'shots': round(float(np.mean([y for _, y in robot_st])), 1),
+                                      'turn': round(turn_stats[0], 3), 'flipsPerMin': round(turn_stats[1] * 600, 1)}
                     log.write(json.dumps(rec) + '\n')
                     log.flush()
                     ep.clear()
+                    robot_st.clear()
                 if time.time() - last_save > a.save_minutes * 60:
                     self.save()
                     last_save = time.time()
@@ -751,6 +767,8 @@ def main():
     p.add_argument('--snapshot-every', type=int, default=50, help='updates between adding the current network to the older versions')
     p.add_argument('--win-ramp', type=float, default=50e6, help='decisions after self-play starts over which the reward shifts to winning')
     p.add_argument('--win-weight', type=float, default=None, help='fix the win weight (0 = points margin only, 1 = mostly winning)')
+    p.add_argument('--smooth', type=float, default=0.005, help='cost of changing the drive / turn command between decisions (stops twitchy driving)')
+    p.add_argument('--spin', type=float, default=0.003, help='cost of turning (it should turn when it needs to, not all the time)')
     p.add_argument('--no-randomize', action='store_true', help="don't vary robot speed / intake / accuracy per match")
     p.add_argument('--live', type=int, default=4, help='matches streamed to the dashboard (0 = off)')
     p.add_argument('--eval', type=int, default=2, help='full-game matches at a time on the CPU for the real-game scoreboard (0 = off)')

@@ -501,7 +501,7 @@ class Trainer:
             return self.a.win_weight
         return {3: 0.3, 4: 0.6, 5: 1.0}.get(self.level, 0.0)
 
-    def reward(self, rew, done):
+    def reward(self, rew, done, act=None):
         a = self.a
         # points margin (fouls included); as the win weight grows, a squashed margin (closing a
         # gap in a close match counts most) and a bonus for winning at the buzzer take over
@@ -514,6 +514,14 @@ class Trainer:
         # early shaping that fades out: pick up FUEL, don't shoot into an inactive HUB
         k = max(0.0, 1.0 - self.steps / a.shaping_steps) if a.shaping_steps > 0 else 0.0
         r = r + k * (0.03 * rew[:, 2] - 0.02 * rew[:, 3])
+        if act is not None:
+            # jerky driving costs a little (like the GPU trainer): change of the drive / turn command
+            # since the last decision (not across the start of a match), and turning hard
+            c = np.clip(act[:, :3], -1, 1)
+            prev = np.concatenate([c[:1], c[:-1]])
+            fresh = np.concatenate([[1.0], done[:-1]]) > 0.5
+            jerk = np.where(fresh, 0.0, ((c - prev) ** 2).sum(1))
+            r = r - a.smooth * jerk - a.spin * np.abs(c[:, 2])
         return r.astype(np.float32)
 
     def value(self, x):
@@ -531,7 +539,7 @@ class Trainer:
             for c in chunks:
                 v = V(c['obs'])
                 vn = V(c['next'][None])[0]
-                r, d = self.reward(c['rew'], c['done']), c['done']
+                r, d = self.reward(c['rew'], c['done'], c['act']), c['done']
                 n = len(r)
                 adv = np.zeros(n, np.float32)
                 last = 0.0
@@ -724,6 +732,8 @@ def main():
     p.add_argument('--max-lag', type=int, default=1, help='oldest policy version (behind the current one) whose experience is used')
     p.add_argument('--hidden', type=int, nargs='+', default=[512, 256], help='actor hidden layers (runs in the browser)')
     p.add_argument('--critic', type=int, nargs='+', default=[1024, 512, 256], help='critic hidden layers (GPU only)')
+    p.add_argument('--smooth', type=float, default=0.005, help='cost of changing the drive / turn command between decisions (stops twitchy driving)')
+    p.add_argument('--spin', type=float, default=0.003, help='cost of turning (it should turn when it needs to, not all the time)')
     p.add_argument('--shaping-steps', type=float, default=20e6, help='steps over which the pickup bonus fades out')
     p.add_argument('--robots', nargs='+', default=['2910', '4414', '8793'], help='robots it learns to drive')
     p.add_argument('--teams', type=int, nargs='+', choices=[1, 2, 3], default=[1, 3], help='match sizes (repeat to weight): 1 = 1v1, 3 = 3v3 with its teammates driven by the network too')

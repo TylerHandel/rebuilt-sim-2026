@@ -78,7 +78,9 @@
     <div class="card"><h2>Simulation speed</h2><p class="note">Decisions per second across all workers (10 per robot per match-second)</p><div class="chart" id="cSps"></div></div>
   </div>
   <div class="card" id="evalCard" style="margin-bottom:12px"><h2>Real game vs the Champs AIs</h2><p class="note">Full-game matches the GPU trainer plays on the otherwise idle CPU with the latest network (every robot on its ALLIANCE is the network) against the Scorer, Defense and Hybrid AIs at Champs skill. Last 30 matches per row; the chart is the win rate over the last 30 matches.</p>
-    <div class="grid2" style="margin:0"><div class="chart" id="cEval"></div><div id="evalTable"></div></div></div>
+    <div class="grid2" style="margin:0"><div class="chart" id="cEval"></div><div id="evalTable"></div></div>
+    <h2 style="margin-top:12px">GPU simulator vs real game</h2><p class="note">Per robot of the network's, per match. Where the two differ a lot, the simulator is teaching it something the real game doesn't reward. Turn flips: how often its turn command reverses direction (twitching).</p>
+    <div id="gapTable"></div></div>
   <div class="card"><h2>Against each opponent</h2><p class="note">Last 5 updates. Real-game trainer: an opponent level unlocks at a 55% win rate against everything in the level before it. GPU trainer: self-play turns on at a 60% win rate against the bot.</p><div id="vs"></div></div>
 </main>
 <script>
@@ -140,6 +142,13 @@ function renderEval() {
   }
   const win = (r) => (r.result === 'win' ? 1 : r.result === 'tie' ? 0.5 : 0);
   const pts = evals.map((r, i) => { const w = evals.slice(Math.max(0, i - 29), i + 1); return { steps: r.steps || 0, t: (r.hours || 0) * 3600, w: (100 * w.reduce((s, x) => s + win(x), 0)) / w.length }; });
+  const simRows = rows.filter((r) => r.sim).slice(-10), real = evals.filter((r) => r.turn !== undefined).slice(-30);
+  const avg = (xs, f) => (xs.length ? xs.reduce((a, x) => a + f(x), 0) / xs.length : null);
+  const show = (v, d = 0, u = '') => (v === null || v === undefined ? '<span class="muted">–</span>' : fmt(v, d) + u);
+  const gap = [['FUEL picked up', (r) => r.sim.intaked, (r) => r.intaked, 0, ''], ['Shots', (r) => r.sim.shots, (r) => r.shots, 0, ''],
+    ['Turning (share of top turn rate)', (r) => 100 * r.sim.turn, (r) => 100 * r.turn, 0, '%'], ['Turn flips per minute', (r) => r.sim.flipsPerMin, (r) => r.flipsPerMin, 0, '']];
+  $('gapTable').innerHTML = `<table><thead><tr><th></th><th class="num">GPU simulator</th><th class="num">Real game</th></tr></thead><tbody>${gap.map(([n, fs, fr, d, u]) =>
+    `<tr><td>${n}</td><td class="num">${show(avg(simRows, fs), d, u)}</td><td class="num">${show(avg(real, fr), d, u)}</td></tr>`).join('')}</tbody></table>`;
   lineChart($('cEval'), pts, { y: (r) => r.w, label: 'Real-game win rate', unit: '%' });
   const groups = {};
   for (const r of evals) (groups[`${r.teams}v${r.teams} · ${r.opp}`] ||= []).push(r);

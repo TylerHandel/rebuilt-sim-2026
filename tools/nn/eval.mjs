@@ -61,8 +61,21 @@ async function playMatch(k, strategy) {
   try {
     const game = createGame(world, { matchMode: '3v3', slots, alliance: nnSide, preload: 8, hp: 'auto', climber: 'none' });
     const m = game.match;
+    const mine = game.robots.filter((r) => r.alliance === nnSide);
+    // how it drives: its turn command every decision (0.1 s) while enabled
+    const tr = mine.map(() => ({ prev: 0, turn: 0, flips: 0, n: 0 }));
     let step = 0;
+    const every = Math.round(0.1 / PHYSICS_DT);
     while (!m.over && step < 30000) {
+      if (m.robotEnabled && step % every === 0) {
+        mine.forEach((r, i) => {
+          const w = r.cmd.omega / r.cfg.drive.maxOmega, s = tr[i];
+          if (s.n && Math.abs(w) > 0.3 && Math.abs(s.prev) > 0.3 && Math.sign(w) !== Math.sign(s.prev)) s.flips++;
+          s.turn += Math.min(1, Math.abs(w));
+          s.prev = w;
+          s.n++;
+        });
+      }
       stepGame(game, world, PHYSICS_DT);
       if (++step % 2 === 0) frameGame(game, 2 * PHYSICS_DT);
       if (step % 2000 === 0 && !parentAlive()) process.exit(0);
@@ -72,6 +85,10 @@ async function playMatch(k, strategy) {
     return {
       t: Math.round(Date.now() / 1000), version: pol.version, updates: pol.info.updates ?? null, steps: pol.info.steps ?? null, hours: pol.info.hours ?? null,
       teams: k, opp: strategy, nn, them, margin: nn - them, result: nn > them ? 'win' : nn < them ? 'loss' : 'tie',
+      intaked: mine.reduce((s, r) => s + r.stats.intaked, 0) / mine.length,
+      shots: mine.reduce((s, r) => s + r.stats.shots, 0) / mine.length,
+      turn: tr.reduce((s, x) => s + x.turn / Math.max(1, x.n), 0) / tr.length,
+      flipsPerMin: tr.reduce((s, x) => s + (600 * x.flips) / Math.max(1, x.n), 0) / tr.length,
       robots: slots.filter((s, i) => s.driver !== 'empty' && (i < 3 ? BLUE : RED) === A).map((s) => s.robot),
       oppRobots: slots.filter((s, i) => s.driver !== 'empty' && (i < 3 ? BLUE : RED) === B).map((s) => s.robot),
     };
