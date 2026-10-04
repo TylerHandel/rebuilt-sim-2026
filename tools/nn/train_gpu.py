@@ -242,6 +242,7 @@ class GpuTrainer:
         # spread the first matches out in time (each starts at a random point of the match with a
         # fresh field), so later updates always see every part of the match at once
         sim.t = torch.rand(N, device=dev) * (sim.T_AUTO + sim.T_GAP + sim.T_TELE)
+        full = torch.zeros(N, dtype=torch.bool, device=dev)  # those first matches are partial: not counted
         sim.firstInactive = (torch.rand(N, device=dev) < 0.5).long()
         print(f'Device: {dev}' + (f' ({torch.cuda.get_device_name(0)})' if dev.type == 'cuda' else '') + f'. {N} matches at once, {sim.sub} physics substeps per decision.')
         self.publish()
@@ -293,12 +294,15 @@ class GpuTrainer:
                         own = tot.gather(1, al[:, :1]).squeeze(1)
                         oth = tot.gather(1, (1 - al[:, :1])).squeeze(1)
                         for i in idx.tolist():
+                            if not full[i]:
+                                continue
                             k = kind_names[int(sim.opp_kind[i])]
                             self.hist[k].append(float(own[i] - oth[i]))
                             self.own_hist[k].append(float(own[i]))
                             ep_own[k].append((float(own[i]), float(own[i] - oth[i])))
                             self.episodes += 1
                         sim.reset(done)
+                        full |= done
                         if self.pool:
                             self.snap_of[done] = torch.randint(0, len(self.pool), (int(done.sum()),), device=dev)
                     obs = sim.obs()
@@ -366,6 +370,8 @@ class GpuTrainer:
                        'own': round(float(np.mean(own_all)) if own_all else 0, 2), **{k: round(v, 5) for k, v in st.items()},
                        'vs': {k: round(float(np.mean([m for _, m in v])), 2) for k, v in ep_own.items()},
                        'win': {k: round(sum(m > 0 for _, m in v) / len(v), 3) for k, v in ep_own.items()}, 'trainer': 'gpu'}
+                if not own_all and self.updates % 10 == 0 and not full.all():
+                    print(f'      (first matches are still finishing: {full.float().mean().item():.0%} of the envs have started a full match)')
                 if own_all:
                     log.write(json.dumps(rec) + '\n')
                     log.flush()
