@@ -298,9 +298,12 @@ def read_chunk(msg):
     }
 
 
-def load_demos(folder, obs_dim):
-    """Recordings exported from the game (Record for neural net)."""
+def load_demos(folder, obs_dim, max_n=None, half=False):
+    """Driving to learn from: recordings exported from the game (Record for neural net, *.json)
+    and the pre-programmed AIs recorded by tools/nn/record-ai.mjs (*.aidemo). At most max_n
+    decisions (a random sample). Returns (obs, actions) or None."""
     obs, act = [], []
+    dt = np.float16 if half else np.float32
     for f in sorted(Path(folder).glob('*.json')):
         d = json.loads(f.read_text())
         if d.get('format') != 'rebuilt-nn-demo':
@@ -312,12 +315,34 @@ def load_demos(folder, obs_dim):
         if d['obsDim'] < obs_dim:  # older recording (1v1): the appended blocks are empty
             o = np.concatenate([o, np.zeros((len(o), obs_dim - d['obsDim']), '<f4')], 1)
         a = np.frombuffer(base64.b64decode(d['act']), '<f4').reshape(-1, ACT_CONT + ACT_BIN)
-        obs.append(o)
+        obs.append(o.astype(dt))
         act.append(a)
         print(f'  {f.name}: {len(o)} samples ({len(o) / 600:.1f} min of driving)')
+    ai = sorted(Path(folder).glob('*.aidemo'))
+    n_ai = 0
+    for f in ai:
+        b = f.read_bytes()
+        L = int.from_bytes(b[:4], 'little')
+        h = json.loads(b[4:4 + L])
+        if h.get('format') != 'rebuilt-nn-aidemo' or h['obsDim'] > obs_dim:
+            continue
+        n, D, A = h['n'], h['obsDim'], h['actDim']
+        o = np.frombuffer(b, '<f2', n * D, 4 + L).reshape(n, D)
+        if D < obs_dim:
+            o = np.concatenate([o, np.zeros((n, obs_dim - D), '<f2')], 1)
+        obs.append(o.astype(dt))
+        act.append(np.frombuffer(b, '<f4', n * A, 4 + L + n * D * 2).reshape(n, A))
+        n_ai += n
+    if ai:
+        print(f'  {len(ai)} recorded AI matches: {n_ai:,} decisions')
     if not obs:
         return None
-    return np.concatenate(obs), np.concatenate(act)
+    obs, act = np.concatenate(obs), np.concatenate(act)
+    if max_n and len(obs) > max_n:
+        keep = np.random.default_rng(0).choice(len(obs), max_n, replace=False)
+        obs, act = obs[keep], act[keep]
+        print(f'  using a random {max_n:,} of them')
+    return obs, act
 
 
 # ---------------------------------------------------------------------------------- trainer
@@ -610,12 +635,12 @@ class Trainer:
         if a.resume:
             self.load()
         elif a.bc:
-            demos = load_demos(a.bc, self.obs_dim)
+            demos = load_demos(a.bc, self.obs_dim, max_n=a.bc_max)
             if demos is None:
                 sys.exit(f'No recordings found in {a.bc}')
             self.bc(*demos, a.bc_epochs)
         if self.a.resume and a.bc:
-            demos = load_demos(a.bc, self.obs_dim)
+            demos = load_demos(a.bc, self.obs_dim, max_n=a.bc_max)
             if demos is not None:
                 self.demos = (torch.tensor(self.norm.apply(demos[0]), device=self.dev), torch.tensor(demos[1], device=self.dev))
         if a.level is not None:
@@ -744,6 +769,7 @@ def main():
     p.add_argument('--no-publish', dest='publish', action='store_false', help="don't write js/nn/driver.json")
     p.add_argument('--bc', help='folder of recordings (exported from the game) to learn from first')
     p.add_argument('--bc-epochs', type=int, default=30)
+    p.add_argument('--bc-max', type=int, default=400000, help='use at most this many recorded decisions (a random sample)')
     p.add_argument('--bc-only', action='store_true', help='only clone the recordings, export and exit')
     p.add_argument('--bc-weight', type=float, default=0.5, help='keep imitating the recordings this much during PPO ...')
     p.add_argument('--bc-steps', type=float, default=10e6, help='... fading out over this many steps')

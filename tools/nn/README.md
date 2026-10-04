@@ -86,6 +86,13 @@ The console shows the current `win-weight` (0 = points only, 1 = mostly winning)
 
 **Then fine-tune in the real game.** The two trainers save the same checkpoint format, so `nn-train.bat --resume --level 3` continues the same run (`runs/driver`) in the full game. It plays 1v1 and 3v3 there (`--teams`), with its teammates driven by the network too.
 
+**Learning from the pre-programmed AIs** (imitation, then training on top):
+1. `nn-record-ai.bat` records the Champs-level AIs (mostly Scorer, some Hybrid and Defense) playing full matches in the real game, 1v1 and 3v3: what each robot saw and did, every 0.1 s. It uses every CPU thread and saves 1,000,000 decisions to `recordings-ai` (about 15–40 minutes). Running it again adds more, up to `--samples`.
+2. `nn-train-from-ai.bat` starts a new network in its own run (`runs\from-ai`), so your current one stays as it is. It first copies the AIs' driving, so it starts out playing like them instead of twitching randomly. Then it trains on the GPU as usual, imitating them a little less as it goes (`--bc-weight 0.5`, fading over `--bc-steps` 300M decisions). Pick `from-ai` on the dashboard to compare the two runs' real-game records.
+3. To have your current network learn from them too, add `--bc recordings-ai` to its usual command. It doesn't start over, it just gets pulled toward the AIs' habits while it keeps training. `--bc-pretrain` copies them outright first, which overwrites much of what it learned.
+
+`nn-train.bat --bc recordings-ai` works for the real-game trainer as well.
+
 **Continuing a trained network** (double-click):
 - `nn-continue-gpu.bat`: resumes `runs\driver` on the GPU with `--compile` and a mix of mostly older versions of itself, itself, and the bots. Add options after it, for example `nn-continue-gpu.bat --envs 8192`.
 - `nn-continue-champs.bat`: backs up `runs\driver` to `runs\driver-gpu`, then trains in the full game against the Champs AIs, 1v1 and 3v3. It's slower, but it learns the real physics.
@@ -188,6 +195,7 @@ Opponents it doesn't beat yet get picked more often. Use `--level N` to start at
 | `tools/nn/gpusim-export.mjs` → `gpusim-params.json` | Robot specs, field and FUEL layout taken from the real game. Re-run the export after changing robots or the field. |
 | `tools/nn/train_gpu.py` | The GPU trainer (`nn-train-gpu.bat`). |
 | `tools/nn/shoot-test.mjs` → `shoot-calib.json` | Measures each robot's shooting accuracy at different speeds in the full game, for the GPU simulator. |
+| `tools/nn/record-ai.mjs` | Records the pre-programmed AIs playing full matches, for imitation (`nn-record-ai.bat`). |
 | `tools/nn/eval.mjs` | The real-game scoreboard: full-game matches of the latest network against the Champs AIs, started by the GPU trainer. Results go to `runs/<run>/eval.jsonl`. |
 | `tools/nn/train.py` | The trainer: PPO with GAE, observation normalization, the curriculum, self-play, imitation and checkpoints. |
 | `nn.html` | The training dashboard. |

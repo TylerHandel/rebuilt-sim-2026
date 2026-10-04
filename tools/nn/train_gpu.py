@@ -39,7 +39,7 @@ import torch
 import torch.nn as nn
 
 sys.path.insert(0, str(Path(__file__).parent))
-from train import ROOT, ACT_CONT, ACT_BIN, Actor, mlp, export_policy, publish_file, upgrade_inputs, team_critic  # noqa: E402
+from train import ROOT, ACT_CONT, ACT_BIN, Actor, mlp, export_policy, publish_file, upgrade_inputs, team_critic, load_demos  # noqa: E402
 from gpusim import GpuSim, RS, OPP_NONE, OPP_BOT, OPP_SNAP, OPP_SELF  # noqa: E402
 
 KIND = {OPP_NONE: 'alone', OPP_BOT: 'bot', OPP_SNAP: 'older', OPP_SELF: 'self'}
@@ -208,7 +208,7 @@ class GpuTrainer:
             'level': self.a.real_level, 'pool': [], 'obs_dim': self.D, 'hidden': self.a.hidden, 'critic_sizes': self.a.critic,
             'critic_in': 'team', 'episodes': self.episodes, 'hist': {}, 'own_hist': {}, 'elapsed': self.elapsed(),
             'gpu': {'selfplay': self.selfplay, 'selfplay_step': self.selfplay_step, 'pool': [p['sd'] for p in self.pool],
-                    'pool_meta': [{k: p[k] for k in ('id', 'wins', 'games')} for p in self.pool],
+                    'pool_meta': [{k: p[k] for k in ('id', 'wins', 'games')} for p in self.pool], 'bc_start': getattr(self, 'bc_start', None),
                     'hist': {k: list(v) for k, v in self.hist.items()}},
         }
         tmp = self.run / 'ckpt.tmp'
@@ -262,6 +262,7 @@ class GpuTrainer:
                 continue  # older runs counted 1v1 only
             self.hist[k].extend(v)
         self.prev_elapsed = ck.get('elapsed', 0)
+        self.saved_bc_start = g.get('bc_start')
         print(f'Resumed {self.run.name}: {self.steps / 1e6:.1f}M decisions, {self.updates} updates' + (' (self-play on)' if self.selfplay else ''))
 
     def elapsed(self):
@@ -540,11 +541,75 @@ class GpuTrainer:
             except OSError:
                 pass
 
+    # ---- learning from recorded driving (the pre-programmed AIs, or yours)
+    def load_bc(self):
+        """--bc FOLDER: recordings to imitate (tools/nn/record-ai.mjs, or the game's recordings).
+        Kept on the CPU in half precision; minibatches go to the GPU."""
+        a = self.a
+        print(f'Loading recorded driving from {a.bc} ...')
+        d = load_demos(ROOT / a.bc if not Path(a.bc).is_absolute() else a.bc, self.D, max_n=a.bc_max, half=True)
+        if d is None:
+            sys.exit(f'No recordings found in {a.bc}. Record the AIs first: nn-record-ai.bat')
+        self.bc_obs = torch.from_numpy(np.ascontiguousarray(d[0]))
+        self.bc_act = torch.from_numpy(np.ascontiguousarray(d[1]))
+        # continuing a run that was already imitating: keep fading from where it was
+        self.bc_start = self.saved_bc_start if getattr(self, 'saved_bc_start', None) is not None and self.a.resume else self.steps
+
+    def bc_batch(self, n):
+        idx = torch.randint(0, len(self.bc_obs), (n,))
+        x = self.bc_obs[idx].to(self.dev, non_blocking=True).float()
+        return self.norm.apply(x), self.bc_act[idx].to(self.dev, non_blocking=True)
+
+    def bc_loss(self, x, y):
+        mu, lg = self.actor(x)
+        return ((mu - y[:, :ACT_CONT]) ** 2).sum(-1).mean() + nn.functional.binary_cross_entropy_with_logits(lg, y[:, ACT_CONT:], reduction='none').sum(-1).mean()
+
+    def bc_weight(self):
+        if self.bc_obs is None or self.a.bc_steps <= 0:
+            return 0.0
+        return self.a.bc_weight * max(0.0, 1.0 - (self.steps - self.bc_start) / self.a.bc_steps)
+
+    def bc_pretrain(self):
+        """A fresh network first copies the recorded driving (supervised), so training starts from
+        how the AIs play instead of from random twitching."""
+        a, X = self.a, self.bc_obs
+        with torch.no_grad():  # observation statistics from the recordings
+            s1 = torch.zeros(self.D, dtype=torch.float64, device=self.dev)
+            s2 = torch.zeros(self.D, dtype=torch.float64, device=self.dev)
+            for i in range(0, len(X), 65536):
+                xo = X[i:i + 65536].to(self.dev).double()
+                s1 += xo.sum(0)
+                s2 += (xo * xo).sum(0)
+            mean = s1 / len(X)
+            self.norm.update_moments(mean, (s2 / len(X) - mean * mean).clamp(min=0), float(len(X)))
+        opt = torch.optim.Adam(self.actor.parameters(), lr=1e-3)
+        steps = max(1, int(a.bc_epochs * len(X) / 4096))
+        print(f'Copying the recorded driving: {len(X):,} decisions, {a.bc_epochs} passes ...')
+        tot = 0.0
+        for i in range(steps):
+            loss = self.bc_loss(*self.bc_batch(4096))
+            opt.zero_grad()
+            loss.backward()
+            opt.step()
+            tot += loss.item()
+            if (i + 1) % max(1, steps // 10) == 0:
+                print(f'  {100 * (i + 1) / steps:3.0f}%  imitation loss {tot / max(1, steps // 10):.4f}')
+                tot = 0.0
+        with torch.no_grad():
+            self.actor.log_std.fill_(-1.2)  # it starts out driving like them, with a little exploration
+        self.publish()
+
     # ---- training
     def train(self):
         a, sim, N, D, dev = self.a, self.sim, self.N, self.D, self.dev
         if a.resume:
             self.load()
+        self.bc_obs = None
+        if a.bc:
+            self.load_bc()
+            if not a.resume or a.bc_pretrain:
+                self.bc_pretrain()
+            print(f'It keeps imitating the recordings a little (weight {a.bc_weight}) while it trains, fading out over {a.bc_steps / 1e6:.0f}M decisions.')
         if a.selfplay and not self.selfplay:
             self.selfplay = True
             self.selfplay_step = self.steps
@@ -638,6 +703,8 @@ class GpuTrainer:
                 ACT, LP, VAL = b['act'].view(T * NL, -1), b['lp'].view(-1), b['valid'].view(-1).float()
                 n = len(rows)
                 ent_sum = torch.zeros((), device=dev)
+                bc_sum = torch.zeros((), device=dev)
+                bc_w = self.bc_weight()
                 kl_sum = torch.zeros((), device=dev)
                 nmb = 0
                 for _ in range(a.epochs):
@@ -655,6 +722,11 @@ class GpuTrainer:
                         pl = -(torch.min(ratio * ad, ratio.clamp(1 - a.clip, 1 + a.clip) * ad) * vm).sum() / vm.sum().clamp(min=1)
                         vl = 0.5 * ((self.V(torch.cat([x, xm.view(-1, 2 * D)], -1)) - ret[ix]) ** 2).mean()
                         loss = pl + a.vf * vl - a.ent * (ent * vm).sum() / vm.sum().clamp(min=1)
+                        if bc_w > 0:
+                            bl = self.bc_loss(*self.bc_batch(4096))
+                            loss = loss + bc_w * bl
+                            with torch.no_grad():
+                                bc_sum += bl
                         self.opt.zero_grad()
                         loss.backward()
                         nn.utils.clip_grad_norm_([*self.actor.parameters(), *self.critic.parameters()], 0.5)
@@ -696,12 +768,13 @@ class GpuTrainer:
                 sps = nsamp / max(1e-6, sim_s + upd_s)
                 mph = n_done * 3600 / max(1e-6, sim_s + upd_s)
                 ent_m, kl_m = (ent_sum / max(1, nmb)).item(), (kl_sum / max(1, nmb)).item()
+                imit = f'  imitation {(bc_sum / max(1, nmb)).item():.3f} (x{bc_w:.2f})' if bc_w > 0 else ''
                 vs = '  '.join(f'{k}: {np.mean([m for _, m in v]):+.0f} ({sum(m > 0 for _, m in v)}/{len(v)})' for k, v in sorted(ep.items()))
                 own_all = [o for v in ep.values() for o, _ in v]
                 gpu = f'  gpu {torch.cuda.max_memory_allocated() / 2**30:.1f}GB' if dev.type == 'cuda' else ''
                 print(f'[{self.elapsed() / 3600:5.2f}h] upd {self.updates:5d}  {self.steps / 1e6:8.2f}M decisions  {sps:7.0f}/s (~{mph:,.0f} matches/h)  '
                       f'pts {np.mean(own_all) if own_all else 0:5.1f}  turn flips {turn_stats[1] * 600:4.0f}/min  win-weight {self.win_weight():.2f}  gamma {gamma:.4f}  ent {ent_m:+.2f}  kl {kl_m:+.4f}  '
-                      f'sim {sim_s:.1f}s upd {upd_s:.1f}s{gpu}')
+                      f'sim {sim_s:.1f}s upd {upd_s:.1f}s{gpu}{imit}')
                 if vs:
                     print(f'      vs {vs}')
                 elif self.updates % 10 == 0 and not self.full.all():
@@ -767,6 +840,12 @@ def main():
     p.add_argument('--snapshot-every', type=int, default=50, help='updates between adding the current network to the older versions')
     p.add_argument('--win-ramp', type=float, default=50e6, help='decisions after self-play starts over which the reward shifts to winning')
     p.add_argument('--win-weight', type=float, default=None, help='fix the win weight (0 = points margin only, 1 = mostly winning)')
+    p.add_argument('--bc', help='folder of recorded driving to learn from: the pre-programmed AIs (nn-record-ai.bat writes recordings-ai) or yours')
+    p.add_argument('--bc-weight', type=float, default=0.5, help='how much it keeps imitating the recordings while it trains ...')
+    p.add_argument('--bc-steps', type=float, default=300e6, help='... fading out over this many decisions')
+    p.add_argument('--bc-epochs', type=float, default=3, help='passes over the recordings when a new network first copies them')
+    p.add_argument('--bc-pretrain', action='store_true', help='copy the recordings first even when resuming (overwrites much of what it learned)')
+    p.add_argument('--bc-max', type=int, default=2000000, help='use at most this many recorded decisions (a random sample)')
     p.add_argument('--smooth', type=float, default=0.005, help='cost of changing the drive / turn command between decisions (stops twitchy driving)')
     p.add_argument('--spin', type=float, default=0.003, help='cost of turning (it should turn when it needs to, not all the time)')
     p.add_argument('--no-randomize', action='store_true', help="don't vary robot speed / intake / accuracy per match")

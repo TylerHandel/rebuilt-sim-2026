@@ -90,6 +90,12 @@ const fmt = (n, d = 0) => Number(n).toLocaleString(undefined, { maximumFractionD
 const runs = (new URLSearchParams(location.search).get('runs') || 'driver').split(',');
 let run = new URLSearchParams(location.search).get('run') || runs[0];
 $('run').innerHTML = [...new Set([run, ...runs])].map((r) => `<option>${r}</option>`).join('');
+// every training run in the runs folder (the server's folder listing)
+fetch('runs/', { cache: 'no-store' }).then((r) => (r.ok ? r.text() : '')).then((html) => {
+  const found = [...html.matchAll(/href="([^"?/][^"/]*)\/"/g)].map((m) => decodeURIComponent(m[1])).filter((n) => !n.startsWith('.'));
+  const all = [...new Set([run, ...runs, ...found])];
+  $('run').innerHTML = all.map((r) => `<option${r === run ? ' selected' : ''}>${r}</option>`).join('');
+}).catch(() => {});
 $('run').onchange = () => { run = $('run').value; load(); };
 
 function lineChart(el, pts, { y, label, unit = '', digits = 0 }) {

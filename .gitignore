@@ -5,5 +5,6 @@ __pycache__/
 node_modules/
 runs/
 recordings/
+recordings-ai/
 .venv/
 js/nn/driver.json.tmp
