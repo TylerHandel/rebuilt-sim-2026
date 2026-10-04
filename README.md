@@ -209,6 +209,7 @@ The self-play trainer above tunes the scripted AI's strategy values. The neural-
 - **Watch progress:** `nn-dashboard.bat` opens a live chart page.
 - **Play with it:** in the menu set **Your robot driven by → Neural net (watch)**, or **Opponent → Neural net**. In a 3v3, set any slot to **Neural net**.
 - **Watch it learn:** the dashboard shows a live bird's-eye grid of the matches the GPU trainer is playing. It also shows a real-game scoreboard: while the GPU trains, the CPU plays the latest network in full-game matches against the Champs AIs.
+- **Overnight:** double-click `nn-overnight.bat`: GPU training, learning from the pre-programmed AIs recorded in the background, and the real-game scoreboard, all at once.
 - **Learn from the pre-programmed AIs:** `nn-record-ai.bat` records the Champs AIs playing; `nn-train-from-ai.bat` trains a new network that first copies them, then improves on its own.
 - **Start from your own driving:** every full match you drive is recorded for it. Download the recordings from **AI TUNING** and train with `nn-train.bat --bc recordings`.
 

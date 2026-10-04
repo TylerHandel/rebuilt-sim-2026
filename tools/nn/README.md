@@ -93,8 +93,11 @@ The console shows the current `win-weight` (0 = points only, 1 = mostly winning)
 
 `nn-train.bat --bc recordings-ai` works for the real-game trainer as well.
 
+**All of it at once (overnight):** `nn-overnight.bat` continues `runs\driver` on the GPU (8,192 matches, `--compile`) while 10 CPU threads record the AIs in the background (`--record-ai 10`, into `recordings-ai`, up to `--bc-max` 2,000,000 decisions) and 2 play scoreboard matches. It picks up new recordings every 20 minutes (`--bc-reload`) and keeps imitating them with weight 0.3, fading out over 2 billion decisions (a few hours). Ctrl+C saves; double-click again to continue.
+
 **Continuing a trained network** (double-click):
 - `nn-continue-gpu.bat`: resumes `runs\driver` on the GPU with `--compile` and a mix of mostly older versions of itself, itself, and the bots. Add options after it, for example `nn-continue-gpu.bat --envs 8192`.
+- `nn-overnight.bat`: the same, plus learning from the pre-programmed AIs recorded in the background (see below).
 - `nn-continue-champs.bat`: backs up `runs\driver` to `runs\driver-gpu`, then trains in the full game against the Champs AIs, 1v1 and 3v3. It's slower, but it learns the real physics.
 
 **Options** (`tools/nn/train_gpu.py --help`):

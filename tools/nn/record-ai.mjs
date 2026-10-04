@@ -20,6 +20,8 @@ const SAMPLES = +arg('samples', 1000000);
 const WORKERS = +arg('workers', Math.max(1, os.cpus().length - 1));
 const SKILL = arg('skill', 'champs');
 const TEAMS = arg('teams', '1,3').split(',').map(Number);
+const PARENT = +arg('parent', 0); // the trainer that started it: stop when it's gone
+const alive = (pid) => { try { process.kill(pid, 0); return true; } catch (e) { return e.code === 'EPERM'; } };
 
 // float32 -> float16 bits (round to nearest; enough for observations, which are all small numbers)
 const f32 = new Float32Array(1), u32 = new Uint32Array(f32.buffer);
@@ -44,6 +46,7 @@ if (!args.includes('--worker')) {
   if (have >= SAMPLES) process.exit(0);
   const me = fileURLToPath(import.meta.url);
   const kids = [];
+  if (PARENT) setInterval(() => { if (!alive(PARENT)) { for (const c of kids) c.kill(); process.exit(0); } }, 5000);
   const t0 = Date.now();
   let matches = 0;
   for (let i = 0; i < WORKERS; i++) {
@@ -71,6 +74,7 @@ if (!args.includes('--worker')) {
   const strategy = () => { const u = Math.random(); return u < 0.6 ? 'scorer' : u < 0.85 ? 'hybrid' : 'defense'; };
   const every = Math.round(DECISION_DT / PHYSICS_DT);
   for (let n = 0; ; n++) {
+    if (!alive(process.ppid) || (PARENT && !alive(PARENT))) process.exit(0);
     const k = pick(TEAMS);
     const slots = [];
     for (const a of [BLUE, RED]) {

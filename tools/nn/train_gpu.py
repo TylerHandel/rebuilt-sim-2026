@@ -547,13 +547,46 @@ class GpuTrainer:
         Kept on the CPU in half precision; minibatches go to the GPU."""
         a = self.a
         print(f'Loading recorded driving from {a.bc} ...')
-        d = load_demos(ROOT / a.bc if not Path(a.bc).is_absolute() else a.bc, self.D, max_n=a.bc_max, half=True)
+        d = load_demos(self.bc_dir, self.D, max_n=a.bc_max, half=True) if self.bc_dir.exists() else None
+        self.bc_files = self.bc_count()
         if d is None:
-            sys.exit(f'No recordings found in {a.bc}. Record the AIs first: nn-record-ai.bat')
+            if a.record_ai > 0:
+                print('  none yet: the AIs are being recorded in the background; it starts imitating them once some matches are in')
+                return False
+            sys.exit(f'No recordings found in {a.bc}. Record the AIs first: nn-record-ai.bat (or add --record-ai 10)')
+        first = self.bc_obs is None
         self.bc_obs = torch.from_numpy(np.ascontiguousarray(d[0]))
         self.bc_act = torch.from_numpy(np.ascontiguousarray(d[1]))
-        # continuing a run that was already imitating: keep fading from where it was
-        self.bc_start = self.saved_bc_start if getattr(self, 'saved_bc_start', None) is not None and self.a.resume else self.steps
+        if first:
+            # continuing a run that was already imitating: keep fading from where it was
+            self.bc_start = self.saved_bc_start if getattr(self, 'saved_bc_start', None) is not None and self.a.resume else self.steps
+        return True
+
+    def bc_count(self):
+        return len(list(self.bc_dir.glob('*.aidemo'))) + len(list(self.bc_dir.glob('*.json'))) if self.bc_dir.exists() else 0
+
+    def start_record(self):
+        """--record-ai N: record the pre-programmed AIs on N CPU threads while it trains (low
+        priority), into the --bc folder, up to --bc-max decisions."""
+        a = self.a
+        node = shutil.which('node')
+        if a.record_ai <= 0 or not a.bc or not node:
+            return
+        flags = {'creationflags': subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.BELOW_NORMAL_PRIORITY_CLASS} if os.name == 'nt' else {'start_new_session': True}
+        cmd = [node, '--import', (ROOT / 'tools' / 'node-env.mjs').as_uri(), str(ROOT / 'tools' / 'nn' / 'record-ai.mjs'), '--out', str(self.bc_dir),
+               '--samples', str(a.bc_max), '--workers', str(a.record_ai), '--parent', str(os.getpid())]
+        try:
+            p = subprocess.Popen(cmd, cwd=str(ROOT), stdout=subprocess.DEVNULL, stderr=open(self.run / 'record-ai.log', 'w'), **flags)
+        except OSError as e:
+            print(f'Recording the AIs not started ({e})')
+            return
+        if os.name != 'nt':
+            try:
+                os.setpriority(os.PRIO_PROCESS, p.pid, 10)
+            except (AttributeError, OSError):
+                pass
+        self.evals.append(p)  # stopped with the scoreboard
+        print(f'Recording the pre-programmed AIs on {a.record_ai} CPU threads into {a.bc} (up to {a.bc_max:,} decisions); it picks up new recordings every {a.bc_reload:g} min')
 
     def bc_batch(self, n):
         idx = torch.randint(0, len(self.bc_obs), (n,))
@@ -606,8 +639,8 @@ class GpuTrainer:
             self.load()
         self.bc_obs = None
         if a.bc:
-            self.load_bc()
-            if not a.resume or a.bc_pretrain:
+            self.bc_dir = Path(a.bc) if Path(a.bc).is_absolute() else ROOT / a.bc
+            if self.load_bc() and (not a.resume or a.bc_pretrain):
                 self.bc_pretrain()
             print(f'It keeps imitating the recordings a little (weight {a.bc_weight}) while it trains, fading out over {a.bc_steps / 1e6:.0f}M decisions.')
         if a.selfplay and not self.selfplay:
@@ -621,6 +654,8 @@ class GpuTrainer:
         self.configure()
         self.publish()
         self.start_eval()
+        self.start_record()
+        last_bc = time.time()
         T = a.rollout
         stop = {'flag': False}
 
@@ -796,6 +831,10 @@ class GpuTrainer:
                     log.flush()
                     ep.clear()
                     robot_st.clear()
+                if a.bc and time.time() - last_bc > a.bc_reload * 60:
+                    last_bc = time.time()
+                    if self.bc_count() > self.bc_files and self.load_bc():
+                        print(f'      now imitating {len(self.bc_obs):,} recorded AI decisions')
                 if time.time() - last_save > a.save_minutes * 60:
                     self.save()
                     last_save = time.time()
@@ -845,6 +884,8 @@ def main():
     p.add_argument('--bc-steps', type=float, default=300e6, help='... fading out over this many decisions')
     p.add_argument('--bc-epochs', type=float, default=3, help='passes over the recordings when a new network first copies them')
     p.add_argument('--bc-pretrain', action='store_true', help='copy the recordings first even when resuming (overwrites much of what it learned)')
+    p.add_argument('--record-ai', type=int, default=0, help='record the pre-programmed AIs on this many CPU threads while it trains, into the --bc folder')
+    p.add_argument('--bc-reload', type=float, default=20, help='minutes between picking up new recordings')
     p.add_argument('--bc-max', type=int, default=2000000, help='use at most this many recorded decisions (a random sample)')
     p.add_argument('--smooth', type=float, default=0.005, help='cost of changing the drive / turn command between decisions (stops twitchy driving)')
     p.add_argument('--spin', type=float, default=0.003, help='cost of turning (it should turn when it needs to, not all the time)')
