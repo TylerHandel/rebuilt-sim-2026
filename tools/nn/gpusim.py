@@ -542,62 +542,76 @@ class GpuSim:
         mass = self.spec('mass')
         rate = INTAKE_MAX * self.dr_intake * (self.spec('intakeRate') / 200).clamp(max=1).clamp(min=0.1)
         rate = torch.where(self.spec('intakeRate') < 40, self.spec('intakeRate'), rate)
-        for r in range(RS):
-            pr = self.present[:, r]
-            if not pr.any():
-                continue
-            dx = self.bpos[..., 0] - self.pos[:, r, None, 0]
-            dz = self.bpos[..., 1] - self.pos[:, r, None, 1]
-            lx = dx * u[:, r, None, 0] + dz * u[:, r, None, 1]
-            lz = dx * v[:, r, None, 0] + dz * v[:, r, None, 1]
-            front = hl[:, r] + self.deploy[:, r] * self.spec('intakeReach')[:, r]
-            hwr = hw[:, r]
-            iw = self.spec('intakeWidth')[:, r] / 2 + 0.02
-            near = onf & pr[:, None] & (lx > -hl[:, r, None] - self.R) & (lx < front[:, None] + self.R) & (lz.abs() < hwr[:, None] + self.R)
-            inIntake = near & running[:, r, None] & (lx > hl[:, r, None] - 0.04) & (lz.abs() < iw[:, None])
-            row = (self.spec('intakeWidth')[:, r] / (2 * self.R)).floor().clamp(min=2)  # the rollers grip about a row
-            self.tokens[:, r] = torch.where(running[:, r], torch.minimum(self.tokens[:, r] + rate[:, r] * h, row), torch.zeros_like(self.tokens[:, r]))
-            room = (cap[:, r] - self.stored[:, r]).clamp(min=0)
-            take_n = torch.minimum(room, self.tokens[:, r].floor())
-            take = inIntake & (torch.cumsum(inIntake.long(), 1) <= take_n[:, None])
-            got = take.sum(1).float()
-            self.stored[:, r] += got
-            self.tokens[:, r] -= got
-            self.intaked[:, r] += got
-            self.bst = torch.where(take, HELD, self.bst)
-            self.bown = torch.where(take, r, self.bown)
+        row = (self.spec('intakeWidth') / (2 * self.R)).floor().clamp(min=2)  # the rollers grip about a row
+        self.tokens = torch.where(running, torch.minimum(self.tokens + rate * h, row), torch.zeros_like(self.tokens))
+        room = (cap - self.stored).clamp(min=0)
+        take_n = torch.minimum(room, self.tokens.floor())
+        # only FUEL near a robot can touch it: a cheap circle test first, then the exact work on those
+        reach = torch.hypot(hl + self.deploy * self.spec('intakeReach'), hw) + self.R + 0.02
+        ddx = self.bpos[:, None, :, 0] - self.pos[:, :, None, 0]
+        ddz = self.bpos[:, None, :, 1] - self.pos[:, :, None, 1]
+        cand = (ddx * ddx + ddz * ddz < (reach * reach)[..., None]) & onf[:, None, :] & self.present[..., None]
+        e, r, b = cand.nonzero(as_tuple=True)          # sorted by (env, robot, FUEL)
+        if len(e):
+            dx, dz = ddx[e, r, b], ddz[e, r, b]
+            ux, uz, vx_, vz_ = u[e, r, 0], u[e, r, 1], v[e, r, 0], v[e, r, 1]
+            lx, lz = dx * ux + dz * uz, dx * vx_ + dz * vz_
+            hl_, hw_ = hl[e, r], hw[e, r]
+            front = hl_ + self.deploy[e, r] * self.spec('intakeReach')[e, r]
+            iw = self.spec('intakeWidth')[e, r] / 2 + 0.02
+            near = (lx > -hl_ - self.R) & (lx < front + self.R) & (lz.abs() < hw_ + self.R)
+            inI = near & running[e, r] & (lx > hl_ - 0.04) & (lz.abs() < iw)
+            # intake: up to take_n per robot, in FUEL order; a FUEL two intakes reach goes to one
+            key = e * RS + r
+            take = torch.zeros_like(inI)
+            si = inI.nonzero(as_tuple=True)[0]
+            if len(si):
+                ks = key[si]
+                rank = torch.arange(len(si), device=self.dev) - torch.searchsorted(ks, ks)
+                ok = rank < take_n.flatten()[ks]
+                si = si[ok]
+                bk = e[si] * self.B + b[si]
+                first = torch.full((self.n * self.B,), len(e), dtype=torch.long, device=self.dev).scatter_reduce(0, bk, si, 'amin')
+                si = si[first[bk] == si]
+                take[si] = True
+            tk = take.nonzero(as_tuple=True)[0]
+            got = torch.zeros(self.n * RS, device=self.dev).index_add_(0, key[tk], torch.ones(len(tk), device=self.dev)).view(self.n, RS)
+            self.stored += got
+            self.tokens -= got
+            self.intaked += got
+            self.bst[e[tk], b[tk]] = HELD
+            self.bown[e[tk], b[tk]] = r[tk]
             # FUEL in the mouth that has to wait its turn is held there, not plowed ahead (unless full)
-            held = inIntake & ~take & (room > got)[:, None]
-            push = near & ~take & ~held
-            if push.any():
-                pen_f = front[:, None] + self.R - lx
-                pen_b = lx + hl[:, r, None] + self.R
-                pen_s = hwr[:, None] + self.R - lz.abs()
+            held = inI & ~take & (room > got)[e, r]
+            pi = (near & ~take & ~held).nonzero(as_tuple=True)[0]
+            if len(pi):
+                e2, r2, b2 = e[pi], r[pi], b[pi]
+                lx, lz, hl_, hw_, front = lx[pi], lz[pi], hl_[pi], hw_[pi], front[pi]
+                ux, uz, vx_, vz_ = ux[pi], uz[pi], vx_[pi], vz_[pi]
+                pen_f = front + self.R - lx
+                pen_b = lx + hl_ + self.R
+                pen_s = hw_ + self.R - lz.abs()
                 m_f = (pen_f <= pen_b) & (pen_f <= pen_s)
                 m_b = (pen_b < pen_f) & (pen_b <= pen_s)
                 nlx = torch.where(m_f, lx + pen_f, torch.where(m_b, lx - pen_b, lx))
                 nlz = torch.where(~m_f & ~m_b, lz + lz.sign() * pen_s, lz)
-                wx = self.pos[:, r, None, 0] + nlx * u[:, r, None, 0] + nlz * v[:, r, None, 0]
-                wz = self.pos[:, r, None, 1] + nlx * u[:, r, None, 1] + nlz * v[:, r, None, 1]
-                self.bpos = torch.where(push[..., None], torch.stack([wx, wz], -1), self.bpos)
-                pvx = self.vel[:, r, None, 0] + self.omega[:, r, None] * (wz - self.pos[:, r, None, 1])
-                pvz = self.vel[:, r, None, 1] - self.omega[:, r, None] * (wx - self.pos[:, r, None, 0])
+                px, pz = self.pos[e2, r2, 0], self.pos[e2, r2, 1]
+                wx, wz = px + nlx * ux + nlz * vx_, pz + nlx * uz + nlz * vz_
+                om = self.omega[e2, r2]
+                pv = torch.stack([self.vel[e2, r2, 0] + om * (wz - pz), self.vel[e2, r2, 1] - om * (wx - px)], -1)
                 # contact normal (world): out the front, the back or a side of the robot
-                ux, uz, vx_, vz_ = u[:, r, None, 0], u[:, r, None, 1], v[:, r, None, 0], v[:, r, None, 1]
                 sz = lz.sign()
-                nx = torch.where(m_f, ux, torch.where(m_b, -ux, sz * vx_))
-                nz = torch.where(m_f, uz, torch.where(m_b, -uz, sz * vz_))
-                nrm = torch.stack([nx, nz], -1)
+                nrm = torch.stack([torch.where(m_f, ux, torch.where(m_b, -ux, sz * vx_)), torch.where(m_f, uz, torch.where(m_b, -uz, sz * vz_))], -1)
                 # bounce off the bumper along the normal (FUEL restitution 0.45); a little slip sideways
-                rel = torch.stack([pvx, pvz], -1) - self.bvel
+                bv = self.bvel[e2, b2]
+                rel = pv - bv
                 vn = (rel * nrm).sum(-1).clamp(min=0)
-                kick = self.bvel + nrm * (vn * 1.45)[..., None] + (rel - nrm * (rel * nrm).sum(-1, keepdim=True)) * 0.2
-                newv = torch.where(push[..., None], kick, self.bvel)
+                newv = bv + nrm * (vn * 1.45)[:, None] + (rel - nrm * (rel * nrm).sum(-1, keepdim=True)) * 0.2
+                self.bpos[e2, b2] = torch.stack([wx, wz], -1)
+                self.bvel[e2, b2] = newv
                 # the FUEL it shoves takes momentum from the robot
-                dp = (torch.where(push[..., None], newv - self.bvel, 0.0) * 0.215).sum(1)
-                self.vel[:, r] = self.vel[:, r] - dp / mass[:, r, None]
-                self.bvel = newv
-            onf = self.bst == FIELD
+                dp = torch.zeros(self.n * RS, 2, device=self.dev).index_add_(0, e2 * RS + r2, (newv - bv) * 0.215).view(self.n, RS, 2)
+                self.vel = self.vel - dp / mass[..., None]
 
         # ---- shoot / pass: feed while ready
         period = 1.0 / self.spec('bps')
@@ -664,8 +678,10 @@ class GpuSim:
         if ex.any():
             self._exit_hub(ex)
 
-        # ---- crowded FUEL spreads out (FUEL can't stack up in one spot)
-        self._crowding(h)
+        # ---- crowded FUEL spreads out (FUEL can't stack up in one spot); every other substep is plenty
+        self._sub_i = getattr(self, '_sub_i', 0) + 1
+        if self._sub_i % 2 == 0:
+            self._crowding(h)
 
         # ---- FUEL rolls: carpet resistance, walls, field elements
         onf = self.bst == FIELD
@@ -895,30 +911,42 @@ class GpuSim:
         ei = torch.where(ine, ex * EN + ez, torch.full_like(ex, EN * EN))
         ego = torch.zeros(N, RS, EN * EN + 1, device=d).scatter_add_(-1, ei, torch.ones_like(lx))[..., :EN * EN]
         ego = (ego / 4).clamp(max=1)
+        # the whole-field FUEL map and zone counts are the same for every robot of an ALLIANCE:
+        # build them once per alliance (blue's frame, then red's: the field rotated 180 deg)
         GX, GZ = 16, 8
-        gx = ((bx + self.HL) / (2 * self.HL) * GX).floor().long()
-        gz = ((bz + self.HW) / (2 * self.HW) * GZ).floor().long()
-        ing = onf & (gx >= 0) & (gx < GX) & (gz >= 0) & (gz < GZ)
-        gi = torch.where(ing, gx.clamp(0, GX - 1) * GZ + gz.clamp(0, GZ - 1), torch.full_like(gx, GX * GZ))
-        grid = torch.zeros(N, RS, GX * GZ + 1, device=d).scatter_add_(-1, gi, torch.ones_like(lx))[..., :GX * GZ]
-        grid = torch.log1p(grid) / math.log1p(20)
+        on1 = self.bst == FIELD
+        grids, zones = [], []
+        for sgn_ in (1.0, -1.0):
+            ax, az = sgn_ * self.bpos[..., 0], sgn_ * self.bpos[..., 1]
+            gx = ((ax + self.HL) / (2 * self.HL) * GX).floor().long()
+            gz = ((az + self.HW) / (2 * self.HW) * GZ).floor().long()
+            ing = on1 & (gx >= 0) & (gx < GX) & (gz >= 0) & (gz < GZ)
+            gi = torch.where(ing, gx.clamp(0, GX - 1) * GZ + gz.clamp(0, GZ - 1), torch.full_like(gx, GX * GZ))
+            grids.append(torch.zeros(N, GX * GZ + 1, device=d).scatter_add_(-1, gi, torch.ones_like(ax))[:, :GX * GZ])
+            line = self.lineX
+            zones.append(torch.stack([(on1 & (ax < line)).sum(-1).float() / 50, (on1 & (ax >= line) & (ax <= -line)).sum(-1).float() / 400,
+                                      (on1 & (ax > -line)).sum(-1).float() / 50], -1))
+        al = (s < 0).long()                                              # [N,RS]
+        G = torch.stack(grids, 1)                                        # [N,2,128]
+        grid = torch.log1p(G.gather(1, al[..., None].expand(-1, -1, GX * GZ))) / math.log1p(20)
+        Z3 = torch.stack(zones, 1).gather(1, al[..., None].expand(-1, -1, 3))
         d2 = torch.where(onf, lx * lx + lz * lz, torch.full_like(lx, 1e9))
         vals, ii = torch.topk(d2, 8, dim=-1, largest=False)
         nl, nz = lx.gather(-1, ii), lz.gather(-1, ii)
         ok = vals < 1e8
         near = torch.stack([torch.where(ok, (nl / 4).clamp(-1, 1), torch.ones_like(nl)), torch.where(ok, (nz / 4).clamp(-1, 1), torch.zeros_like(nz))], -1).reshape(N, RS, 16)
-        line = self.lineX
-        zo = (onf & (bx < line)).sum(-1).float() / 50
-        zm = (onf & (bx >= line) & (bx <= -line)).sum(-1).float() / 400
-        zp = (onf & (bx > -line)).sum(-1).float() / 50
-        return torch.cat([ego, grid, near, torch.stack([zo, zm, zp], -1)], -1)
+        return torch.cat([ego, grid, near, Z3], -1)
 
     # ------------------------------------------------------------------ scripted robots
-    def bot_actions(self):
+    def bot_actions(self, envs=None):
         """Simple scripted robots for every slot: [N,RS,7] actions (own frame). Most score
         (collect the nearest FUEL, score in their zone while their HUB is active); a few defend
-        (get between the other ALLIANCE's most loaded robot and its HUB)."""
+        (get between the other ALLIANCE's most loaded robot and its HUB). envs: only the matches
+        that have scripted robots (bool [N]); the others get zeros."""
         N, d = self.n, self.dev
+        if envs is None:
+            envs = torch.ones(N, dtype=torch.bool, device=d)
+        E = envs.nonzero().squeeze(-1)
         s = self.sgn
         x, z = s * self.pos[..., 0], s * self.pos[..., 1]
         yaw = self.yaw + torch.where(s > 0, 0.0, math.pi)
@@ -929,24 +957,33 @@ class GpuSim:
         n_ = self.stored
         auto, gap, tele, post, tt = self.phase()
         go_score = (n_ >= 0.6 * cap) | ((n_ >= 4) & (act | (nc < 4))) | (auto[:, None] & (n_ > 0) & (self.t[:, None] > 12))
-        onf = (self.bst == FIELD)[:, None, :]
-        bx = s[..., None] * self.bpos[:, None, :, 0]
-        bz = s[..., None] * self.bpos[:, None, :, 1]
-        # skip FUEL tucked against a wall or a field element (no path planning here)
-        Rr = self.obs_rects
-        gapb = torch.maximum((bx[..., None] - Rr[:, 0]).abs() - Rr[:, 2], (bz[..., None] - Rr[:, 1]).abs() - Rr[:, 3]).min(-1).values
-        ok = onf & (gapb > 0.35) & (bx.abs() < self.HL - 0.4) & (bz.abs() < self.HW - 0.4)
-        d2 = torch.where(ok, (bx - x[..., None]) ** 2 + (bz - z[..., None]) ** 2, torch.full_like(bx, 1e9))
-        # prefer FUEL with company (dense patches), not a lone ball it'll knock away
-        GX, GZ = 16, 8
-        gi = (((bx + self.HL) / (2 * self.HL) * GX).long().clamp(0, GX - 1) * GZ + ((bz + self.HW) / (2 * self.HW) * GZ).long().clamp(0, GZ - 1))
-        dens = torch.zeros(N, RS, GX * GZ, device=d).scatter_add_(-1, gi, ok.float())
-        j = (d2 - 0.6 * dens.gather(-1, gi).clamp(max=12)).argmin(-1)
-        fx, fz = bx.gather(-1, j[..., None]).squeeze(-1), bz.gather(-1, j[..., None]).squeeze(-1)
+        # the FUEL to go for (only in the matches with scripted robots: it's the costly part)
+        fx, fz = torch.zeros_like(x), torch.zeros_like(z)
+        if len(E):
+            onf = (self.bst[E] == FIELD)
+            wb = self.bpos[E]                                            # [n,B,2] world
+            # skip FUEL tucked against a wall or a field element (no path planning here); the field is
+            # point-symmetric, so this doesn't depend on whose frame it's seen in
+            Rr = self.obs_rects
+            gapb = torch.maximum((wb[..., None, 0] - Rr[:, 0]).abs() - Rr[:, 2], (wb[..., None, 1] - Rr[:, 1]).abs() - Rr[:, 3]).min(-1).values
+            ok = onf & (gapb > 0.35) & (wb[..., 0].abs() < self.HL - 0.4) & (wb[..., 1].abs() < self.HW - 0.4)
+            sE = s[E]
+            bx = sE[..., None] * wb[:, None, :, 0]
+            bz = sE[..., None] * wb[:, None, :, 1]
+            okr = ok[:, None, :].expand_as(bx)
+            d2 = torch.where(okr, (bx - x[E][..., None]) ** 2 + (bz - z[E][..., None]) ** 2, torch.full_like(bx, 1e9))
+            # prefer FUEL with company (dense patches), not a lone ball it'll knock away
+            GX, GZ = 16, 8
+            gi = (((bx + self.HL) / (2 * self.HL) * GX).long().clamp(0, GX - 1) * GZ + ((bz + self.HW) / (2 * self.HW) * GZ).long().clamp(0, GZ - 1))
+            dens = torch.zeros(len(E), RS, GX * GZ, device=d).scatter_add_(-1, gi, okr.float())
+            jj = (d2 - 0.6 * dens.gather(-1, gi).clamp(max=12)).argmin(-1)
+            fx[E] = bx.gather(-1, jj[..., None]).squeeze(-1)
+            fz[E] = bz.gather(-1, jj[..., None]).squeeze(-1)
         tx = torch.where(go_score, torch.full_like(x, self.lineX - 1.2), fx)
         tz = torch.where(go_score, torch.where(z > 0, 1.7, -1.7), fz)
         # defenders: between the most loaded opponent and its HUB (own frame: their HUB is at -hubX)
         foe_load = torch.where((al[:, :, None] != al[:, None, :]) & self.present[:, None, :], self.stored[:, None, :].expand(N, RS, RS), torch.full((N, RS, RS), -1.0, device=d))
+        Rr = self.obs_rects
         tgt = foe_load.argmax(-1)
         ox = s * self.pos[..., 0].gather(1, tgt)
         oz = s * self.pos[..., 1].gather(1, tgt)
@@ -977,7 +1014,7 @@ class GpuSim:
         out[..., 3] = collecting.float()
         inZ = self.in_zone(self.sgn)
         out[..., 4] = (go_score & ~defend & inZ & (act | (nc < 1.0))).float()
-        return out
+        return out * envs[:, None, None].float()
 
     # ------------------------------------------------------------------ live view
     def frame(self, envs):

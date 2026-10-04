@@ -69,7 +69,7 @@ The dashboard shows whether it's improving. If points per match stay flat for ma
 
 The console shows the current `win-weight` (0 = points only, 1 = mostly winning). `--win-weight 1` sets it straight away.
 
-**Live view:** the dashboard (`nn-dashboard.bat`) shows a grid of 16 matches the trainer is playing right now, as a bird's-eye view: robots in alliance colors, learning robots outlined, FUEL, HUB lights, score and clock. `--live 0` turns it off; `--live 25` shows more.
+**Live view:** the dashboard (`nn-dashboard.bat`) shows a grid of the matches the trainer is playing right now, as a bird's-eye view: robots in alliance colors, learning robots outlined, FUEL, HUB lights, score and clock. It shows 4 matches by default; `--live 0` turns it off and `--live 9` shows more, at a small cost in speed.
 
 **Your earlier network carries over.** The observation grew for 3v3: teammates and the 2nd and 3rd opponents were added at the end. When you `--resume` a run trained before that, it's upgraded automatically with zero weights on the new inputs, so it plays exactly as before until it learns to use them. Older driving recordings still load too.
 
@@ -88,7 +88,9 @@ The console shows the current `win-weight` (0 = points only, 1 = mostly winning)
 | `--mix A B O I` | 0.05 0.25 0.35 0.35 | during self-play, the share of matches alone / vs the bots / vs older versions / vs itself. `--mix 0 0.1 0.45 0.45` is almost all self-play. |
 | `--win-ramp` | 50M | decisions over which the reward shifts to winning once self-play is on |
 | `--win-weight` | | fix the win weight (0 to 1) instead |
-| `--live` | 16 | matches shown on the dashboard |
+| `--live` | 4 | matches shown on the dashboard. Each one costs a little speed; 0 turns it off. |
+| `--amp` | on | the critic (the bigger network) runs in bf16 on the tensor cores. `--no-amp` turns it off. |
+| `--compile` | off | `torch.compile` fuses the observation code into a few GPU kernels. On Windows it needs `.venv\Scripts\pip install triton-windows` first; without it the trainer says so and carries on normally. |
 
 The console prints decisions per second and roughly how many matches per hour that is. On this project's 4-thread cloud CPU, with no GPU, it runs about 1,000–2,500 robot decisions/s with a few dozen matches; the full game manages about 20–50. It hasn't been measured on a GPU yet.
 

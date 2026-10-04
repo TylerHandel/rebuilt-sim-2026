@@ -103,6 +103,11 @@ class GpuTrainer:
         tp = [a.teams.count(k) for k in (1, 2, 3)] if a.teams else [0.25, 0.15, 0.6]
         self.sim = GpuSim(envs, device=self.dev, robots=a.robots, seed=a.seed, substeps=a.substeps, team_probs=tp, randomize=not a.no_randomize)
         self.N, self.D = self.sim.n, self.sim.D
+        # NVIDIA speedups: bf16 tensor cores for the critic (the big network), fused kernels for the
+        # observation (torch.compile; falls back to normal PyTorch if it isn't available)
+        self.amp = a.amp and self.dev.type == 'cuda'
+        if a.compile:
+            self._compile_obs()
         self.actor = Actor(self.D, a.hidden).to(self.dev)
         self.critic = mlp([self.D, *a.critic, 1]).to(self.dev)
         self.opt = torch.optim.Adam([*self.actor.parameters(), *self.critic.parameters()], lr=a.lr, eps=1e-5)
@@ -115,6 +120,23 @@ class GpuTrainer:
         self.hist = collections.defaultdict(lambda: collections.deque(maxlen=400))
         self.t_start = time.time()
         self.prev_elapsed = 0.0
+
+    def _compile_obs(self):
+        eager = self.sim.obs
+        try:
+            fast = torch.compile(eager, dynamic=False)
+            fast()  # compile now, so a failure shows up here
+            self.sim.obs = fast
+            print('torch.compile: the observation runs as fused GPU kernels')
+        except Exception as e:  # noqa: BLE001 - any compiler problem: keep training without it
+            print(f'torch.compile not available here ({str(e).splitlines()[0][:120]}); continuing without it. '
+                  'On Windows it needs: .venv\\Scripts\\pip install triton-windows')
+            self.sim.obs = eager
+
+    def V(self, x):
+        """Critic values (bf16 tensor cores with --amp)."""
+        with torch.autocast(device_type='cuda', dtype=torch.bfloat16, enabled=self.amp):
+            return self.critic(x).squeeze(-1).float()
 
     # ---- checkpoints (same format as train.py, so it can --resume there)
     def save(self):
@@ -310,12 +332,12 @@ class GpuTrainer:
                 for t in range(T):
                     L = sim.learning()
                     x = self.norm.apply(obs)
-                    act = sim.bot_actions()
+                    act = sim.bot_actions((sim.opp_kind == OPP_BOT) & sim.present[:, 3])
                     with torch.no_grad():
                         xl = x[L]
                         al, lpl = sample(self.actor, xl)
                         act[L] = al
-                        V_b[t][L] = self.critic(xl).squeeze(-1)
+                        V_b[t][L] = self.V(xl)
                         snapm = (sim.opp_kind == OPP_SNAP)[:, None] & sim.present & (sim.team == 1)
                         if snapm.any() and self.pool:
                             which = self.snap_of[:, None].expand(N, RS) % len(self.pool)
@@ -360,7 +382,7 @@ class GpuTrainer:
                 with torch.no_grad():
                     Lf = sim.learning()
                     Vn = torch.zeros(N, RS, device=dev)
-                    Vn[Lf] = self.critic(self.norm.apply(obs[Lf])).squeeze(-1)
+                    Vn[Lf] = self.V(self.norm.apply(obs[Lf]))
                     adv = torch.zeros(T, N, RS, device=dev)
                     last = torch.zeros(N, RS, device=dev)
                     for t in reversed(range(T)):
@@ -389,7 +411,7 @@ class GpuTrainer:
                         ad = (ad - ad.mean()) / (ad.std() + 1e-8)
                         vm = VAL[ix]  # no policy gradient while the robot is disabled
                         pl = -(torch.min(ratio * ad, ratio.clamp(1 - a.clip, 1 + a.clip) * ad) * vm).sum() / vm.sum().clamp(min=1)
-                        vl = 0.5 * ((self.critic(X[ix]).squeeze(-1) - RET[ix]) ** 2).mean()
+                        vl = 0.5 * ((self.V(X[ix]) - RET[ix]) ** 2).mean()
                         loss = pl + a.vf * vl - a.ent * (ent * vm).sum() / vm.sum().clamp(min=1)
                         self.opt.zero_grad()
                         loss.backward()
@@ -469,7 +491,9 @@ def main():
     p.add_argument('--win-ramp', type=float, default=50e6, help='decisions after self-play starts over which the reward shifts to winning')
     p.add_argument('--win-weight', type=float, default=None, help='fix the win weight (0 = points margin only, 1 = mostly winning)')
     p.add_argument('--no-randomize', action='store_true', help="don't vary robot speed / intake / accuracy per match")
-    p.add_argument('--live', type=int, default=16, help='matches streamed to the dashboard (0 = off)')
+    p.add_argument('--live', type=int, default=4, help='matches streamed to the dashboard (0 = off; each one costs a little speed)')
+    p.add_argument('--amp', action=argparse.BooleanOptionalAction, default=True, help='bf16 tensor cores for the critic (--no-amp to turn off)')
+    p.add_argument('--compile', action='store_true', help='fuse the observation into compiled GPU kernels (torch.compile; needs Triton)')
     p.add_argument('--snapshot-every', type=int, default=50)
     p.add_argument('--pool-size', type=int, default=8)
     p.add_argument('--publish-every', type=int, default=10)

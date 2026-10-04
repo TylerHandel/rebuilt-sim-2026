@@ -212,6 +212,8 @@ The self-play trainer above tunes the scripted AI's strategy values. The neural-
 
 Details, hardware use and expected training times: [tools/nn/README.md](tools/nn/README.md).
 
+**Updating without losing anything:** double-click **`update.bat`**. It downloads the newest version into the same folder and replaces only the code. Your training (`runs`), the trained network (`js/nn/driver.json`), recordings, and the Python/Node setup stay as they are. Stop the trainer first. If you have training in an older separate copy, double-click **`import-old.bat`** in the new copy and drag the old folder into the window: it copies all of that across.
+
 ## The robots
 
 | Robot | Type | Frame | Capacity (modeled hopper: in → out) | Shooter | Rate | Climb |
