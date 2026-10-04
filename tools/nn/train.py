@@ -133,6 +133,26 @@ class RunningNorm:
         self.mean, self.var, self.count = np.array(s['mean']), np.array(s['var']), s['count']
 
 
+def publish_file(src, dst):
+    """Copy the network into place all at once, so the game never reads a half-written file. On
+    Windows the swap fails while the game's server is reading the old file: try again shortly, or
+    skip this time (the next update publishes again)."""
+    dst = Path(dst)
+    tmp = dst.with_name(dst.name + '.tmp')
+    shutil.copyfile(src, tmp)
+    for _ in range(20):
+        try:
+            os.replace(tmp, dst)
+            return True
+        except PermissionError:
+            time.sleep(0.1)
+    try:
+        os.remove(tmp)
+    except OSError:
+        pass
+    return False
+
+
 def export_policy(actor, norm, path, version, info):
     """Write the actor in the JSON format js/nn/policy.js reads."""
     lins = [m for m in actor.body if isinstance(m, nn.Linear)]
@@ -341,7 +361,7 @@ class Trainer:
         cur = self.run / 'policy' / 'current.json'
         export_policy(self.actor, self.norm, cur, self.version, self.info())
         if self.a.publish:
-            shutil.copyfile(cur, ROOT / 'js' / 'nn' / 'driver.json')
+            publish_file(cur, ROOT / 'js' / 'nn' / 'driver.json')
         return cur
 
     # ---- opponents

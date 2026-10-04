@@ -30,7 +30,7 @@ import torch
 import torch.nn as nn
 
 sys.path.insert(0, str(Path(__file__).parent))
-from train import ROOT, OBS_VERSION, ACT_CONT, ACT_BIN, Actor, mlp, export_policy  # noqa: E402
+from train import ROOT, OBS_VERSION, ACT_CONT, ACT_BIN, Actor, mlp, export_policy, publish_file  # noqa: E402
 from gpusim import GpuSim, OPP_NONE, OPP_BOT, OPP_SNAP, OPP_SELF  # noqa: E402
 
 
@@ -171,7 +171,7 @@ class GpuTrainer:
         cur = self.run / 'policy' / 'current.json'
         export_policy(self.actor, self.norm.numpy(), cur, self.version, info)
         if self.a.publish:
-            shutil.copyfile(cur, ROOT / 'js' / 'nn' / 'driver.json')
+            publish_file(cur, ROOT / 'js' / 'nn' / 'driver.json')
 
     # ---- opponents
     def set_opponents(self):

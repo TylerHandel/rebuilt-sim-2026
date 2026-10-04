@@ -6,3 +6,4 @@ node_modules/
 runs/
 recordings/
 .venv/
+js/nn/driver.json.tmp
