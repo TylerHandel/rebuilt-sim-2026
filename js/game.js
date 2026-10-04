@@ -7,12 +7,16 @@
 //   '3v3'      - settings.slots: six { robot, auto, start, driver, skill }, blue 1-3 then red 1-3;
 //                driver is 'you', an AI strategy ('scorer', 'defense', 'hybrid') or 'empty'
 // Without a matchMode (the headless tools) it's '1v1', with no opponent if opponent is 'off'.
+// Neural-network drivers (js/nn): a driver / opponent of 'nn' drives with settings.driverPolicy /
+// oppPolicy (a js/nn/policy.js Policy), AUTO included. A driver of 'external' is driven by the
+// caller, which sets robot.cmd every step (the neural-net training workers do this).
 import { Robot } from './robot.js';
 import { Match } from './match.js';
 import { HumanPlayer } from './humanPlayer.js';
 import { AutoRunner, startPose, customSelection, assignStarts } from './auto.js';
 import { OpponentAI, opponentAuto } from './opponent.js';
 import { RobotRules } from './rules.js';
+import { NNDriver } from './nn/driver.js';
 import { ROBOTS, CLIMBER_OPTIONS } from './robotConfigs.js';
 import { BLUE, RED, other } from './constants.js';
 
@@ -44,12 +48,14 @@ export function matchEntries(s) {
   const out = [{
     alliance: s.alliance, station: s.ds ?? 1, robot: s.robot, auto: s.auto, start: s.start, customSide: s.customSide,
     driver: s.driver || 'human', skill: s.driverSkill, brain: s.driverBrain, plan: s.autoPlan, preload, you: true,
+    policy: s.driverPolicy,
   }];
   if (s.matchMode !== 'practice' && s.opponent && s.opponent !== 'off') {
     const oa = opponentAuto(s.opponent);
     out.push({
       alliance: other(s.alliance), station: 1, robot: s.oppRobot || '4414', auto: oa.routine, start: oa.start,
       driver: s.opponent, skill: s.oppSkill, brain: s.oppBrain, plan: s.oppAutoPlan, preload: 8, you: false,
+      policy: s.oppPolicy,
     });
   }
   return out;
@@ -81,12 +87,16 @@ export function createGame(world, settings, { onEvent = () => {}, prev = null } 
     robot.loadFuel(pre.slice(k, k + e.preload));
     k += e.preload;
     const auto = new AutoRunner(robot, e.auto, e.startKey || e.start, e.alliance, custom, e.plan);
-    return { robot, auto, ai: null, entry: e, human: e.driver === 'human' };
+    return { robot, auto, ai: null, entry: e, human: e.driver === 'human', external: e.driver === 'external' };
   });
   const robots = units.map((u) => u.robot);
   for (const u of units) {
-    if (u.human) continue;
+    if (u.human || u.external) continue;
     const a = u.robot.alliance;
+    if (u.entry.driver === 'nn') {
+      u.ai = new NNDriver({ robot: u.robot, foes: robots.filter((r) => r.alliance !== a), match, fuel, policy: u.entry.policy });
+      continue;
+    }
     u.ai = new OpponentAI({
       robot: u.robot, foes: robots.filter((r) => r.alliance !== a), mates: robots.filter((r) => r.alliance === a && r !== u.robot),
       match, fuel, rules, strategy: u.entry.driver, skill: u.entry.skill, brain: u.entry.brain,
@@ -123,7 +133,9 @@ export function stepGame(game, world, dt) {
     r.enabled = match.robotEnabled;
   }
   for (const u of units) {
-    if (match.isAuto) {
+    if (u.external) continue; // robot.cmd is set by the caller
+    if (match.isAuto && u.ai && u.ai.drivesAuto) u.ai.update(dt);
+    else if (match.isAuto) {
       u.auto.update(dt);
       if (u.ai) u.ai.label = 'AUTO routine';
     } else if (u === game.you && game.driverAI && u.human) {

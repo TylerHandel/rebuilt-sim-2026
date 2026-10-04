@@ -78,8 +78,8 @@ const OPT = {
   role: opt('role', 'Your role', [['score', 'Score (win the match)'], ['defense', 'Defense drill']], (s) => (s.role === 'defense'
     ? 'The AI plays Scorer and your goal is to hold its score down (fouls you commit count as its points).'
     : 'Score more than the other alliance.')),
-  driver: opt('driver', 'Your robot driven by', [['human', 'You'], ['scorer', 'AI Scorer (watch)'], ['defense', 'AI Defense (watch)'], ['hybrid', 'AI Hybrid (watch)']],
-    'Watch mode: an AI drives your robot in TELEOP (AUTO still runs your auto routine).'),
+  driver: opt('driver', 'Your robot driven by', [['human', 'You'], ['scorer', 'AI Scorer (watch)'], ['defense', 'AI Defense (watch)'], ['hybrid', 'AI Hybrid (watch)'], ['nn', 'Neural net (watch)']],
+    'Watch mode: an AI drives your robot in TELEOP (AUTO still runs your auto routine; the neural net drives AUTO too).'),
   driverSkill: opt('driverSkill', 'Its AI skill', SKILL_ORDER.map((k) => [k, OPP_SKILLS[k].name]), (s) => 'Only used in watch mode. ' + OPP_SKILLS[s.driverSkill].desc),
   hp: opt('hp', 'Your human player', [['manual', 'Manual (X / Y)'], ['auto', 'Auto-throw when HUB active']], 'The human player at your OUTPOST: throw FUEL yourself, or let it throw whenever your HUB is active.'),
   climber: opt('climber', 'Climber add-on', [['none', 'None (as built)'], ['l1', 'Level 1 hook'], ['l3', 'Level 1-3 climber']], '971 and 1678 climb Level 1 as built; the other four didn\'t climb in 2026. Add a hypothetical climber to your robot to try the TOWER.'),

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Local web server for the REBUILT simulator (ES modules must be served over http).
 
-Usage:  python3 serve.py [port] [--open]
+Usage:  python3 serve.py [port] [--open] [--nn]   (--nn opens the neural-net training dashboard)
 """
 import http.server
 import os
@@ -29,8 +29,9 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 server = http.server.ThreadingHTTPServer(("127.0.0.1", PORT), Handler)
 url = f"http://localhost:{PORT}/"
 print(f"REBUILT Sim running at {url}  (Ctrl+C to stop)")
-if "--open" in sys.argv:
-    threading.Timer(0.5, lambda: webbrowser.open(url)).start()
+if "--open" in sys.argv or "--nn" in sys.argv:
+    page = url + ("nn.html" if "--nn" in sys.argv else "")
+    threading.Timer(0.5, lambda: webbrowser.open(page)).start()
 try:
     server.serve_forever()
 except KeyboardInterrupt:
