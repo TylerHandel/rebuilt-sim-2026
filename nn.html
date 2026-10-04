@@ -10,6 +10,7 @@
     --surface-0: #f4f4f1; --surface-1: #fcfcfb; --border: #e2e1dc;
     --text-primary: #0b0b0b; --text-secondary: #52514e; --text-muted: #8a8984;
     --grid: #ecebe7; --series-1: #2a78d6; --series-2: #eb6834; --good: #1a7f37;
+    --field: #e3e5df; --field-line: #b8bbb3; --element: #8f938b; --blue: #2a78d6; --red: #e34948; --fuel: #d99400; --learner: #0b0b0b;
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
@@ -17,6 +18,7 @@
       --surface-0: #111110; --surface-1: #1a1a19; --border: #2e2e2c;
       --text-primary: #ffffff; --text-secondary: #c3c2b7; --text-muted: #8b8a82;
       --grid: #262624; --series-1: #3987e5; --series-2: #d95926; --good: #4cc26a;
+      --field: #22242a; --field-line: #3c3f47; --element: #5d616b; --blue: #3987e5; --red: #e66767; --fuel: #f2c230; --learner: #ffffff;
     }
   }
   :root[data-theme="dark"] {
@@ -24,6 +26,7 @@
     --surface-0: #111110; --surface-1: #1a1a19; --border: #2e2e2c;
     --text-primary: #ffffff; --text-secondary: #c3c2b7; --text-muted: #8b8a82;
     --grid: #262624; --series-1: #3987e5; --series-2: #d95926; --good: #4cc26a;
+      --field: #22242a; --field-line: #3c3f47; --element: #5d616b; --blue: #3987e5; --red: #e66767; --fuel: #f2c230; --learner: #ffffff;
   }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--surface-0); color: var(--text-primary); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
@@ -48,6 +51,15 @@
   .barbg { background: var(--grid); border-radius: 4px; width: 120px; display: inline-block; vertical-align: middle; }
   .muted { color: var(--text-muted); }
   .err { color: var(--series-2); }
+  .live { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 8px; }
+  .live figure { margin: 0; }
+  .live canvas { width: 100%; aspect-ratio: 2.05; display: block; border-radius: 6px; background: var(--field); }
+  .live figcaption { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-secondary); font-variant-numeric: tabular-nums; padding: 2px 2px 0; }
+  .live figcaption b.bl { color: var(--blue); } .live figcaption b.rd { color: var(--red); }
+  .liveHead { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  .legend { display: flex; gap: 12px; font-size: 12px; color: var(--text-secondary); flex-wrap: wrap; }
+  .sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; vertical-align: -1px; margin-right: 4px; }
+  button.small { font: inherit; font-size: 12px; background: var(--surface-1); color: var(--text-primary); border: 1px solid var(--border); border-radius: 6px; padding: 2px 8px; cursor: pointer; }
   select { font: inherit; background: var(--surface-1); color: var(--text-primary); border: 1px solid var(--border); border-radius: 6px; padding: 2px 6px; }
 </style>
 </head>
@@ -56,6 +68,11 @@
   <h1>Neural net training</h1>
   <p class="sub">Live progress of <code>tools/nn/train.py</code>. Refreshes every 10 s. Run <select id="run"></select> <span id="status" class="muted"></span></p>
   <div class="tiles" id="tiles"></div>
+  <div class="card" id="liveCard" style="margin-bottom:12px">
+    <div class="liveHead"><h2>Live matches</h2><span class="legend"><span><span class="sw" style="background:var(--blue)"></span>Blue</span><span><span class="sw" style="background:var(--red)"></span>Red</span><span><span class="sw" style="background:var(--fuel);border-radius:50%"></span>FUEL</span><span><span class="sw" style="border:2px solid var(--learner)"></span>Learning robot</span><span id="liveState" class="muted"></span><button class="small" id="liveToggle">Hide</button></span></div>
+    <p class="note">A bird's-eye view of some of the matches the GPU trainer is playing right now (nn-train-gpu.bat). The number on a robot is the FUEL it holds; a lit HUB is active.</p>
+    <div class="live" id="live"></div>
+  </div>
   <div class="grid2">
     <div class="card"><h2>Points per match</h2><p class="note">The network's own score, averaged per update (FUEL, plus fouls by the other robot)</p><div class="chart" id="cPts"></div></div>
     <div class="card"><h2>Simulation speed</h2><p class="note">Decisions per second across all workers (10 per robot per match-second)</p><div class="chart" id="cSps"></div></div>
@@ -141,6 +158,113 @@ function render() {
     : '<p class="muted">No matches finished yet.</p>';
 }
 window.addEventListener('resize', render);
+
+// ------------------------------------------------------------------ live matches
+let field = null, liveData = null, queue = [], lastSeq = 0, shown = null, liveOn = true;
+try { liveOn = localStorage.getItem('nnLive') !== 'off'; } catch { /* storage unavailable */ }
+$('liveToggle').onclick = () => { liveOn = !liveOn; try { localStorage.setItem('nnLive', liveOn ? 'on' : 'off'); } catch { /* */ } applyLiveToggle(); };
+function applyLiveToggle() { $('live').style.display = liveOn ? '' : 'none'; $('liveToggle').textContent = liveOn ? 'Hide' : 'Show'; }
+applyLiveToggle();
+fetch('tools/nn/gpusim-params.json', { cache: 'no-store' }).then((r) => r.json()).then((p) => { field = p; }).catch(() => {});
+async function pollLive() {
+  if (!liveOn) return;
+  try {
+    const r = await fetch(`runs/${run}/live.json`, { cache: 'no-store' });
+    if (!r.ok) throw new Error();
+    const d = await r.json();
+    liveData = d;
+    const first = d.seq - d.frames.length + 1;
+    d.frames.forEach((f, i) => { if (first + i > lastSeq) queue.push(f); });
+    lastSeq = d.seq;
+    if (queue.length > 40) queue = queue.slice(-20); // keep up: drop what we can't show in time
+    $('liveState').textContent = '';
+  } catch { $('liveState').textContent = 'waiting for the GPU trainer…'; }
+}
+setInterval(pollLive, 1000);
+let lastDraw = 0;
+function tickLive(now) {
+  requestAnimationFrame(tickLive);
+  if (!liveOn || !field || now - lastDraw < 100) return; // 10 decisions per second, like the match
+  lastDraw = now;
+  if (queue.length) shown = queue.shift();
+  else if (shown && liveData) $('liveState').textContent = 'network updating…';
+  if (shown) drawLive(shown);
+}
+requestAnimationFrame(tickLive);
+function clockText(t) {
+  const T = field.timing;
+  if (t < T.auto) return `AUTO ${Math.ceil(T.auto - t)}`;
+  if (t < T.auto + T.autoGap) return 'AUTO done';
+  const left = Math.max(0, T.teleop - (t - T.auto - T.autoGap));
+  return `${Math.floor(left / 60)}:${String(Math.floor(left % 60)).padStart(2, '0')}`;
+}
+const OPP = ['alone', 'vs bots', 'vs older self', 'vs itself'];
+function drawLive(fr) {
+  const box = $('live');
+  while (box.children.length < fr.envs.length) {
+    const f = document.createElement('figure');
+    f.innerHTML = '<canvas role="img" aria-label="Bird\'s-eye view of a training match"></canvas><figcaption><span></span><span></span></figcaption>';
+    box.appendChild(f);
+  }
+  while (box.children.length > fr.envs.length) box.lastChild.remove();
+  const col = { field: css('--field'), line: css('--field-line'), el: css('--element'), blue: css('--blue'), red: css('--red'), fuel: css('--fuel'), learner: css('--learner') };
+  const HL = field.field.halfL, HW = field.field.halfW, sizes = liveData.robots;
+  fr.envs.forEach((e, i) => {
+    const fig = box.children[i], cv = fig.firstChild;
+    const W = cv.clientWidth, H = cv.clientHeight, dpr = window.devicePixelRatio || 1;
+    if (cv.width !== Math.round(W * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
+    const g = cv.getContext('2d');
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const sc = Math.min(W / (2 * HL), H / (2 * HW));
+    const X = (x) => W / 2 + x * sc, Z = (z) => H / 2 + z * sc;
+    g.fillStyle = col.field; g.fillRect(0, 0, W, H);
+    // alliance zones and center line
+    const lx = field.field.allianceLineX;
+    g.globalAlpha = 0.14;
+    g.fillStyle = col.blue; g.fillRect(X(-HL), Z(-HW), (lx + HL) * sc, 2 * HW * sc);
+    g.fillStyle = col.red; g.fillRect(X(-lx), Z(-HW), (HL + lx) * sc, 2 * HW * sc);
+    g.globalAlpha = 1;
+    g.strokeStyle = col.line; g.lineWidth = 1;
+    g.beginPath(); g.moveTo(X(0), Z(-HW)); g.lineTo(X(0), Z(HW)); g.stroke();
+    // field elements; HUBS light up while active
+    for (const o of field.obstacles) {
+      const isHub = o.kind === 'hub', al = o.x < 0 ? 0 : 1;
+      g.fillStyle = isHub ? (e.active[al] ? (al ? col.red : col.blue) : col.el) : col.el;
+      g.globalAlpha = isHub && !e.active[al] ? 0.6 : 1;
+      g.fillRect(X(o.x - o.hx), Z(o.z - o.hz), 2 * o.hx * sc, 2 * o.hz * sc);
+      g.globalAlpha = 1;
+    }
+    // FUEL
+    const raw = atob(e.balls), n = raw.length / 4;
+    g.fillStyle = col.fuel;
+    const r = Math.max(1, field.fuel.radius * sc);
+    for (let k = 0; k < n; k++) {
+      const bx = (raw.charCodeAt(4 * k) | (raw.charCodeAt(4 * k + 1) << 8)) << 16 >> 16;
+      const bz = (raw.charCodeAt(4 * k + 2) | (raw.charCodeAt(4 * k + 3) << 8)) << 16 >> 16;
+      g.fillRect(X(bx / 100) - r, Z(bz / 100) - r, 2 * r, 2 * r);
+    }
+    // robots
+    for (const [x, z, yaw, al, type, stored, learn] of e.robots) {
+      const [hl, hw] = sizes[type] || [0.45, 0.45];
+      g.save();
+      g.translate(X(x), Z(z));
+      g.rotate(-yaw);
+      g.fillStyle = al ? col.red : col.blue;
+      g.fillRect(-hl * sc, -hw * sc, 2 * hl * sc, 2 * hw * sc);
+      g.fillStyle = col.field; // front marker
+      g.fillRect(hl * sc - 3, -hw * sc * 0.5, 3, hw * sc);
+      if (learn) { g.strokeStyle = col.learner; g.lineWidth = 1.5; g.strokeRect(-hl * sc, -hw * sc, 2 * hl * sc, 2 * hw * sc); }
+      g.restore();
+      if (stored > 0 && sc > 10) {
+        g.fillStyle = '#fff'; g.font = `${Math.max(8, Math.round(sc * 0.32))}px system-ui`; g.textAlign = 'center'; g.textBaseline = 'middle';
+        g.fillText(String(stored), X(x), Z(z));
+      }
+    }
+    const k = Math.max(e.robots.filter((q) => q[3] === 0).length, e.robots.filter((q) => q[3] === 1).length);
+    fig.lastChild.firstChild.innerHTML = `<b class="bl">${e.score[0]}</b> – <b class="rd">${e.score[1]}</b> · ${clockText(e.t)}`;
+    fig.lastChild.lastChild.textContent = `${k}v${k} ${OPP[e.opp] || ''}`;
+  });
+}
 load();
 setInterval(load, 10000);
 </script>

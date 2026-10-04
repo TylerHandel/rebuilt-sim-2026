@@ -148,6 +148,14 @@ function onEvent(type, d) {
 // opponent, and "Your trained AI" robots get their brain from the learner.
 // neural-network driver (js/nn/driver.json from tools/nn/train.py)
 function useNN(eff) {
+  // 3v3 slots driven by the neural net
+  if (eff.matchMode === '3v3' && (eff.slots || []).some((sl) => sl.driver === 'nn')) {
+    if (nnPolicy) eff.slotPolicy = nnPolicy;
+    else {
+      eff.slots = eff.slots.map((sl) => (sl.driver === 'nn' ? { ...sl, driver: 'scorer' } : sl));
+      ui.toast(`No trained neural net found (js/nn/driver.json${nnError ? ': ' + nnError : ''}) — using the Scorer AI`, 'foul');
+    }
+  }
   for (const [k, pk] of [['driver', 'driverPolicy'], ['opponent', 'oppPolicy']]) {
     if (eff[k] !== 'nn') continue;
     if (nnPolicy) eff[pk] = nnPolicy;

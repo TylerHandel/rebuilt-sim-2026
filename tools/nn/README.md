@@ -33,39 +33,64 @@ Starting from your recorded driving (`--bc`) saves a lot of that.
 The dashboard shows whether it's improving. If points per match stay flat for many hours, see Tips below.
 
 ## Fast training on the GPU (recommended start)
-`nn-train-gpu.bat` runs `tools/nn/train_gpu.py`, which trains in a **simplified copy of the game that runs on the graphics card**. It plays 4,096 matches at once as tensor math, so the RTX 3070 does the simulation and the learning. The full game, by contrast, needs one CPU thread per match.
+`nn-train-gpu.bat` runs `tools/nn/train_gpu.py`, which trains in a **simplified copy of the game that runs on the graphics card**. It plays 4,096 matches at once as tensor math, so the RTX 3070 does both the simulation and the learning. The full game, by contrast, needs one CPU thread per match.
+
+**Match sizes:** 1v1, 2v2 and 3v3 (by default 25% / 15% / 60%). Teammates are the same network, so it learns to play together: splitting up, staying out of each other's way, and taking defense when that helps the alliance.
 
 **How it's simplified** (`tools/nn/gpusim.py`):
 - **Robots:** the real speed, acceleration and turning limits, and the real sizes, intake width, capacity, shot rate, flywheel spin-up and aiming. Each robot's numbers are exported from the real game into `tools/nn/gpusim-params.json` by `tools/nn/gpusim-export.mjs`.
-- **Collisions:** robots are rounded bodies that collide with the walls, HUBs, TRENCH posts, TOWERs and each other. Robots too tall for the TRENCH are stopped by its arm.
-- **FUEL:** points that roll, slow down, bounce off walls and field elements, and get pushed or swallowed by robots. FUEL doesn't touch other FUEL, so piles don't resist a robot driving through them.
-- **Shots and passes:** timed flights with a hit chance (lower while moving fast) instead of full ballistics. Scored FUEL goes through the HUB and comes back out the exit opening into the NEUTRAL ZONE.
+- **Collisions:** robots are boxes. They collide with the walls, HUBs, TRENCH posts, TOWERs and each other, so they can push, block and pin. Robots too tall for the TRENCH are stopped by its arm.
+- **Intake:** matched to the real robots (`tools/intake-test.mjs`):
+  - up to about 70 FUEL/s driving through a pile;
+  - the rollers grip about a row at a time;
+  - packing hoppers jam at about 80% of their listed capacity, as they do in the real game.
+- **FUEL:**
+  - rolls and slows down, and bounces off walls, field elements and bumpers;
+  - pushed FUEL takes momentum from the robot;
+  - FUEL can't stack: crowded FUEL is pushed apart, so a pile spreads instead of being swallowed in one spot.
+  - It's still simpler than the real game, which simulates every FUEL-FUEL contact.
+- **Shots and passes:** timed flights with a hit chance, lower while moving fast, instead of full ballistics. Scored FUEL goes through the HUB and comes back out the exit opening into the NEUTRAL ZONE.
 - **Match rules:** the real ones: AUTO, the gap, the TELEOP shifts with the active-HUB rules, the 3 s scoring grace, and human players throwing from the CHUTE. Fouls, the TOWER and BUMP slopes aren't modeled.
+- **Domain randomization:** each robot's speed, acceleration, intake and accuracy, and the carpet's rolling resistance, vary a little from match to match. That way it learns habits that still work when the real game differs a bit. `--no-randomize` turns this off.
 
-**Same network:** the observation is built exactly like the real game's. I checked all 386 numbers against real-game snapshots at four points in different matches, and they match. The controls are the same too. So `js/nn/driver.json` from the GPU trainer drives in the real game as is.
+**Same network:** the observation is built exactly like the real game's. All 482 numbers match real-game snapshots in 1v1 and 3v3; the only difference is the score when fouls happened. The controls are the same too. So `js/nn/driver.json` from the GPU trainer drives in the real game as is.
 
 **Opponents:**
-- **Alone (25%) and a scripted Scorer bot (75%):** these are its only opponents to start.
-- **Self-play:** once it beats the bot 60% of the time, it switches to self-play:
-  - 35% of matches against itself, with both robots learning;
+- **To start:** scripted bots (80%, some of them defending) and nobody (20%).
+- **Self-play:** once it beats the bots 60% of the time, it switches to:
+  - 35% of matches against itself, with both alliances learning;
   - 35% against older snapshots of itself;
-  - 25% against the bot;
+  - 25% against the bots;
   - 5% alone.
 
-**Then fine-tune in the real game.** The two trainers save the same checkpoint format, so `nn-train.bat --resume --level 3` continues the same run (`runs/driver`) in the full game. It then learns the details the simple version leaves out (piles of FUEL, real shots, fouls).
+**Winning, not just points:** while it learns the game, the reward is the points margin. Once self-play is on, the reward shifts over 50M decisions (`--win-ramp`) toward winning:
+- a squashed margin, so closing a 10-point gap in a close match counts far more than adding 10 to a blowout;
+- a bonus for winning, or a penalty for losing, at the final buzzer.
 
-**Speed settings** (`tools/nn/train_gpu.py --help`):
+The console shows the current `win-weight` (0 = points only, 1 = mostly winning). `--win-weight 1` sets it straight away.
+
+**Live view:** the dashboard (`nn-dashboard.bat`) shows a grid of 16 matches the trainer is playing right now, as a bird's-eye view: robots in alliance colors, learning robots outlined, FUEL, HUB lights, score and clock. `--live 0` turns it off; `--live 25` shows more.
+
+**Your earlier network carries over.** The observation grew for 3v3: teammates and the 2nd and 3rd opponents were added at the end. When you `--resume` a run trained before that, it's upgraded automatically with zero weights on the new inputs, so it plays exactly as before until it learns to use them. Older driving recordings still load too.
+
+**Then fine-tune in the real game.** The two trainers save the same checkpoint format, so `nn-train.bat --resume --level 3` continues the same run (`runs/driver`) in the full game. It plays 1v1 and 3v3 there (`--teams`), with its teammates driven by the network too.
+
+**Options** (`tools/nn/train_gpu.py --help`):
 
 | Option | Default | |
 |---|---|---|
-| `--envs` | 4096 | matches at once. More means more matches per hour, until the GPU is full. Try 8192 if GPU memory allows. |
+| `--envs` | 4096 | matches at once. More means more matches per hour, until the GPU is full. If you get "CUDA out of memory", lower it. |
+| `--teams` | 1v1 25%, 2v2 15%, 3v3 60% | match sizes; repeat a size to weight it. `--teams 3` is 3v3 only; `--teams 1 3 3` is one-third 1v1, two-thirds 3v3. |
 | `--substeps` | 4 | physics steps per 0.1 s decision. 2 is faster and a bit coarser. |
 | `--rollout` | 32 | decisions per match between updates |
 | `--robots` | all 11 | robots it learns to drive |
-| `--selfplay` | | turn self-play on right away instead of waiting until it beats the bot |
-| `--mix A B O I` | 0.05 0.25 0.35 0.35 | during self-play, the share of matches alone / vs the bot / vs older versions / vs itself. `--mix 0 0.1 0.45 0.45` is almost all self-play. |
+| `--selfplay` | | turn self-play on right away instead of waiting until it beats the bots |
+| `--mix A B O I` | 0.05 0.25 0.35 0.35 | during self-play, the share of matches alone / vs the bots / vs older versions / vs itself. `--mix 0 0.1 0.45 0.45` is almost all self-play. |
+| `--win-ramp` | 50M | decisions over which the reward shifts to winning once self-play is on |
+| `--win-weight` | | fix the win weight (0 to 1) instead |
+| `--live` | 16 | matches shown on the dashboard |
 
-The console prints decisions per second and matches per hour; the dashboard shows the same. On this project's 4-thread cloud CPU, with no GPU, it already runs about 2,000 decisions/s with 256 matches, against about 50/s for the full game. It hasn't been measured on a GPU yet.
+The console prints decisions per second and roughly how many matches per hour that is. On this project's 4-thread cloud CPU, with no GPU, it runs about 1,000–2,500 robot decisions/s with a few dozen matches; the full game manages about 20–50. It hasn't been measured on a GPU yet.
 
 ## Setup (Windows)
 1. Install **Node.js LTS** (https://nodejs.org) and **Python 3.11+** (https://python.org). In the Python installer, tick "Add python.exe to PATH".
@@ -119,6 +144,8 @@ Opponents it doesn't beat yet get picked more often. Use `--level N` to start at
 | `--workers N` | CPU threads − 1 | simulation workers |
 | `--device` | auto | `cuda`, `cpu` or `auto` |
 | `--robots` | 2910 4414 8793 | robots it learns to drive. One network drives them all, because it sees which robot it's in. Add any of the 11 robots by team number. Train on one robot for faster learning. |
+| `--teams` | 1 3 | match sizes: half 1v1, half 3v3 (its teammates are driven by the network too). 3v3 matches take about 3× the CPU. |
+| `--win-weight` | 0.3 / 0.6 / 1.0 | how much the reward is about winning rather than points, at levels 3 / 4 / 5 |
 | `--batch` | 16384 | decisions per PPO update |
 | `--hidden` | 512 256 | network size (this is what runs in the browser) |
 | `--critic` | 1024 512 256 | value network (GPU only, never exported) |
@@ -146,3 +173,4 @@ Opponents it doesn't beat yet get picked more often. Use `--level N` to start at
   - Start from your recordings with `--bc`.
   - Give it longer: the first gains (picking up FUEL, shooting in the ALLIANCE ZONE while the HUB is active) usually show within a few million decisions.
 - **Climbing** isn't part of what the network controls. These robots don't climb.
+- **3v3 in the game:** in a 3v3 match, set any slot's *Driven by* to **Neural net**.

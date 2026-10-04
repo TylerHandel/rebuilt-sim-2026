@@ -22,7 +22,7 @@ import { BLUE, RED, other } from './constants.js';
 
 const IDLE_CMD = { vx: 0, vz: 0, omega: 0, intake: false, shoot: false, pass: false, outtake: false };
 
-export const SLOT_DRIVERS = ['you', 'scorer', 'defense', 'hybrid', 'empty'];
+export const SLOT_DRIVERS = ['you', 'scorer', 'defense', 'hybrid', 'nn', 'empty'];
 export const DEFAULT_SLOTS = [
   { robot: '2910', auto: 'best', start: 'leftTrench', driver: 'you', skill: 'champs' },
   { robot: '4414', auto: 'best', start: 'hub', driver: 'scorer', skill: 'champs' },
@@ -42,7 +42,7 @@ export function matchEntries(s) {
     return (s.slots || DEFAULT_SLOTS).map((sl, i) => ({ sl, i })).filter(({ sl }) => sl.driver !== 'empty').map(({ sl, i }) => ({
       alliance: slotAlliance(i), station: i % 3, robot: sl.robot, auto: sl.auto, start: sl.start, customSide: 'drawn',
       driver: sl.driver === 'you' ? 'human' : sl.driver, skill: sl.skill, brain: sl.skill === 'mine' ? s.mineBrain : null,
-      preload, you: sl.driver === 'you',
+      preload, you: sl.driver === 'you' || sl.driver === 'external', policy: sl.policy || s.slotPolicy,
     }));
   }
   const out = [{
@@ -94,7 +94,7 @@ export function createGame(world, settings, { onEvent = () => {}, prev = null } 
     if (u.human || u.external) continue;
     const a = u.robot.alliance;
     if (u.entry.driver === 'nn') {
-      u.ai = new NNDriver({ robot: u.robot, foes: robots.filter((r) => r.alliance !== a), match, fuel, policy: u.entry.policy });
+      u.ai = new NNDriver({ robot: u.robot, foes: robots.filter((r) => r.alliance !== a), mates: robots.filter((r) => r.alliance === a && r !== u.robot), match, fuel, policy: u.entry.policy });
       continue;
     }
     u.ai = new OpponentAI({

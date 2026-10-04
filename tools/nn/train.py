@@ -36,8 +36,8 @@ import torch
 import torch.nn as nn
 
 ROOT = Path(__file__).resolve().parents[2]
-REW_N = 5  # per step from the workers: dOwnPts, dOppPts, dIntaked, dInactiveFuel, dFoulPtsGiven
-OBS_VERSION = 2
+REW_N = 6  # per step from the workers: dOwnPts, dOppPts, dIntaked, dInactiveFuel, dFoulPtsGiven, margin after
+OBS_VERSION = 3
 ACT_CONT, ACT_BIN = 3, 4
 
 # Opponent curriculum: a level unlocks once the network wins >= 55% against everything in the
@@ -131,6 +131,24 @@ class RunningNorm:
 
     def load(self, s):
         self.mean, self.var, self.count = np.array(s['mean']), np.array(s['var']), s['count']
+
+
+def upgrade_inputs(ck, new_dim):
+    """Grow a checkpoint trained on an older (shorter) observation to new_dim inputs. Blocks are
+    only ever appended to the observation, so the new inputs get zero weights: the network acts
+    exactly as before until it learns to use them. Returns True if it changed anything."""
+    old = ck['obs_dim']
+    if old >= new_dim:
+        return False
+    for net, key in (('actor', 'body.0.weight'), ('critic', '0.weight')):
+        w = ck[net][key]
+        ck[net][key] = torch.cat([w, torch.zeros(w.shape[0], new_dim - old, dtype=w.dtype, device=w.device)], 1)
+    n = ck['norm']
+    n['mean'] = list(n['mean']) + [0.0] * (new_dim - old)
+    n['var'] = list(n['var']) + [1.0] * (new_dim - old)
+    ck['obs_dim'] = new_dim
+    ck['opt'] = None  # the optimizer state no longer matches the first layers: start it fresh
+    return True
 
 
 def publish_file(src, dst):
@@ -266,10 +284,12 @@ def load_demos(folder, obs_dim):
         d = json.loads(f.read_text())
         if d.get('format') != 'rebuilt-nn-demo':
             continue
-        if d['obsVersion'] != OBS_VERSION or d['obsDim'] != obs_dim:
+        if d['obsVersion'] < 2 or d['obsDim'] > obs_dim:
             print(f'skipping {f.name}: recorded with observation v{d["obsVersion"]}')
             continue
-        o = np.frombuffer(base64.b64decode(d['obs']), '<f4').reshape(-1, obs_dim)
+        o = np.frombuffer(base64.b64decode(d['obs']), '<f4').reshape(-1, d['obsDim'])
+        if d['obsDim'] < obs_dim:  # older recording (1v1): the appended blocks are empty
+            o = np.concatenate([o, np.zeros((len(o), obs_dim - d['obsDim']), '<f4')], 1)
         a = np.frombuffer(base64.b64decode(d['act']), '<f4').reshape(-1, ACT_CONT + ACT_BIN)
         obs.append(o)
         act.append(a)
@@ -329,11 +349,14 @@ class Trainer:
                      f'Training progress is kept in the runs folder of the copy of the project you trained in. If you '
                      f'downloaded a new copy, copy the old runs folder (and js/nn/driver.json) into it, or leave out --resume to start fresh.')
         ck = torch.load(self.run / 'ckpt.pt', map_location=self.dev, weights_only=False)
+        if self.obs_dim and upgrade_inputs(ck, self.obs_dim):
+            print(f'Upgraded the network to the new observation ({self.obs_dim} inputs: teammates and all opponents for 3v3)')
         self.a.hidden, self.a.critic = ck['hidden'], ck['critic_sizes']
         self.build(ck['obs_dim'])
         self.actor.load_state_dict(ck['actor'])
         self.critic.load_state_dict(ck['critic'])
-        self.opt.load_state_dict(ck['opt'])
+        if ck.get('opt'):
+            self.opt.load_state_dict(ck['opt'])
         for g in self.opt.param_groups:
             g['lr'] = self.a.lr
         self.norm.load(ck['norm'])
@@ -450,10 +473,22 @@ class Trainer:
         return ((mu - Y[idx, :ACT_CONT]) ** 2).sum(-1).mean() + nn.functional.binary_cross_entropy_with_logits(lg, Y[idx, ACT_CONT:], reduction='none').sum(-1).mean()
 
     # ---- PPO
-    def reward(self, rew):
+    def win_weight(self):
+        """How much the reward is about winning rather than points: grows with the opponent level."""
+        if self.a.win_weight is not None:
+            return self.a.win_weight
+        return {3: 0.3, 4: 0.6, 5: 1.0}.get(self.level, 0.0)
+
+    def reward(self, rew, done):
         a = self.a
-        # main objective: win the match (own points - their points, fouls included)
-        r = (rew[:, 0] - rew[:, 1]) / 10.0
+        # points margin (fouls included); as the win weight grows, a squashed margin (closing a
+        # gap in a close match counts most) and a bonus for winning at the buzzer take over
+        d = rew[:, 0] - rew[:, 1]
+        w = self.win_weight()
+        r = (1 - 0.7 * w) * d / 10.0
+        if rew.shape[1] > 5:
+            m = rew[:, 5]
+            r = r + w * 15.0 * (np.tanh(m / 40.0) - np.tanh((m - d) / 40.0)) + w * 10.0 * np.sign(m) * done
         # early shaping that fades out: pick up FUEL, don't shoot into an inactive HUB
         k = max(0.0, 1.0 - self.steps / a.shaping_steps) if a.shaping_steps > 0 else 0.0
         r = r + k * (0.03 * rew[:, 2] - 0.02 * rew[:, 3])
@@ -469,7 +504,7 @@ class Trainer:
             for c in chunks:
                 v = V(c['obs'])
                 vn = V(c['next'][None])[0]
-                r, d = self.reward(c['rew']), c['done']
+                r, d = self.reward(c['rew'], c['done']), c['done']
                 n = len(r)
                 adv = np.zeros(n, np.float32)
                 last = 0.0
@@ -553,7 +588,7 @@ class Trainer:
         policy = self.publish()
 
         def config():
-            W.broadcast({'cmd': 'config', 'policy': str(policy), 'version': self.version, 'opponents': self.opponents(), 'robots': a.robots, 'chunk': a.chunk})
+            W.broadcast({'cmd': 'config', 'policy': str(policy), 'version': self.version, 'opponents': self.opponents(), 'robots': a.robots, 'chunk': a.chunk, 'teams': a.teams})
 
         config()
         stop = {'flag': False}
@@ -664,6 +699,8 @@ def main():
     p.add_argument('--critic', type=int, nargs='+', default=[1024, 512, 256], help='critic hidden layers (GPU only)')
     p.add_argument('--shaping-steps', type=float, default=20e6, help='steps over which the pickup bonus fades out')
     p.add_argument('--robots', nargs='+', default=['2910', '4414', '8793'], help='robots it learns to drive')
+    p.add_argument('--teams', type=int, nargs='+', choices=[1, 2, 3], default=[1, 3], help='match sizes (repeat to weight): 1 = 1v1, 3 = 3v3 with its teammates driven by the network too')
+    p.add_argument('--win-weight', type=float, default=None, help='fix how much the reward is about winning (default: 0.3 / 0.6 / 1.0 at levels 3 / 4 / 5)')
     p.add_argument('--snapshot-every', type=int, default=25, help='updates between self-play snapshots')
     p.add_argument('--pool-size', type=int, default=8, help='self-play snapshots kept')
     p.add_argument('--save-minutes', type=float, default=10)

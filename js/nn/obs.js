@@ -9,7 +9,9 @@ import { Field } from '../field.js';
 import { OBSTACLES } from '../nav.js';
 import { ROBOT_ORDER } from '../robotConfigs.js';
 
-export const OBS_VERSION = 2;
+// v3 appended the teammates and the 2nd/3rd opponents (3v3). Blocks are only ever appended, so a
+// network trained on an older version reads the start of the vector it knows (see policy.js).
+export const OBS_VERSION = 3;
 export const DECISION_DT = 0.1;            // the network acts 10 times a second
 export const ACT_CONT = 3;                 // vx, vz (own frame, fraction of top speed), omega
 export const ACT_BIN = ['intake', 'shoot', 'pass', 'outtake'];
@@ -24,7 +26,9 @@ const NR = ROBOT_ORDER.length; // which robot (one-hot)
 export const OBS_LAYOUT = [
   ['self', 21 + NR], ['hubs', 7], ['match', 16], ['opponent', 13 + NR], ['rays', RAYS],
   ['fuelEgo', EGO_N * EGO_N], ['fuelField', GX * GZ], ['fuelNear', NEAR * 2], ['fuelZones', 3],
+  ['teammates', 2 * (13 + NR)], ['opponents2', 2 * (13 + NR)],
 ];
+export const OBS_DIM_V2 = OBS_LAYOUT.slice(0, 9).reduce((s, [, n]) => s + n, 0);
 export const OBS_DIM = OBS_LAYOUT.reduce((s, [, n]) => s + n, 0);
 
 const TOTAL = TIMING.auto + TIMING.teleop;
@@ -57,8 +61,19 @@ function rayDist(x, z, dx, dz) {
   return Math.max(0, best);
 }
 
-// Build the observation vector for `robot` (out: Float32Array(OBS_DIM), reused if given)
-export function buildObs(robot, foe, match, fuel, out = new Float32Array(OBS_DIM)) {
+const dist2 = (a, b) => (a.pos.x - b.pos.x) ** 2 + (a.pos.z - b.pos.z) ** 2;
+// others: { foes: [robots], mates: [robots] }, or (1v1) just the other robot or null
+function sides(robot, others) {
+  if (!others || others.pos) return { foes: others ? [others] : [], mates: [] };
+  const by = (l) => [...(l || [])].sort((p, q) => dist2(robot, p) - dist2(robot, q));
+  return { foes: by(others.foes), mates: by(others.mates) };
+}
+
+// Build the observation vector for `robot` (out: Float32Array(OBS_DIM), reused if given).
+// others: { foes, mates } (the other robots on each ALLIANCE), or one opposing robot / null.
+export function buildObs(robot, others, match, fuel, out = new Float32Array(OBS_DIM)) {
+  const { foes, mates } = sides(robot, others);
+  const foe = foes[0] || null;
   const a = robot.alliance, s = sgn(a);
   const cfg = robot.cfg;
   let i = 0;
@@ -104,17 +119,19 @@ export function buildObs(robot, foe, match, fuel, out = new Float32Array(OBS_DIM
   const mine = match.total(a), theirs = match.total(other(a));
   put(Math.tanh((mine - theirs) / 100)); put(mine / 300);
 
-  // ---- opponent (13 + robots)
-  if (foe) {
-    const fx = s * foe.pos.x, fz = s * foe.pos.z;
+  // ---- the nearest opponent (13 + robots)
+  const robotBlock = (o) => {
+    if (!o) { for (let k = 0; k < 13 + NR; k++) put(0); return; }
+    const fx = s * o.pos.x, fz = s * o.pos.z;
     const [lx, lz] = toLocal(fx - x, fz - z);
-    const fyaw = foe.yaw + (s > 0 ? 0 : Math.PI);
+    const fyaw = o.yaw + (s > 0 ? 0 : Math.PI);
     put(1); put(fx / HALF_L); put(fz / HALF_W); put(lx / 8); put(lz / 8); put(Math.hypot(lx, lz) / 8);
-    put((s * foe.vel.x) / 5); put((s * foe.vel.z) / 5); put(Math.cos(fyaw)); put(Math.sin(fyaw));
-    put(foe.stored.length / 60);
-    for (const k of ROBOT_ORDER) put(foe.cfg.key === k ? 1 : 0);
-    put(foe.inAllianceZone(a) ? 1 : 0); put(foe.inAllianceZone(foe.alliance) ? 1 : 0);
-  } else for (let k = 0; k < 13 + NR; k++) put(0);
+    put((s * o.vel.x) / 5); put((s * o.vel.z) / 5); put(Math.cos(fyaw)); put(Math.sin(fyaw));
+    put(o.stored.length / 60);
+    for (const k of ROBOT_ORDER) put(o.cfg.key === k ? 1 : 0);
+    put(o.inAllianceZone(a) ? 1 : 0); put(o.inAllianceZone(o.alliance) ? 1 : 0);
+  };
+  robotBlock(foe);
 
   // ---- rays (16), robot frame, measured from the robot center
   for (let k = 0; k < RAYS; k++) {
@@ -158,6 +175,9 @@ export function buildObs(robot, foe, match, fuel, out = new Float32Array(OBS_DIM
     out[i++] = p ? clip1(p[2] / 4) : 0;
   }
   out[i++] = zOwn / 50; out[i++] = zMid / 400; out[i++] = zOpp / 50;
+  // ---- teammates (nearest first), then the 2nd and 3rd nearest opponents
+  robotBlock(mates[0]); robotBlock(mates[1]);
+  robotBlock(foes[1]); robotBlock(foes[2]);
   if (i !== OBS_DIM) throw new Error(`obs size ${i} != ${OBS_DIM}`);
   return out;
 }

@@ -88,10 +88,11 @@ const OPT = {
 };
 
 // 3v3 slot options (slot i: blue 1-3 then red 1-3)
-const SLOT_DRIVER = { you: 'You', scorer: 'AI Scorer', defense: 'AI Defense', hybrid: 'AI Hybrid', empty: 'Empty' };
+const SLOT_DRIVER = { you: 'You', scorer: 'AI Scorer', defense: 'AI Defense', hybrid: 'AI Hybrid', nn: 'Neural net', empty: 'Empty' };
 const SLOT_ROLE_DESC = {
   you: 'You drive this robot. Only one slot can be you; pick none to watch the AIs play.',
   scorer: OPP_STRATEGIES.scorer.desc,
+  nn: OPP_STRATEGIES.nn.desc,
   defense: 'Blocks the other ALLIANCE\'s best-loaded robot on its way to its HUB and pushes it while it shoots. Backs off before a 3 s PIN (G418).',
   hybrid: 'Shift-aware: defends while only the other ALLIANCE\'s HUB is active and scores whenever its own is.', empty: 'No robot in this slot.',
 };

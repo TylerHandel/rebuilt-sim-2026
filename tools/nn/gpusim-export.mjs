@@ -48,13 +48,21 @@ for (const key of ROBOT_ORDER) {
     turret: sh.type !== 'fixed', turrets: sh.turrets ? sh.turrets.length : 1,
     bps: sh.bps, spinTau: sh.spinTau, speedMax: sh.speedMax, turretRate: sh.turretRate || 0, turretRange: sh.turretRange || 0,
     fitsTrench: fitsTrench(cfg), starts, aimOffset: r.aimOffset, hubV, passV,
+    // hoppers that pack FUEL jam before their listed capacity (tools/intake-test.mjs: ~0.8);
+    // a single-file ball path (8793, 341) holds exactly what it fits
+    packs: cfg.bay ? cfg.bay.pack !== false : true,
   };
   r.destroy();
 }
 
-// FUEL as the real game stages it with 8 preloaded per robot (2 robots)
-const pre = world.fuel.stage(16);
-const field = world.fuel.balls.filter((b) => b.state === 'field').map((b) => [+b.pos.x.toFixed(4), +b.pos.z.toFixed(4)]);
+// FUEL as the real game stages it with 8 preloaded per robot: 1v1, 2v2 and 3v3
+const layouts = {};
+for (const k of [1, 2, 3]) {
+  world.fuel.stage(16 * k);
+  layouts[k] = world.fuel.balls.filter((b) => b.state === 'field').map((b) => [+b.pos.x.toFixed(4), +b.pos.z.toFixed(4)]);
+}
+const field = layouts[1];
+const pre = { length: 16 };
 
 const outposts = {};
 for (const a of ['blue', 'red']) {
@@ -67,7 +75,7 @@ const out = {
   obs: { version: OBS_VERSION, dim: OBS_DIM, layout: OBS_LAYOUT, decisionDt: DECISION_DT },
   field: { halfL: HALF_L, halfW: HALF_W, allianceLineX: Field.allianceLineX(BLUE), hubX: Field.hubCenter(BLUE).x },
   hub: { size: HUB.size, exitWidth: HUB.exitWidth, exitHeight: HUB.exitHeight, scoreGrace: HUB.scoreGrace },
-  fuel: { radius: FUEL.radius, total: FUEL.total, rollDecel: FUEL.rollDecel, restitution: FUEL.restitution, perChute: FUEL.perChute, preload: pre.length / 2, field },
+  fuel: { radius: FUEL.radius, total: FUEL.total, rollDecel: FUEL.rollDecel, restitution: FUEL.restitution, perChute: FUEL.perChute, preload: pre.length / 2, field, layouts },
   obstacles: OBSTACLES.map((o) => ({ x: o.x, z: o.z, hx: o.hx, hz: o.hz, kind: o.kind })),
   trenchArms: TRENCH_ARMS.map((a) => ({ x: a.x, z: a.z, hx: a.hx, hz: a.hz })),
   trench: { clearHeight: TRENCH.clearHeight },

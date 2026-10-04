@@ -26,9 +26,11 @@ const act = {
 
 export class Policy {
   constructor(json) {
-    if (json.obsVersion !== OBS_VERSION || json.obsDim !== OBS_DIM) {
+    // observation blocks are only ever appended: an older network reads the start it knows
+    if (json.obsVersion < 2 || json.obsVersion > OBS_VERSION || json.obsDim > OBS_DIM) {
       throw new Error(`neural driver was trained on observation v${json.obsVersion}/${json.obsDim}, this build uses v${OBS_VERSION}/${OBS_DIM}`);
     }
+    this.inDim = json.obsDim;
     this.info = json.info || {};
     this.version = json.version || 0;
     this.f = act[json.activation || 'tanh'];
@@ -39,7 +41,7 @@ export class Policy {
     let o = 0;
     const take = (n) => { const a = w.subarray(o, o + n); o += n; return a; };
     this.layers = [];
-    let inDim = OBS_DIM;
+    let inDim = this.inDim;
     for (const h of json.hidden) {
       this.layers.push({ W: take(h * inDim), b: take(h), n: h, m: inDim });
       inDim = h;
@@ -47,7 +49,7 @@ export class Policy {
     this.mu = { W: take(ACT_CONT * inDim), b: take(ACT_CONT), n: ACT_CONT, m: inDim };
     this.lg = { W: take(ACT_BIN.length * inDim), b: take(ACT_BIN.length), n: ACT_BIN.length, m: inDim };
     if (o !== w.length) throw new Error(`neural driver weights: expected ${o} floats, got ${w.length}`);
-    this.bufs = [new Float32Array(OBS_DIM), ...json.hidden.map((h) => new Float32Array(h))];
+    this.bufs = [new Float32Array(this.inDim), ...json.hidden.map((h) => new Float32Array(h))];
   }
 
   static async load(url) {
@@ -70,7 +72,7 @@ export class Policy {
   // forward pass: { mu: Float32Array(3), logits: Float32Array(4) }
   forward(obs) {
     const x0 = this.bufs[0];
-    for (let k = 0; k < OBS_DIM; k++) {
+    for (let k = 0; k < this.inDim; k++) {
       const v = (obs[k] - this.mean[k]) / this.std[k];
       x0[k] = v > 10 ? 10 : v < -10 ? -10 : v;
     }

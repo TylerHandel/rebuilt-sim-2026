@@ -73,7 +73,8 @@ export class NNRecorder {
     this.t += dt;
     if (this.t < DECISION_DT - 1e-9) return;
     this.t = 0;
-    this.obs.push(buildObs(r, g.opp ? g.opp.robot : null, g.match, g.fuel, new Float32Array(OBS_DIM)));
+    const others = { foes: g.robots.filter((o) => o.alliance !== r.alliance), mates: g.robots.filter((o) => o.alliance === r.alliance && o !== r) };
+    this.obs.push(buildObs(r, others, g.match, g.fuel, new Float32Array(OBS_DIM)));
     this.act.push(cmdToAction(r, r.cmd));
   }
 

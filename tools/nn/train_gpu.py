@@ -1,19 +1,21 @@
 #!/usr/bin/env python3
 """Train the neural-net driver in the GPU simulator (tools/nn/gpusim.py): thousands of
-simplified matches at once on the graphics card, roughly a hundred times more matches per hour
-than the full game on the CPU.
+simplified matches at once on the graphics card, 1v1 up to 3v3, roughly a hundred times more
+matches per hour than the full game on the CPU.
 
   python tools/nn/train_gpu.py                 # train (Ctrl+C saves; --resume continues)
   python tools/nn/train_gpu.py --envs 8192     # more matches at once (more GPU memory)
 
 The network sees and controls exactly what it does in the real game, so js/nn/driver.json works
-there as is. The GPU simulator is simplified, so finish with a little training in the real game:
+there as is. The GPU simulator is simplified, so finish with some training in the real game:
   python tools/nn/train.py --resume --level 3  # same run folder: picks up this checkpoint
 
-Opponents: none, a scripted Scorer bot, older copies of itself (snapshots), and itself (both
-robots learn). Self-play turns on once it beats the bot.
+Teammates share the network (they learn to play together). Opponents: none, scripted bots,
+older copies of itself (snapshots), and itself. Self-play turns on once it beats the bots. From
+then on the reward shifts from points margin to winning (see reward()).
 """
 import argparse
+import base64
 import collections
 import copy
 import json
@@ -30,8 +32,10 @@ import torch
 import torch.nn as nn
 
 sys.path.insert(0, str(Path(__file__).parent))
-from train import ROOT, OBS_VERSION, ACT_CONT, ACT_BIN, Actor, mlp, export_policy, publish_file  # noqa: E402
-from gpusim import GpuSim, OPP_NONE, OPP_BOT, OPP_SNAP, OPP_SELF  # noqa: E402
+from train import ROOT, ACT_CONT, ACT_BIN, Actor, mlp, export_policy, publish_file, upgrade_inputs  # noqa: E402
+from gpusim import GpuSim, RS, OPP_NONE, OPP_BOT, OPP_SNAP, OPP_SELF  # noqa: E402
+
+KIND = {OPP_NONE: 'alone', OPP_BOT: 'bot', OPP_SNAP: 'older', OPP_SELF: 'self'}
 
 
 class TorchNorm:
@@ -81,10 +85,9 @@ def sample(actor, x):
     a_c = mu + ls.exp() * torch.randn_like(mu)
     p = torch.sigmoid(lg)
     a_b = (torch.rand_like(p) < p).float()
-    act = torch.cat([a_c, a_b], -1)
     lp_c = (-0.5 * ((a_c - mu) / ls.exp()) ** 2 - ls - 0.5 * math.log(2 * math.pi)).sum(-1)
     lp_b = -nn.functional.binary_cross_entropy_with_logits(lg, a_b, reduction='none').sum(-1)
-    return act, lp_c + lp_b
+    return torch.cat([a_c, a_b], -1), lp_c + lp_b
 
 
 class GpuTrainer:
@@ -97,7 +100,8 @@ class GpuTrainer:
         self.run = ROOT / 'runs' / a.run
         self.run.mkdir(parents=True, exist_ok=True)
         envs = a.envs or (4096 if self.dev.type == 'cuda' else 128)
-        self.sim = GpuSim(envs, device=self.dev, robots=a.robots, seed=a.seed, substeps=a.substeps)
+        tp = [a.teams.count(k) for k in (1, 2, 3)] if a.teams else [0.25, 0.15, 0.6]
+        self.sim = GpuSim(envs, device=self.dev, robots=a.robots, seed=a.seed, substeps=a.substeps, team_probs=tp, randomize=not a.no_randomize)
         self.N, self.D = self.sim.n, self.sim.D
         self.actor = Actor(self.D, a.hidden).to(self.dev)
         self.critic = mlp([self.D, *a.critic, 1]).to(self.dev)
@@ -105,10 +109,10 @@ class GpuTrainer:
         self.norm = TorchNorm(self.D, self.dev)
         self.version = self.steps = self.updates = self.episodes = 0
         self.selfplay = False
-        self.pool = []           # snapshot actors (on the GPU)
+        self.selfplay_step = 0
+        self.pool = []
         self.snap_of = torch.zeros(self.N, dtype=torch.long, device=self.dev)
         self.hist = collections.defaultdict(lambda: collections.deque(maxlen=400))
-        self.own_hist = collections.defaultdict(lambda: collections.deque(maxlen=400))
         self.t_start = time.time()
         self.prev_elapsed = 0.0
 
@@ -119,8 +123,8 @@ class GpuTrainer:
             'norm': self.norm.state(), 'version': self.version, 'steps': self.steps, 'updates': self.updates,
             'level': self.a.real_level, 'pool': [], 'obs_dim': self.D, 'hidden': self.a.hidden, 'critic_sizes': self.a.critic,
             'episodes': self.episodes, 'hist': {}, 'own_hist': {}, 'elapsed': self.elapsed(),
-            'gpu': {'selfplay': self.selfplay, 'pool': [p.state_dict() for p in self.pool],
-                    'hist': {k: list(v) for k, v in self.hist.items()}, 'own_hist': {k: list(v) for k, v in self.own_hist.items()}},
+            'gpu': {'selfplay': self.selfplay, 'selfplay_step': self.selfplay_step, 'pool': [p.state_dict() for p in self.pool],
+                    'hist': {k: list(v) for k, v in self.hist.items()}},
         }
         tmp = self.run / 'ckpt.tmp'
         torch.save(ck, tmp)
@@ -132,32 +136,41 @@ class GpuTrainer:
                      f'Training progress is kept in the runs folder of the copy of the project you trained in. If you '
                      f'downloaded a new copy, copy the old runs folder (and js/nn/driver.json) into it, or leave out --resume to start fresh.')
         ck = torch.load(self.run / 'ckpt.pt', map_location=self.dev, weights_only=False)
-        if ck['obs_dim'] != self.D:
-            sys.exit(f'{self.run / "ckpt.pt"} was trained with a different observation ({ck["obs_dim"]} vs {self.D}); start a new --run')
+        if ck['obs_dim'] > self.D:
+            sys.exit(f'{self.run / "ckpt.pt"} was trained with a newer observation ({ck["obs_dim"]} > {self.D}); update the code')
+        g = ck.get('gpu') or {}
+        upgraded = upgrade_inputs(ck, self.D)
+        if upgraded:
+            for sd in g.get('pool', []):
+                w = sd['body.0.weight']
+                sd['body.0.weight'] = torch.cat([w, torch.zeros(w.shape[0], self.D - w.shape[1], dtype=w.dtype, device=w.device)], 1)
+            print(f'Upgraded the network to the new observation ({self.D} inputs: teammates and all opponents for 3v3). '
+                  f'It plays exactly as before until it learns to use them.')
         self.a.hidden, self.a.critic = ck['hidden'], ck['critic_sizes']
         self.actor = Actor(self.D, self.a.hidden).to(self.dev)
         self.critic = mlp([self.D, *self.a.critic, 1]).to(self.dev)
         self.actor.load_state_dict(ck['actor'])
         self.critic.load_state_dict(ck['critic'])
         self.opt = torch.optim.Adam([*self.actor.parameters(), *self.critic.parameters()], lr=self.a.lr, eps=1e-5)
-        try:
-            self.opt.load_state_dict(ck['opt'])
-            for g in self.opt.param_groups:
-                g['lr'] = self.a.lr
-        except ValueError:
-            pass
+        if ck.get('opt'):
+            try:
+                self.opt.load_state_dict(ck['opt'])
+                for grp in self.opt.param_groups:
+                    grp['lr'] = self.a.lr
+            except ValueError:
+                pass
         self.norm.load(ck['norm'])
         self.version, self.steps, self.updates, self.episodes = ck['version'], ck['steps'], ck['updates'], ck['episodes']
-        g = ck.get('gpu') or {}
         self.selfplay = g.get('selfplay', False)
+        self.selfplay_step = g.get('selfplay_step', self.steps if self.selfplay else 0)
         for sd in g.get('pool', []):
             p = copy.deepcopy(self.actor)
             p.load_state_dict(sd)
             self.pool.append(p.eval())
         for k, v in g.get('hist', {}).items():
+            if k in ('bot', 'self', 'snapshot', 'none', 'alone', 'older'):
+                continue  # older runs counted 1v1 only
             self.hist[k].extend(v)
-        for k, v in g.get('own_hist', {}).items():
-            self.own_hist[k].extend(v)
         self.prev_elapsed = ck.get('elapsed', 0)
         print(f'Resumed {self.run.name}: {self.steps / 1e6:.1f}M decisions, {self.updates} updates' + (' (self-play on)' if self.selfplay else ''))
 
@@ -166,7 +179,7 @@ class GpuTrainer:
 
     def publish(self):
         info = {'run': self.a.run, 'trainer': 'gpu', 'steps': self.steps, 'updates': self.updates, 'hours': round(self.elapsed() / 3600, 2),
-                'date': time.strftime('%Y-%m-%d %H:%M'), 'device': str(self.dev),
+                'date': time.strftime('%Y-%m-%d %H:%M'), 'device': str(self.dev), 'winWeight': round(self.win_weight(), 3),
                 'vs': {k: round(float(np.mean(v)), 1) for k, v in self.hist.items() if v}}
         cur = self.run / 'policy' / 'current.json'
         export_policy(self.actor, self.norm.numpy(), cur, self.version, info)
@@ -177,20 +190,25 @@ class GpuTrainer:
     def set_opponents(self):
         if self.selfplay:
             probs = list(self.a.mix) if self.a.mix else [0.05, 0.25, 0.35, 0.35]
-            if not self.pool:  # no snapshots yet: play the current version instead
+            if not self.pool:
                 probs[3] += probs[2]
                 probs[2] = 0.0
         else:
-            probs = [0.25, 0.75, 0.0, 0.0]
-        self.sim.opp_probs = torch.tensor(probs, device=self.dev)
+            probs = [0.2, 0.8, 0.0, 0.0]
+        self.sim.opp_probs = torch.tensor(probs, device=self.dev, dtype=torch.float)
+
+    def bot_winrate(self):
+        h = [m for k, v in self.hist.items() if k.startswith('bot') for m in v]
+        return (sum(m > 0 for m in h) / len(h), len(h)) if h else (0.0, 0)
 
     def check_selfplay(self):
-        h = self.hist['bot']
-        if not self.selfplay and len(h) >= 200 and sum(m > 0 for m in h) / len(h) >= self.a.selfplay_at:
+        wr, n = self.bot_winrate()
+        if not self.selfplay and n >= 200 and wr >= self.a.selfplay_at:
             self.selfplay = True
+            self.selfplay_step = self.steps
             self.snapshot()
             self.set_opponents()
-            print(f'\n*** It beats the scripted bot {sum(m > 0 for m in h) / len(h):.0%} of the time: self-play on\n')
+            print(f'\n*** It beats the scripted bots {wr:.0%} of the time: self-play on, and the reward starts shifting toward winning\n')
 
     def snapshot(self):
         p = copy.deepcopy(self.actor).eval()
@@ -200,51 +218,68 @@ class GpuTrainer:
         if len(self.pool) > self.a.pool_size:
             self.pool.pop(0)
 
-    def opponent_actions(self, obs1, x1):
-        """Actions for robot 1 by opponent kind; x1 = normalized obs. Returns act, logp (self envs)."""
-        sim = self.sim
-        act = sim.bot_actions(1)
-        kind = sim.opp_kind
-        lp = torch.zeros(self.N, device=self.dev)
-        snap = kind == OPP_SNAP
-        if snap.any() and self.pool:
-            for i, p in enumerate(self.pool):
-                m = snap & (self.snap_of % len(self.pool) == i)
-                if m.any():
-                    with torch.no_grad():
-                        a_, _ = sample(p, x1[m])
-                    act[m] = a_
-        selfm = kind == OPP_SELF
-        if selfm.any():
-            with torch.no_grad():
-                a_, l_ = sample(self.actor, x1[selfm])
-            act[selfm] = a_
-            lp[selfm] = l_
-        return act, lp
+    # ---- reward: points margin early on, winning once it plays well
+    def win_weight(self):
+        if self.a.win_weight is not None:
+            return self.a.win_weight
+        if not self.selfplay:
+            return 0.0
+        return min(1.0, (self.steps - self.selfplay_step) / max(1.0, self.a.win_ramp))
 
-    # ---- training
-    def reward(self, rew):
+    def reward(self, rew, done):
+        """rew [...,5]: own alliance pts, their pts, FUEL this robot intaked, own inactive-HUB FUEL,
+        margin after the step. A rising win weight w moves the reward from the points margin to:
+          * a squashed margin, A*tanh(margin/S): closing a 10-point gap in a close match counts far
+            more than adding 10 to a blowout,
+          * a bonus of +-B at the final buzzer for winning or losing."""
         a = self.a
-        r = (rew[..., 0] - rew[..., 1]) / 10.0
+        w = self.win_weight()
+        d_pts = rew[..., 0] - rew[..., 1]
+        m_after = rew[..., 4]
+        m_before = m_after - d_pts
+        S, A, Bw = 40.0, 15.0, 10.0
+        r = (1 - 0.7 * w) * d_pts / 10.0
+        r = r + w * A * (torch.tanh(m_after / S) - torch.tanh(m_before / S))
+        r = r + w * Bw * torch.sign(m_after) * done[:, None].float()
         k = max(0.0, 1.0 - self.steps / a.shaping_steps) if a.shaping_steps > 0 else 0.0
         return r + k * (0.03 * rew[..., 2] - 0.02 * rew[..., 3])
 
+    # ---- live view for the dashboard
+    def live(self, frames):
+        if not frames:
+            return
+        self.live_seq += len(frames)
+        data = {'seq': self.live_seq, 'dt': self.sim.dt, 'frames': frames[-60:], 'updates': self.updates,
+                'robots': {k: [self.sim.P['robots'][k]['halfL'], self.sim.P['robots'][k]['halfW']] for k in self.sim.order}}
+        for f in data['frames']:
+            for e in f['envs']:
+                if isinstance(e['balls'], (bytes, bytearray)):
+                    e['balls'] = base64.b64encode(e['balls']).decode('ascii')
+        tmp = self.run / 'live.tmp'
+        tmp.write_text(json.dumps(data))
+        try:
+            os.replace(tmp, self.run / 'live.json')
+        except PermissionError:
+            pass
+
+    # ---- training
     def train(self):
         a, sim, N, D, dev = self.a, self.sim, self.N, self.D, self.dev
         if a.resume:
             self.load()
         if a.selfplay and not self.selfplay:
             self.selfplay = True
+            self.selfplay_step = self.steps
             self.snapshot()
             print('Self-play on (--selfplay)')
         self.set_opponents()
         sim.reset(torch.ones(N, dtype=torch.bool, device=dev))
-        # spread the first matches out in time (each starts at a random point of the match with a
-        # fresh field), so later updates always see every part of the match at once
+        # spread the first matches out in time (each starts at a random point with a fresh field)
         sim.t = torch.rand(N, device=dev) * (sim.T_AUTO + sim.T_GAP + sim.T_TELE)
-        full = torch.zeros(N, dtype=torch.bool, device=dev)  # those first matches are partial: not counted
         sim.firstInactive = (torch.rand(N, device=dev) < 0.5).long()
-        print(f'Device: {dev}' + (f' ({torch.cuda.get_device_name(0)})' if dev.type == 'cuda' else '') + f'. {N} matches at once, {sim.sub} physics substeps per decision.')
+        full = torch.zeros(N, dtype=torch.bool, device=dev)  # those first matches are partial: not counted
+        print(f'Device: {dev}' + (f' ({torch.cuda.get_device_name(0)})' if dev.type == 'cuda' else '') +
+              f'. {N} matches at once ({", ".join(f"{k}v{k} {p:.0%}" for k, p in zip((1, 2, 3), sim.team_probs.tolist()) if p > 0)}), {sim.sub} physics substeps per decision.')
         self.publish()
         T = a.rollout
         stop = {'flag': False}
@@ -257,88 +292,104 @@ class GpuTrainer:
 
         signal.signal(signal.SIGINT, on_sigint)
         log = open(self.run / 'progress.jsonl', 'a')
-        last_save = time.time()
-        ep_own = collections.defaultdict(list)
-        kind_names = {OPP_NONE: 'none', OPP_BOT: 'bot', OPP_SNAP: 'snapshot', OPP_SELF: 'self'}
+        last_save = last_live = time.time()
+        self.live_seq = 0
+        live_envs = list(range(min(a.live, N)))
+        frames = []
+        ep = collections.defaultdict(list)
         try:
             while not stop['flag'] and self.steps < a.total_steps:
                 t0 = time.time()
-                obs_b = torch.zeros(T, N, 2, D, device=dev)
-                act_b = torch.zeros(T, N, 2, ACT_CONT + ACT_BIN, device=dev)
-                lp_b = torch.zeros(T, N, 2, device=dev)
-                rew_b = torch.zeros(T, N, 2, device=dev)
+                obs_l, act_l, lp_l = [], [], []
+                L_b = torch.zeros(T, N, RS, dtype=torch.bool, device=dev)
+                V_b = torch.zeros(T, N, RS, device=dev)
+                R_b = torch.zeros(T, N, RS, device=dev)
                 done_b = torch.zeros(T, N, device=dev)
-                valid_b = torch.zeros(T, N, 2, dtype=torch.bool, device=dev)
-                train_b = torch.zeros(T, N, 2, dtype=torch.bool, device=dev)
+                valid_l = []
                 obs = sim.obs()
                 for t in range(T):
+                    L = sim.learning()
                     x = self.norm.apply(obs)
+                    act = sim.bot_actions()
                     with torch.no_grad():
-                        a0, l0 = sample(self.actor, x[:, 0])
-                        a1, l1 = self.opponent_actions(obs[:, 1], x[:, 1])
+                        xl = x[L]
+                        al, lpl = sample(self.actor, xl)
+                        act[L] = al
+                        V_b[t][L] = self.critic(xl).squeeze(-1)
+                        snapm = (sim.opp_kind == OPP_SNAP)[:, None] & sim.present & (sim.team == 1)
+                        if snapm.any() and self.pool:
+                            which = self.snap_of[:, None].expand(N, RS) % len(self.pool)
+                            for i, p in enumerate(self.pool):
+                                m = snapm & (which == i)
+                                if m.any():
+                                    act[m] = sample(p, x[m])[0]
                     auto, gap, tele, post, tt = sim.phase()
-                    en = (auto | tele)
-                    obs_b[t] = obs
-                    act_b[t, :, 0], act_b[t, :, 1] = a0, a1
-                    lp_b[t, :, 0], lp_b[t, :, 1] = l0, l1
-                    valid_b[t] = en[:, None] & sim.present
-                    train_b[t, :, 0] = True
-                    train_b[t, :, 1] = sim.opp_kind == OPP_SELF
-                    rew, done = sim.step(torch.stack([a0, a1], 1))
-                    rew_b[t] = self.reward(rew)
+                    obs_l.append(obs[L])
+                    act_l.append(al)
+                    lp_l.append(lpl)
+                    valid_l.append((auto | tele)[:, None].expand(N, RS)[L])
+                    L_b[t] = L
+                    rew, done = sim.step(act)
+                    R_b[t] = self.reward(rew, done)
                     done_b[t] = done.float()
+                    if live_envs:
+                        frames.append({'envs': sim.frame(live_envs)})
                     if done.any():
                         idx = done.nonzero().squeeze(-1)
-                        tot = sim.totals()
-                        al = sim.alliance_idx()
-                        own = tot.gather(1, al[:, :1]).squeeze(1)
-                        oth = tot.gather(1, (1 - al[:, :1])).squeeze(1)
+                        mA = sim.margin()[:, 0]
+                        totA = sim.totals().gather(1, sim.alliance_idx()[:, :1]).squeeze(1)
                         for i in idx.tolist():
                             if not full[i]:
                                 continue
-                            k = kind_names[int(sim.opp_kind[i])]
-                            self.hist[k].append(float(own[i] - oth[i]))
-                            self.own_hist[k].append(float(own[i]))
-                            ep_own[k].append((float(own[i]), float(own[i] - oth[i])))
+                            key = f'{KIND[int(sim.opp_kind[i])]} {int(sim.k[i])}v{int(sim.k[i])}'
+                            self.hist[key].append(float(mA[i]))
+                            ep[key].append((float(totA[i]), float(mA[i])))
                             self.episodes += 1
                         sim.reset(done)
                         full |= done
                         if self.pool:
                             self.snap_of[done] = torch.randint(0, len(self.pool), (int(done.sum()),), device=dev)
                     obs = sim.obs()
+                    if live_envs and time.time() - last_live > 1.0:
+                        self.live(frames)
+                        frames = []
+                        last_live = time.time()
                 sim_s = time.time() - t0
-                # ---- advantages (GAE) for every robot slot that trains
+                # ---- advantages (GAE) per robot
                 t1 = time.time()
                 with torch.no_grad():
-                    self.norm.update(obs_b[:, :, 0][valid_b[:, :, 0]])
-                    X = self.norm.apply(obs_b)
-                    V = self.critic(X).squeeze(-1)                                # [T,N,2]
-                    Vn = self.critic(self.norm.apply(obs)).squeeze(-1)           # [N,2]
-                    adv = torch.zeros_like(V)
-                    last = torch.zeros(N, 2, device=dev)
+                    Lf = sim.learning()
+                    Vn = torch.zeros(N, RS, device=dev)
+                    Vn[Lf] = self.critic(self.norm.apply(obs[Lf])).squeeze(-1)
+                    adv = torch.zeros(T, N, RS, device=dev)
+                    last = torch.zeros(N, RS, device=dev)
                     for t in reversed(range(T)):
-                        nv = Vn if t == T - 1 else V[t + 1]
+                        nv = Vn if t == T - 1 else V_b[t + 1]
                         nonterm = 1.0 - done_b[t][:, None]
-                        delta = rew_b[t] + a.gamma * nv * nonterm - V[t]
-                        last = delta + a.gamma * a.lam * nonterm * last
+                        delta = R_b[t] + a.gamma * nv * nonterm - V_b[t]
+                        last = (delta + a.gamma * a.lam * nonterm * last) * L_b[t]
                         adv[t] = last
-                    ret = adv + V
-                use = train_b
-                Xf, Af, LPf = X[use], act_b[use], lp_b[use]
-                ADVf, RETf, VALf = adv[use], ret[use], valid_b[use]
-                n = len(Xf)
+                    ret = adv + V_b
+                    X = torch.cat(obs_l)
+                    self.norm.update(X[torch.cat(valid_l)])
+                    X = self.norm.apply(X)
+                    ACT, LP = torch.cat(act_l), torch.cat(lp_l)
+                    ADV = torch.cat([adv[t][L_b[t]] for t in range(T)])
+                    RET = torch.cat([ret[t][L_b[t]] for t in range(T)])
+                    VAL = torch.cat(valid_l).float()
+                n = len(X)
                 stats = collections.defaultdict(list)
                 for _ in range(a.epochs):
                     perm = torch.randperm(n, device=dev)
                     for i in range(0, n, a.minibatch):
                         ix = perm[i:i + a.minibatch]
-                        lp, ent, _, _ = self.actor.dist_terms(Xf[ix], Af[ix])
-                        ratio = (lp - LPf[ix]).exp()
-                        ad = ADVf[ix]
+                        lp, ent, _, _ = self.actor.dist_terms(X[ix], ACT[ix])
+                        ratio = (lp - LP[ix]).exp()
+                        ad = ADV[ix]
                         ad = (ad - ad.mean()) / (ad.std() + 1e-8)
-                        vm = VALf[ix].float()  # no policy gradient while the robot is disabled
+                        vm = VAL[ix]  # no policy gradient while the robot is disabled
                         pl = -(torch.min(ratio * ad, ratio.clamp(1 - a.clip, 1 + a.clip) * ad) * vm).sum() / vm.sum().clamp(min=1)
-                        vl = 0.5 * ((self.critic(Xf[ix]).squeeze(-1) - RETf[ix]) ** 2).mean()
+                        vl = 0.5 * ((self.critic(X[ix]).squeeze(-1) - RET[ix]) ** 2).mean()
                         loss = pl + a.vf * vl - a.ent * (ent * vm).sum() / vm.sum().clamp(min=1)
                         self.opt.zero_grad()
                         loss.backward()
@@ -346,36 +397,38 @@ class GpuTrainer:
                         self.opt.step()
                         with torch.no_grad():
                             stats['ent'].append(ent.mean().item())
-                            stats['kl'].append((LPf[ix] - lp).mean().item())
-                            stats['v'].append(vl.item())
+                            stats['kl'].append((LP[ix] - lp).mean().item())
                 upd_s = time.time() - t1
                 self.version += 1
                 self.updates += 1
-                self.steps += int(valid_b[:, :, 0].sum().item())
+                nsamp = int(VAL.sum().item())
+                self.steps += nsamp
                 self.check_selfplay()
                 if self.selfplay and self.updates % a.snapshot_every == 0:
                     self.snapshot()
                 if self.updates % a.publish_every == 0:
                     self.publish()
-                sps = valid_b[:, :, 0].sum().item() / max(1e-6, sim_s + upd_s)
+                sps = nsamp / max(1e-6, sim_s + upd_s)
+                per_match = max(1.0, L_b.float().sum().item() / (T * N))  # learning robots per match
+                mps = sps * 3600 / 1600 / per_match
                 st = {k: float(np.mean(v)) for k, v in stats.items()}
-                vs = '  '.join(f'{k} {np.mean([m for _, m in v]):+.0f} ({sum(m > 0 for _, m in v)}/{len(v)})' for k, v in sorted(ep_own.items()))
-                own_all = [o for v in ep_own.values() for o, _ in v]
+                vs = '  '.join(f'{k}: {np.mean([m for _, m in v]):+.0f} ({sum(m > 0 for _, m in v)}/{len(v)})' for k, v in sorted(ep.items()))
+                own_all = [o for v in ep.values() for o, _ in v]
                 gpu = f'  gpu {torch.cuda.max_memory_allocated() / 2**30:.1f}GB' if dev.type == 'cuda' else ''
-                print(f'[{self.elapsed() / 3600:5.2f}h] upd {self.updates:5d}  {self.steps / 1e6:8.2f}M decisions  {sps:7.0f}/s ({sps * 3600 / 1600:,.0f} matches/h)  '
-                      f'pts {np.mean(own_all) if own_all else 0:5.1f}  ent {st["ent"]:+.2f}  kl {st["kl"]:+.4f}  sim {sim_s:.1f}s upd {upd_s:.1f}s{gpu}')
+                print(f'[{self.elapsed() / 3600:5.2f}h] upd {self.updates:5d}  {self.steps / 1e6:8.2f}M decisions  {sps:7.0f}/s (~{mps:,.0f} matches/h)  '
+                      f'pts {np.mean(own_all) if own_all else 0:5.1f}  win-weight {self.win_weight():.2f}  ent {st["ent"]:+.2f}  kl {st["kl"]:+.4f}  sim {sim_s:.1f}s upd {upd_s:.1f}s{gpu}')
                 if vs:
-                    print(f'      vs: {vs}')
-                rec = {'t': round(self.elapsed(), 1), 'steps': self.steps, 'updates': self.updates, 'level': int(self.selfplay), 'sps': round(sps, 1),
-                       'own': round(float(np.mean(own_all)) if own_all else 0, 2), **{k: round(v, 5) for k, v in st.items()},
-                       'vs': {k: round(float(np.mean([m for _, m in v])), 2) for k, v in ep_own.items()},
-                       'win': {k: round(sum(m > 0 for _, m in v) / len(v), 3) for k, v in ep_own.items()}, 'trainer': 'gpu'}
-                if not own_all and self.updates % 10 == 0 and not full.all():
-                    print(f'      (first matches are still finishing: {full.float().mean().item():.0%} of the envs have started a full match)')
+                    print(f'      vs {vs}')
+                elif self.updates % 10 == 0 and not full.all():
+                    print(f'      (first matches still finishing: {full.float().mean().item():.0%} of the matches have started a full one)')
                 if own_all:
+                    rec = {'t': round(self.elapsed(), 1), 'steps': self.steps, 'updates': self.updates, 'level': int(self.selfplay), 'sps': round(sps, 1),
+                           'own': round(float(np.mean(own_all)), 2), 'winWeight': round(self.win_weight(), 3), **{k: round(v, 5) for k, v in st.items()},
+                           'vs': {k: round(float(np.mean([m for _, m in v])), 2) for k, v in ep.items()},
+                           'win': {k: round(sum(m > 0 for _, m in v) / len(v), 3) for k, v in ep.items()}, 'trainer': 'gpu'}
                     log.write(json.dumps(rec) + '\n')
                     log.flush()
-                    ep_own.clear()
+                    ep.clear()
                 if time.time() - last_save > a.save_minutes * 60:
                     self.save()
                     last_save = time.time()
@@ -393,6 +446,8 @@ def main():
     p.add_argument('--resume', action='store_true')
     p.add_argument('--device', default='auto')
     p.add_argument('--envs', type=int, default=0, help='matches at once (default 4096 on a GPU)')
+    p.add_argument('--teams', type=int, nargs='+', choices=[1, 2, 3], default=None,
+                   help='match sizes to play, repeat to weight them: --teams 3 (only 3v3), --teams 1 3 3 (1/3 1v1, 2/3 3v3). Default: 25%% 1v1, 15%% 2v2, 60%% 3v3')
     p.add_argument('--substeps', type=int, default=4, help='physics substeps per decision: 2 is faster and coarser')
     p.add_argument('--rollout', type=int, default=32, help='decisions per match between updates')
     p.add_argument('--minibatch', type=int, default=16384)
@@ -407,10 +462,14 @@ def main():
     p.add_argument('--critic', type=int, nargs='+', default=[1024, 512, 256])
     p.add_argument('--shaping-steps', type=float, default=200e6, help='decisions over which the pickup bonus fades out')
     p.add_argument('--robots', nargs='+', default=None, help='robots it learns to drive (default: all)')
-    p.add_argument('--selfplay-at', type=float, default=0.6, help='win rate against the bot that turns on self-play')
-    p.add_argument('--selfplay', action='store_true', help='turn self-play on now (without waiting to beat the bot)')
+    p.add_argument('--selfplay-at', type=float, default=0.6, help='win rate against the bots that turns on self-play')
+    p.add_argument('--selfplay', action='store_true', help='turn self-play on now (without waiting to beat the bots)')
     p.add_argument('--mix', type=float, nargs=4, metavar=('ALONE', 'BOT', 'OLDER', 'ITSELF'),
-                   help='share of self-play matches alone / vs the bot / vs older versions / vs itself (default 0.05 0.25 0.35 0.35)')
+                   help='share of self-play matches alone / vs the bots / vs older versions / vs itself (default 0.05 0.25 0.35 0.35)')
+    p.add_argument('--win-ramp', type=float, default=50e6, help='decisions after self-play starts over which the reward shifts to winning')
+    p.add_argument('--win-weight', type=float, default=None, help='fix the win weight (0 = points margin only, 1 = mostly winning)')
+    p.add_argument('--no-randomize', action='store_true', help="don't vary robot speed / intake / accuracy per match")
+    p.add_argument('--live', type=int, default=16, help='matches streamed to the dashboard (0 = off)')
     p.add_argument('--snapshot-every', type=int, default=50)
     p.add_argument('--pool-size', type=int, default=8)
     p.add_argument('--publish-every', type=int, default=10)

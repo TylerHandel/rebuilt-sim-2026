@@ -23,7 +23,7 @@ const args = process.argv.slice(2);
 const arg = (k, d) => { const i = args.indexOf('--' + k); return i >= 0 ? args[i + 1] : d; };
 const ID = +arg('id', 0);
 const DIR = arg('dir', '.');
-const REW = 5; // dOwnPts, dOppPts, dIntaked, dInactiveFuel, dFoulPtsGiven
+const REW = 6; // dOwnPts, dOppPts, dIntaked, dInactiveFuel, dFoulPtsGiven, margin after (not a delta)
 const STEPS_PER_DECISION = Math.round(DECISION_DT / PHYSICS_DT);
 
 const send = (o) => process.stdout.write(JSON.stringify(o) + '\n');
@@ -91,11 +91,33 @@ function flush(nextObs) {
 }
 
 // ------------------------------------------------------------------ one match
+// 2v2 / 3v3: the agent drives one robot; its teammates are the current network too (they learn to
+// play together), the other ALLIANCE is the opponent of this match times k
+function teamSettings(k, opp, robotKey, alliance) {
+  const slots = [];
+  const starts = (n) => [...START_ORDER].sort(() => Math.random() - 0.5).slice(0, n);
+  const me = Math.floor(Math.random() * k);
+  for (const a of [BLUE, RED]) {
+    const st = starts(3);
+    for (let i = 0; i < 3; i++) {
+      let sl;
+      if (i >= k) sl = { driver: 'empty' };
+      else if (a === alliance) sl = i === me ? { driver: 'external', robot: robotKey } : { driver: 'nn', policy, robot: pick(config.robots || ROBOT_ORDER) };
+      else if (opp.kind === 'off') sl = { driver: 'empty' };
+      else if (opp.kind === 'nn') sl = { driver: 'nn', policy: loadPolicy(opp.path), robot: pick(ROBOT_ORDER) };
+      else sl = { driver: opp.strategy, skill: opp.skill || 'regional', robot: pick(ROBOT_ORDER) };
+      slots.push({ robot: sl.robot || pick(ROBOT_ORDER), auto: sl.driver === opp.strategy ? 'best' : 'none', start: st[i], skill: 'champs', ...sl });
+    }
+  }
+  return { matchMode: '3v3', slots, alliance, preload: 8, hp: 'auto', climber: 'none' };
+}
+
 async function playEpisode() {
   const opp = pickWeighted(config.opponents);
   const robotKey = pick(config.robots || ROBOT_ORDER);
   const alliance = Math.random() < 0.5 ? BLUE : RED;
-  const settings = {
+  const k = pick(config.teams || [1]);
+  const settings = k > 1 ? teamSettings(k, opp, robotKey, alliance) : {
     alliance, robot: robotKey, climber: 'none', preload: 8, hp: 'auto',
     auto: 'none', start: pick(START_ORDER), customSide: 'drawn',
     driver: 'external',
@@ -107,24 +129,26 @@ async function playEpisode() {
   const world = await createWorld();
   try {
     const game = createGame(world, settings);
-    const m = game.match, me = game.robot, foe = game.opp ? game.opp.robot : null;
+    const m = game.match, me = game.robot;
+    const others = { foes: game.robots.filter((r) => r.alliance !== me.alliance), mates: game.robots.filter((r) => r.alliance === me.alliance && r !== me) };
     const A = alliance, B = other(alliance);
     const obs = new Float32Array(OBS_DIM);
     let last = null; // { comps at decision }
-    const snap = () => [m.total(A), m.total(B), me.stats.intaked, m.score[A].inactiveFuel, m.score[A].fouls.reduce((s, f) => s + f.pts, 0)];
+    const snap = () => [m.total(A), m.total(B), me.stats.intaked, m.score[A].inactiveFuel, m.score[A].fouls.reduce((s, f) => s + f.pts, 0), m.total(A) - m.total(B)];
     let since = STEPS_PER_DECISION, step = 0, decisions = 0;
     const record = (done) => {
       // finish the previous transition: its reward is everything that happened since
       const now = snap();
       const j = buf.n - 1;
-      for (let k = 0; k < REW; k++) buf.rew[j * REW + k] = now[k] - last[k];
+      for (let q = 0; q < REW - 1; q++) buf.rew[j * REW + q] = now[q] - last[q];
+      buf.rew[j * REW + REW - 1] = now[REW - 1];
       buf.done[j] = done ? 1 : 0;
       last = now;
     };
     while (!m.over && step < 30000) {
       if (m.robotEnabled && since >= STEPS_PER_DECISION) {
         since = 0;
-        buildObs(me, foe, m, world.fuel, obs);
+        buildObs(me, others, m, world.fuel, obs);
         if (last) {
           record(false);
           if (buf.n >= config.chunk) {
@@ -149,7 +173,7 @@ async function playEpisode() {
     }
     if (last && buf.n) record(true);
     return {
-      type: 'episode', id: ID, version, opp: opp.key, robot: robotKey, oppRobot: settings.oppRobot,
+      type: 'episode', id: ID, version, opp: opp.key, teams: k, robot: robotKey, oppRobot: settings.oppRobot,
       own: m.total(A), them: m.total(B), margin: m.total(A) - m.total(B), fuel: m.fuelPoints(A),
       inactive: m.score[A].inactiveFuel, fouls: m.score[A].fouls.map((f) => f.rule),
       shots: me.stats.shots, passes: me.stats.passes, intaked: me.stats.intaked, decisions,

@@ -206,7 +206,8 @@ The self-play trainer above tunes the scripted AI's strategy values. The neural-
 - **Train fast on the GPU:** run `nn-train-gpu.bat`. It plays thousands of simplified matches at once on your graphics card. Ctrl+C saves; `--resume` continues.
 - **Fine-tune in the real game:** run `nn-train.bat --resume --level 3`. It uses every CPU thread for the full simulation and the GPU for learning.
 - **Watch progress:** `nn-dashboard.bat` opens a live chart page.
-- **Play with it:** in the menu set **Your robot driven by → Neural net (watch)**, or **Opponent → Neural net**.
+- **Play with it:** in the menu set **Your robot driven by → Neural net (watch)**, or **Opponent → Neural net**. In a 3v3, set any slot to **Neural net**.
+- **Watch it learn:** the dashboard shows a live bird's-eye grid of the matches the GPU trainer is playing.
 - **Start from your own driving:** every full match you drive is recorded for it. Download the recordings from **AI TUNING** and train with `nn-train.bat --bc recordings`.
 
 Details, hardware use and expected training times: [tools/nn/README.md](tools/nn/README.md).
