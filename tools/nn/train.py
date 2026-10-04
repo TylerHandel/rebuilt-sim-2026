@@ -304,6 +304,10 @@ class Trainer:
         os.replace(tmp, self.run / 'ckpt.pt')
 
     def load(self):
+        if not (self.run / 'ckpt.pt').exists():
+            sys.exit(f'Nothing to resume: {self.run / "ckpt.pt"} does not exist.\n'
+                     f'Training progress is kept in the runs folder of the copy of the project you trained in. If you '
+                     f'downloaded a new copy, copy the old runs folder (and js/nn/driver.json) into it, or leave out --resume to start fresh.')
         ck = torch.load(self.run / 'ckpt.pt', map_location=self.dev, weights_only=False)
         self.a.hidden, self.a.critic = ck['hidden'], ck['critic_sizes']
         self.build(ck['obs_dim'])
