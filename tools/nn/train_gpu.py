@@ -333,7 +333,7 @@ class GpuTrainer:
                     R_b[t] = self.reward(rew, done)
                     done_b[t] = done.float()
                     if live_envs:
-                        frames.append({'envs': sim.frame(live_envs)})
+                        frames.append({'w': round(time.time(), 3), 'envs': sim.frame(live_envs)})
                     if done.any():
                         idx = done.nonzero().squeeze(-1)
                         mA = sim.margin()[:, 0]

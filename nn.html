@@ -166,6 +166,10 @@ $('liveToggle').onclick = () => { liveOn = !liveOn; try { localStorage.setItem('
 function applyLiveToggle() { $('live').style.display = liveOn ? '' : 'none'; $('liveToggle').textContent = liveOn ? 'Hide' : 'Show'; }
 applyLiveToggle();
 fetch('tools/nn/gpusim-params.json', { cache: 'no-store' }).then((r) => r.json()).then((p) => { field = p; }).catch(() => {});
+// The trainer simulates in bursts (it pauses while it updates the network), at whatever pace the
+// GPU allows. Frames carry the trainer's clock; we play them at that pace, a few seconds behind,
+// with enough buffered to ride over the pauses, so the matches move smoothly.
+let clockOff = null, gaps = [], delay = 3;
 async function pollLive() {
   if (!liveOn) return;
   try {
@@ -174,21 +178,40 @@ async function pollLive() {
     const d = await r.json();
     liveData = d;
     const first = d.seq - d.frames.length + 1;
-    d.frames.forEach((f, i) => { if (first + i > lastSeq) queue.push(f); });
+    const fresh = d.frames.filter((f, i) => first + i > lastSeq);
     lastSeq = d.seq;
-    if (queue.length > 40) queue = queue.slice(-20); // keep up: drop what we can't show in time
+    if (fresh.length) {
+      const nowS = performance.now() / 1000;
+      const off = fresh[fresh.length - 1].w - nowS;   // trainer clock - our clock (minus a little latency)
+      clockOff = clockOff === null ? off : Math.max(off, clockOff - 0.05);
+      let prev = queue.length ? queue[queue.length - 1].w : null;
+      for (const f of fresh) {
+        if (prev !== null) gaps.push([nowS, f.w - prev]);
+        prev = f.w;
+        queue.push(f);
+      }
+      gaps = gaps.filter(([t]) => nowS - t < 90);
+      const maxGap = gaps.reduce((m, [, g]) => Math.max(m, g), 0);
+      delay = Math.min(30, Math.max(1.5, 1.2 * maxGap + 1.2));
+    }
     $('liveState').textContent = '';
   } catch { $('liveState').textContent = 'waiting for the GPU trainer…'; }
 }
 setInterval(pollLive, 1000);
-let lastDraw = 0;
+let lastDraw = 0, drawn = null;
 function tickLive(now) {
   requestAnimationFrame(tickLive);
-  if (!liveOn || !field || now - lastDraw < 100) return; // 10 decisions per second, like the match
+  if (!liveOn || !field || now - lastDraw < 50) return;
   lastDraw = now;
-  if (queue.length) shown = queue.shift();
-  else if (shown && liveData) $('liveState').textContent = 'network updating…';
-  if (shown) drawLive(shown);
+  if (clockOff !== null && queue.length) {
+    const target = now / 1000 + clockOff - delay;
+    let next = null;
+    while (queue.length && queue[0].w <= target) next = queue.shift();
+    if (next) shown = next;
+    if (queue.length > 3000) queue = queue.slice(-1500);
+  }
+  if (shown && shown !== drawn) { drawLive(shown); drawn = shown; }
+  $('liveState').textContent = shown ? `${delay.toFixed(0)} s behind the trainer` : '';
 }
 requestAnimationFrame(tickLive);
 function clockText(t) {
