@@ -250,7 +250,7 @@ export class Sound {
       this.crowdV = this._loop('crowd');
       this.crowdV.g.connect(this.master);
     }
-    this.crowdV.g.gain.setTargetAtTime(on ? 0.5 : 0.2, this.ctx.currentTime, 0.8);
+    this.crowdV.g.gain.setTargetAtTime(on ? 0.3 : 0.12, this.ctx.currentTime, 0.8);
   }
 
   // every frame. active: a match is on screen and running (not paused)
@@ -353,7 +353,7 @@ export class Sound {
           if (atHub && dv > 2.2 && nh < 3 && !(now - (prev.hit || -9) < 0.4)) {
             nh++;
             prev.hit = now;
-            this.play(HUB_HITS[Math.floor(Math.random() * HUB_HITS.length)], { pos: b.pos, gain: Math.min(2.2, 1.3 + dv / 6), rate: 0.96 + 0.08 * Math.random(), near: 8, wet: 0 });
+            this.play(HUB_HITS[Math.floor(Math.random() * HUB_HITS.length)], { pos: b.pos, gain: Math.min(1.3, 0.8 + dv / 10), rate: 0.96 + 0.08 * Math.random(), near: 8, wet: 0 });
           } else if (!atHub && prev.y < -2.2 && v.y > prev.y * 0.2 && n < 2) {
             n++;
             this.play('bounce', { pos: b.pos, gain: Math.min(0.6, -prev.y / 10), rate: 0.85 + 0.35 * Math.random() });
@@ -386,7 +386,7 @@ export class Sound {
     if (burst >= 8 && gt - this.lastCheer > 9) {
       this.lastCheer = gt;
       this.recent = [];
-      this.play(burst >= 16 ? 'cheer-big' : 'cheer', { gain: 0.55 + Math.min(0.35, burst / 50) });
+      this.play(burst >= 16 ? 'cheer-big' : 'cheer', { gain: 0.33 + Math.min(0.2, burst / 80) });
     }
     this.prev = { phase: ph, shift: sh, left: m.phase === 'teleop' ? TIMING.teleop - m.phaseTime : 999, tot };
     void dt;
