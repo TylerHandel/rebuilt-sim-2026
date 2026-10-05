@@ -270,7 +270,7 @@ class GpuTrainer:
 
     def publish(self):
         info = {'run': self.a.run, 'trainer': 'gpu', 'steps': self.steps, 'updates': self.updates, 'hours': round(self.elapsed() / 3600, 2),
-                'date': time.strftime('%Y-%m-%d %H:%M'), 'device': str(self.dev), 'winWeight': round(self.win_weight(), 3),
+                'date': time.strftime('%Y-%m-%d %H:%M'), 'device': str(self.dev), 'winWeight': round(self.win_weight(), 3), 'robots': self.a.robots,
                 'vs': {k: round(float(np.mean(v)), 1) for k, v in self.hist.items() if v}}
         cur = self.run / 'policy' / 'current.json'
         export_policy(self.actor, self.norm.numpy(), cur, self.version, info)

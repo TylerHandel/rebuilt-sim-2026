@@ -9,6 +9,7 @@ import { PIN_LIMIT } from './rules.js';
 import { fmtValue } from './tuning.js';
 import { modelCapacity } from './hopper.js';
 import { DEFAULT_SLOTS, SLOT_DRIVERS, slotAlliance } from './game.js';
+import { nnLibrary } from './nn/library.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -17,7 +18,7 @@ export const DEFAULT_SETTINGS = {
   robot: '2910', alliance: BLUE, ds: 1, start: 'rightTrench', preload: 8, auto: 'best',
   hp: 'manual', climber: 'none', camera: 'driver', preview: 'on',
   opponent: 'scorer', oppRobot: '4414', oppSkill: 'regional', customSide: 'drawn',
-  driver: 'human', driverSkill: 'trained', mode: 'normal', role: 'score',
+  driver: 'human', driverSkill: 'trained', mode: 'normal', role: 'score', nnNet: 'auto',
 };
 
 export function loadSettings() {
@@ -84,6 +85,12 @@ const OPT = {
   hp: opt('hp', 'Your human player', [['manual', 'Manual (X / Y)'], ['auto', 'Auto-throw when HUB active']], 'The human player at your OUTPOST: throw FUEL yourself, or let it throw whenever your HUB is active.'),
   climber: opt('climber', 'Climber add-on', [['none', 'None (as built)'], ['l1', 'Level 1 hook'], ['l3', 'Level 1-3 climber']], '971 and 1678 climb Level 1 as built; the other four didn\'t climb in 2026. Add a hypothetical climber to your robot to try the TOWER.'),
   camera: opt('camera', 'Starting camera', CAMERA_MODES.map((m) => [m, CAMERA_NAMES[m]]), 'Change it any time in a match with D-pad ◀ ▶ ([ / ]); right stick click (T) turns it around.'),
+  nnNet: opt('nnNet', 'Neural net', () => [['auto', 'Automatic'], ...nnLibrary.list.map((n) => [n.key, n.name])], (s) => {
+    const n = nnLibrary.list.find((x) => x.key === s.nnNet);
+    if (n) return n.note || 'A network shared to the project with nn-share.bat.';
+    return nnLibrary.list.length ? `Your own training if this computer has one, else the newest shared network (now: ${nnLibrary.list[0].name}).`
+      : 'No networks yet: train one (nn-train-gpu.bat) or share one (nn-share.bat).';
+  }),
   preview: opt('preview', 'Shot preview line', [['on', 'On'], ['off', 'Off']], 'While you hold shoot, a line shows where the shot goes (green once it will score).'),
 };
 
@@ -148,6 +155,7 @@ const PAGES = {
   '1v1': (ui) => [
     sec('Your robot'), { type: 'cards' }, o('auto'), hideForBest(o('start')), o('preload'), o('alliance'),
     sec('AI opponent'), o('oppRobot'), o('opponent'), o('oppSkill'),
+    { ...o('nnNet'), hidden: (s) => s.opponent !== 'nn' && s.driver !== 'nn' },
     { type: 'toggle', label: ui.adv ? 'Fewer options ▴' : 'More options ▾', desc: 'Driver station, Training mode, the defense drill and watch mode.' },
     ...(ui.adv ? [o('ds'), o('mode'), o('role'), o('driver'), o('driverSkill')] : []),
     btn('START MATCH', 'start'), btn('BACK', 'home', { secondary: true }),
@@ -161,6 +169,7 @@ const PAGES = {
       if (ui.openSlot === i) for (const so of slotOpts(i)) if (so.when(s) && so.show(s)) items.push({ type: 'opt', opt: so, sub: true });
     }
     items.push(sec('Match'), o('preloadAll'));
+    if (s.slots.some((sl) => sl.driver === 'nn')) items.push(o('nnNet'));
     items.push(btn('START MATCH', 'start'), btn('BACK', 'home', { secondary: true }));
     return items;
   },
@@ -203,6 +212,7 @@ export class UI {
   constructor(settings, handlers) {
     this.s = settings;
     this.h = handlers;
+    this._nnNet = settings.nnNet;
     this.screen = 'menu';
     this.page = 'home';
     this.tile = MODES[settings.matchMode] ? settings.matchMode : '1v1';
@@ -368,6 +378,7 @@ export class UI {
 
   _changed() {
     saveSettings(this.s);
+    if (this.s.nnNet !== this._nnNet) { this._nnNet = this.s.nnNet; if (this.h.onNNChange) this.h.onNNChange(); }
     if (this.screen === 'menu') this.renderMenu();
   }
 

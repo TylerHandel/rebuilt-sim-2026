@@ -30,6 +30,9 @@ jobs:
         run: |
           mkdir _site
           cp -r index.html js css cad _site/
+      # the shared neural networks (js/nn/shared/*.json), listed for the game's Neural net menu
+      - name: List the shared neural networks
+        run: node tools/nn/share-index.mjs _site/js/nn/shared
       # GitHub Pages lets browsers keep files for 10 minutes, so after a deploy a reload could mix
       # new and old code. Tagging every code file with this commit makes each deploy's files new
       # URLs, fetched fresh.

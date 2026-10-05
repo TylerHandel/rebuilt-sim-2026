@@ -199,6 +199,7 @@ Opponents it doesn't beat yet get picked more often. Use `--level N` to start at
 | `tools/nn/train_gpu.py` | The GPU trainer (`nn-train-gpu.bat`). |
 | `tools/nn/shoot-test.mjs` → `shoot-calib.json` | Measures each robot's shooting accuracy at different speeds in the full game, for the GPU simulator. |
 | `tools/nn/record-ai.mjs` | Records the pre-programmed AIs playing full matches, for imitation (`nn-record-ai.bat`). |
+| `tools/nn/share.py` (`nn-share.bat`) | Prepares a trained network for sharing and opens the GitHub upload page. Shared networks live in `js/nn/shared/`; the website lists them (`tools/nn/share-index.mjs` writes the list when it's deployed) under **Neural net** in the menu. |
 | `tools/nn/eval.mjs` | The real-game scoreboard: full-game matches of the latest network against the Champs AIs, started by the GPU trainer. Results go to `runs/<run>/eval.jsonl`. |
 | `tools/nn/train.py` | The trainer: PPO with GAE, observation normalization, the curriculum, self-play, imitation and checkpoints. |
 | `nn.html` | The training dashboard. |

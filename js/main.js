@@ -8,6 +8,7 @@ import { AutoEditor } from './editor.js';
 import { Learner, DrivingRecorder } from './learning.js';
 import { NNRecorder } from './nn/recorder.js';
 import { Policy } from './nn/policy.js';
+import { refreshLibrary, resolveNet, netUrl } from './nn/library.js';
 import { TuningScreen } from './tuning.js';
 import { loadCadModels } from './cadModels.js';
 import { Input } from './input.js';
@@ -63,13 +64,21 @@ const input = new Input();
 
 // the neural-network driver, reloaded after every match so a running training session's
 // latest network is picked up without refreshing the page
-let nnPolicy = null, nnError = '';
+// (or the shared network picked under "Neural net" in the menu)
+let nnPolicy = null, nnError = '', nnName = '';
 async function loadNN() {
-  try { nnPolicy = await Policy.load('js/nn/driver.json'); nnError = ''; } catch (e) { nnError = String(e.message || e); }
+  try {
+    await refreshLibrary();
+    const net = resolveNet(settings.nnNet || 'auto');
+    if (!net) throw new Error('none trained on this computer, and none shared yet');
+    nnPolicy = await Policy.load(netUrl(net));
+    nnName = net.name;
+    nnError = '';
+  } catch (e) { nnPolicy = null; nnError = String(e.message || e); }
 }
-loadNN();
 const rig = new CameraRig(camera);
 const settings = loadSettings();
+loadNN().then(() => { if (ui.screen === 'menu') ui.renderMenu(); });
 const world = { physics, scene, field, fuel };
 
 // shot preview line
@@ -92,6 +101,7 @@ const ui = new UI(settings, {
   onResume: () => ui.show('hud'),
   onRestart: () => startMatch(),
   onMenu: () => ui.show('menu'),
+  onNNChange: () => loadNN(),
 });
 ui.editor = new AutoEditor({
   settings, field,
@@ -153,7 +163,7 @@ function useNN(eff) {
     if (nnPolicy) eff.slotPolicy = nnPolicy;
     else {
       eff.slots = eff.slots.map((sl) => (sl.driver === 'nn' ? { ...sl, driver: 'scorer' } : sl));
-      ui.toast(`No trained neural net found (js/nn/driver.json${nnError ? ': ' + nnError : ''}) — using the Scorer AI`, 'foul');
+      ui.toast(`No neural net available (${nnError || 'none found'}) — using the Scorer AI`, 'foul');
     }
   }
   for (const [k, pk] of [['driver', 'driverPolicy'], ['opponent', 'oppPolicy']]) {
@@ -161,7 +171,7 @@ function useNN(eff) {
     if (nnPolicy) eff[pk] = nnPolicy;
     else {
       eff[k] = 'scorer';
-      ui.toast(`No trained neural net found (js/nn/driver.json${nnError ? ': ' + nnError : ''}) — using the Scorer AI`, 'foul');
+      ui.toast(`No neural net available (${nnError || 'none found'}) — using the Scorer AI`, 'foul');
     }
   }
 }
