@@ -296,7 +296,7 @@ export class Sound {
           if (atHub && dv > 2.2 && nh < 3 && !(now - (prev.hit || -9) < 0.4)) {
             nh++;
             prev.hit = now;
-            this.play(HUB_HITS[Math.floor(Math.random() * HUB_HITS.length)], { pos: b.pos, gain: Math.min(2.2, 1.3 + dv / 6), rate: 0.74 + 0.1 * Math.random(), near: 8, wet: 0.55 });
+            this.play(HUB_HITS[Math.floor(Math.random() * HUB_HITS.length)], { pos: b.pos, gain: Math.min(2.2, 1.3 + dv / 6), rate: 0.908 + 0.1 * Math.random(), near: 8, wet: 0.11 });
           } else if (!atHub && prev.y < -2.2 && v.y > prev.y * 0.2 && n < 2) {
             n++;
             this.play('bounce', { pos: b.pos, gain: Math.min(0.6, -prev.y / 10), rate: 0.85 + 0.35 * Math.random() });
