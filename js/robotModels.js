@@ -734,7 +734,9 @@ function rod(parent, a, b, r, mat, segs = 8) {
 //   y: height of the pinned edges (yFront: the front edge's, for a net stretched diagonally down
 //   to an intake). drape(load, ex, at): ex is how far the front has moved out; at { y, yFront }
 //   moves the pinned heights (a lid that lifts).
-function hopperNet(parent, { x0, x1, x1Out = x1, xFixed = x1, hw, y, yFront = y, hole = null, NX = 36, NZ = 28, color = 0x15171a }) {
+// (inside(x, z): the hopper's outline, for one that isn't a rectangle: the net stops at it; hole.y:
+// the height it's tied on at round the hole, if not the edge's)
+function hopperNet(parent, { x0, x1, x1Out = x1, xFixed = x1, hw, y, yFront = y, hole = null, inside = null, NX = 36, NZ = 28, color = 0x15171a }) {
   const mat = new THREE.MeshStandardMaterial({ map: fineNetTexture(), transparent: true, depthWrite: false, side: THREE.DoubleSide, roughness: 0.9, color });
   const nv = (NX + 1) * (NZ + 1);
   const base = new Float32Array(nv), pin = new Uint8Array(nv), hNow = new Float32Array(nv), hMin = new Float32Array(nv);
@@ -744,7 +746,7 @@ function hopperNet(parent, { x0, x1, x1Out = x1, xFixed = x1, hw, y, yFront = y,
     for (let j = 0; j <= NZ; j++) {
       const k = i * (NZ + 1) + j, x = x0 + ((x1Out - x0) * i) / NX, z = -hw + (2 * hw * j) / NZ;
       base[k] = x;
-      pin[k] = i === 0 || i === NX || j === 0 || j === NZ || inHole(x, z, 0.01) ? 1 : 0;
+      pin[k] = i === 0 || i === NX || j === 0 || j === NZ || inHole(x, z, 0.01) || (inside && !inside(x, z)) ? 1 : 0;
       hNow[k] = y;
       pos.set([x, y, z], k * 3);
       uv.set([x, z], k * 2);
@@ -753,7 +755,8 @@ function hopperNet(parent, { x0, x1, x1Out = x1, xFixed = x1, hw, y, yFront = y,
   for (let i = 0; i < NX; i++) {
     for (let j = 0; j < NZ; j++) {
       const k = i * (NZ + 1) + j;
-      if (inHole(x0 + ((x1Out - x0) * (i + 0.5)) / NX, -hw + (2 * hw * (j + 0.5)) / NZ, 0)) continue;
+      const cx = x0 + ((x1Out - x0) * (i + 0.5)) / NX, cz = -hw + (2 * hw * (j + 0.5)) / NZ;
+      if (inHole(cx, cz, 0) || (inside && !inside(cx, cz))) continue;
       idx.push(k, k + 1, k + NZ + 2, k, k + NZ + 2, k + NZ + 1);
     }
   }
@@ -775,6 +778,7 @@ function hopperNet(parent, { x0, x1, x1Out = x1, xFixed = x1, hw, y, yFront = y,
       const x = base[k] <= xFixed ? base[k] : xFixed + (base[k] - xFixed) * kx;
       pos[k * 3] = x;
       hPin[k] = yb + (yf - yb) * Math.min(1, Math.max(0, (x - x0) / Math.max(0.01, xf - x0)));
+      if (hole && hole.y !== undefined && inHole(x, pos[k * 3 + 2], 0.01)) hPin[k] = hole.y;
       hMin[k] = hPin[k];
     }
     // held up by the FUEL poking above the pins
@@ -1866,6 +1870,26 @@ function build4946(cfg, alliance) {
   kraken(box, xF - 0.12, 0.3, iw + 0.04, true, 'z');
   bolts.done();
 
+  // a net over the hopper's top, from the walls to a ring round the column, under the turret
+  // (fixed: four posts up from a flange on the column's top)
+  const ringR = 0.2, ringY = top - 0.03;
+  mesh(new THREE.RingGeometry(0.14, ringR + 0.012, 40), std(0x2c2f35, 0.5, 0.4, { side: THREE.DoubleSide }), root, t.x, 0.472, t.z).rotation.x = -Math.PI / 2;
+  for (let i = 0; i < 4; i++) {
+    const a = Math.PI / 4 + (i * Math.PI) / 2;
+    cylY(0.006, ringY - 0.47, grey, root, t.x + Math.cos(a) * ringR, (0.47 + ringY) / 2, t.z - Math.sin(a) * ringR, 6);
+  }
+  mesh(new THREE.TorusGeometry(ringR, 0.006, 6, 40), grey, root, t.x, ringY, t.z).rotation.x = Math.PI / 2;
+  const inWalls = (x, z) => {
+    if (x > xFront) return false;
+    let c = false;
+    for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+      const [xi, zi] = pts[i], [xj, zj] = pts[j];
+      if ((zi > z) !== (zj > z) && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) c = !c;
+    }
+    return c;
+  };
+  const xs = pts.map((q) => q[0]), zs = pts.map((q) => Math.abs(q[1]));
+  const topNet = hopperNet(root, { x0: Math.min(...xs) - 0.01, x1: xFront, hw: Math.max(...zs) + 0.01, y: top, hole: { x: t.x, z: t.z, r: ringR, y: ringY }, inside: inWalls, NX: 40, NZ: 44 });
   // the net from the top of the front wall down to the intake box's top crossbar
   const net = hopperNet(root, { x0: xFront, x1: xF - 0.02, x1Out: xF - 0.02 + extLen, xFixed: xFront, hw: iw - 0.01, y: top, yFront: 0.45, NX: 14, NZ: 24 });
 
@@ -1882,6 +1906,7 @@ function build4946(cfg, alliance) {
     fly.rotation.z -= st.flywheel * dt * 9;
     hood.rotation.z = (st.hoodDeg - 60) * Math.PI / 180 * 0.4;
     net.drape(st.load, ex);
+    topNet.drape(st.load, 0);
   };
   return { root, anim, stored: [], modules, extLen };
 }
