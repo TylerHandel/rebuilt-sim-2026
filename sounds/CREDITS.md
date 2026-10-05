@@ -6,7 +6,7 @@ They were trimmed, filtered, normalized and looped for the game.
 
 | File | Used for | Source |
 |---|---|---|
-| drive.mp3 | swerve drive motor whine | recorded from the project's own team robot accelerating (offseason test video) |
+| drive.wav | swerve drive motor whine | our own team's robot accelerating (offseason test video): its spectrum frozen into a steady, seamless loop |
 | firing.mp3 | a robot feeding FUEL into its shooter | recorded from the project's own team robot shooting (offseason test video) |
 | hub-hit-1…4.mp3 | FUEL hitting the HUB's polycarbonate | recorded at our own team's practice HUB (offseason test video), noise-reduced |
 | flywheel.mp3 | shooter flywheel | [HDD spinup/spindown on inductor mic](https://freesound.org/s/594042/) by SamsterBirdies |

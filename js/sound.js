@@ -8,6 +8,8 @@ import { TIMING, HUB, HALF_L } from './constants.js';
 
 const HUB_HITS = ['hub-hit-1', 'hub-hit-2', 'hub-hit-3', 'hub-hit-4'];
 const SHOTS = ['shot-1', 'shot-2', 'shot-3'];
+// loops that must be seamless are WAV (an MP3 pads its start and end)
+const WAV = new Set(['drive']);
 const FILES = [...HUB_HITS, ...SHOTS, 'drive', 'flywheel', 'firing', 'bounce', 'bump', 'match-start', 'teleop-start', 'endgame', 'match-end', 'cheer', 'cheer-big', 'crowd'];
 // your own match-cue recordings (e.g. the real field sounds from your FRC Driver Station install),
 // matched to a cue by file name; kept in this browser only (IndexedDB), never uploaded
@@ -87,7 +89,7 @@ export class Sound {
     this.custom = {};
     const own = idbAll().catch(() => ({}));
     for (const f of FILES) {
-      fetch(`sounds/${f}.mp3`).then((r) => r.arrayBuffer()).then((a) => this.ctx.decodeAudioData(a)).then(async (b) => {
+      fetch(`sounds/${f}.${WAV.has(f) ? 'wav' : 'mp3'}`).then((r) => r.arrayBuffer()).then((a) => this.ctx.decodeAudioData(a)).then(async (b) => {
         const mine = (await own)[f];
         if (mine) {
           try { this.buf[f] = await this.ctx.decodeAudioData(mine.slice(0)); this.custom[f] = true; return; } catch { /* fall back to ours */ }
@@ -154,12 +156,13 @@ export class Sound {
     const s = this.ctx.createBufferSource();
     s.buffer = this.buf[name];
     s.loop = true;
-    s.loopStart = 0.03; // skip the MP3 encoder's padding at each end
-    s.loopEnd = s.buffer.duration - 0.03;
+    const pad = WAV.has(name) ? 0 : 0.03; // skip an MP3's encoder padding at each end
+    s.loopStart = pad;
+    s.loopEnd = s.buffer.duration - pad;
     const g = this.ctx.createGain();
     g.gain.value = 0;
     s.connect(g);
-    s.start(0, 0.03 + Math.random() * (s.buffer.duration - 0.1));
+    s.start(0, pad + Math.random() * (s.buffer.duration - 2 * pad - 0.01));
     return { s, g, gain };
   }
 
