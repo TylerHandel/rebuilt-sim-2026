@@ -18,7 +18,7 @@ export const DEFAULT_SETTINGS = {
   robot: '2910', alliance: BLUE, ds: 1, start: 'rightTrench', preload: 8, auto: 'best',
   hp: 'manual', climber: 'none', camera: 'driver', preview: 'on',
   opponent: 'scorer', oppRobot: '4414', oppSkill: 'regional', customSide: 'drawn',
-  driver: 'human', driverSkill: 'trained', mode: 'normal', role: 'score', nnNet: 'auto',
+  driver: 'human', driverSkill: 'trained', mode: 'normal', role: 'score', nnNet: 'auto', sound: 'medium',
 };
 
 export function loadSettings() {
@@ -91,6 +91,7 @@ const OPT = {
     return nnLibrary.list.length ? `Your own training if this computer has one, else the newest shared network (now: ${nnLibrary.list[0].name}).`
       : 'No networks yet: train one (nn-train-gpu.bat) or share one (nn-share.bat).';
   }),
+  sound: opt('sound', 'Sound', [['off', 'Off'], ['low', 'Low'], ['medium', 'Medium'], ['high', 'High']], 'Robots, FUEL, the field\'s match cues and the crowd (it cheers when a volley of FUEL scores).'),
   preview: opt('preview', 'Shot preview line', [['on', 'On'], ['off', 'Off']], 'While you hold shoot, a line shows where the shot goes (green once it will score).'),
 };
 
@@ -176,6 +177,7 @@ const PAGES = {
   settings: () => [
     sec('Your robot'), o('hp'), o('climber'),
     sec('View'), o('camera'), o('preview'),
+    sec('Sound'), o('sound'),
     btn('BACK', 'home', { secondary: true }),
   ],
 };
@@ -378,6 +380,7 @@ export class UI {
 
   _changed() {
     saveSettings(this.s);
+    if (this.h.onSettings) this.h.onSettings();
     if (this.s.nnNet !== this._nnNet) { this._nnNet = this.s.nnNet; if (this.h.onNNChange) this.h.onNNChange(); }
     if (this.screen === 'menu') this.renderMenu();
   }

@@ -9,6 +9,7 @@ import { Learner, DrivingRecorder } from './learning.js';
 import { NNRecorder } from './nn/recorder.js';
 import { Policy } from './nn/policy.js';
 import { refreshLibrary, resolveNet, netUrl } from './nn/library.js';
+import { Sound } from './sound.js';
 import { TuningScreen } from './tuning.js';
 import { loadCadModels } from './cadModels.js';
 import { Input } from './input.js';
@@ -79,6 +80,8 @@ async function loadNN() {
 const rig = new CameraRig(camera);
 const settings = loadSettings();
 loadNN().then(() => { if (ui.screen === 'menu') ui.renderMenu(); });
+const sound = new Sound();
+sound.setLevel(settings.sound);
 const world = { physics, scene, field, fuel };
 
 // shot preview line
@@ -102,6 +105,7 @@ const ui = new UI(settings, {
   onRestart: () => startMatch(),
   onMenu: () => ui.show('menu'),
   onNNChange: () => loadNN(),
+  onSettings: () => sound.setLevel(settings.sound),
 });
 ui.editor = new AutoEditor({
   settings, field,
@@ -324,6 +328,7 @@ function tick(dt, render) {
     if (debugInput.pressed) debugInput.pressed = {};
   }
   if (ui.screen === 'menu') ui.setPadStatus(input.padName);
+  if (inp.pressed && Object.values(inp.pressed).some(Boolean)) sound.gesture(); // a controller press unlocks sound too
   const overlay = ui.handleInput(inp, dt);
 
   if (game && !overlay && ui.screen === 'hud') {
@@ -370,6 +375,7 @@ function tick(dt, render) {
     for (const a of [BLUE, RED]) field.setHubLights(a, 'active', performance.now() / 1000);
   }
   fuel.sync();
+  sound.update(game, camera, !!game && ui.screen === 'hud', dt);
 
   if (ui.screen === 'menu' || ui.screen === 'editor') {
     // slow orbit behind the menu
@@ -388,7 +394,7 @@ requestAnimationFrame(frame);
 
 // debugging / test handle: __sim.advance(seconds) steps the game without animation frames
 window.__sim = {
-  get game() { return game; }, learner, fuel, field, physics, settings, THREE, renderer, scene, camera, ui, rig, startMatch,
+  get game() { return game; }, learner, fuel, field, physics, settings, THREE, renderer, scene, camera, ui, rig, startMatch, sound,
   setInput(v) { debugInput = v; },
   // test hook: let an AI drive the player's robot (same as the "Your robot" menu option)
   autopilot(strategy = 'scorer', skill = 'champs') {

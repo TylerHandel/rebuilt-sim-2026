@@ -29,7 +29,7 @@ jobs:
       - name: Collect the site
         run: |
           mkdir _site
-          cp -r index.html js css cad _site/
+          cp -r index.html js css cad sounds _site/
       # the shared neural networks (js/nn/shared/*.json), listed for the game's Neural net menu
       - name: List the shared neural networks
         run: node tools/nn/share-index.mjs _site/js/nn/shared

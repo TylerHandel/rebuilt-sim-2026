@@ -74,7 +74,9 @@ The home screen has three ways to play, plus the tools:
 | **Practice** | Just your robot, the FUEL and the clock. Pick a robot, its auto, start and preload. |
 | **1 v 1** | You against one AI robot on the other ALLIANCE: its robot, strategy and skill. **More options** holds the driver station, Training mode, the defense drill and watch mode. |
 | **3 v 3** | Two full ALLIANCES. Each of the six slots (Blue 1–3, Red 1–3) takes a robot (◀ ▶ on the slot), and **Edit** (A) sets who drives it (**You**, **AI Scorer**, **AI Defense**, **AI Hybrid** or **Empty**), its auto, its start and its AI skill. One slot can be you; with none, you watch the AIs play. |
-| Auto Editor · AI Tuning · Controls · Settings | Settings has your human player, the climber add-on, the starting camera and the shot preview line. |
+| Auto Editor · AI Tuning · Controls · Settings | Settings has your human player, the climber add-on, the starting camera, the shot preview line and the sound level. |
+
+**Sound:** the robots' drive motors whine with speed, shooter flywheels spin up, FUEL thumps and bounces, bumpers hit, the field plays its cues (match start, the TELEOP bells, the endgame whistle with 30 s left, the final buzzer), and the crowd in the stands cheers when a volley of FUEL goes in. It's positional (louder near the camera, left and right follow the view). Browsers only start sound after a click, key or button press. The recordings are CC0 from freesound.org ([sounds/CREDITS.md](sounds/CREDITS.md)).
 
 Every page works from the controller: D-pad / stick to move, ◀ ▶ to change, A to select, B to go back (Esc on the keyboard). **Menu (☰)** opens the highlighted mode, or starts the match from its page.
 
