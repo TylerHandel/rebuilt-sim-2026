@@ -1872,7 +1872,17 @@ function build4946(cfg, alliance) {
   rotor.add(tipRoller);
   mesh(new THREE.CylinderGeometry(0.032, 0.032, 0.11, 20), std(0xc8442a, 0.5, 0.2), tipRoller, 0, 0, 0);
   for (const y of [-0.045, 0.045]) mesh(new THREE.TorusGeometry(0.032, 0.004, 6, 20), std(0x6a1d10, 0.6, 0.1), tipRoller, 0, y, 0).rotation.x = Math.PI / 2;
-  bx(0.08, 0.012, 0.07, std(0x9aa3ad, 0.4, 0.7), rotor, tipX, 0.132, tipZ).rotation.y = ra;
+  // held off the column's turning sleeve by pocketed aluminum plates above and below it (their
+  // photos), with a standoff at the sleeve
+  const r0p = 0.168, plateLen = rr + 0.035 - r0p, rm = (r0p + rr + 0.035) / 2;
+  const plateAl = std(0xa7adb5, 0.35, 0.8);
+  for (const y of [0.132, 0.012]) {
+    pocketPlate(rotor, plateLen, 0.06, 0.008, plateAl, [[-plateLen / 4, 0, 0.012], [plateLen / 6, 0, 0.012]], rm * Math.cos(ra), y, -rm * Math.sin(ra)).rotation.set(-Math.PI / 2, ra, 0, 'YXZ');
+  }
+  for (const s of [-1, 1]) {
+    const a2 = ra + (s * 0.022) / r0p;
+    cylY(0.005, 0.12, M.alu, rotor, (r0p + 0.01) * Math.cos(a2), 0.072, -(r0p + 0.01) * Math.sin(a2), 6);
+  }
   kraken(rotor, tipX, 0.19, tipZ, true, 'y');
   // the blue scoop at the arm's root: a curved fin that lifts FUEL into the column's mouth
   const scoop = [];
