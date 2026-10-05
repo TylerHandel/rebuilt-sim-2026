@@ -15,19 +15,18 @@ const VOICES = ['drive', 'fly', 'fire', 'roller', 'index', 'pivot', 'hop', 'tur'
 const LOUD = 2.2; // the mechanisms are loud: motors, gearboxes, belts (the limiter keeps it clean)
 // loops that must be seamless are WAV (an MP3 pads its start and end)
 const WAV = new Set(['drive', 'motor', 'gears', 'belt']);
-const FILES = [...HUB_HITS, ...SHOTS, 'drive', 'motor', 'gears', 'belt', 'flywheel', 'firing', 'bounce', 'bump', 'match-start', 'teleop-start', 'endgame', 'match-end', 'cheer', 'cheer-big', 'crowd'];
+const FILES = [...HUB_HITS, ...SHOTS, 'drive', 'motor', 'gears', 'belt', 'flywheel', 'firing', 'bounce', 'bump', 'match-start', 'teleop-start', 'endgame', 'cheer', 'cheer-big', 'crowd'];
 // your own match-cue recordings (e.g. the real field sounds from your FRC Driver Station install),
 // matched to a cue by file name; kept in this browser only (IndexedDB), never uploaded
 // (also the names Team 254's Cheesy Arena uses: start, resume, shift_change, warning, end)
-export const CUES = ['match-start', 'teleop-start', 'shift', 'endgame', 'match-end'];
-const CUE_NAMES = { 'match-start': 'match start', 'teleop-start': 'TELEOP start', shift: 'HUB shift change', endgame: 'endgame warning', 'match-end': 'match end' };
+export const CUES = ['match-start', 'teleop-start', 'shift', 'endgame']; // no match-end sound: too harsh
+const CUE_NAMES = { 'match-start': 'match start', 'teleop-start': 'TELEOP start', shift: 'HUB shift change', endgame: 'endgame warning' };
 export function cueFor(name) {
   const n = name.toLowerCase();
-  if (/abort|fault|e-?stop|result|reset|pick|clock/.test(n)) return null;
+  if (/abort|fault|e-?stop|buzzer|finish|^end\b|result|reset|pick|clock/.test(n)) return null;
   if (/shift/.test(n)) return 'shift';
   if (/tele|resume/.test(n)) return 'teleop-start';
   if (/end.?game|warning|whistle|30/.test(n)) return 'endgame';
-  if (/end|buzzer|stop|finish/.test(n)) return 'match-end';
   if (/start|auto|charge|begin/.test(n)) return 'match-start';
   return null;
 }
@@ -368,7 +367,7 @@ export class Sound {
     if (prev && ph !== prev.phase) {
       if (ph === 'auto') this.play('match-start', { gain: 0.8 });
       else if (ph === 'teleop') this.play('teleop-start', { gain: 0.7 });
-      else if (ph === 'post') this.play('match-end', { gain: 0.8 });
+      // no sound at the end of the match (too harsh)
     }
     // a new HUB shift (SHIFT 1-4; END GAME has its own warning): only with a loaded shift sound
     const sh = ph === 'teleop' ? m.shiftIndex() : -1;

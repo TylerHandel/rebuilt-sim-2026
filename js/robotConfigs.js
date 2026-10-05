@@ -374,12 +374,12 @@ export const ROBOTS = {
     intake: {
       width: 25 * IN, reach: 0.1, rate: 200, pull: 5, deployTime: 0.3, retractTime: 0.9, side: 'front', latched: false, squeeze: 0.6,
       compacts: true, compactPush: 180, compactMin: 0.33,
-      arm: { x: 0.254, y: 0.194, len: 0.259, stowDeg: 127, deployDeg: -39 },
+      arm: { x: 0.254, y: 0.194, len: 0.259, stowDeg: 127, deployDeg: -34.6 }, // plates 1.5 cm off the carpet
     },
     // the horizontal extension (polycarbonate sides, a corrugated front) slides straight out: a pin
     // on the intake plate rides a slanted vertical slot in the side plates (their robot page and
     // CAD), so the intake swinging down pushes the extension forward. The pin
-    // is 0.135 m from the intake pivot; the 166deg swing carries it 0.225 m forward.
+    // is 0.135 m from the intake pivot; the 162deg swing carries it 0.225 m forward.
     // It comes out with the first intake and stays out (the intake folding back in doesn't pull
     // it back).
     storage: { extLen: 0.225, extend: 'latched' },
@@ -703,13 +703,17 @@ export const ROBOTS = {
     // bumper about a pivot low in the frame; deploying it pushes the hopper box out
     // Folding back in, the rollers sweep the FUEL over the bumper back into the hopper (compacts)
     // and stall against the load when it can't squeeze more (compactPush, an estimate). arm: the
-    // pivot and the bottom roller's reach and angle, folded up (as exported) and down (their CAD).
+    // pivot (the hex shaft through the arm plates) and the bottom roller's reach and angle, folded
+    // up (as exported) and down (their CAD: 104deg, the arm 2 cm off the carpet, its front 0.23 m
+    // past the bumper).
     intake: {
-      width: 26 * IN, reach: 0.1, rate: 200, pull: 5, deployTime: 0.35, retractTime: 0.8, side: 'front', latched: false,
+      width: 26 * IN, reach: 0.2, rate: 200, pull: 5, deployTime: 0.35, retractTime: 0.8, side: 'front', latched: false,
       compacts: true, compactPush: 180, compactMin: 0.318,
-      arm: { x: 0.149, y: 0.127, len: 0.322, stowDeg: 89.8, deployDeg: -14.2 },
+      arm: { x: 0.262, y: 0.168, len: 0.36, stowDeg: 86.5, deployDeg: -17.5 },
     },
-    storage: { extLen: 0.15, extend: 'intake' },
+    // the arm swinging out pushes the hopper box's front wall out ahead of it (0.34 m in their CAD,
+    // and the box's side plates have slots long enough); the 12in extension limit stops it at 0.3 m
+    storage: { extLen: 0.3, extend: 'intake' },
     // their CAD: walls to 0.548 m round two spindexers side by side (flat discs, r 0.138 m, 0.16 m
     // up) with a hub over each; the floor slopes down into them from the corners. Each spindexer
     // carries FUEL round to its back edge, where a ramp takes it up into the turret behind it.

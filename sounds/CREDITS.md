@@ -19,7 +19,6 @@ They were trimmed, filtered, normalized and looped for the game.
 | match-start.mp3 | start of the match | [Charge in G](https://freesound.org/s/539587/) by GeraRamirez |
 | teleop-start.mp3 | start of TELEOP | [Boxing Bell Signals](https://freesound.org/s/520998/) by Mateusz_Chenc |
 | endgame.mp3 | 30 s left | [Train Whistle](https://freesound.org/s/264321/) by olliehahn12 |
-| match-end.mp3 | end of the match | [loud-buzzer.ogg](https://freesound.org/s/410725/) by talljosh |
 | cheer.mp3 | crowd cheering a volley | [Heavy Cheering from Students in a School Auditorium](https://freesound.org/s/852097/) by ElevatorFan2020 |
 | cheer-big.mp3 | crowd cheering a big volley | [AF Crowd Cheer Natural Ending](https://freesound.org/s/678541/) by mglennsound |
 | crowd.mp3 | the crowd's murmur (ten overlapping layers, so no single voice stands out) | [crowd int medium murmur convention space](https://freesound.org/s/451600/) and [crowd int large heavy active walla](https://freesound.org/s/629872/) by kyles, [Ambience: Convention Crowd](https://freesound.org/s/494492/) by Sheyvan |

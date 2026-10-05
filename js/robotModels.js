@@ -331,6 +331,45 @@ function cadPart(parent, file, onLoad) {
     .catch((err) => console.warn('robot CAD part failed to load:', file, err));
 }
 
+// A CAD export sometimes merges a part into the wrong moving group (a hopper bracket into the
+// intake arm's mesh). Moves the triangles of `scene` (a loaded cadPart, in `parent`'s frame) for
+// which test(center, min, max) of the triangle's corners holds over to `target` (copy: keeps
+// them in place too); `at` is where `parent`'s frame sits in `target`'s frame at rest.
+function moveCadTris(scene, parent, test, target, at = [0, 0, 0], copy = false) {
+  const holder = new THREE.Group();
+  holder.position.set(...at);
+  target.add(holder);
+  parent.updateMatrixWorld(true);
+  const inv = new THREE.Matrix4().copy(parent.matrixWorld).invert();
+  const meshes = [];
+  scene.traverse((o) => { if (o.isMesh) meshes.push(o); });
+  const v = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
+  const c = new THREE.Vector3(), lo = new THREE.Vector3(), hi = new THREE.Vector3();
+  for (const o of meshes) {
+    const rel = new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld);
+    const g = o.geometry, pos = g.attributes.position;
+    const idx = g.index ? Array.from(g.index.array) : Array.from({ length: pos.count }, (_, i) => i);
+    const stay = [], go = [];
+    for (let i = 0; i < idx.length; i += 3) {
+      for (let j = 0; j < 3; j++) v[j].fromBufferAttribute(pos, idx[i + j]).applyMatrix4(rel);
+      c.copy(v[0]).add(v[1]).add(v[2]).multiplyScalar(1 / 3);
+      lo.copy(v[0]).min(v[1]).min(v[2]);
+      hi.copy(v[0]).max(v[1]).max(v[2]);
+      const tri = [idx[i], idx[i + 1], idx[i + 2]];
+      if (test(c, lo, hi)) { go.push(...tri); if (copy) stay.push(...tri); } else stay.push(...tri);
+    }
+    if (!go.length) continue;
+    const moved = new THREE.Mesh(g.clone(), o.material);
+    moved.geometry.setIndex(go);
+    if (!copy) g.setIndex(stay);
+    moved.matrixAutoUpdate = false;
+    moved.matrix.copy(rel);
+    moved.castShadow = o.castShadow;
+    moved.receiveShadow = o.receiveShadow;
+    holder.add(moved);
+  }
+}
+
 // 2910's slap-down intake from their Onshape CAD (Re•Blitz top level assembly, "Pivoting Intake
 // Assembly"): pivot position in the robot frame, and how far it swings from stowed (as exported)
 // until its 2in roller is down at FUEL height, ~7.8in past the bumper (cfg.intake.arm)
@@ -1411,7 +1450,8 @@ function build971(cfg, alliance) {
 // polycarbonate side plates of the horizontal extension (they slide out with the intake), and the
 // climber with the corrugated lid, which lifts to make the hopper taller (its side skirts ride over
 // the walls). A net stretches diagonally from the lid's front edge down to the extension's front.
-const INTAKE_1678 = { pivot: [0.254, 0.194], swing: -2.905 };
+// folded up inside the hopper (as exported) -> down until its plates are 1.5 cm off the carpet
+const INTAKE_1678 = { pivot: [0.254, 0.194], swing: -161.6 * Math.PI / 180 };
 function build1678(cfg, alliance) {
   const root = new THREE.Group();
   const L = cfg.frame.length, W = cfg.frame.width, bay = cfg.bay, sh = cfg.shooter;
@@ -1448,8 +1488,19 @@ function build1678(cfg, alliance) {
   for (const s of [-1, 1]) rod(intakeDrawn, new THREE.Vector3(0, 0, s * 0.33), new THREE.Vector3(-0.156, 0.207, s * 0.33), 0.012, blackAl);
   cadPart(root, 'robots/1678-body.glb', () => { drawn.visible = false; });
   cadPart(slide, 'robots/1678-slide.glb', () => {});
-  cadPart(lift, 'robots/1678-lift.glb', () => { lidDrawn.visible = false; });
-  cadPart(intake, 'robots/1678-intake.glb', () => { intakeDrawn.visible = false; });
+  cadPart(lift, 'robots/1678-lift.glb', (s) => {
+    lidDrawn.visible = false;
+    // the climber's gearbox (motor, gears and their plate, down at the frame) came out merged
+    // with the parts that rise: it stays put. The climber tubes telescope: the outer ones stay,
+    // the inner ones (and the hooks, pulleys and lid) rise.
+    moveCadTris(s, lift, (c, lo, hi) => hi.x < 0.025 && lo.x > -0.05 && lo.y > 0.04 && hi.y < 0.5 && hi.y - lo.y > 0.1, root, [0, 0, 0], true);
+    moveCadTris(s, lift, (c, lo, hi) => hi.y < 0.2, root);
+  });
+  cadPart(intake, 'robots/1678-intake.glb', (s) => {
+    intakeDrawn.visible = false;
+    // a stray 5 cm block at the robot's origin (on the carpet) came out with the intake
+    moveCadTris(s, intake, (c) => c.y + INTAKE_1678.pivot[1] < 0.03 && Math.abs(c.x + INTAKE_1678.pivot[0]) < 0.04, new THREE.Group());
+  });
   // a net stretched diagonally from the front edge of the lid down to the front of the
   // extension (it rides out with it, and up with the lid)
   const lidX1 = bay.slope.x, H = bay.lift.h, lidY0 = 0.54;
@@ -1970,7 +2021,10 @@ const clamp01 = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 // (exported folded up inside the hopper; origin on its pivot), the two spindexer discs and the two
 // shooters (origins on their turret axes). The team's front is the turret end; this model's +x is
 // the intake end, like every other robot here.
-const INTAKE_1706 = { pivot: [0.149, 0.127], swing: -104 * Math.PI / 180 }; // folded up -> rollers on the carpet
+// The arm turns on the hex shaft through its plates (0.262, 0.168), not on the frame's cross tube
+// where the export puts its origin (0.149, 0.127); 104deg down takes its end block to 2 cm off the
+// carpet, 12in past the frame (the extension limit)
+const INTAKE_1706 = { pivot: [0.262, 0.168], origin: [0.149, 0.127], swing: -104 * Math.PI / 180 };
 const TURRET_1706_YAW = 27.8 * Math.PI / 180; // where the CAD's shooters point as exported
 function build1706(cfg, alliance) {
   const root = new THREE.Group();
@@ -2028,7 +2082,14 @@ function build1706(cfg, alliance) {
   cadPart(root, 'robots/1706-body.glb', () => { drawn.visible = false; });
   cadPart(root, 'robots/1706-mount.glb', () => {});
   cadPart(box, 'robots/1706-hopper.glb', () => { boxDrawn.visible = false; });
-  cadPart(arm, 'robots/1706-intake.glb', () => { armDrawn.visible = false; });
+  const armCad = new THREE.Group();
+  armCad.position.set(INTAKE_1706.origin[0] - INTAKE_1706.pivot[0], INTAKE_1706.origin[1] - INTAKE_1706.pivot[1], 0);
+  arm.add(armCad);
+  cadPart(armCad, 'robots/1706-intake.glb', (s) => {
+    armDrawn.visible = false;
+    // the hopper box's top corner gussets came out merged into the arm's end blocks
+    moveCadTris(s, armCad, (c) => c.y + INTAKE_1706.origin[1] > 0.53, box, [...INTAKE_1706.origin, 0]);
+  });
   spins.forEach((s, i) => cadPart(s.g, `robots/1706-spin-${i ? 'b' : 'a'}.glb`, () => { s.d.visible = false; }));
 
   const anim = (st, dt) => {

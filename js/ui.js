@@ -178,7 +178,7 @@ const PAGES = {
     sec('Your robot'), o('hp'), o('climber'),
     sec('View'), o('camera'), o('preview'),
     sec('Sound'), o('sound'),
-    btn('LOAD REAL MATCH SOUNDS…', 'loadSounds', { half: true, secondary: true, desc: 'Pick your own recordings of the field\'s match cues, like the official ones installed with the FRC Game Tools / Driver Station (search its install folder for .wav files), or the static/audio folder of Team 254\'s Cheesy Arena. They\'re matched by file name (start / teleop or resume / shift / endgame or warning / end or buzzer) and stay in this browser only.' }),
+    btn('LOAD REAL MATCH SOUNDS…', 'loadSounds', { half: true, secondary: true, desc: 'Pick your own recordings of the field\'s match cues, like the official ones installed with the FRC Game Tools / Driver Station (search its install folder for .wav files), or the static/audio folder of Team 254\'s Cheesy Arena. They\'re matched by file name (start / teleop or resume / shift / endgame or warning; there's no end-of-match sound) and stay in this browser only.' }),
     btn('USE BUILT-IN SOUNDS', 'clearSounds', { half: true, secondary: true, desc: 'Go back to the built-in match cues.' }),
     btn('BACK', 'home', { secondary: true }),
   ],
