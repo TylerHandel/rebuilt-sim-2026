@@ -10,6 +10,8 @@ They were trimmed, filtered, normalized and looped for the game.
 | firing.mp3 | a robot feeding FUEL into its shooter | recorded from the project's own team robot shooting (offseason test video) |
 | hub-hit-1…4.mp3 | FUEL hitting the HUB's polycarbonate | recorded at our own team's practice HUB (offseason test video), noise-reduced |
 | motor.wav | intake rollers, indexer, intake pivot, hopper extension, turret (pitch and level follow each mechanism and its load) | [DeWalt 18V Cordless Combi Drill](https://freesound.org/s/390162/) by megashroom: its spectrum frozen into a steady, seamless loop |
+| gears.wav | gearboxes and gear meshes (swerve modules, intake pivot, turret, indexer) | [Running Gear](https://freesound.org/s/315753/) by Vurca, looped |
+| belt.wav | belts and pulleys (intake rollers, indexer, flywheel, hopper) | [motor belt drive close machine](https://freesound.org/s/629929/) by kyles, looped |
 | flywheel.mp3 | shooter flywheel | [HDD spinup/spindown on inductor mic](https://freesound.org/s/594042/) by SamsterBirdies |
 | shot-1…3.mp3 | a FUEL leaving the shooter | recorded from our own team's robot shooting (offseason test video), noise-reduced |
 | bounce.mp3 | FUEL bouncing | [large ball bounce](https://freesound.org/s/264127/) by impulse94 |
