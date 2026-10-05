@@ -644,7 +644,7 @@ export class Robot {
       acc, g, w: this.omega, alpha,
       feeding: this.feeding > 0,
       intaking: this.intakeSpeed > 0,
-      feedPoint: new THREE.Vector3(f.x, 0, f.z ?? 0),
+      feedPoint: this._feedAt(f.x, 0, f.z ?? 0),
       boxes: this._armsNear(),
     });
     this._applyBoxForce(dt);
@@ -1109,6 +1109,17 @@ export class Robot {
     return { ready, status };
   }
 
+  // a point on the feed path: where it is now (feed.rotates: it's on the rotor's arm, 4946's Dye
+  // Rotor, and turns with it about the rotor's center)
+  _feedAt(x, y, z) {
+    const v = new THREE.Vector3(x, y, z), r = this.cfg.bay.feed.rotates && this.cfg.bay.rotor;
+    if (!r) return v;
+    const a = this.hopper.finAngle * (r.dir ?? 1), c = Math.cos(a), s = Math.sin(a), dx = x - r.x, dz = z - r.z;
+    v.x = r.x + dx * c + dz * s;
+    v.z = r.z - dx * s + dz * c;
+    return v;
+  }
+
   // The FUEL nearest the feed point starts up the feed path (indexer, ramp, turret) and leaves
   // the shooter when it gets there.
   _startFeed() {
@@ -1130,7 +1141,8 @@ export class Robot {
       laneZ = sh.lanes[this.lane];
     }
     else if (f.zs) laneZ = f.zs[ti]; // twin turrets: each has its own side of the separator
-    const fp = new THREE.Vector3(f.x, this.hopper.floorAt(f.x, laneZ) + R, laneZ);
+    const fp = this._feedAt(f.x, 0, laneZ);
+    fp.y = this.hopper.floorAt(fp.x, fp.z) + R;
     let best = null, bd = Infinity;
     for (const e of this.hopper.list) {
       if (e.tr) continue;
@@ -1141,7 +1153,7 @@ export class Robot {
     // a single-file indexer only takes the FUEL that's got to it (the conveyor brings the rest)
     if (f.reach && bd > f.reach * f.reach) return false;
     if (sh.type !== 'fixed') this.lane++;
-    const via = (f.vias ? f.vias[ti] : f.via).map(([x, y, z]) => new THREE.Vector3(x, y, z ?? laneZ));
+    const via = (f.vias ? f.vias[ti] : f.via).map(([x, y, z]) => this._feedAt(x, y, z ?? laneZ));
     const end = sh.type === 'fixed'
       ? () => new THREE.Vector3(sh.exit.x, sh.exit.y, laneZ)
       : () => new THREE.Vector3(...this._turretExit(ti));

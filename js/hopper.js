@@ -423,11 +423,34 @@ export class Hopper {
           const per = (2 * Math.PI) / (r.fins || 1);
           let gap = (sp > 0 ? th - fa : fa - th) % per;
           if (gap < 0) gap += per;
-          const fin = d > (r.finR0 ?? 0) - R * 0.5 && gap < R / d + 0.08;
+          // a curved arm (rotor.sweep: how far its tip leads its root, rad) is that much further
+          // round at the FUEL's radius
+          const r0 = r.finR0 ?? 0, sw = r.sweep ? Math.sign(r.spin * (r.dir ?? 1)) * r.sweep / (r.r - r0) : 0; // (its shape: leading when it feeds)
+          if (sw) {
+            gap = (sp > 0 ? th - fa - sw * (d - r0) : fa + sw * (d - r0) - th) % per;
+            if (gap < 0) gap += per;
+          }
+          const fin = d > r0 - R * 0.5 && gap < R / d + 0.08;
           const k = fin ? r.grip ?? 40 : r.drag ?? 0;
           const ux = -Math.sin(th) * sp * d, uz = -Math.cos(th) * sp * d;
-          fx += k * (ux - v.x);
-          fz += k * (uz - v.z);
+          if (fin && sw) {
+            // the arm pushes square to its face (with the tip leading, that has an inward part:
+            // the FUEL slides in along it), and the roller at its tip drives FUEL in along it
+            // (rotor.pull, m/s)
+            const ph = th - gap * Math.sign(sp); // the arm's angle here
+            const c = Math.cos(ph), s2 = Math.sin(ph);
+            let tx = c - d * sw * s2, tz = -s2 - d * sw * c; // out along the arm
+            const tl = Math.hypot(tx, tz); tx /= tl; tz /= tl;
+            let nx = -Math.sign(sp) * s2, nz = -Math.sign(sp) * c; // ahead, then square to the arm
+            const a = nx * tx + nz * tz; nx -= a * tx; nz -= a * tz;
+            const nl = Math.hypot(nx, nz); nx /= nl; nz /= nl;
+            const un = ux * nx + uz * nz, vn = v.x * nx + v.z * nz, vt = v.x * tx + v.z * tz;
+            fx += k * (un - vn) * nx + k * 0.5 * (-(r.pull ?? 0) - vt) * tx;
+            fz += k * (un - vn) * nz + k * 0.5 * (-(r.pull ?? 0) - vt) * tz;
+          } else {
+            fx += k * (ux - v.x);
+            fz += k * (uz - v.z);
+          }
         }
       } else if (s.drive === 'belt') {
         // compliant conveyor wheels grip the FUEL: carry it up to the turret, or hold it

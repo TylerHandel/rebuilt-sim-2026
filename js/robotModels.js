@@ -1741,15 +1741,67 @@ function build4946(cfg, alliance) {
     const a = (i / 16) * Math.PI * 2;
     bolts.add(new THREE.Vector3(rs.x + Math.cos(a) * (rs.r - 0.02), rs.y + 0.001, rs.z - Math.sin(a) * (rs.r - 0.02)), new THREE.Vector3(0, 1, 0));
   }
+  // the Dye Rotor (their engineering report): everything here turns together round the column
   const rotor = new THREE.Group();
   rotor.position.set(rs.x, rs.y, rs.z);
   root.add(rotor);
-  for (let i = 0; i < 8; i++) {
-    const a = (i / 8) * Math.PI * 2;
-    const v = bx(rs.r - rs.finR0, 0.07, 0.008, dark, rotor, Math.cos(a) * (rs.r + rs.finR0) / 2, 0.035, -Math.sin(a) * (rs.r + rs.finR0) / 2);
-    v.rotation.y = a;
+  const plateMat = std(0xb7c3cf, 0.45, 0.6);
+  {
+    // the spoked platter: rim, 16 spokes, hub (the big pulley the drivetrain's gearbox belts to)
+    const rim = new THREE.Shape();
+    rim.absarc(0, 0, rs.r - 0.005, 0, Math.PI * 2, false);
+    const inner = new THREE.Path(); inner.absarc(0, 0, rs.r - 0.035, 0, Math.PI * 2, true); rim.holes.push(inner);
+    const rg = new THREE.ExtrudeGeometry(rim, { depth: 0.006, bevelEnabled: false, curveSegments: 48 });
+    rg.rotateX(-Math.PI / 2);
+    mesh(rg, plateMat, rotor, 0, -0.004, 0);
+    for (let i = 0; i < 16; i++) {
+      const a = (i / 16) * Math.PI * 2, rm = (rs.r - 0.03 + 0.17) / 2;
+      bx(rs.r - 0.2, 0.006, 0.018, plateMat, rotor, Math.cos(a) * rm, -0.001, -Math.sin(a) * rm).rotation.y = a;
+    }
+    mesh(new THREE.CylinderGeometry(0.17, 0.17, 0.008, 40), plateMat, rotor, 0, -0.001, 0);
+    for (let i = 0; i < 24; i++) {
+      const a = (i / 24) * Math.PI * 2;
+      bolts.add(new THREE.Vector3(rs.x + Math.cos(a) * (rs.r - 0.02), rs.y + 0.003, rs.z - Math.sin(a) * (rs.r - 0.02)), new THREE.Vector3(0, 1, 0));
+    }
   }
-  mesh(new THREE.CylinderGeometry(rs.finR0, rs.finR0, 0.04, 32), dark, rotor, 0, 0.02, 0);
+  // the arm: a curved black wall from the column's foot out to the tray wall, its tip leading
+  // (rotor.sweep), the same curve the physics pushes FUEL with
+  const armPts = [];
+  for (let i = 0; i <= 24; i++) {
+    const d = rs.finR0 + ((rs.r - 0.035 - rs.finR0) * i) / 24, a = (rs.sweep ?? 0) * (d - rs.finR0) / (rs.r - rs.finR0);
+    armPts.push([d * Math.cos(a), -d * Math.sin(a)]);
+  }
+  const armMat = std(0x1d1f23, 0.55, 0.3, { side: THREE.DoubleSide });
+  ribbon(armPts, 0.004, 0.16, armMat, rotor);
+  flatRibbon(armPts, 0.035, 0.16, armMat, rotor); // its top flange
+  // standoffs along the back of the arm
+  for (let i = 3; i < armPts.length; i += 5) {
+    const [x, z] = armPts[i], a = Math.atan2(-z, x);
+    cylY(0.006, 0.15, M.alu, rotor, x + 0.03 * Math.sin(a), 0.08, z + 0.03 * Math.cos(a), 6);
+  }
+  // the powered vertical roller at the tip (red), in a pocketed bracket
+  const [tx, tz] = armPts[armPts.length - 1], ta = Math.atan2(-tz, tx) + (rs.sweep ?? 0) * 0.1;
+  const tipX = tx - 0.035 * Math.sin(ta), tipZ = tz - 0.035 * Math.cos(ta);
+  const tipRoller = new THREE.Group();
+  tipRoller.position.set(tipX, 0.075, tipZ);
+  rotor.add(tipRoller);
+  mesh(new THREE.CylinderGeometry(0.032, 0.032, 0.11, 20), std(0xc8442a, 0.5, 0.2), tipRoller, 0, 0, 0);
+  for (const y of [-0.045, 0.045]) mesh(new THREE.TorusGeometry(0.032, 0.004, 6, 20), std(0x6a1d10, 0.6, 0.1), tipRoller, 0, y, 0).rotation.x = Math.PI / 2;
+  const brk = bx(0.09, 0.012, 0.07, std(0x9aa3ad, 0.4, 0.7), rotor, tipX + 0.02 * Math.sin(ta), 0.137, tipZ + 0.02 * Math.cos(ta));
+  brk.rotation.y = ta;
+  kraken(rotor, tipX + 0.03 * Math.sin(ta), 0.2, tipZ + 0.03 * Math.cos(ta), true, 'y');
+  // the blue scoop at the arm's root: a curved fin that lifts FUEL into the column's mouth
+  const scoop = [];
+  for (let i = 0; i <= 12; i++) {
+    const u = i / 12, d = rs.finR0 + 0.13 - 0.12 * u * u, a = 0.05 + 0.5 * u;
+    scoop.push([d * Math.cos(a), -d * Math.sin(a)]);
+  }
+  ribbon(scoop, 0.004, 0.13, std(0x2638d8, 0.45, 0.2, { side: THREE.DoubleSide }), rotor);
+  // a sleeve round the column's foot with the mouth cut in it, ahead of the arm
+  const mouth = 0.85; // rad
+  const sleeve = mesh(new THREE.CylinderGeometry(0.165, 0.175, 0.17, 40, 1, true, Math.PI / 2 + 0.3 + mouth / 2, Math.PI * 2 - mouth), std(0x1b1d21, 0.5, 0.35, { side: THREE.DoubleSide }), rotor, 0, 0.085, 0);
+  sleeve.castShadow = true;
+  mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.17, 24), std(0x08090a, 0.9, 0), rotor, 0, 0.085, 0); // dark inside the mouth
 
   // ---- the turret's column and, on top, the turret itself
   cylY(0.15, 0.27, dark, root, t.x, 0.2 + 0.135, t.z, 40);
@@ -1825,6 +1877,7 @@ function build4946(cfg, alliance) {
     upper.rotation.y -= spin; // cylZ meshes are tipped onto z, so their own y is the axle
     under.rotation.y += spin;
     rotor.rotation.y = st.rotorAngle ?? 0;
+    tipRoller.rotation.y += (st.feeding || st.intakeSpeed ? 25 : 0) * dt;
     turret.rotation.y = st.turretYaw;
     fly.rotation.z -= st.flywheel * dt * 9;
     hood.rotation.z = (st.hoodDeg - 60) * Math.PI / 180 * 0.4;
