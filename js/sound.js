@@ -18,12 +18,14 @@ const WAV = new Set(['drive', 'motor', 'gears', 'belt']);
 const FILES = [...HUB_HITS, ...SHOTS, 'drive', 'motor', 'gears', 'belt', 'flywheel', 'firing', 'bounce', 'bump', 'match-start', 'teleop-start', 'endgame', 'match-end', 'cheer', 'cheer-big', 'crowd'];
 // your own match-cue recordings (e.g. the real field sounds from your FRC Driver Station install),
 // matched to a cue by file name; kept in this browser only (IndexedDB), never uploaded
-export const CUES = ['match-start', 'teleop-start', 'endgame', 'match-end'];
-const CUE_NAMES = { 'match-start': 'match start', 'teleop-start': 'TELEOP start', endgame: 'endgame warning', 'match-end': 'match end' };
+// (also the names Team 254's Cheesy Arena uses: start, resume, shift_change, warning, end)
+export const CUES = ['match-start', 'teleop-start', 'shift', 'endgame', 'match-end'];
+const CUE_NAMES = { 'match-start': 'match start', 'teleop-start': 'TELEOP start', shift: 'HUB shift change', endgame: 'endgame warning', 'match-end': 'match end' };
 export function cueFor(name) {
   const n = name.toLowerCase();
-  if (/abort|fault|e-?stop/.test(n)) return null;
-  if (/tele/.test(n)) return 'teleop-start';
+  if (/abort|fault|e-?stop|result|reset|pick|clock/.test(n)) return null;
+  if (/shift/.test(n)) return 'shift';
+  if (/tele|resume/.test(n)) return 'teleop-start';
   if (/end.?game|warning|whistle|30/.test(n)) return 'endgame';
   if (/end|buzzer|stop|finish/.test(n)) return 'match-end';
   if (/start|auto|charge|begin/.test(n)) return 'match-start';
@@ -114,6 +116,13 @@ export class Sound {
         this.buf[f] = b;
       }).catch(() => {});
     }
+    // loaded cues the game has no sound of its own for (the shift change)
+    own.then(async (mine) => {
+      for (const cue of CUES) {
+        if (FILES.includes(cue) || !mine[cue]) continue;
+        try { this.buf[cue] = await this.ctx.decodeAudioData(mine[cue].slice(0)); this.custom[cue] = true; } catch { /* */ }
+      }
+    });
   }
 
   // files: File objects picked by the player. Returns [cue name, file name] for each one used.
@@ -137,6 +146,8 @@ export class Sound {
   async clearCustom() {
     await idbPut({}, true);
     for (const cue of Object.keys(this.custom || {})) {
+      delete this.buf[cue];
+      if (!FILES.includes(cue)) continue;
       try { this.buf[cue] = await this.ctx.decodeAudioData(await (await fetch(`sounds/${cue}.mp3?v=${SOUND_V}`)).arrayBuffer()); } catch { /* */ }
     }
     this.custom = {};
@@ -359,6 +370,9 @@ export class Sound {
       else if (ph === 'teleop') this.play('teleop-start', { gain: 0.7 });
       else if (ph === 'post') this.play('match-end', { gain: 0.8 });
     }
+    // a new HUB shift (SHIFT 1-4; END GAME has its own warning): only with a loaded shift sound
+    const sh = ph === 'teleop' ? m.shiftIndex() : -1;
+    if (prev && prev.shift >= 0 && sh > prev.shift && sh <= 4) this.play('shift', { gain: 0.7 });
     if (prev && ph === 'teleop' && prev.phase === 'teleop' && prev.left > TIMING.endgame && TIMING.teleop - m.phaseTime <= TIMING.endgame) this.play('endgame', { gain: 0.7 });
     // ---- the crowd cheers a volley: lots of FUEL in a HUB in a short time
     const tot = { blue: m.total('blue'), red: m.total('red') }, gt = m.t; // match time: a pause doesn't count
@@ -375,7 +389,7 @@ export class Sound {
       this.recent = [];
       this.play(burst >= 16 ? 'cheer-big' : 'cheer', { gain: 0.55 + Math.min(0.35, burst / 50) });
     }
-    this.prev = { phase: ph, left: m.phase === 'teleop' ? TIMING.teleop - m.phaseTime : 999, tot };
+    this.prev = { phase: ph, shift: sh, left: m.phase === 'teleop' ? TIMING.teleop - m.phaseTime : 999, tot };
     void dt;
   }
 }
