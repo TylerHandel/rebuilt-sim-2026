@@ -8,9 +8,10 @@ import { TIMING, HUB, HALF_L } from './constants.js';
 
 const HUB_HITS = ['hub-hit-1', 'hub-hit-2', 'hub-hit-3', 'hub-hit-4'];
 const SHOTS = ['shot-1', 'shot-2', 'shot-3'];
+const VOICES = ['drive', 'fly', 'fire', 'roller', 'index', 'pivot', 'hop', 'tur'];
 // loops that must be seamless are WAV (an MP3 pads its start and end)
-const WAV = new Set(['drive']);
-const FILES = [...HUB_HITS, ...SHOTS, 'drive', 'flywheel', 'firing', 'bounce', 'bump', 'match-start', 'teleop-start', 'endgame', 'match-end', 'cheer', 'cheer-big', 'crowd'];
+const WAV = new Set(['drive', 'motor']);
+const FILES = [...HUB_HITS, ...SHOTS, 'drive', 'motor', 'flywheel', 'firing', 'bounce', 'bump', 'match-start', 'teleop-start', 'endgame', 'match-end', 'cheer', 'cheer-big', 'crowd'];
 // your own match-cue recordings (e.g. the real field sounds from your FRC Driver Station install),
 // matched to a cue by file name; kept in this browser only (IndexedDB), never uploaded
 export const CUES = ['match-start', 'teleop-start', 'endgame', 'match-end'];
@@ -205,19 +206,24 @@ export class Sound {
 
   _voices(robot) {
     let v = this.units.get(robot);
-    if (v || !this.buf.drive || !this.buf.flywheel || !this.buf.firing) return v;
+    if (v || !this.buf.drive || !this.buf.motor || !this.buf.flywheel || !this.buf.firing) return v;
     const pan = this._panner(robot.pos);
-    v = { pan, drive: this._loop('drive'), fly: this._loop('flywheel'), fire: this._loop('firing'), shots: robot.stats.shots, lastShot: -9, vel: robot.vel.clone(), seed: 0.92 + 0.16 * Math.random() };
-    v.drive.g.connect(pan);
-    v.fly.g.connect(pan);
-    v.fire.g.connect(pan);
+    // every motor on the robot: drive, flywheel, the firing feed, intake rollers, the indexer /
+    // feeder, the intake pivot, the hopper extension and the turret
+    v = {
+      pan, drive: this._loop('drive'), fly: this._loop('flywheel'), fire: this._loop('firing'),
+      roller: this._loop('motor'), index: this._loop('motor'), pivot: this._loop('motor'), hop: this._loop('motor'), tur: this._loop('motor'),
+      shots: robot.stats.shots, lastShot: -9, vel: robot.vel.clone(), seed: 0.92 + 0.16 * Math.random(),
+      hopper: robot.hopperDeploy || 0, turret: (robot.turretYaws || []).slice(),
+    };
+    for (const k of VOICES) v[k].g.connect(pan);
     this.units.set(robot, v);
     return v;
   }
 
   _stopVoices() {
     for (const v of this.units.values()) {
-      for (const k of ['drive', 'fly', 'fire']) { try { v[k].s.stop(); } catch { /* */ } }
+      for (const k of VOICES) { try { v[k].s.stop(); } catch { /* */ } }
       v.pan.disconnect();
     }
     this.units.clear();
@@ -262,10 +268,35 @@ export class Sound {
       // from a real robot near top speed; slower is lower in pitch
       v.drive.s.playbackRate.setTargetAtTime((0.4 + 0.65 * load) * v.seed, now, 0.05);
       v.drive.g.gain.setTargetAtTime(on ? 0.03 + 0.5 * load : 0, now, 0.06);
-      // shooter flywheel: pitch follows its speed
+      // shooter flywheel: pitch follows its speed, and it gets much louder as it spins up
       const fly = Math.max(0, Math.min(1.2, (r.flywheel || 0) / (r.cfg.shooter.speedMax || 17)));
-      v.fly.s.playbackRate.setTargetAtTime(0.4 + 0.9 * fly, now, 0.08);
-      v.fly.g.gain.setTargetAtTime(on && fly > 0.05 ? 0.1 + 0.3 * fly : 0, now, 0.1);
+      v.fly.s.playbackRate.setTargetAtTime(0.35 + 1.0 * fly, now, 0.08);
+      v.fly.g.gain.setTargetAtTime(fly > 0.03 ? 0.04 + 0.8 * fly ** 1.5 : 0, now, 0.1);
+      const fdt = Math.max(1e-3, dt || 1 / 60);
+      // intake rollers: running, and working harder (louder, lower) while FUEL waits in them and
+      // when they've stalled against a full load
+      const rolling = on && (r.intakeSpeed || 0) !== 0;
+      const rl = r.stalled ? 1 : (r.rollerSpeed ?? 1) < 1 ? 0.6 : (r.captured && r.captured.length) ? 0.3 : 0;
+      v.roller.s.playbackRate.setTargetAtTime((1.25 - 0.5 * rl) * v.seed, now, 0.06);
+      v.roller.g.gain.setTargetAtTime(rolling ? 0.1 + 0.45 * rl : 0, now, 0.06);
+      // indexer / feeder: runs while it feeds the shooter
+      v.index.s.playbackRate.setTargetAtTime(1.45 * v.seed, now, 0.05);
+      v.index.g.gain.setTargetAtTime(on && r.feeding > 0 ? 0.22 : 0, now, 0.05);
+      // intake pivot: swinging out or in, and straining (louder, lower) when it pushes into the load
+      const pl = r.pivotLoad || 0;
+      v.pivot.s.playbackRate.setTargetAtTime(0.85 - 0.35 * pl, now, 0.05);
+      v.pivot.g.gain.setTargetAtTime(pl > 0.05 ? 0.15 + 0.6 * pl : r.pivotMoving ? 0.16 : 0, now, 0.05);
+      // hopper extension sliding out or in
+      const hm = Math.abs((r.hopperDeploy || 0) - v.hopper) / fdt;
+      v.hopper = r.hopperDeploy || 0;
+      v.hop.s.playbackRate.setTargetAtTime(0.7, now, 0.05);
+      v.hop.g.gain.setTargetAtTime(hm > 0.05 ? 0.14 : 0, now, 0.05);
+      // turret slewing: louder and higher the faster it turns
+      let ts = 0;
+      (r.turretYaws || []).forEach((a, i) => { ts = Math.max(ts, Math.abs(a - (v.turret[i] ?? a)) / fdt); v.turret[i] = a; });
+      const tl = Math.min(1, ts / 6);
+      v.tur.s.playbackRate.setTargetAtTime(0.9 + 0.5 * tl, now, 0.04);
+      v.tur.g.gain.setTargetAtTime(ts > 0.2 ? 0.06 + 0.25 * tl : 0, now, 0.04);
       // shots: a real robot feeding its shooter (recorded) while it fires, and a pop per FUEL
       if (r.stats.shots > v.shots) {
         v.lastShot = now;

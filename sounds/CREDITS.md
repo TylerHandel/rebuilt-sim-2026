@@ -9,6 +9,7 @@ They were trimmed, filtered, normalized and looped for the game.
 | drive.wav | swerve drive motor whine | our own team's robot accelerating (offseason test video): its spectrum frozen into a steady, seamless loop |
 | firing.mp3 | a robot feeding FUEL into its shooter | recorded from the project's own team robot shooting (offseason test video) |
 | hub-hit-1…4.mp3 | FUEL hitting the HUB's polycarbonate | recorded at our own team's practice HUB (offseason test video), noise-reduced |
+| motor.wav | intake rollers, indexer, intake pivot, hopper extension, turret (pitch and level follow each mechanism and its load) | [DeWalt 18V Cordless Combi Drill](https://freesound.org/s/390162/) by megashroom: its spectrum frozen into a steady, seamless loop |
 | flywheel.mp3 | shooter flywheel | [HDD spinup/spindown on inductor mic](https://freesound.org/s/594042/) by SamsterBirdies |
 | shot-1…3.mp3 | a FUEL leaving the shooter | recorded from our own team's robot shooting (offseason test video), noise-reduced |
 | bounce.mp3 | FUEL bouncing | [large ball bounce](https://freesound.org/s/264127/) by impulse94 |

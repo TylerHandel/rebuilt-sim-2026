@@ -231,6 +231,8 @@ export class Robot {
     this.prevVel = null;
     this.prevOmega = 0;
     this.intakeDeploy = 0;
+    this.pivotLoad = 0;
+    this.pivotMoving = false;
     this.hopperDeploy = 0;
     this.intakeSpeed = 0;
     this.flywheel = 0;
@@ -664,7 +666,16 @@ export class Robot {
     // a compacting intake pushes on the load as it comes in, and stalls while it can't squeeze more
     // folding in, it pushes the FUEL in front of it back into the hopper; it stalls where the load
     // behind it is packed as hard as it can squeeze (compactPush)
-    if (!(ic.compacts && next < this.intakeDeploy && this.stored.length > this._capBehind(this._compactorX(next)))) this.intakeDeploy = next;
+    // and it can't push harder than its motor allows: once the packed load pushes back on it
+    // that hard (Hopper.wallPressure), it stalls where it is instead of crushing the FUEL
+    const squeezing = ic.compacts && next < this.intakeDeploy;
+    const limit = ic.compactPush ?? this.intakePush;
+    const full = squeezing && this.stored.length > this._capBehind(this._compactorX(next));
+    const hard = squeezing && this.hopper.wallPressure > limit;
+    // how hard the intake's pivot motor works (0 idle .. 1 stalled against the load), for its sound
+    this.pivotLoad = squeezing ? (full || hard ? 1 : Math.min(1, this.hopper.wallPressure / limit)) : 0;
+    this.pivotMoving = Math.abs(next - this.intakeDeploy) > 1e-6 && !(full || hard);
+    if (!(full || hard)) this.intakeDeploy = next;
     this.hopper.wall = ic.compacts ? this._compactorX() : Infinity;
     this._hopper(dt, on);
     const deployed = this.intakeDeploy > 0.85;
