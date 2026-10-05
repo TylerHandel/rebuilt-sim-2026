@@ -1,12 +1,14 @@
 # Sound credits
 
-All recordings are from [freesound.org](https://freesound.org) under the **Creative Commons 0**
+The robot's drive and firing sounds and the HUB hits are recorded from our own team's robot and practice field. All other recordings are from [freesound.org](https://freesound.org) under the **Creative Commons 0**
 license (public domain: no permission or credit needed; credited here anyway, with thanks).
 They were trimmed, filtered, normalized and looped for the game.
 
 | File | Used for | Source |
 |---|---|---|
-| drive.mp3 | swerve drive motor whine | [DeWalt 18V Cordless Combi Drill](https://freesound.org/s/390162/) by megashroom |
+| drive.mp3 | swerve drive motor whine | recorded from the project's own team robot accelerating (offseason test video) |
+| firing.mp3 | a robot feeding FUEL into its shooter | recorded from the project's own team robot shooting (offseason test video) |
+| hub-hit-1…4.mp3 | FUEL hitting the HUB's polycarbonate | recorded from our own team's practice field (offseason test video), noise-reduced |
 | flywheel.mp3 | shooter flywheel | [HDD spinup/spindown on inductor mic](https://freesound.org/s/594042/) by SamsterBirdies |
 | shot.mp3 | a FUEL leaving the shooter | [NERF.waw.wav](https://freesound.org/s/516638/) by fellowsets |
 | bounce.mp3 | FUEL bouncing | [large ball bounce](https://freesound.org/s/264127/) by impulse94 |

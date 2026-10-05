@@ -4,9 +4,10 @@
 // near the camera is louder, and left/right follows the view. Recordings are CC0 from
 // freesound.org (sounds/CREDITS.md). The browser only allows sound after a click or key press.
 import * as THREE from 'three';
-import { TIMING } from './constants.js';
+import { TIMING, HUB, HALF_L } from './constants.js';
 
-const FILES = ['drive', 'flywheel', 'shot', 'bounce', 'bump', 'match-start', 'teleop-start', 'endgame', 'match-end', 'cheer', 'cheer-big', 'crowd'];
+const HUB_HITS = ['hub-hit-1', 'hub-hit-2', 'hub-hit-3', 'hub-hit-4'];
+const FILES = [...HUB_HITS, 'drive', 'flywheel', 'firing', 'shot', 'bounce', 'bump', 'match-start', 'teleop-start', 'endgame', 'match-end', 'cheer', 'cheer-big', 'crowd'];
 // your own match-cue recordings (e.g. the real field sounds from your FRC Driver Station install),
 // matched to a cue by file name; kept in this browser only (IndexedDB), never uploaded
 export const CUES = ['match-start', 'teleop-start', 'endgame', 'match-end'];
@@ -163,18 +164,19 @@ export class Sound {
 
   _voices(robot) {
     let v = this.units.get(robot);
-    if (v || !this.buf.drive || !this.buf.flywheel) return v;
+    if (v || !this.buf.drive || !this.buf.flywheel || !this.buf.firing) return v;
     const pan = this._panner(robot.pos, null);
-    v = { pan, drive: this._loop('drive'), fly: this._loop('flywheel'), shots: robot.stats.shots, vel: robot.vel.clone(), seed: 0.9 + 0.2 * Math.random() };
+    v = { pan, drive: this._loop('drive'), fly: this._loop('flywheel'), fire: this._loop('firing'), shots: robot.stats.shots, lastShot: -9, vel: robot.vel.clone(), seed: 0.92 + 0.16 * Math.random() };
     v.drive.g.connect(pan);
     v.fly.g.connect(pan);
+    v.fire.g.connect(pan);
     this.units.set(robot, v);
     return v;
   }
 
   _stopVoices() {
     for (const v of this.units.values()) {
-      for (const k of ['drive', 'fly']) { try { v[k].s.stop(); } catch { /* */ } }
+      for (const k of ['drive', 'fly', 'fire']) { try { v[k].s.stop(); } catch { /* */ } }
       v.pan.disconnect();
     }
     this.units.clear();
@@ -215,19 +217,22 @@ export class Sound {
       const d = r.cfg.drive, sp = Math.hypot(r.vel.x, r.vel.z) / d.maxSpeed, w = Math.abs(r.omega || 0) / d.maxOmega;
       const load = Math.min(1, sp + 0.5 * w);
       const on = active && r.enabled;
-      // swerve modules: a whine that rises with speed (and a little with turning)
-      v.drive.s.playbackRate.setTargetAtTime((0.55 + 0.55 * load) * v.seed, now, 0.05);
-      v.drive.g.gain.setTargetAtTime(on ? 0.04 + 0.4 * load : 0, now, 0.06);
+      // swerve modules: a whine that rises with speed (and a little with turning). Recorded
+      // from a real robot near top speed; slower is lower in pitch
+      v.drive.s.playbackRate.setTargetAtTime((0.4 + 0.65 * load) * v.seed, now, 0.05);
+      v.drive.g.gain.setTargetAtTime(on ? 0.03 + 0.5 * load : 0, now, 0.06);
       // shooter flywheel: pitch follows its speed
       const fly = Math.max(0, Math.min(1.2, (r.flywheel || 0) / (r.cfg.shooter.speedMax || 17)));
       v.fly.s.playbackRate.setTargetAtTime(0.4 + 0.9 * fly, now, 0.08);
       v.fly.g.gain.setTargetAtTime(on && fly > 0.05 ? 0.1 + 0.3 * fly : 0, now, 0.1);
-      // shots
+      // shots: a real robot feeding its shooter (recorded) while it fires, and a pop per FUEL
       if (r.stats.shots > v.shots) {
-        const n = Math.min(3, r.stats.shots - v.shots);
-        for (let i = 0; i < n; i++) this.play('shot', { pos: r.pos, gain: 0.55, rate: 0.9 + 0.2 * Math.random() });
+        v.lastShot = now;
+        const n = Math.min(2, r.stats.shots - v.shots);
+        for (let i = 0; i < n; i++) this.play('shot', { pos: r.pos, gain: 0.3, rate: 0.9 + 0.2 * Math.random() });
       }
       v.shots = r.stats.shots;
+      v.fire.g.gain.setTargetAtTime(on && now - v.lastShot < 0.35 ? 0.6 : 0, now, 0.08);
       // bumper hits: a sudden change of velocity
       const dv = Math.hypot(r.vel.x - v.vel.x, r.vel.z - v.vel.z);
       if (active && dv > 1.4 && (!v.lastHit || now - v.lastHit > 0.25)) {
@@ -236,17 +241,27 @@ export class Sound {
       }
       v.vel.copy(r.vel);
     }
-    // ---- FUEL bouncing on the carpet, field elements and robots (the loudest few per frame)
+    // ---- FUEL hitting the HUB's polycarbonate (the deep drum-like boom of a real HUB, recorded),
+    // and bouncing on the carpet, field elements and robots (the loudest few per frame)
     if (active) {
-      let n = 0;
+      let n = 0, nh = 0;
+      const hx = Math.abs(HUB.fx - HALF_L), reach = HUB.size / 2 + 0.35;
       for (const b of game.fuel.balls) {
         if (b.state !== 'field' || !b.body) continue;
-        const vy = b.body.linvel().y, prev = this.balls.get(b) ?? 0;
-        if (prev < -2.2 && vy > prev * 0.2 && n < 2) {
-          n++;
-          this.play('bounce', { pos: b.pos, gain: Math.min(0.6, -prev / 10), rate: 0.85 + 0.35 * Math.random() });
-        }
-        this.balls.set(b, vy);
+        const v = b.body.linvel(), prev = this.balls.get(b);
+        if (prev) {
+          const dv = Math.hypot(v.x - prev.x, v.y - prev.y, v.z - prev.z);
+          const atHub = !b.inHub && b.pos.y > 1.3 && Math.abs(Math.abs(b.pos.x) - hx) < reach && Math.abs(b.pos.z) < reach;
+          if (atHub && dv > 2.2 && nh < 3 && !(now - (prev.hit || -9) < 0.4)) {
+            nh++;
+            prev.hit = now;
+            this.play(HUB_HITS[Math.floor(Math.random() * HUB_HITS.length)], { pos: b.pos, gain: Math.min(1, 0.25 + dv / 7), rate: 0.92 + 0.16 * Math.random() });
+          } else if (!atHub && prev.y < -2.2 && v.y > prev.y * 0.2 && n < 2) {
+            n++;
+            this.play('bounce', { pos: b.pos, gain: Math.min(0.6, -prev.y / 10), rate: 0.85 + 0.35 * Math.random() });
+          }
+          prev.x = v.x; prev.y = v.y; prev.z = v.z;
+        } else this.balls.set(b, { x: v.x, y: v.y, z: v.z });
       }
     }
     // ---- the field's cues
