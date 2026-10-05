@@ -7,7 +7,8 @@ import * as THREE from 'three';
 import { TIMING, HUB, HALF_L } from './constants.js';
 
 const HUB_HITS = ['hub-hit-1', 'hub-hit-2', 'hub-hit-3', 'hub-hit-4'];
-const FILES = [...HUB_HITS, 'drive', 'flywheel', 'firing', 'shot', 'bounce', 'bump', 'match-start', 'teleop-start', 'endgame', 'match-end', 'cheer', 'cheer-big', 'crowd'];
+const SHOTS = ['shot-1', 'shot-2', 'shot-3'];
+const FILES = [...HUB_HITS, ...SHOTS, 'drive', 'flywheel', 'firing', 'bounce', 'bump', 'match-start', 'teleop-start', 'endgame', 'match-end', 'cheer', 'cheer-big', 'crowd'];
 // your own match-cue recordings (e.g. the real field sounds from your FRC Driver Station install),
 // matched to a cue by file name; kept in this browser only (IndexedDB), never uploaded
 export const CUES = ['match-start', 'teleop-start', 'endgame', 'match-end'];
@@ -125,7 +126,7 @@ export class Sound {
   get ready() { return !!this.ctx && this.ctx.state === 'running' && this.level > 0; }
 
   // a one-shot, at a world position (or flat if pos is null)
-  play(name, { pos = null, gain = 1, rate = 1 } = {}) {
+  play(name, { pos = null, gain = 1, rate = 1, near = 2.5 } = {}) {
     const b = this.buf[name];
     if (!this.ready || !b) return;
     const s = this.ctx.createBufferSource();
@@ -134,15 +135,15 @@ export class Sound {
     const g = this.ctx.createGain();
     g.gain.value = gain;
     s.connect(g);
-    g.connect(pos ? this._panner(pos, g) : this.master);
+    g.connect(pos ? this._panner(pos, near) : this.master);
     s.start();
   }
 
-  _panner(pos, from) {
+  _panner(pos, near = 2.5) {
     const p = this.ctx.createPanner();
     p.panningModel = 'equalpower';
     p.distanceModel = 'inverse';
-    p.refDistance = 2.5;
+    p.refDistance = near;
     p.rolloffFactor = 1;
     p.positionX.value = pos.x; p.positionY.value = pos.y ?? 0.4; p.positionZ.value = pos.z;
     p.connect(this.master);
@@ -165,7 +166,7 @@ export class Sound {
   _voices(robot) {
     let v = this.units.get(robot);
     if (v || !this.buf.drive || !this.buf.flywheel || !this.buf.firing) return v;
-    const pan = this._panner(robot.pos, null);
+    const pan = this._panner(robot.pos);
     v = { pan, drive: this._loop('drive'), fly: this._loop('flywheel'), fire: this._loop('firing'), shots: robot.stats.shots, lastShot: -9, vel: robot.vel.clone(), seed: 0.92 + 0.16 * Math.random() };
     v.drive.g.connect(pan);
     v.fly.g.connect(pan);
@@ -229,7 +230,7 @@ export class Sound {
       if (r.stats.shots > v.shots) {
         v.lastShot = now;
         const n = Math.min(2, r.stats.shots - v.shots);
-        for (let i = 0; i < n; i++) this.play('shot', { pos: r.pos, gain: 0.3, rate: 0.9 + 0.2 * Math.random() });
+        for (let i = 0; i < n; i++) this.play(SHOTS[Math.floor(Math.random() * SHOTS.length)], { pos: r.pos, gain: 0.6, rate: 0.92 + 0.16 * Math.random() });
       }
       v.shots = r.stats.shots;
       v.fire.g.gain.setTargetAtTime(on && now - v.lastShot < 0.35 ? 0.6 : 0, now, 0.08);
@@ -255,7 +256,7 @@ export class Sound {
           if (atHub && dv > 2.2 && nh < 3 && !(now - (prev.hit || -9) < 0.4)) {
             nh++;
             prev.hit = now;
-            this.play(HUB_HITS[Math.floor(Math.random() * HUB_HITS.length)], { pos: b.pos, gain: Math.min(1, 0.25 + dv / 7), rate: 0.92 + 0.16 * Math.random() });
+            this.play(HUB_HITS[Math.floor(Math.random() * HUB_HITS.length)], { pos: b.pos, gain: Math.min(1.6, 0.8 + dv / 6), rate: 0.92 + 0.16 * Math.random(), near: 6 });
           } else if (!atHub && prev.y < -2.2 && v.y > prev.y * 0.2 && n < 2) {
             n++;
             this.play('bounce', { pos: b.pos, gain: Math.min(0.6, -prev.y / 10), rate: 0.85 + 0.35 * Math.random() });
