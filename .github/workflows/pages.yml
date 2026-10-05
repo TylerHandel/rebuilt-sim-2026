@@ -41,6 +41,7 @@ jobs:
           V=${GITHUB_SHA::8}
           sed -i -E "s#(from '\./[^']+\.js)'#\1?v=$V'#g; s#(import\('\./[^']+\.js)'\)#\1?v=$V')#g" _site/js/*.js
           sed -i -E "s#(src=\"js/main\.js)\"#\1?v=$V\"#; s#(href=\"css/style\.css)\"#\1?v=$V\"#" _site/index.html
+          sed -i "s/const SOUND_V = 'dev'/const SOUND_V = '$V'/" _site/js/sound.js
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
