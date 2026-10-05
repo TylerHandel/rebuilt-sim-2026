@@ -318,11 +318,11 @@ export class Sound {
       const gearAmt = Math.min(1.4, (on ? 0.55 * load : 0) + 0.6 * pl + (r.pivotMoving ? 0.3 : 0) + 0.5 * tl + (on && r.feeding > 0 ? 0.35 : 0));
       const gearSpd = Math.max(on ? load : 0, tl, pl * 0.6, r.feeding > 0 ? 0.8 : 0);
       v.gear.s.playbackRate.setTargetAtTime((0.55 + 0.7 * gearSpd - 0.15 * pl) * v.seed, now, 0.06);
-      v.gear.g.gain.setTargetAtTime(LOUD * 0.35 * gearAmt, now, 0.06);
+      v.gear.g.gain.setTargetAtTime(LOUD * 0.9 * gearAmt, now, 0.06);
       const beltAmt = Math.min(1.4, (rolling ? 0.4 + 0.4 * rl : 0) + (on && r.feeding > 0 ? 0.45 : 0) + 0.5 * Math.min(1, fly) + (hm > 0.05 ? 0.3 : 0));
       const beltSpd = Math.max(rolling ? 1 - 0.4 * rl : 0, Math.min(1, fly), r.feeding > 0 ? 0.9 : 0, hm > 0.05 ? 0.5 : 0);
       v.belt.s.playbackRate.setTargetAtTime((0.5 + 0.7 * beltSpd) * v.seed, now, 0.06);
-      v.belt.g.gain.setTargetAtTime(LOUD * 0.3 * beltAmt, now, 0.06);
+      v.belt.g.gain.setTargetAtTime(LOUD * 0.6 * beltAmt, now, 0.06);
       // shots: a real robot feeding its shooter (recorded) while it fires, and a pop per FUEL
       if (r.stats.shots > v.shots) {
         v.lastShot = now;
