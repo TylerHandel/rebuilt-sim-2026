@@ -7,6 +7,47 @@ import * as THREE from 'three';
 import { TIMING } from './constants.js';
 
 const FILES = ['drive', 'flywheel', 'shot', 'bounce', 'bump', 'match-start', 'teleop-start', 'endgame', 'match-end', 'cheer', 'cheer-big', 'crowd'];
+// your own match-cue recordings (e.g. the real field sounds from your FRC Driver Station install),
+// matched to a cue by file name; kept in this browser only (IndexedDB), never uploaded
+export const CUES = ['match-start', 'teleop-start', 'endgame', 'match-end'];
+const CUE_NAMES = { 'match-start': 'match start', 'teleop-start': 'TELEOP start', endgame: 'endgame warning', 'match-end': 'match end' };
+export function cueFor(name) {
+  const n = name.toLowerCase();
+  if (/abort|fault|e-?stop/.test(n)) return null;
+  if (/tele/.test(n)) return 'teleop-start';
+  if (/end.?game|warning|whistle|30/.test(n)) return 'endgame';
+  if (/end|buzzer|stop|finish/.test(n)) return 'match-end';
+  if (/start|auto|charge|begin/.test(n)) return 'match-start';
+  return null;
+}
+const DB = 'rebuiltSim.sounds';
+function idb() {
+  return new Promise((res, rej) => {
+    const r = indexedDB.open(DB, 1);
+    r.onupgradeneeded = () => r.result.createObjectStore('cues');
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error);
+  });
+}
+async function idbAll() {
+  const db = await idb();
+  return new Promise((res) => {
+    const out = {}, tx = db.transaction('cues'), st = tx.objectStore('cues');
+    st.openCursor().onsuccess = (e) => { const c = e.target.result; if (c) { out[c.key] = c.value; c.continue(); } else res(out); };
+    tx.onerror = () => res(out);
+  });
+}
+async function idbPut(entries, clear = false) {
+  const db = await idb();
+  return new Promise((res) => {
+    const tx = db.transaction('cues', 'readwrite'), st = tx.objectStore('cues');
+    if (clear) st.clear();
+    for (const [k, v] of Object.entries(entries)) st.put(v, k);
+    tx.oncomplete = res;
+    tx.onerror = res;
+  });
+}
+
 export const SOUND_LEVELS = { off: 0, low: 0.35, medium: 0.7, high: 1 };
 
 export class Sound {
@@ -41,9 +82,43 @@ export class Sound {
     this.master = this.ctx.createGain();
     this.master.gain.value = this.level;
     this.master.connect(this.ctx.destination);
+    this.custom = {};
+    const own = idbAll().catch(() => ({}));
     for (const f of FILES) {
-      fetch(`sounds/${f}.mp3`).then((r) => r.arrayBuffer()).then((a) => this.ctx.decodeAudioData(a)).then((b) => { this.buf[f] = b; }).catch(() => {});
+      fetch(`sounds/${f}.mp3`).then((r) => r.arrayBuffer()).then((a) => this.ctx.decodeAudioData(a)).then(async (b) => {
+        const mine = (await own)[f];
+        if (mine) {
+          try { this.buf[f] = await this.ctx.decodeAudioData(mine.slice(0)); this.custom[f] = true; return; } catch { /* fall back to ours */ }
+        }
+        this.buf[f] = b;
+      }).catch(() => {});
     }
+  }
+
+  // files: File objects picked by the player. Returns [cue name, file name] for each one used.
+  async loadCustom(files) {
+    this._start();
+    const got = {}, used = [];
+    for (const f of files) {
+      const cue = cueFor(f.name);
+      if (!cue || got[cue]) continue;
+      const data = await f.arrayBuffer();
+      try { await this.ctx.decodeAudioData(data.slice(0)); } catch { continue; } // not audio this browser can play
+      got[cue] = data;
+      used.push([CUE_NAMES[cue], f.name]);
+    }
+    if (!used.length) return used;
+    await idbPut(got);
+    for (const [cue, data] of Object.entries(got)) { this.buf[cue] = await this.ctx.decodeAudioData(data.slice(0)); this.custom[cue] = true; }
+    return used;
+  }
+
+  async clearCustom() {
+    await idbPut({}, true);
+    for (const cue of Object.keys(this.custom || {})) {
+      try { this.buf[cue] = await this.ctx.decodeAudioData(await (await fetch(`sounds/${cue}.mp3`)).arrayBuffer()); } catch { /* */ }
+    }
+    this.custom = {};
   }
 
   get ready() { return !!this.ctx && this.ctx.state === 'running' && this.level > 0; }

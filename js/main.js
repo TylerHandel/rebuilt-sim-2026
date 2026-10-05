@@ -106,6 +106,19 @@ const ui = new UI(settings, {
   onMenu: () => ui.show('menu'),
   onNNChange: () => loadNN(),
   onSettings: () => sound.setLevel(settings.sound),
+  loadSounds: () => {
+    const inp = document.createElement('input');
+    inp.type = 'file';
+    inp.accept = 'audio/*,.wav,.mp3,.ogg';
+    inp.multiple = true;
+    inp.onchange = async () => {
+      const used = await sound.loadCustom([...inp.files]);
+      ui.toast(used.length ? 'Match sounds: ' + used.map(([c, f]) => `${c} ← ${f}`).join(', ')
+        : 'None of those files matched a cue: name them with start, teleop, endgame (or warning) and end (or buzzer)', used.length ? 'info' : 'foul');
+    };
+    inp.click();
+  },
+  clearSounds: () => sound.clearCustom().then(() => ui.toast('Built-in match sounds', 'info')),
 });
 ui.editor = new AutoEditor({
   settings, field,

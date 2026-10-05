@@ -178,6 +178,8 @@ const PAGES = {
     sec('Your robot'), o('hp'), o('climber'),
     sec('View'), o('camera'), o('preview'),
     sec('Sound'), o('sound'),
+    btn('LOAD REAL MATCH SOUNDS…', 'loadSounds', { half: true, secondary: true, desc: 'Pick your own recordings of the field\'s match cues, like the real ones that come with the FRC Driver Station (look in its install folder). They\'re matched by file name (start / teleop / endgame or warning / end or buzzer) and stay in this browser only.' }),
+    btn('USE BUILT-IN SOUNDS', 'clearSounds', { half: true, secondary: true, desc: 'Go back to the built-in match cues.' }),
     btn('BACK', 'home', { secondary: true }),
   ],
 };
@@ -347,7 +349,7 @@ export class UI {
         return (this.openSlot === it.i ? 'Change this slot below; A or B when done.' : '◀ ▶ change the robot · A edit its driver, auto and role.') + who;
       }
       case 'toggle': return it.desc;
-      case 'btn': return it.act === 'start' ? this._summary() : '';
+      case 'btn': return it.act === 'start' ? this._summary() : it.desc || '';
       default: return '';
     }
   }
@@ -398,6 +400,7 @@ export class UI {
         else if (it.act === 'editor') this.show('editor');
         else if (it.act === 'tuning') this.show('tuning');
         else if (it.act === 'controls') { this.prevScreen = 'menu'; this.show('controls'); }
+        else if (it.act === 'loadSounds' || it.act === 'clearSounds') { if (this.h[it.act]) this.h[it.act](); }
         else if (it.act === 'cover') location.search = '?cover'; // js/cover.js: render and export cover art
         return;
       default:
