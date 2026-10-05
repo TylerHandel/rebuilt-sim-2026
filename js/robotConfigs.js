@@ -491,10 +491,12 @@ export const ROBOTS = {
       floor: { a: 0.2, b: 0, lo: 0.2, hi: 0.2 },
       obstacles: [{ x: 0.02, z: 0, r: 0.15, y0: 0.15, y1: 1 }], // the turret's column
       // the Dye Rotor (engineering report, CAD renders): a curved arm turning round the column from
-      // its foot out to the tray wall (its tip leads by sweep), with a powered vertical roller at
-      // the tip (pull, m/s in along the arm) and a scoop at its root steering FUEL into a mouth in
-      // the column's foot that turns with it; the spoked platter turns with it under the load
-      drive: 'rotor', rotor: { x: 0.02, z: 0, y: 0.2, r: 0.4, grip: 30, drag: 6, finR0: 0.16, sweep: 0.6, pull: 1, spin: 9, idle: -0.5 },
+      // its foot out to the tray wall (its tip leads by sweep), a scoop at its root steering FUEL
+      // into a mouth in the column's foot that turns with it, and a powered vertical roller by the
+      // mouth that drives FUEL in (pull, m/s in along the arm); the spoked platter turns with it
+      drive: 'rotor', rotor: { x: 0.02, z: 0, y: 0.2, r: 0.33, grip: 30, drag: 6, finR0: 0.16, sweep: 0.6, pull: 1, spin: 9, idle: -0.5 },
+      // a printed ring round the rotor slopes down from the walls to the circle the arm sweeps
+      funnel: { slope: 0.8, cap: 0.15 },
       // (at the arm's rest angle; it all turns with the arm) in the mouth, then up the column
       feed: { x: 0.249, z: -0.071, rotates: true, via: [[0.163, 0.3, -0.044], [0.068, 0.5, -0.015], [0.02, 0.66, 0]] },
     },

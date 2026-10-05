@@ -1710,6 +1710,13 @@ function build4946(cfg, alliance) {
   const extLen = cfg.storage.extLen, ch = bay.chamfer;
   addBumpers(root, cfg, alliance, ch);
   const modules = addDrivebase(root, cfg, ch);
+  // the modules sit under the Dye Rotor tray: nothing of them shows above it
+  root.updateMatrixWorld(true);
+  for (const md of modules) {
+    md.pivot.parent.traverse((o) => {
+      if (o.isMesh && new THREE.Box3().setFromObject(o).max.y > cfg.bay.rotor.y - 0.012) o.visible = false;
+    });
+  }
   const grey = std(0x9aa0a8, 0.4, 0.7);
   const dark = std(0x24262b, 0.5, 0.45);
   const trayMat = std(0xa9bccb, 0.5, 0.4);
@@ -1745,6 +1752,49 @@ function build4946(cfg, alliance) {
     const a = (i / 16) * Math.PI * 2;
     bolts.add(new THREE.Vector3(rs.x + Math.cos(a) * (rs.r - 0.02), rs.y + 0.001, rs.z - Math.sin(a) * (rs.r - 0.02)), new THREE.Vector3(0, 1, 0));
   }
+  // the printed funnel ring: from the walls it slopes down to the circle the arm sweeps
+  {
+    const f = bay.funnel, NX = 160, NZ = 180, xa = -0.5, xb = bay.x1 + 0.01, za = -bay.hw - 0.02, zb = bay.hw + 0.02;
+    const hAt = (x, z) => rs.y + Math.min(f.cap, (Math.hypot(x - rs.x, z - rs.z) - rs.r) * f.slope);
+    const inside = (x, z) => {
+      if (x > xFront) return false;
+      let c = false;
+      for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+        const [xi, zi] = pts[i], [xj, zj] = pts[j];
+        if ((zi > z) !== (zj > z) && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) c = !c;
+      }
+      return c;
+    };
+    const pos = [], idx = [], map = new Map();
+    const vid = (i, j) => {
+      const k = i * 10000 + j;
+      if (!map.has(k)) {
+        const x = xa + ((xb - xa) * i) / NX, z = za + ((zb - za) * j) / NZ;
+        // snap the inner edge onto the rotor's circle
+        const d = Math.hypot(x - rs.x, z - rs.z), s2 = d < rs.r + 0.008 ? (rs.r + 0.008) / d : 1;
+        const px = rs.x + (x - rs.x) * s2, pz = rs.z + (z - rs.z) * s2;
+        pos.push(px, hAt(px, pz) + 0.002, pz);
+        map.set(k, pos.length / 3 - 1);
+      }
+      return map.get(k);
+    };
+    for (let i = 0; i < NX; i++) {
+      for (let j = 0; j < NZ; j++) {
+        const cx = xa + ((xb - xa) * (i + 0.5)) / NX, cz = za + ((zb - za) * (j + 0.5)) / NZ;
+        if (Math.hypot(cx - rs.x, cz - rs.z) < rs.r + 0.008 || !inside(cx, cz)) continue;
+        const a = vid(i, j), b = vid(i + 1, j), c = vid(i + 1, j + 1), d = vid(i, j + 1);
+        idx.push(a, d, c, a, c, b);
+      }
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setIndex(idx);
+    g.computeVertexNormals();
+    mesh(g, std(0x2f3237, 0.75, 0.05, { side: THREE.DoubleSide }), root);
+    // its lip round the rotor
+    mesh(new THREE.TorusGeometry(rs.r + 0.008, 0.005, 6, 64), std(0x1d1f23, 0.6, 0.1), root, rs.x, rs.y + 0.004, rs.z).rotation.x = Math.PI / 2;
+  }
+
   // the Dye Rotor (their engineering report): everything here turns together round the column
   const rotor = new THREE.Group();
   rotor.position.set(rs.x, rs.y, rs.z);
@@ -1772,7 +1822,7 @@ function build4946(cfg, alliance) {
   // (rotor.sweep), the same curve the physics pushes FUEL with
   const armPts = [];
   for (let i = 0; i <= 24; i++) {
-    const d = rs.finR0 + ((rs.r - 0.035 - rs.finR0) * i) / 24, a = (rs.sweep ?? 0) * (d - rs.finR0) / (rs.r - rs.finR0);
+    const d = rs.finR0 + ((rs.r - 0.012 - rs.finR0) * i) / 24, a = (rs.sweep ?? 0) * (d - rs.finR0) / (rs.r - rs.finR0);
     armPts.push([d * Math.cos(a), -d * Math.sin(a)]);
   }
   const armMat = std(0x1d1f23, 0.55, 0.3, { side: THREE.DoubleSide });
@@ -1783,17 +1833,17 @@ function build4946(cfg, alliance) {
     const [x, z] = armPts[i], a = Math.atan2(-z, x);
     cylY(0.006, 0.15, M.alu, rotor, x + 0.03 * Math.sin(a), 0.08, z + 0.03 * Math.cos(a), 6);
   }
-  // the powered vertical roller at the tip (red), in a pocketed bracket
-  const [tx, tz] = armPts[armPts.length - 1], ta = Math.atan2(-tz, tx) + (rs.sweep ?? 0) * 0.1;
-  const tipX = tx - 0.035 * Math.sin(ta), tipZ = tz - 0.035 * Math.cos(ta);
+  // the powered vertical roller (red) at the arm's inner end, by the mouth in the column: it
+  // drives the FUEL the arm brings in into the mouth; its motor rides on the rotor above it
+  const ra = -0.06, rr = rs.finR0 + 0.05;
+  const tipX = rr * Math.cos(ra), tipZ = -rr * Math.sin(ra);
   const tipRoller = new THREE.Group();
-  tipRoller.position.set(tipX, 0.075, tipZ);
+  tipRoller.position.set(tipX, 0.07, tipZ);
   rotor.add(tipRoller);
   mesh(new THREE.CylinderGeometry(0.032, 0.032, 0.11, 20), std(0xc8442a, 0.5, 0.2), tipRoller, 0, 0, 0);
   for (const y of [-0.045, 0.045]) mesh(new THREE.TorusGeometry(0.032, 0.004, 6, 20), std(0x6a1d10, 0.6, 0.1), tipRoller, 0, y, 0).rotation.x = Math.PI / 2;
-  const brk = bx(0.09, 0.012, 0.07, std(0x9aa3ad, 0.4, 0.7), rotor, tipX + 0.02 * Math.sin(ta), 0.137, tipZ + 0.02 * Math.cos(ta));
-  brk.rotation.y = ta;
-  kraken(rotor, tipX + 0.03 * Math.sin(ta), 0.2, tipZ + 0.03 * Math.cos(ta), true, 'y');
+  bx(0.08, 0.012, 0.07, std(0x9aa3ad, 0.4, 0.7), rotor, tipX, 0.132, tipZ).rotation.y = ra;
+  kraken(rotor, tipX, 0.19, tipZ, true, 'y');
   // the blue scoop at the arm's root: a curved fin that lifts FUEL into the column's mouth
   const scoop = [];
   for (let i = 0; i <= 12; i++) {
@@ -1827,7 +1877,8 @@ function build4946(cfg, alliance) {
   mesh(new THREE.TorusGeometry(0.19, 0.012, 8, 48), grey, turret, 0, 0.24, 0).rotation.x = Math.PI / 2;
   mesh(new THREE.RingGeometry(0.15, 0.2, 40), std(0x6b7078, 0.4, 0.6, { side: THREE.DoubleSide }), turret, 0, 0.245, 0).rotation.x = -Math.PI / 2;
   // shooter in the ring: the flywheel across it, the hood on the exit side (+x, the shot direction)
-  const fly = wheelStack(turret, 0.2, 0.05, 4, green, -0.02, 0.2, 0, 0.035);
+  // 3in Stealth wheels (their engineering report), geared up 4:3 from two Kraken X60s
+  const fly = wheelStack(turret, 0.22, 0.0381, 6, std(0x5d6168, 0.6, 0.15), -0.02, 0.2, 0, 0.025);
   const hood = new THREE.Group();
   hood.position.set(-0.02, 0.2, 0);
   turret.add(hood);
