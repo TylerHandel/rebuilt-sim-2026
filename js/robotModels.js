@@ -1861,9 +1861,10 @@ function build4946(cfg, alliance) {
     const [x, z] = armPts[i], a = Math.atan2(-z, x);
     cylY(0.006, 0.15, M.alu, rotor, x + 0.03 * Math.sin(a), 0.08, z + 0.03 * Math.cos(a), 6);
   }
-  // the powered vertical roller (red) at the arm's inner end, by the mouth in the column: it
-  // drives the FUEL the arm brings in into the mouth; its motor rides on the rotor above it
-  const ra = -0.06, rr = rs.finR0 + 0.05;
+  // the powered vertical roller (red) out in front of the mouth in the column (their CAD render),
+  // at the arm's inner end with the scoop between it and the column: the FUEL the arm brings in
+  // runs between them and it drives it into the mouth; its motor rides on the rotor above it
+  const ra = 0.28, rr = 0.3;
   const tipX = rr * Math.cos(ra), tipZ = -rr * Math.sin(ra);
   const tipRoller = new THREE.Group();
   tipRoller.position.set(tipX, 0.07, tipZ);
@@ -1875,7 +1876,7 @@ function build4946(cfg, alliance) {
   // the blue scoop at the arm's root: a curved fin that lifts FUEL into the column's mouth
   const scoop = [];
   for (let i = 0; i <= 12; i++) {
-    const u = i / 12, d = rs.finR0 + 0.13 - 0.12 * u * u, a = 0.05 + 0.5 * u;
+    const u = i / 12, d = rs.finR0 + 0.06 - 0.05 * u * u, a = 0.05 + 0.45 * u;
     scoop.push([d * Math.cos(a), -d * Math.sin(a)]);
   }
   ribbon(scoop, 0.004, 0.13, std(0x2638d8, 0.45, 0.2, { side: THREE.DoubleSide }), rotor);
