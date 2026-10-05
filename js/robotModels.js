@@ -1864,7 +1864,8 @@ function build4946(cfg, alliance) {
   // the powered vertical roller (red) out in front of the arm's inner end (their CAD render): the
   // arm's face leads with its curve, FUEL it gathers slides in along it to the mouth in the column
   // between the arm and the roller, and the roller drives it in; its motor rides above it
-  const rr = 0.25, ra = (rs.sweep ?? 0) * (rr - rs.finR0) / (rs.r - rs.finR0) + 0.17;
+  // (a FUEL's width, and a little, between the arm's face and the roller)
+  const rr = 0.25, ra = (rs.sweep ?? 0) * (rr - rs.finR0) / (rs.r - rs.finR0) + (2 * FUEL.radius + 0.032 + 0.025) / rr;
   const tipX = rr * Math.cos(ra), tipZ = -rr * Math.sin(ra);
   const tipRoller = new THREE.Group();
   tipRoller.position.set(tipX, 0.07, tipZ);
@@ -1876,13 +1877,13 @@ function build4946(cfg, alliance) {
   // the blue scoop at the arm's root: a curved fin that lifts FUEL into the column's mouth
   const scoop = [];
   for (let i = 0; i <= 12; i++) {
-    const u = i / 12, d = rs.finR0 + 0.06 - 0.05 * u * u, a = 0.1 + 0.3 * u;
+    const u = i / 12, d = rs.finR0 + 0.06 - 0.05 * u * u, a = 0.25 + 0.45 * u;
     scoop.push([d * Math.cos(a), -d * Math.sin(a)]);
   }
   ribbon(scoop, 0.004, 0.13, std(0x2638d8, 0.45, 0.2, { side: THREE.DoubleSide }), rotor);
   // a sleeve round the column's foot with the mouth cut in it, ahead of the arm
-  const mouth = 0.6; // rad
-  const sleeve = mesh(new THREE.CylinderGeometry(0.165, 0.175, 0.17, 40, 1, true, Math.PI / 2 + 0.22 + mouth / 2, Math.PI * 2 - mouth), std(0x1b1d21, 0.5, 0.35, { side: THREE.DoubleSide }), rotor, 0, 0.085, 0);
+  const mouth = 0.8; // rad
+  const sleeve = mesh(new THREE.CylinderGeometry(0.165, 0.175, 0.17, 40, 1, true, Math.PI / 2 + 0.62 + mouth / 2, Math.PI * 2 - mouth), std(0x1b1d21, 0.5, 0.35, { side: THREE.DoubleSide }), rotor, 0, 0.085, 0);
   sleeve.castShadow = true;
   mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.17, 24), std(0x08090a, 0.9, 0), rotor, 0, 0.085, 0); // dark inside the mouth
 

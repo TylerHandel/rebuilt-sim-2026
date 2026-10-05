@@ -499,7 +499,7 @@ export const ROBOTS = {
       // steeply down from the hopper walls onto the platter's edge (their CAD render)
       funnel: { slope: 1.8, cap: 0.13 },
       // (at the arm's rest angle; it all turns with the arm) in the mouth, then up the column
-      feed: { x: 0.245, z: -0.046, rotates: true, via: [[0.167, 0.3, -0.03], [0.069, 0.5, -0.01], [0.02, 0.66, 0]] },
+      feed: { x: 0.217, z: -0.14, rotates: true, via: [[0.142, 0.3, -0.087], [0.061, 0.5, -0.029], [0.02, 0.66, 0]] },
     },
     shooter: {
       type: 'turret',
