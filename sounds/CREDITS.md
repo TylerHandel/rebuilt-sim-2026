@@ -8,7 +8,7 @@ They were trimmed, filtered, normalized and looped for the game.
 |---|---|---|
 | drive.wav | swerve drive motor whine | our own team's robot accelerating (offseason test video): its spectrum frozen into a steady, seamless loop |
 | firing.mp3 | a robot feeding FUEL into its shooter | recorded from the project's own team robot shooting (offseason test video) |
-| hub-hit-1…4.mp3 | FUEL hitting the HUB's polycarbonate | recorded at our own team's practice HUB (offseason test video), noise-reduced |
+| hub-hit-1…6.mp3 | FUEL hitting the HUB's polycarbonate | our own team's practice HUB (bird's-eye offseason test video), cut at the moments the video shows a ball striking the polycarb (1.875, 2.04, 2.32, 3.18, 3.625, 4.51 s) |
 | motor.wav | intake rollers, indexer, intake pivot, hopper extension, turret (pitch and level follow each mechanism and its load) | [DeWalt 18V Cordless Combi Drill](https://freesound.org/s/390162/) by megashroom: its spectrum frozen into a steady, seamless loop |
 | gears.wav | gearboxes and gear meshes (swerve modules, intake pivot, turret, indexer) | [Running Gear](https://freesound.org/s/315753/) by Vurca, looped |
 | belt.wav | belts and pulleys (intake rollers, indexer, flywheel, hopper) | [motor belt drive close machine](https://freesound.org/s/629929/) by kyles, looped |

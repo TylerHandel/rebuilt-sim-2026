@@ -6,7 +6,8 @@
 import * as THREE from 'three';
 import { TIMING, HUB, HALF_L } from './constants.js';
 
-const HUB_HITS = ['hub-hit-1', 'hub-hit-2', 'hub-hit-3', 'hub-hit-4'];
+// FUEL hitting the HUB's polycarb, cut where the team video shows a ball striking it (matched frame by frame)
+const HUB_HITS = ['hub-hit-1', 'hub-hit-2', 'hub-hit-3', 'hub-hit-4', 'hub-hit-5', 'hub-hit-6'];
 const SHOTS = ['shot-1', 'shot-2', 'shot-3'];
 // the published site stamps this with its version, so a browser fetches changed sounds fresh
 const SOUND_V = 'dev';
