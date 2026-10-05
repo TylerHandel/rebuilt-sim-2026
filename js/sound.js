@@ -85,7 +85,12 @@ export class Sound {
     this.ctx = new AC();
     this.master = this.ctx.createGain();
     this.master.gain.value = this.level;
-    this.master.connect(this.ctx.destination);
+    // a limiter, so a big volley banging on the HUB is loud without distorting
+    this.limiter = this.ctx.createDynamicsCompressor();
+    this.limiter.threshold.value = -6; this.limiter.knee.value = 6; this.limiter.ratio.value = 12;
+    this.limiter.attack.value = 0.002; this.limiter.release.value = 0.15;
+    this.master.connect(this.limiter);
+    this.limiter.connect(this.ctx.destination);
     this.custom = {};
     const own = idbAll().catch(() => ({}));
     for (const f of FILES) {
@@ -259,7 +264,7 @@ export class Sound {
           if (atHub && dv > 2.2 && nh < 3 && !(now - (prev.hit || -9) < 0.4)) {
             nh++;
             prev.hit = now;
-            this.play(HUB_HITS[Math.floor(Math.random() * HUB_HITS.length)], { pos: b.pos, gain: Math.min(1.8, 1.0 + dv / 6), rate: 0.95 + 0.1 * Math.random(), near: 7 });
+            this.play(HUB_HITS[Math.floor(Math.random() * HUB_HITS.length)], { pos: b.pos, gain: Math.min(2.2, 1.3 + dv / 6), rate: 0.95 + 0.1 * Math.random(), near: 8 });
           } else if (!atHub && prev.y < -2.2 && v.y > prev.y * 0.2 && n < 2) {
             n++;
             this.play('bounce', { pos: b.pos, gain: Math.min(0.6, -prev.y / 10), rate: 0.85 + 0.35 * Math.random() });
