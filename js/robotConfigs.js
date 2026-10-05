@@ -494,9 +494,10 @@ export const ROBOTS = {
       // its foot out to the tray wall (its tip leads by sweep), a scoop at its root steering FUEL
       // into a mouth in the column's foot that turns with it, and a powered vertical roller by the
       // mouth that drives FUEL in (pull, m/s in along the arm); the spoked platter turns with it
-      drive: 'rotor', rotor: { x: 0.02, z: 0, y: 0.2, r: 0.33, grip: 30, drag: 6, finR0: 0.16, sweep: 0.6, pull: 1, spin: 9, idle: -0.5 },
-      // a printed ring round the rotor slopes down from the walls to the circle the arm sweeps
-      funnel: { slope: 0.8, cap: 0.15 },
+      drive: 'rotor', rotor: { x: 0.02, z: 0, y: 0.2, r: 0.38, grip: 30, drag: 6, finR0: 0.16, sweep: 0.6, pull: 1, spin: 9, idle: -0.5 },
+      // the tray's ring of interlocking printed walls round the platter: its inner face slopes
+      // steeply down from the hopper walls onto the platter's edge (their CAD render)
+      funnel: { slope: 1.8, cap: 0.13 },
       // (at the arm's rest angle; it all turns with the arm) in the mouth, then up the column
       feed: { x: 0.249, z: -0.071, rotates: true, via: [[0.163, 0.3, -0.044], [0.068, 0.5, -0.015], [0.02, 0.66, 0]] },
     },

@@ -1752,9 +1752,11 @@ function build4946(cfg, alliance) {
     const a = (i / 16) * Math.PI * 2;
     bolts.add(new THREE.Vector3(rs.x + Math.cos(a) * (rs.r - 0.02), rs.y + 0.001, rs.z - Math.sin(a) * (rs.r - 0.02)), new THREE.Vector3(0, 1, 0));
   }
-  // the printed funnel ring: from the walls it slopes down to the circle the arm sweeps
+  // the tray's ring of interlocking printed walls (their CAD render): its inner face slopes
+  // steeply down onto the platter's edge from the hopper walls; flat on top out to the walls
   {
-    const f = bay.funnel, NX = 160, NZ = 180, xa = -0.5, xb = bay.x1 + 0.01, za = -bay.hw - 0.02, zb = bay.hw + 0.02;
+    const f = bay.funnel, NX = 120, NZ = 140, xa = -0.5, xb = xFront + 0.01, za = -bay.hw - 0.03, zb = bay.hw + 0.03;
+    const r1 = rs.r + 0.008; // its lip on the platter
     const hAt = (x, z) => rs.y + Math.min(f.cap, (Math.hypot(x - rs.x, z - rs.z) - rs.r) * f.slope);
     const inside = (x, z) => {
       if (x > xFront) return false;
@@ -1765,23 +1767,39 @@ function build4946(cfg, alliance) {
       }
       return c;
     };
+    // the nearest point on the walls (with the front cut at xFront)
+    const edge = (x, z) => {
+      let best = [x, z], bd = Infinity;
+      const segs = pts.map((q, i) => [q, pts[(i + 1) % pts.length]]);
+      for (const [[ax, az], [bx2, bz]] of segs) {
+        const dx = bx2 - ax, dz = bz - az, l2 = dx * dx + dz * dz || 1;
+        const u = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / l2));
+        let px = ax + u * dx, pz = az + u * dz;
+        px = Math.min(px, xFront);
+        const d = Math.hypot(px - x, pz - z);
+        if (d < bd) { bd = d; best = [px, pz]; }
+      }
+      return best;
+    };
     const pos = [], idx = [], map = new Map();
     const vid = (i, j) => {
       const k = i * 10000 + j;
       if (!map.has(k)) {
-        const x = xa + ((xb - xa) * i) / NX, z = za + ((zb - za) * j) / NZ;
-        // snap the inner edge onto the rotor's circle
-        const d = Math.hypot(x - rs.x, z - rs.z), s2 = d < rs.r + 0.008 ? (rs.r + 0.008) / d : 1;
-        const px = rs.x + (x - rs.x) * s2, pz = rs.z + (z - rs.z) * s2;
-        pos.push(px, hAt(px, pz) + 0.002, pz);
+        let x = xa + ((xb - xa) * i) / NX, z = za + ((zb - za) * j) / NZ;
+        if (!inside(x, z)) [x, z] = edge(x, z); // a clean edge along the walls
+        const d = Math.hypot(x - rs.x, z - rs.z);
+        if (d < r1) { x = rs.x + ((x - rs.x) * r1) / d; z = rs.z + ((z - rs.z) * r1) / d; } // and on the lip
+        pos.push(x, hAt(x, z) + 0.002, z);
         map.set(k, pos.length / 3 - 1);
       }
       return map.get(k);
     };
     for (let i = 0; i < NX; i++) {
       for (let j = 0; j < NZ; j++) {
-        const cx = xa + ((xb - xa) * (i + 0.5)) / NX, cz = za + ((zb - za) * (j + 0.5)) / NZ;
-        if (Math.hypot(cx - rs.x, cz - rs.z) < rs.r + 0.008 || !inside(cx, cz)) continue;
+        const xs = [i, i + 1].map((q) => xa + ((xb - xa) * q) / NX), zs = [j, j + 1].map((q) => za + ((zb - za) * q) / NZ);
+        const corners = [[xs[0], zs[0]], [xs[1], zs[0]], [xs[1], zs[1]], [xs[0], zs[1]]];
+        if (!corners.some(([x, z]) => inside(x, z))) continue;
+        if (corners.every(([x, z]) => Math.hypot(x - rs.x, z - rs.z) < r1)) continue;
         const a = vid(i, j), b = vid(i + 1, j), c = vid(i + 1, j + 1), d = vid(i, j + 1);
         idx.push(a, d, c, a, c, b);
       }
@@ -1790,9 +1808,19 @@ function build4946(cfg, alliance) {
     g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
     g.setIndex(idx);
     g.computeVertexNormals();
-    mesh(g, std(0x2f3237, 0.75, 0.05, { side: THREE.DoubleSide }), root);
-    // its lip round the rotor
-    mesh(new THREE.TorusGeometry(rs.r + 0.008, 0.005, 6, 64), std(0x1d1f23, 0.6, 0.1), root, rs.x, rs.y + 0.004, rs.z).rotation.x = Math.PI / 2;
+    const ringMat = std(0x1e2024, 0.7, 0.08, { side: THREE.DoubleSide });
+    mesh(g, ringMat, root);
+    // the lip round the platter, the rim along the top of the slope, and the seams between the
+    // printed pieces
+    mesh(new THREE.TorusGeometry(r1, 0.006, 6, 72), ringMat, root, rs.x, rs.y + 0.006, rs.z).rotation.x = Math.PI / 2;
+    const rTop = rs.r + f.cap / f.slope;
+    const seamMat = std(0x0b0c0e, 0.9, 0);
+    for (let i = 0; i < 12; i++) {
+      const a = (i / 12) * Math.PI * 2, c = Math.cos(a), s2 = -Math.sin(a);
+      if (rs.x + c * rTop > xFront) continue;
+      const seam = bx((rTop - r1) * Math.hypot(1, f.slope), 0.003, 0.004, seamMat, root, rs.x + c * (r1 + rTop) / 2, rs.y + f.cap / 2 + 0.004, rs.z + s2 * (r1 + rTop) / 2);
+      seam.rotation.set(0, a, Math.atan(f.slope));
+    }
   }
 
   // the Dye Rotor (their engineering report): everything here turns together round the column
