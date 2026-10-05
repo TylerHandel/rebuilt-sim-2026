@@ -91,6 +91,13 @@ export class Sound {
     this.limiter.attack.value = 0.002; this.limiter.release.value = 0.15;
     this.master.connect(this.limiter);
     this.limiter.connect(this.ctx.destination);
+    // the venue's echo: a big hall's reverb, mostly for the bangs on the HUB
+    this.reverb = this.ctx.createConvolver();
+    this.reverb.buffer = this._hall(2.4);
+    this.wet = this.ctx.createGain();
+    this.wet.gain.value = 0.9;
+    this.reverb.connect(this.wet);
+    this.wet.connect(this.limiter);
     this.custom = {};
     const own = idbAll().catch(() => ({}));
     for (const f of FILES) {
@@ -130,10 +137,29 @@ export class Sound {
     this.custom = {};
   }
 
+  // an impulse response for a large hall: a few early reflections, then a dark, decaying tail
+  _hall(seconds) {
+    const sr = this.ctx.sampleRate, n = Math.floor(seconds * sr), b = this.ctx.createBuffer(2, n, sr);
+    for (let c = 0; c < 2; c++) {
+      const d = b.getChannelData(c);
+      let lp = 0;
+      for (let i = 0; i < n; i++) {
+        const t = i / sr;
+        lp += (Math.random() * 2 - 1 - lp) * (0.35 - 0.25 * Math.min(1, t / seconds)); // darker as it decays
+        d[i] = lp * Math.exp(-t * 6.9 / seconds);
+      }
+      for (const [dt, a] of [[0.023, 0.6], [0.041, 0.45], [0.067, 0.35], [0.094, 0.3], [0.13, 0.22]]) {
+        const j = Math.floor((dt + 0.004 * c) * sr);
+        if (j < n) d[j] += a * (c ? -1 : 1);
+      }
+    }
+    return b;
+  }
+
   get ready() { return !!this.ctx && this.ctx.state === 'running' && this.level > 0; }
 
   // a one-shot, at a world position (or flat if pos is null)
-  play(name, { pos = null, gain = 1, rate = 1, near = 2.5 } = {}) {
+  play(name, { pos = null, gain = 1, rate = 1, near = 2.5, wet = 0 } = {}) {
     const b = this.buf[name];
     if (!this.ready || !b) return;
     const s = this.ctx.createBufferSource();
@@ -143,6 +169,12 @@ export class Sound {
     g.gain.value = gain;
     s.connect(g);
     g.connect(pos ? this._panner(pos, near) : this.master);
+    if (wet > 0 && this.reverb) {
+      const w = this.ctx.createGain();
+      w.gain.value = wet;
+      g.connect(w);
+      w.connect(this.reverb);
+    }
     s.start();
   }
 
@@ -197,7 +229,7 @@ export class Sound {
       this.crowdV = this._loop('crowd');
       this.crowdV.g.connect(this.master);
     }
-    this.crowdV.g.gain.setTargetAtTime(on ? 0.22 : 0.08, this.ctx.currentTime, 0.8);
+    this.crowdV.g.gain.setTargetAtTime(on ? 0.5 : 0.2, this.ctx.currentTime, 0.8);
   }
 
   // every frame. active: a match is on screen and running (not paused)
@@ -264,7 +296,7 @@ export class Sound {
           if (atHub && dv > 2.2 && nh < 3 && !(now - (prev.hit || -9) < 0.4)) {
             nh++;
             prev.hit = now;
-            this.play(HUB_HITS[Math.floor(Math.random() * HUB_HITS.length)], { pos: b.pos, gain: Math.min(2.2, 1.3 + dv / 6), rate: 0.95 + 0.1 * Math.random(), near: 8 });
+            this.play(HUB_HITS[Math.floor(Math.random() * HUB_HITS.length)], { pos: b.pos, gain: Math.min(2.2, 1.3 + dv / 6), rate: 0.74 + 0.1 * Math.random(), near: 8, wet: 0.55 });
           } else if (!atHub && prev.y < -2.2 && v.y > prev.y * 0.2 && n < 2) {
             n++;
             this.play('bounce', { pos: b.pos, gain: Math.min(0.6, -prev.y / 10), rate: 0.85 + 0.35 * Math.random() });
