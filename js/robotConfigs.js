@@ -822,6 +822,50 @@ export const ROBOTS = {
     stats: { 'Shot rate': '15 BPS', Aiming: 'Chassis', 'Top speed': '', Trench: 'Yes' },
     colors: { frame: 0x1d1f24, accent: 0xc62828, trim: 0x2a2c31 },
   },
+  1114: {
+    key: '1114',
+    team: 1114,
+    teamName: 'Simbotics',
+    robotName: 'Simbot Tim',
+    archetype: 'Box dumper',
+    blurb: 'Archimedes Division finalist, 10-0 in qualifications, and Ontario champion. A tall clear hopper box slides out over the intake on racks, under a red "magic blanket" top cover (after 1124\'s 2008 claw). A belt floor feeds a ball elevator up the tower at the back to a hooded flywheel that fires forward over the hopper. Too tall for the TRENCH, it goes over the BUMPS.',
+    // their CAD ("S26-A000"): 24.5 x 30in frame, 30in across the front
+    frame: { length: 24.5 * IN, width: 30 * IN },
+    height: 27.6 * IN, // top of the hopper box (their CAD)
+    mass: 64, // robot (up to 115 lb) + bumpers + battery (they took the climber off for weight)
+    // WCP X2 modules, X1 gearing with 10T pinions: 7.67:1 (their code), 4in wheels
+    drive: { ratio: 7.674 },
+    // the intake rollers are on the front of the hopper box, which slides out 0.298 m on racks
+    // (their CAD's mate, tilted 8.7deg up toward the robot); a kicker bar hangs in front of the
+    // rollers on arms that swing up 90deg
+    intake: { width: 25 * IN, reach: 0.2, rate: 200, pull: 5, deployTime: 0.35, retractTime: 0.5, side: 'front', latched: false },
+    storage: { extLen: 0.2945, extend: 'intake' },
+    // their CAD: the box is the hopper (clear walls to 0.70 m, the blanket over the top); a belt
+    // floor slopes down to the foot of the tower, where rollers and an "active wall" take FUEL
+    // into the ball elevator
+    bay: {
+      x0: 0.0, x1: 0.311, hw: 0.36, top: 0.7,
+      dome: { h: 0.1, x0: 0.0, cx: 0, cz: 0, rHole: -1 }, // the blanket sags over the load and rides up on it
+      floor: { a: 0.077, b: 0.33, lo: 0.06, hi: 0.19 },
+      drive: 'floor', driveSpeed: 2.4,
+      feed: { x: 0.0, via: [[-0.05, 0.15], [-0.09, 0.3], [-0.09, 0.48], [-0.04, 0.6]] },
+    },
+    shooter: {
+      type: 'fixed',
+      facing: 'front', // their code turns the intake end at the HUB: over the top of the flywheel, forward
+      lanes: [-0.16, 0, 0.16],
+      exit: { x: 0.04, y: 0.64 }, // over the flywheel at the top of the tower (their CAD)
+      bps: 18, // an estimate (not published)
+      hoodMin: 42, hoodMax: 74, // their code's hood limits (30deg of travel in their CAD)
+      speedMax: 17,
+      spinTau: 0.3,
+      shotDrop: 0.003,
+      speedSigma: 0.012, angleSigma: 0.55, yawSigma: 0.55, // 95-98% after the grip tape (their thread)
+    },
+    climber: null, // taken off for weight
+    stats: { 'Shot rate': '18 BPS (est.)', Aiming: 'Chassis', 'Top speed': '', Trench: 'No (BUMPS)' },
+    colors: { frame: 0xb4b9c1, accent: 0xc0272d, trim: 0x2a2c31 },
+  },
 };
 
 // Top speed, turn rate and acceleration come from each robot's drivetrain (drivetrain.js): its
@@ -835,7 +879,7 @@ for (const cfg of Object.values(ROBOTS)) {
   if (cfg.stats) cfg.stats['Top speed'] = `${ft(dt.topSpeed)} ft/s (${ft(dt.freeSpeed)} free)`;
 }
 
-export const ROBOT_ORDER = ['2910', '4414', '8793', '971', '1678', '1690', '4946', '3928', '341', '4930', '1706', '581'];
+export const ROBOT_ORDER = ['2910', '4414', '8793', '971', '1678', '1690', '4946', '3928', '341', '4930', '1706', '581', '1114'];
 
 // Optional add-on climbers for robots without one (971 and 1678 have their own, cfg.climber)
 export const CLIMBER_OPTIONS = {

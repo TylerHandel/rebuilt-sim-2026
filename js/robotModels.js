@@ -736,8 +736,8 @@ function rod(parent, a, b, r, mat, segs = 8) {
 //   moves the pinned heights (a lid that lifts).
 // (inside(x, z): the hopper's outline, for one that isn't a rectangle: the net stops at it; hole.y:
 // the height it's tied on at round the hole, if not the edge's)
-function hopperNet(parent, { x0, x1, x1Out = x1, xFixed = x1, hw, y, yFront = y, hole = null, inside = null, NX = 36, NZ = 28, color = 0x15171a }) {
-  const mat = new THREE.MeshStandardMaterial({ map: fineNetTexture(), transparent: true, depthWrite: false, side: THREE.DoubleSide, roughness: 0.9, color });
+function hopperNet(parent, { x0, x1, x1Out = x1, xFixed = x1, hw, y, yFront = y, hole = null, inside = null, NX = 36, NZ = 28, color = 0x15171a, material = null }) {
+  const mat = material || new THREE.MeshStandardMaterial({ map: fineNetTexture(), transparent: true, depthWrite: false, side: THREE.DoubleSide, roughness: 0.9, color });
   const nv = (NX + 1) * (NZ + 1);
   const base = new Float32Array(nv), pin = new Uint8Array(nv), hNow = new Float32Array(nv), hMin = new Float32Array(nv);
   const pos = new Float32Array(nv * 3), uv = new Float32Array(nv * 2), idx = [];
@@ -2355,6 +2355,81 @@ function build581(cfg, alliance) {
   return { root, anim, stored: [], modules, extLen };
 }
 
+// ============================================================ 1114 Simbotics, Simbot Tim
+// From 1114's public Onshape CAD ("S26-A000", exported with the box out), split by
+// tools/extract-parts.mjs (cad/robots/1114.json): the body (drivetrain, belt floor, the tower with
+// its ball elevator and flywheel), the box's fixed rack gearboxes (mount), the hopper box that slides
+// out on the racks with the intake rollers on its front, the kicker bar on its arms, and the hood.
+// The joints are the CAD's own mates: the box's slide (0.298 m, rising 8.7deg toward the robot),
+// the kicker's pivot (0 to 90deg) and the hood's 30deg on the flywheel shaft.
+const S1114 = {
+  slide: [-0.2945, 0.0453], // full retract, from out (as exported): back along the racks and up
+  kicker: [0.4513, 0.196], kickerLen: 0.168, kickerMax: Math.PI / 2,
+  hood: [-0.0176, 0.5715], hoodTravel: 30 * Math.PI / 180,
+};
+function build1114(cfg, alliance) {
+  const root = new THREE.Group();
+  const L = cfg.frame.length, bay = cfg.bay, sh = cfg.shooter;
+  const extLen = cfg.storage.extLen;
+  addBumpers(root, cfg, alliance);
+  const modules = addDrivebase(root, cfg, 0, false);
+  const red = std(cfg.colors.accent, 0.5, 0.2);
+  // drawn stand-ins until the CAD loads
+  const drawn = new THREE.Group();
+  root.add(drawn);
+  addDrivebase(drawn, cfg, 0, true).forEach((md) => md.pivot.parent.removeFromParent());
+  bx(0.25, 0.62, 0.6, M.alu, drawn, -0.15, 0.4, 0);
+  // the hopper box: slides out on the racks with the intake on its front
+  const slide = new THREE.Group();
+  root.add(slide);
+  const slideDrawn = new THREE.Group();
+  slide.add(slideDrawn);
+  for (const s of [-1, 1]) polyWall(slideDrawn, 0.62, 0.43, 0.29, 0.485, s * 0.37);
+  polyWall(slideDrawn, 0.74, 0.43, 0.6, 0.485, 0, Math.PI / 2);
+  cylZ(0.025, cfg.intake.width, red, slideDrawn, 0.545, 0.165, 0, 14);
+  // its kicker bar, on arms that swing up over the bumper as the box comes in
+  const kicker = new THREE.Group();
+  kicker.position.set(...S1114.kicker, 0);
+  slide.add(kicker);
+  // the hood, on the flywheel's shaft
+  const hood = new THREE.Group();
+  hood.position.set(...S1114.hood, 0);
+  root.add(hood);
+  cadPart(root, 'robots/1114-body.glb', () => { drawn.visible = false; });
+  cadPart(root, 'robots/1114-pulleys.glb', () => {});
+  cadPart(root, 'robots/1114-mount.glb', () => {});
+  cadPart(slide, 'robots/1114-slide.glb', () => { slideDrawn.visible = false; });
+  cadPart(kicker, 'robots/1114-kicker.glb', () => {});
+  cadPart(hood, 'robots/1114-hood.glb', () => {});
+  // the "magic blanket" over the box's top (their reveal; after 1124's 2008 claw): red plush, tied
+  // round the edges, sagging over the load and riding up on it
+  const plush = new THREE.MeshStandardMaterial({ color: 0xb3171d, roughness: 1, side: THREE.DoubleSide });
+  const blanket = hopperNet(slide, { x0: -0.02, x1: 0.606, hw: 0.372, y: 0.704, NX: 26, NZ: 22, material: plush });
+  blanket.mesh.castShadow = true;
+  const xb = L / 2 + BUMPER_T, zc = BUMPER_Y1 + 0.006;
+  const shifted = [];
+  const anim = (st, dt) => {
+    const s = Math.max(st.intakeDeploy, st.hopperDeploy);
+    slide.position.set((1 - s) * S1114.slide[0], (1 - s) * S1114.slide[1], 0);
+    // the kicker hangs straight down; coming in, the bumper swings it forward and up (to its stop)
+    const px = S1114.kicker[0] + slide.position.x, py = S1114.kicker[1] + slide.position.y, K = S1114.kickerLen;
+    let th = 0;
+    if (px < xb) th = Math.min(Math.asin(clamp01((xb - px) / K, 0, 1)), Math.acos(clamp01((py - zc) / K, -1, 1)));
+    kicker.rotation.z = Math.min(th, S1114.kickerMax);
+    // the hood: at its stop for the steepest shot, opening up for flatter ones
+    hood.rotation.z = -clamp01((sh.hoodMax - st.hoodDeg) / (sh.hoodMax - sh.hoodMin), 0, 1) * S1114.hoodTravel;
+    // the blanket rides with the box: the load in the box's frame
+    const load = st.load || [];
+    for (let i = 0; i < load.length; i++) {
+      const e = shifted[i] || (shifted[i] = { p: new THREE.Vector3() });
+      e.p.set(load[i].p.x - slide.position.x, load[i].p.y - slide.position.y, load[i].p.z);
+    }
+    shifted.length = load.length;
+    blanket.drape(shifted, 0);
+  };
+  return { root, anim, stored: [], modules, extLen };
+}
+
 export function buildRobotModel(cfg, alliance) {
   let m;
   if (cfg.key === '2910') m = build2910(cfg, alliance);
@@ -2368,6 +2443,7 @@ export function buildRobotModel(cfg, alliance) {
   else if (cfg.key === '4930') m = build4930(cfg, alliance);
   else if (cfg.key === '1706') m = build1706(cfg, alliance);
   else if (cfg.key === '581') m = build581(cfg, alliance);
+  else if (cfg.key === '1114') m = build1114(cfg, alliance);
   else m = build8793(cfg, alliance);
   // stored FUEL visual (instanced)
   const r = FUEL.radius;
