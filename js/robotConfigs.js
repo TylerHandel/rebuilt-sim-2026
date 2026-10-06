@@ -372,17 +372,18 @@ export const ROBOTS = {
     // and down on the carpet (their CAD); compactMin: it only pushes FUEL back as far as the front
     // of the frame (past that it's up over the load).
     intake: {
-      width: 25 * IN, reach: 0.1, rate: 200, pull: 5, deployTime: 0.3, retractTime: 0.9, side: 'front', latched: false, squeeze: 0.6,
+      width: 25 * IN, reach: 0.17, rate: 200, pull: 5, deployTime: 0.3, retractTime: 0.35, side: 'front', latched: false, squeeze: 0.6,
       compacts: true, compactPush: 180, compactMin: 0.33,
-      arm: { x: 0.254, y: 0.194, len: 0.259, stowDeg: 127, deployDeg: -34.6 }, // plates 1.5 cm off the carpet
+      arm: { x: 0.254, y: 0.194, len: 0.259, stowDeg: 127, deployDeg: -26 }, // plates 5 cm off the carpet
     },
     // the horizontal extension (polycarbonate sides, a corrugated front) slides straight out: a pin
     // on the intake plate rides a slanted vertical slot in the side plates (their robot page and
     // CAD), so the intake swinging down pushes the extension forward. The pin
-    // is 0.135 m from the intake pivot; the 162deg swing carries it 0.225 m forward.
+    // is 0.135 m from the intake pivot; down, the extension's front panel is flush with the
+    // intake's crash bar (0.174 m out).
     // It comes out with the first intake and stays out (the intake folding back in doesn't pull
     // it back).
-    storage: { extLen: 0.225, extend: 'latched' },
+    storage: { extLen: 0.174, extend: 'latched' },
     // their CAD: roller floor (dead-axle rollers, then flex wheels) sloping down to the ball
     // tunnel at the back; the lid (corrugated plastic on the climber tubes) sits at 0.545 m and
     // lifts lift.h with the climber (it comes back down under the TRENCH); over the extension the
