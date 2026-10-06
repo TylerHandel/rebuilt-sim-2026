@@ -1457,7 +1457,8 @@ function build971(cfg, alliance) {
 // folded up inside the hopper (as exported) -> down 130deg (their code: stowed 130, deployed 0),
 // where its crash bar stands square under the extension's front panel and its plates follow
 // the panel's chamfer
-const INTAKE_1678 = { pivot: [0.254, 0.194], swing: -130 * Math.PI / 180 };
+// pivot: their code and AdvantageScope model (the extracted part's origin is 5.5 cm behind it)
+const INTAKE_1678 = { pivot: [0.309, 0.169], origin: [0.254, 0.194], swing: -130 * Math.PI / 180 };
 function build1678(cfg, alliance) {
   const root = new THREE.Group();
   const L = cfg.frame.length, W = cfg.frame.width, bay = cfg.bay, sh = cfg.shooter;
@@ -1488,8 +1489,11 @@ function build1678(cfg, alliance) {
   const intake = new THREE.Group();
   intake.position.set(INTAKE_1678.pivot[0], INTAKE_1678.pivot[1], 0);
   root.add(intake);
+  const intakePart = new THREE.Group();
+  intakePart.position.set(INTAKE_1678.origin[0] - INTAKE_1678.pivot[0], INTAKE_1678.origin[1] - INTAKE_1678.pivot[1], 0);
+  intake.add(intakePart);
   const intakeDrawn = new THREE.Group();
-  intake.add(intakeDrawn);
+  intakePart.add(intakeDrawn);
   const roller = cylZ(0.028, cfg.intake.width, lime, intakeDrawn, -0.156, 0.207, 0, 14);
   for (const s of [-1, 1]) rod(intakeDrawn, new THREE.Vector3(0, 0, s * 0.33), new THREE.Vector3(-0.156, 0.207, s * 0.33), 0.012, blackAl);
   cadPart(root, 'robots/1678-body.glb', () => { drawn.visible = false; });
@@ -1502,10 +1506,17 @@ function build1678(cfg, alliance) {
     moveCadTris(s, lift, (c, lo, hi) => hi.x < 0.025 && lo.x > -0.05 && lo.y > 0.04 && hi.y < 0.5 && hi.y - lo.y > 0.1, root, [0, 0, 0], true);
     moveCadTris(s, lift, (c, lo, hi) => hi.y < 0.2, root);
   });
-  cadPart(intake, 'robots/1678-intake.glb', (s) => {
+  cadPart(intakePart, 'robots/1678-intake.glb', (s) => {
     intakeDrawn.visible = false;
     // a stray 5 cm block at the robot's origin (on the carpet) came out with the intake
-    moveCadTris(s, intake, (c) => c.y + INTAKE_1678.pivot[1] < 0.03 && Math.abs(c.x + INTAKE_1678.pivot[0]) < 0.04, new THREE.Group());
+    moveCadTris(s, intakePart, (c) => c.y + INTAKE_1678.origin[1] < 0.03 && Math.abs(c.x + INTAKE_1678.origin[0]) < 0.04, new THREE.Group());
+    // the deploy gearbox (Kraken, gear plates, the stage on the old origin) came out with the
+    // intake: it's mounted on the frame below the pivot, so it stays put
+    const [ox, oy] = INTAKE_1678.origin;
+    moveCadTris(s, intakePart, (c) => {
+      const x = c.x + ox, y = c.y + oy;
+      return y < 0.148 || (y < 0.205 && x < 0.293) || Math.hypot(x - ox, y - oy) < 0.03;
+    }, root, [ox, oy, 0]);
   });
   // a net stretched diagonally from the front edge of the lid down to the front of the
   // extension (it rides out with it, and up with the lid)
