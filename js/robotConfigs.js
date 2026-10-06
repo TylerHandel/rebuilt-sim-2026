@@ -810,7 +810,10 @@ export const ROBOTS = {
       facing: 'back', // their code: the shooter faces 180deg from the robot's front
       lanes: [-0.2, -0.067, 0.067, 0.2],
       exit: { x: -0.33, y: 0.56 }, // over the 4in drum (their CAD)
-      bps: 15,
+      // their alpha bot shot 15/s; the Champs robot scored 252 FUEL a match in the Hopper Division
+      // (Statbotics), up from 145 at their first event, against 1678's 283 and 2910's 304 at Champs:
+      // on the same scale, about 23/s
+      bps: 23,
       // hood: 35deg of travel (their CAD's limits), opening up for longer shots (their code)
       hoodMin: 45, hoodMax: 79,
       speedMax: 15,
@@ -819,7 +822,7 @@ export const ROBOTS = {
       speedSigma: 0.013, angleSigma: 0.65, yawSigma: 0.65,
     },
     climber: null,
-    stats: { 'Shot rate': '15 BPS', Aiming: 'Chassis', 'Top speed': '', Trench: 'Yes' },
+    stats: { 'Shot rate': '23 BPS (Champs)', Aiming: 'Chassis', 'Top speed': '', Trench: 'Yes' },
     colors: { frame: 0x1d1f24, accent: 0xc62828, trim: 0x2a2c31 },
   },
   1114: {
@@ -855,7 +858,9 @@ export const ROBOTS = {
       facing: 'front', // their code turns the intake end at the HUB: over the top of the flywheel, forward
       lanes: [-0.16, 0, 0.16],
       exit: { x: 0.04, y: 0.64 }, // over the flywheel at the top of the tower (their CAD)
-      bps: 18, // an estimate (not published)
+      // not published: they scored 288-320 FUEL a match at the Ontario championship and Champs
+      // (Statbotics), against 1678's 283 and 2910's 304 at Champs: on the same scale, about 26/s
+      bps: 26,
       hoodMin: 42, hoodMax: 74, // their code's hood limits (30deg of travel in their CAD)
       speedMax: 17,
       spinTau: 0.3,
@@ -863,7 +868,7 @@ export const ROBOTS = {
       speedSigma: 0.012, angleSigma: 0.55, yawSigma: 0.55, // 95-98% after the grip tape (their thread)
     },
     climber: null, // taken off for weight
-    stats: { 'Shot rate': '18 BPS (est.)', Aiming: 'Chassis', 'Top speed': '', Trench: 'No (BUMPS)' },
+    stats: { 'Shot rate': '26 BPS (est.)', Aiming: 'Chassis', 'Top speed': '', Trench: 'No (BUMPS)' },
     colors: { frame: 0xb4b9c1, accent: 0xc0272d, trim: 0x2a2c31 },
   },
 };

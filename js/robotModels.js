@@ -2283,7 +2283,7 @@ function build1706(cfg, alliance) {
 const S581 = {
   slide: [-0.3047, 0.0294], // full retract, from out (as exported): back along the racks and up
   kicker: [0.5062, 0.1578], kickerLen: 0.144, kickerRest: 20 * Math.PI / 180, // the STEP's pose hangs 20deg back
-  floor: [-0.0675, 0.108], floorUp: 7.1 * Math.PI / 180, // raised to compact (the CAD's two poses)
+  floor: [-0.0675, 0.108], floorUp: 7.1 * Math.PI / 180, // raised by the deploy coming in (the CAD's two poses)
   hood: [-0.2858, 0.4762], hoodTravel: 35 * Math.PI / 180,
 };
 function build581(cfg, alliance) {
@@ -2330,7 +2330,6 @@ function build581(cfg, alliance) {
   // the net over the top: zip-tied to the walls' top tubes, down to the intake's front plate
   const net = hopperNet(root, { x0: -0.25, x1: bay.x1 + 0.01, x1Out: 0.645, xFixed: bay.x1, hw: bay.hw, y: bay.top, yFront: bay.slope.y, NX: 30, NZ: 24 });
   const xb = L / 2 + BUMPER_T, zc = BUMPER_Y1 + 0.006;
-  let squeeze = 0;
   const anim = (st, dt) => {
     // the slide: wherever the intake is, or further out while the load holds the hopper open
     const s = Math.max(st.intakeDeploy, st.hopperDeploy);
@@ -2345,9 +2344,9 @@ function build581(cfg, alliance) {
     }
     kicker.rotation.z = th;
     kickerCad.rotation.z = S581.kickerRest;
-    // the floor pivots up to compact while the load is holding the hopper open
-    squeeze += ((st.hopperDeploy > st.intakeDeploy + 0.02 ? 1 : 0) - squeeze) * Math.min(1, dt / 0.25);
-    floor.rotation.z = squeeze * S581.floorUp;
+    // pushing the deploy in raises the floor's front (mechanically, their spec slides): it lifts the
+    // load toward the shooter over the last part of the stroke, which they use while shooting
+    floor.rotation.z = clamp01((0.35 - s) / 0.35, 0, 1) * S581.floorUp;
     // the hood opens up (flatter shots) from its stop at the steepest one
     hood.rotation.z = clamp01((sh.hoodMax - st.hoodDeg) / (sh.hoodMax - sh.hoodMin), 0, 1) * S581.hoodTravel;
     net.drape(st.load, s * extLen);
