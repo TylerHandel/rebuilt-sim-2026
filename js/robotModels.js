@@ -1454,9 +1454,10 @@ function build971(cfg, alliance) {
 // polycarbonate side plates of the horizontal extension (they slide out with the intake), and the
 // climber with the corrugated lid, which lifts to make the hopper taller (its side skirts ride over
 // the walls). A net stretches diagonally from the lid's front edge down to the extension's front.
-// folded up inside the hopper (as exported) -> down with the 2in roller over a FUEL's center and
-// its plates 5 cm off the carpet
-const INTAKE_1678 = { pivot: [0.254, 0.194], swing: -153 * Math.PI / 180 };
+// folded up inside the hopper (as exported) -> down 130deg (their code: stowed 130, deployed 0),
+// where its crash bar stands square under the extension's front panel and its plates follow
+// the panel's chamfer
+const INTAKE_1678 = { pivot: [0.254, 0.194], swing: -130 * Math.PI / 180 };
 function build1678(cfg, alliance) {
   const root = new THREE.Group();
   const L = cfg.frame.length, W = cfg.frame.width, bay = cfg.bay, sh = cfg.shooter;
