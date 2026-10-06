@@ -230,7 +230,7 @@ class GpuTrainer:
             for sd in g.get('pool', []):
                 w = sd['body.0.weight']
                 sd['body.0.weight'] = torch.cat([w, torch.zeros(w.shape[0], self.D - old_dim, dtype=w.dtype, device=w.device)], 1)
-            print(f'Upgraded the network to the new observation ({self.D} inputs: teammates and all opponents for 3v3). '
+            print(f'Upgraded the network to the new observation ({self.D} inputs: more robots to recognize). '
                   f'It plays exactly as before until it learns to use them.')
         if team_critic(ck):
             print("Upgraded the critic to see the teammates' views too (team critic): it judges exactly as before until it learns to use them.")

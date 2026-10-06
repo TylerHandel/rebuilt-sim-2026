@@ -37,7 +37,7 @@ import torch.nn as nn
 
 ROOT = Path(__file__).resolve().parents[2]
 REW_N = 6  # per step from the workers: dOwnPts, dOppPts, dIntaked, dInactiveFuel, dFoulPtsGiven, margin after
-OBS_VERSION = 3
+OBS_VERSION = 4
 ACT_CONT, ACT_BIN = 3, 4
 
 # Opponent curriculum: a level unlocks once the network wins >= 55% against everything in the

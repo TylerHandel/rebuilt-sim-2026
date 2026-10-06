@@ -2272,6 +2272,89 @@ function build1706(cfg, alliance) {
   return { root, anim, stored: [], modules, extLen };
 }
 
+// ============================================================ 581 Blazing Bulldogs, Rubble
+// From 581's public Onshape CAD ("2026 Dumper Champs Bot", exported with the intake out), split
+// by tools/extract-parts.mjs (cad/robots/581.json): the body (drivetrain, shooter tower, hopper
+// walls), the intake's fixed deploy gearboxes (mount), the intake that slides out (its plates,
+// rollers, motors, side panels, the hopper's front plate and the titanium racks), its kicker
+// plates, the roller floor and the hood. The joints are the CAD's own mates: the slider (0.306 m,
+// tilted 5.5deg), the kicker's free pivot, the floor's pivot at the tower and the hood's 35deg on
+// the drum's shaft.
+const S581 = {
+  slide: [-0.3047, 0.0294], // full retract, from out (as exported): back along the racks and up
+  kicker: [0.5062, 0.1578], kickerLen: 0.144, kickerRest: 20 * Math.PI / 180, // the STEP's pose hangs 20deg back
+  floor: [-0.0675, 0.108], floorUp: 7.1 * Math.PI / 180, // raised to compact (the CAD's two poses)
+  hood: [-0.2858, 0.4762], hoodTravel: 35 * Math.PI / 180,
+};
+function build581(cfg, alliance) {
+  const root = new THREE.Group();
+  const L = cfg.frame.length, W = cfg.frame.width, bay = cfg.bay, sh = cfg.shooter;
+  const extLen = cfg.storage.extLen;
+  addBumpers(root, cfg, alliance);
+  const modules = addDrivebase(root, cfg, 0, false);
+  const red = std(cfg.colors.accent, 0.5, 0.2);
+  // drawn stand-ins until the CAD loads
+  const drawn = new THREE.Group();
+  root.add(drawn);
+  addDrivebase(drawn, cfg, 0, true).forEach((md) => md.pivot.parent.removeFromParent());
+  for (const s of [-1, 1]) polyWall(drawn, bay.x1 - bay.x0, bay.top - 0.2, (bay.x0 + bay.x1) / 2, 0.2 + (bay.top - 0.2) / 2, s * (bay.hw + 0.004));
+  bx(0.12, bay.top - 0.1, 2 * bay.hw, M.anodBlack, drawn, -L / 2 + 0.07, 0.1 + (bay.top - 0.1) / 2, 0);
+  // the intake slides out along the racks, carrying the front of the hopper
+  const slide = new THREE.Group();
+  root.add(slide);
+  const slideDrawn = new THREE.Group();
+  slide.add(slideDrawn);
+  cylZ(0.038, cfg.intake.width, red, slideDrawn, 0.582, 0.176, 0, 16);
+  cylZ(0.025, cfg.intake.width, red, slideDrawn, 0.533, 0.233, 0, 14);
+  polyWall(slideDrawn, 2 * bay.hw, 0.24, 0.645, 0.37, 0, Math.PI / 2);
+  // its kicker plates hang from a pivot on the intake plates and swing up over the bumper
+  const kicker = new THREE.Group();
+  kicker.position.set(...S581.kicker, 0);
+  slide.add(kicker);
+  const kickerCad = new THREE.Group();
+  kicker.add(kickerCad);
+  // the roller floor, on its pivot at the tower
+  const floor = new THREE.Group();
+  floor.position.set(...S581.floor, 0);
+  root.add(floor);
+  // the hood, on the drum's shaft
+  const hood = new THREE.Group();
+  hood.position.set(...S581.hood, 0);
+  root.add(hood);
+  cadPart(root, 'robots/581-body.glb', () => { drawn.visible = false; });
+  cadPart(root, 'robots/581-mount.glb', () => {});
+  cadPart(slide, 'robots/581-intake.glb', () => { slideDrawn.visible = false; });
+  cadPart(kickerCad, 'robots/581-kicker.glb', () => {});
+  cadPart(floor, 'robots/581-floor.glb', () => {});
+  cadPart(hood, 'robots/581-hood.glb', () => {});
+  // the net over the top: zip-tied to the walls' top tubes, down to the intake's front plate
+  const net = hopperNet(root, { x0: -0.25, x1: bay.x1 + 0.01, x1Out: 0.645, xFixed: bay.x1, hw: bay.hw, y: bay.top, yFront: bay.slope.y, NX: 30, NZ: 24 });
+  const xb = L / 2 + BUMPER_T, zc = BUMPER_Y1 + 0.006;
+  let squeeze = 0;
+  const anim = (st, dt) => {
+    // the slide: wherever the intake is, or further out while the load holds the hopper open
+    const s = Math.max(st.intakeDeploy, st.hopperDeploy);
+    slide.position.set((1 - s) * S581.slide[0], (1 - s) * S581.slide[1], 0);
+    // the kicker hangs straight down; coming in, the bumper pushes it forward and up: as little as
+    // it takes for its bottom edge to clear the bumper's face or its top
+    const px = S581.kicker[0] + slide.position.x, py = S581.kicker[1] + slide.position.y, K = S581.kickerLen;
+    let th = 0;
+    if (px < xb) {
+      const a1 = Math.asin(clamp01((xb - px) / K, 0, 1)), a2 = Math.acos(clamp01((py - zc) / K, -1, 1));
+      th = Math.min(a1, a2);
+    }
+    kicker.rotation.z = th;
+    kickerCad.rotation.z = S581.kickerRest;
+    // the floor pivots up to compact while the load is holding the hopper open
+    squeeze += ((st.hopperDeploy > st.intakeDeploy + 0.02 ? 1 : 0) - squeeze) * Math.min(1, dt / 0.25);
+    floor.rotation.z = squeeze * S581.floorUp;
+    // the hood opens up (flatter shots) from its stop at the steepest one
+    hood.rotation.z = clamp01((sh.hoodMax - st.hoodDeg) / (sh.hoodMax - sh.hoodMin), 0, 1) * S581.hoodTravel;
+    net.drape(st.load, s * extLen);
+  };
+  return { root, anim, stored: [], modules, extLen };
+}
+
 export function buildRobotModel(cfg, alliance) {
   let m;
   if (cfg.key === '2910') m = build2910(cfg, alliance);
@@ -2284,6 +2367,7 @@ export function buildRobotModel(cfg, alliance) {
   else if (cfg.key === '341') m = build341(cfg, alliance);
   else if (cfg.key === '4930') m = build4930(cfg, alliance);
   else if (cfg.key === '1706') m = build1706(cfg, alliance);
+  else if (cfg.key === '581') m = build581(cfg, alliance);
   else m = build8793(cfg, alliance);
   // stored FUEL visual (instanced)
   const r = FUEL.radius;

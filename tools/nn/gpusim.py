@@ -126,7 +126,14 @@ class GpuSim:
         self._ar_rs = torch.arange(RS, device=d)
         self._ar_bb = torch.arange(self.BB, device=d)
         self._ar_bb16 = self._ar_bb.to(torch.int16)
-        self._ar_nr = torch.arange(self.NR, device=d)
+        # which robot (one-hot, obs.js): the robots observation v3 knew keep their slots there; ones
+        # added since (v4) show as none of them and get a slot in the block at the end
+        ob = P['obs']
+        self.NOH = len(ob.get('v3Robots', self.order))
+        self.NEW = ob.get('extraRobots', 0)
+        assert self.order[:self.NOH] == ob.get('v3Robots', self.order), 'robotOrder must start with the v3 robots'
+        self._ar_nr = torch.arange(self.NOH, device=d)
+        self._ar_new = torch.arange(self.NOH, self.NOH + self.NEW, device=d)
         self._ar_k = torch.arange(CONTACTS, device=d)
         self._spare = self._ar_bb == self.B
         self._park = torch.stack([torch.zeros(RS, device=d), 50.0 + self._ar_rs.float()], -1)
@@ -930,6 +937,15 @@ class GpuSim:
         parts.append(self._rays(yaw, s) / 4.0)
         parts.append(self._fuel_obs(x, z, c, sn, s))
         parts += [pick(mi, md, 0), pick(mi, md, 1), pick(fi, fd, 1), pick(fi, fd, 2)]
+        if self.NEW:
+            # (v4) which robot each is, for robots added since v3: itself, the nearest opponent, the
+            # teammates, the 2nd/3rd opponents
+            rt = self.rtype[:, None, :].expand(N, RS, RS)
+            def new_oh(idx, dd, k):
+                r = rt.gather(2, idx[..., k:k + 1]).squeeze(2)
+                return (r[..., None] == self._ar_new).float() * (dd[..., k:k + 1] < 1e8).float()
+            parts += [(self.rtype[..., None] == self._ar_new).float(),
+                      new_oh(fi, fd, 0), new_oh(mi, md, 0), new_oh(mi, md, 1), new_oh(fi, fd, 1), new_oh(fi, fd, 2)]
         return torch.cat(parts, -1)
 
     def _robot_blocks(self, x, z, c, sn, s):
@@ -949,7 +965,7 @@ class GpuSim:
         feat = torch.stack([one, fx / self.HL, fz / self.HW, lx / 8, lz / 8, torch.hypot(lx, lz) / 8,
                             sO * self.vel[:, None, :, 0] / 5, sO * self.vel[:, None, :, 1] / 5, fyaw.cos(), fyaw.sin(),
                             self.stored[:, None, :].expand(N, RS, RS) / 60], -1)
-        oh = (self.rtype[..., None] == self._ar_nr).float()[:, None].expand(N, RS, RS, self.NR)
+        oh = (self.rtype[..., None] == self._ar_nr).float()[:, None].expand(N, RS, RS, self.NOH)
         return torch.cat([feat, oh, torch.stack([inMine.float(), inOwn.float()], -1)], -1)
 
     def _rays(self, yaw_own, s):

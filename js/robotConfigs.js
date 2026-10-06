@@ -775,6 +775,53 @@ export const ROBOTS = {
     stats: { 'Shot rate': '24 BPS (2 turrets)', Aiming: 'Twin turrets', 'Top speed': '', Trench: 'Yes' },
     colors: { frame: 0xc3c8ce, accent: 0x2a4fb5, trim: 0x2a2d33 },
   },
+  581: {
+    key: '581',
+    team: 581,
+    teamName: 'Blazing Bulldogs',
+    robotName: 'Rubble',
+    archetype: 'Dumper',
+    blurb: 'Hopper Division finalist. Rebuilt mid-season from a turret into a dumper: a linear intake slides out on titanium racks and carries the front of the hopper with it, a roller floor that pivots up to compact the load feeds a drum at the back, and an adjustable hood throws FUEL out over the back. Fits under the TRENCH.',
+    // their CAD ("2026 Dumper Champs Bot") and release post: 27 x 28.5in frame perimeter
+    frame: { length: 27 * IN, width: 28.5 * IN },
+    height: 21.7 * IN, // top of the hopper walls and the shooter tower (their CAD)
+    mass: 64, // robot (up to 115 lb) + bumpers + battery
+    // WCP X2i / X2c modules, X1 gearing with 10T pinions: 7.67:1 (their code), 4in wheels
+    drive: { ratio: 7.674 },
+    // linear deploy on titanium racks (their CAD's slider: 0.306 m, tilted 5.5deg up toward the
+    // robot), a 3in main roller and a 2in top roller; the intake's front plate is the front wall
+    // of the hopper's extension, so the hopper comes out with it
+    intake: { width: 22 * IN, reach: 0.19, rate: 200, pull: 5, deployTime: 0.3, retractTime: 0.5, side: 'front', latched: false },
+    storage: { extLen: 0.305, extend: 'intake' },
+    // their CAD: a roller floor sloping up from the shooter tower to the front (it pivots up at the
+    // tower to compact the load), smoked polycarbonate walls on the bumpers, a net over the top from
+    // the walls' top tubes down to the intake's front plate; FUEL goes up the tower's rollers to the
+    // drum at the back
+    bay: {
+      x0: -0.09, x1: 0.33, hw: 0.33, top: 0.55,
+      slope: { x: 0.33, y: 0.49 },
+      dome: { h: 0.15, x0: -0.09, cx: 0, cz: 0, rHole: -1 },
+      floor: { a: 0.148, b: 0.25, lo: 0.125, hi: 0.205 },
+      drive: 'floor', driveSpeed: 2.4,
+      feed: { x: -0.09, via: [[-0.14, 0.2], [-0.2, 0.33], [-0.25, 0.47]] },
+    },
+    shooter: {
+      type: 'fixed',
+      facing: 'back', // their code: the shooter faces 180deg from the robot's front
+      lanes: [-0.2, -0.067, 0.067, 0.2],
+      exit: { x: -0.33, y: 0.56 }, // over the 4in drum (their CAD)
+      bps: 15,
+      // hood: 35deg of travel (their CAD's limits), opening up for longer shots (their code)
+      hoodMin: 45, hoodMax: 79,
+      speedMax: 15,
+      spinTau: 0.25, // four X60s and an inertia wheel geared 3:1
+      shotDrop: 0.002,
+      speedSigma: 0.013, angleSigma: 0.65, yawSigma: 0.65,
+    },
+    climber: null,
+    stats: { 'Shot rate': '15 BPS', Aiming: 'Chassis', 'Top speed': '', Trench: 'Yes' },
+    colors: { frame: 0x1d1f24, accent: 0xc62828, trim: 0x2a2c31 },
+  },
 };
 
 // Top speed, turn rate and acceleration come from each robot's drivetrain (drivetrain.js): its
@@ -788,7 +835,7 @@ for (const cfg of Object.values(ROBOTS)) {
   if (cfg.stats) cfg.stats['Top speed'] = `${ft(dt.topSpeed)} ft/s (${ft(dt.freeSpeed)} free)`;
 }
 
-export const ROBOT_ORDER = ['2910', '4414', '8793', '971', '1678', '1690', '4946', '3928', '341', '4930', '1706'];
+export const ROBOT_ORDER = ['2910', '4414', '8793', '971', '1678', '1690', '4946', '3928', '341', '4930', '1706', '581'];
 
 // Optional add-on climbers for robots without one (971 and 1678 have their own, cfg.climber)
 export const CLIMBER_OPTIONS = {

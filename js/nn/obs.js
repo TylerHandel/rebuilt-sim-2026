@@ -9,9 +9,12 @@ import { Field } from '../field.js';
 import { OBSTACLES } from '../nav.js';
 import { ROBOT_ORDER } from '../robotConfigs.js';
 
-// v3 appended the teammates and the 2nd/3rd opponents (3v3). Blocks are only ever appended, so a
-// network trained on an older version reads the start of the vector it knows (see policy.js).
-export const OBS_VERSION = 3;
+// v3 appended the teammates and the 2nd/3rd opponents (3v3). v4 appended which robot each one is
+// for robots added after v3 (581 on): the one-hots in the blocks above stay the 11 robots v3 knew
+// (a newer robot shows as none of them there) and the new robots get slots at the end, room for
+// EXTRA_ROBOTS more without changing the layout again. Blocks are only ever appended, so a network
+// trained on an older version reads the start of the vector it knows (see policy.js).
+export const OBS_VERSION = 4;
 export const DECISION_DT = 0.1;            // the network acts 10 times a second
 export const ACT_CONT = 3;                 // vx, vz (own frame, fraction of top speed), omega
 export const ACT_BIN = ['intake', 'shoot', 'pass', 'outtake'];
@@ -22,11 +25,17 @@ const EGO_N = 12, EGO_CELL = 0.4;          // FUEL around the robot (robot frame
 const GX = 16, GZ = 8;                     // FUEL over the whole field (alliance frame)
 const NEAR = 8;                            // nearest FUEL positions
 
-const NR = ROBOT_ORDER.length; // which robot (one-hot)
+// which robot (one-hot): the 11 robots of v3, in their v3 order, then (v4) the ones added since
+export const V3_ROBOTS = ['2910', '4414', '8793', '971', '1678', '1690', '4946', '3928', '341', '4930', '1706'];
+export const EXTRA_ROBOTS = 8;
+export const NEW_ROBOTS = ROBOT_ORDER.filter((k) => !V3_ROBOTS.includes(k));
+if (NEW_ROBOTS.length > EXTRA_ROBOTS) throw new Error(`more than ${EXTRA_ROBOTS} robots added since obs v3: grow the observation`);
+const NR = V3_ROBOTS.length;
 export const OBS_LAYOUT = [
   ['self', 21 + NR], ['hubs', 7], ['match', 16], ['opponent', 13 + NR], ['rays', RAYS],
   ['fuelEgo', EGO_N * EGO_N], ['fuelField', GX * GZ], ['fuelNear', NEAR * 2], ['fuelZones', 3],
   ['teammates', 2 * (13 + NR)], ['opponents2', 2 * (13 + NR)],
+  ['robotsNew', 6 * EXTRA_ROBOTS], // self, the nearest opponent, the teammates, the 2nd/3rd opponents
 ];
 export const OBS_DIM_V2 = OBS_LAYOUT.slice(0, 9).reduce((s, [, n]) => s + n, 0);
 export const OBS_DIM = OBS_LAYOUT.reduce((s, [, n]) => s + n, 0);
@@ -94,7 +103,7 @@ export function buildObs(robot, others, match, fuel, out = new Float32Array(OBS_
   put(robot.flywheel / cfg.shooter.speedMax); put(robot.ready ? 1 : 0); put(robot.shot ? 1 : 0);
   put(robot.inAllianceZone() ? 1 : 0); put(robot.feeding ? 1 : 0);
   put(turret ? robot.turretYaw / Math.PI : 0);
-  for (const k of ROBOT_ORDER) put(cfg.key === k ? 1 : 0);
+  for (const k of V3_ROBOTS) put(cfg.key === k ? 1 : 0);
   put(cfg.drive.maxSpeed / 5); put(cfg.shooter.bps / 40); put(turret ? 1 : 0);
 
   // ---- hubs + zone line (7)
@@ -128,7 +137,7 @@ export function buildObs(robot, others, match, fuel, out = new Float32Array(OBS_
     put(1); put(fx / HALF_L); put(fz / HALF_W); put(lx / 8); put(lz / 8); put(Math.hypot(lx, lz) / 8);
     put((s * o.vel.x) / 5); put((s * o.vel.z) / 5); put(Math.cos(fyaw)); put(Math.sin(fyaw));
     put(o.stored.length / 60);
-    for (const k of ROBOT_ORDER) put(o.cfg.key === k ? 1 : 0);
+    for (const k of V3_ROBOTS) put(o.cfg.key === k ? 1 : 0);
     put(o.inAllianceZone(a) ? 1 : 0); put(o.inAllianceZone(o.alliance) ? 1 : 0);
   };
   robotBlock(foe);
@@ -178,6 +187,11 @@ export function buildObs(robot, others, match, fuel, out = new Float32Array(OBS_
   // ---- teammates (nearest first), then the 2nd and 3rd nearest opponents
   robotBlock(mates[0]); robotBlock(mates[1]);
   robotBlock(foes[1]); robotBlock(foes[2]);
+  // ---- (v4) which robot each is, for robots added since v3
+  for (const o of [robot, foe, mates[0], mates[1], foes[1], foes[2]]) {
+    const j = o ? NEW_ROBOTS.indexOf(o.cfg.key) : -1;
+    for (let k = 0; k < EXTRA_ROBOTS; k++) put(k === j ? 1 : 0);
+  }
   if (i !== OBS_DIM) throw new Error(`obs size ${i} != ${OBS_DIM}`);
   return out;
 }

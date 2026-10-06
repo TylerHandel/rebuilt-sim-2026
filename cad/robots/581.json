@@ -1,0 +1,149 @@
+{
+  "source": "581 Blazing Bulldogs, \"581 2026 Rubble\" / \"2026 Dumper Champs Bot\" (Onshape 766d37b113335d7a60cc2375, workspace 8b35fc383279c1954cec5b72, element bd3188f47c23702bef9f1fc8), the document's own STEP through tools/step2glb.py; exported with the intake slid out",
+  "front": "-x",
+  "parts": [
+    {
+      "out": "cad/robots/581-body.glb",
+      "include": [
+        "26A0000 Dumper Drive <1>",
+        "Shooter Assem <1>"
+      ],
+      "like": {
+        "glb": "r581.glb",
+        "node": "2026 Dumper Champs Bot"
+      },
+      "exclude": [
+        "Hood Assem",
+        "Import for Mass",
+        "PDP",
+        "Simplified",
+        "Battery",
+        "Triad",
+        "spacer",
+        "bearing",
+        "belt",
+        "standoff",
+        "Grommet",
+        "Crushblock",
+        "LL4",
+        "limelight",
+        "Right LL",
+        "Radio"
+      ],
+      "smooth": true,
+      "ratio": 0.06,
+      "error": 0.006
+    },
+    {
+      "out": "cad/robots/581-mount.glb",
+      "include": [
+        "Champs Intake Assembly <1>"
+      ],
+      "like": {
+        "glb": "r581.glb",
+        "node": "Champs Intake Assembly <1>"
+      },
+      "exclude": [
+        "spacer",
+        "bearing",
+        "belt",
+        "Energy Chain"
+      ],
+      "onlyName": [
+        "Deploy [Pp]late",
+        "Slider [Bb]lock",
+        "Kraken X44",
+        "10T Aluminum Spur",
+        "50T 20DP",
+        "10T on 12T"
+      ],
+      "smooth": true,
+      "ratio": 0.25,
+      "error": 0.0015
+    },
+    {
+      "out": "cad/robots/581-intake.glb",
+      "include": [
+        "Champs Intake Assembly <1>"
+      ],
+      "like": {
+        "glb": "r581.glb",
+        "node": "Champs Intake Assembly <1>"
+      },
+      "exclude": [
+        "spacer",
+        "bearing",
+        "Energy Chain",
+        "Deploy [Pp]late",
+        "Slider [Bb]lock",
+        "Kraken X44",
+        "10T Aluminum Spur",
+        "50T 20DP",
+        "10T on 12T",
+        "^Kicker$",
+        "VEX-TUBE-375-25.187"
+      ],
+      "smooth": true,
+      "ratio": 0.25,
+      "error": 0.0015
+    },
+    {
+      "out": "cad/robots/581-kicker.glb",
+      "include": [
+        "Champs Intake Assembly <1>"
+      ],
+      "onlyName": [
+        "^Kicker$",
+        "^VEX-TUBE-375-25\\.187"
+      ],
+      "origin": [
+        0.5062,
+        0.1578,
+        0
+      ],
+      "smooth": true,
+      "ratio": 0.4,
+      "error": 0.0015
+    },
+    {
+      "out": "cad/robots/581-floor.glb",
+      "include": [
+        "Floor Assembly (add on plate) <1>"
+      ],
+      "exclude": [
+        "spacer",
+        "bearing"
+      ],
+      "origin": [
+        -0.0675,
+        0.108,
+        0
+      ],
+      "smooth": true,
+      "ratio": 0.3,
+      "error": 0.0015
+    },
+    {
+      "out": "cad/robots/581-hood.glb",
+      "include": [
+        "Hood Assem <1>"
+      ],
+      "like": {
+        "glb": "r581.glb",
+        "node": "Hood Assem <1>"
+      },
+      "exclude": [
+        "spacer",
+        "bearing"
+      ],
+      "origin": [
+        -0.2858,
+        0.4762,
+        0
+      ],
+      "smooth": true,
+      "ratio": 0.3,
+      "error": 0.0015
+    }
+  ]
+}
