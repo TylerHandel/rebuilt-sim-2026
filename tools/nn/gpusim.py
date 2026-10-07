@@ -140,6 +140,12 @@ class GpuSim:
         self._hubw = torch.tensor([[self.hubX, 0.0], [-self.hubX, 0.0]], device=d)
         self._ball_lim = torch.tensor([self.HL - self.R, self.HW - self.R], device=d)
         self._eye = torch.eye(RS, dtype=torch.bool, device=d)
+        # privileged-state robot order per observer: itself, its teammates, then the other alliance
+        pp = []
+        for j in range(RS):
+            t = j // 3
+            pp.append([j] + [t * 3 + i for i in range(3) if t * 3 + i != j] + [(1 - t) * 3 + i for i in range(3)])
+        self._priv_perm = torch.tensor(pp, device=d)
 
         self._sub = self._substep
         self._reset_fn = self._reset
@@ -229,6 +235,7 @@ class GpuSim:
         self.snap_slot = zl(n)             # which older network (OPP_SNAP matches)
         self.bot_skill = z(n, RS) + 1
         self.bot_def = zb(n, RS)
+        self.bot_ret = zb(n, RS)            # scripted robot heading in to score (until it's empty)
         # domain randomization (multipliers / offsets per robot and per match)
         self.dr_speed, self.dr_accel, self.dr_intake = z(n, RS) + 1, z(n, RS) + 1, z(n, RS) + 1
         self.dr_hit, self.dr_roll = z(n, RS), z(n) + 1
@@ -322,7 +329,7 @@ class GpuSim:
                      '_prevIntaked', 'hpCool', 'cmd', 'prev_a', 't', 'score', 'btim', 'bvel', 'bkind']:
             cur = getattr(self, name)
             setattr(self, name, sel(torch.zeros_like(cur), cur))
-        for name in ['ready', 'shot', 'feeding', 'prevActive']:
+        for name in ['ready', 'shot', 'feeding', 'prevActive', 'bot_ret']:
             cur = getattr(self, name)
             setattr(self, name, sel(torch.zeros_like(cur), cur))
         self.holdT = sel(torch.full_like(self.holdT, -99.0), self.holdT)
@@ -1054,7 +1061,22 @@ class GpuSim:
         n_ = self.stored[sl]
         present = self.present[sl]
         auto, gap, tele, post, tt = (q[sl] for q in self.phase())
-        go_score = (n_ >= 0.6 * cap) | ((n_ >= 4) & (act | (nc < 4))) | (auto[:, None] & (n_ > 0) & (self.t[sl][:, None] > 12))
+        # Trips: fill the hopper, then go score. It leaves with less only when it has to: while its
+        # HUB is active, at the last moment it can still get back and empty the hopper before the
+        # HUB turns off; while it's inactive, in time to be staged when it turns on. Once heading in
+        # it stays heading in until it's empty (or, staged with a long wait, it tops up first).
+        jam = torch.where(self.spec('packs'), torch.floor(self.spec('capOut') * PACK_FULL), self.spec('capOut'))[sl]
+        full = n_ >= torch.minimum(cap, jam) - 1
+        home_d = torch.hypot((x - (self.lineX - 1.2)).clamp(min=0), (z.abs() - 1.7).abs())
+        travel = home_d / (self.spec('maxSpeed')[sl] * 0.7 * self.bot_skill[sl]) + 1.0
+        shoot_t = 0.8 + n_ / self.spec('bps')[sl]
+        last_call = act & (n_ >= 3) & (nc <= travel + shoot_t + 1.0)
+        stage = ~act & (n_ >= 3) & (nc <= travel + 2.0)
+        ret = self.bot_ret[sl]
+        ret = (ret | full | last_call | stage) & (n_ > 0)
+        ret = ret & ~(~act & (nc > travel + 6.0) & ~full)  # a long wait staged: top up first
+        go_score = ret | (auto[:, None] & (n_ > 0) & (self.t[sl][:, None] > 12)) | ((n_ > 0) & tele[:, None] & (self.T_TELE - tt[:, None] < travel + 4))
+        self.bot_ret[sl] = go_score & tele[:, None]
         # the FUEL to go for: skip FUEL tucked against a wall or a field element (no path planning
         # here); the field is point-symmetric, so this doesn't depend on whose frame it's seen in
         onf = self.bst[sl] == FIELD
@@ -1106,6 +1128,49 @@ class GpuSim:
         inZ = self.in_zone(self.sgn)[sl]
         return torch.stack([vx / nv * sp, vz / nv * sp, (wrap(want - yaw) * 2).clamp(-1, 1) * (~go_score).float(), collecting.float(),
                             (go_score & ~defend & inZ & (act | (nc < 1.0))).float(), torch.zeros_like(x), torch.zeros_like(x)], -1)
+
+    # ------------------------------------------------------------------ privileged state (critic only)
+    PRIV_ROBOT, PRIV_GLOBAL = 15, 30
+    PRIV = 6 * PRIV_ROBOT + PRIV_GLOBAL
+
+    def priv(self):
+        """[N,RS,PRIV]: the whole match as each robot's alliance sees it, for the critic only (it
+        never goes into the game, so it may see what the network can't): every robot's load,
+        flywheel, readiness, how fast / accurate it is this match (domain randomization) and who
+        drives it; FUEL in flight (and whether it will score), in the HUBs and in the CHUTES; the
+        score by period; the human players' cooldowns. Robots: itself, its teammates, then the
+        other alliance, in slot order."""
+        N = self.n
+        s = self.sgn
+        cap = self.spec('capMax')
+        capNow = torch.floor(self.spec('capIn') + (self.spec('capOut') - self.spec('capIn')) * self.hopper + 1e-6)
+        bot_side = ((self.opp_kind == OPP_BOT)[:, None] & (self.team == 1)[None]).float()
+        rb = torch.stack([self.present.float(), self.stored / 60, self.stored / cap, capNow / cap, self.deploy,
+                          self.fly / self.spec('speedMax'), self.ready.float(), self.feeding.float(),
+                          (self.dr_speed - 1) * 5, (self.dr_intake - 1) * 2, self.dr_hit * 5,
+                          (self.bot_skill - 0.875) * 4 * bot_side, (self.bot_def.float() * bot_side),
+                          self.pos[..., 0] / self.HL, self.pos[..., 1] / self.HW], -1)          # [N,RS,15] world frame
+        rb = rb * self.present[..., None].float()                                            # (absent robots are parked off the field)
+        rbs = rb[:, None].expand(N, RS, RS, self.PRIV_ROBOT)
+        o = self._priv_perm[None, :, :, None].expand(N, RS, RS, self.PRIV_ROBOT)
+        blk = rbs.gather(2, o)                                                               # [N,obs,target,15]
+        sO = s[:, :, None]
+        blk = torch.cat([blk[..., :13], blk[..., 13:14] * sO[..., None], blk[..., 14:15] * sO[..., None]], -1)  # observer's frame
+        al = self.alliance_idx()
+        a = self.bown.clamp(0, 1)
+        cnt = lambda m, k=20.0: torch.stack([(m & (a == x)).sum(1) for x in (0, 1)], 1).float() / k   # [N,2]
+        fly = self.bst == FLY
+        g = [cnt(fly & (self.bkind == FLY_HIT)), cnt(fly & (self.bkind == FLY_MISS)), cnt(fly & (self.bkind == FLY_LAND)),
+             cnt(self.bst == HUBQ), cnt(self.bst == CHUTE, 30.0), self.hpCool, self.score[..., 0] / 100, self.score[..., 1] / 100, self.score[..., 2] / 100]
+        own = torch.stack([x.gather(1, al) for x in g], -1)
+        oth = torch.stack([x.gather(1, 1 - al) for x in g], -1)
+        kind = (self.opp_kind[:, None] == torch.arange(4, device=self.dev)).float()
+        ksz = (self.k[:, None] == torch.arange(1, 4, device=self.dev)).float()
+        glob = torch.cat([(self.t / self.T_DONE)[:, None], kind, ksz, (self.dr_roll - 1)[:, None]], -1)       # [N,9]
+        fi = (self.firstInactive[:, None] == al).float()[..., None]
+        out = torch.cat([blk.reshape(N, RS, -1), own, oth, glob[:, None].expand(N, RS, glob.shape[-1]), fi,
+                         torch.zeros(N, RS, self.PRIV_GLOBAL - 18 - glob.shape[-1] - 1, device=self.dev)], -1)
+        return out
 
     # ------------------------------------------------------------------ live view
     def live_pack(self, idx):
@@ -1189,4 +1254,5 @@ class GpuSim:
             self._reset_fn = attempt('reset', self._reset, t_reset)
             self.obs = attempt('observation', self.obs, lambda c: c())
             self.bot_actions = attempt('scripted robots', self.bot_actions)
+            self.priv = attempt('privileged state', self.priv, lambda c: c())
         return bool(done)

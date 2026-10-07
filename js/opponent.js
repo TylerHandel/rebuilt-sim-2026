@@ -27,8 +27,7 @@ export const OPP_ORDER = ['off', 'scorer', 'defense', 'hybrid', 'nn'];
 
 // Trainable strategy parameters: range searched by the trainer and the hand-tuned default
 export const BRAIN_SPEC = {
-  fill: { min: 0.25, max: 1.0, def: 0.85, group: 'Scoring', label: 'Cycle fill', unit: '%', desc: 'fraction of the hopper collected before a cycle' },
-  cycleTime: { min: 5, max: 24, def: 14, group: 'Scoring', label: 'Max collect time', unit: 's', desc: 's of collecting before it scores what it has while its HUB is active' },
+  fill: { min: 0.25, max: 1.0, def: 0.85, group: 'Scoring', label: 'Cycle fill', unit: '%', desc: 'fraction of the hopper collected before a cycle, at the handicapped skills (Rookie, Regional); full-skill robots fill all the way unless time runs short' },
   stageMargin: { min: 0, max: 6, def: 2, group: 'Scoring', label: 'Stage early by', unit: 's', desc: 's of slack when heading in to stage before its HUB turns active' },
   topUp: { min: 2, max: 14, def: 6, group: 'Scoring', label: 'Top-up window', unit: 's', desc: 'tops up its hopper if its HUB stays inactive this much longer than the trip back (s)' },
   spotFx: { min: 1.6, max: 3.7, def: 2.7, group: 'Scoring', label: 'Shot spot from wall (2910, 1678)', unit: 'm', desc: 'shooting spot distance from its ALLIANCE WALL for a chassis-aimed shooter (turrets shoot from anywhere in the zone) (m)' },
@@ -128,7 +127,9 @@ export class OpponentAI {
     const cap = robot.maxCapacity();
     robot.noiseScale = this.skill.noise;
     this.maxLoad = cap < 20 ? cap : Math.max(10, Math.round(this.skill.load * cap));
-    this.fillTarget = cap < 20 ? cap : Math.min(this.maxLoad, Math.max(8, Math.round(this.brain.fill * cap)));
+    // a full-skill scorer fills its hopper all the way before a trip (it leaves with less only when
+    // time runs short); the handicapped skills (Rookie, Regional) make smaller trips
+    this.fillTarget = cap < 20 || this.skill.load >= 1 ? this.maxLoad : Math.min(this.maxLoad, Math.max(8, Math.round(this.brain.fill * cap)));
   }
 
   get own() { return this.robot.alliance; }
@@ -363,16 +364,18 @@ export class OpponentAI {
       } else if (this.state === 'feed') {
         this.state = 'collect'; this.collectT = 0; this.path = null; this.ball = null; // load up
       } else if (this.state === 'collect') {
-        // time budget: can we still fill up, get back and shoot before our HUB turns off?
+        // Fill the hopper all the way before a trip (it's full when the intake stalls against the
+        // load). It heads in with less only when time runs short: while our HUB is active, at the
+        // last call, when it has to leave now to get back and empty the hopper before the HUB turns
+        // off (every FUEL it picks up until then is one more to score); while it's inactive, in
+        // time to be staged when it turns on; and at the end of the match.
         const windowLeft = active ? (nc ?? left) + 1.5 : Infinity;
         const shootTime = (n) => 0.8 + n / r.cfg.shooter.bps;
-        const toFill = Math.max(0, this.fillTarget - stored) / Math.max(0.8, this.rate);
-        const noTimeToFill = active && stored >= 3 && toFill + travel + shootTime(this.fillTarget) > windowLeft;
+        const lastCall = active && stored >= 3 && windowLeft <= travel + shootTime(stored) + 1;
         const go = stored >= cap || (r.full && stored >= 0.5 * cap)
           || (stored >= this.fillTarget && active)
-          || noTimeToFill
+          || lastCall
           || (stored >= 3 && !active && untilActive <= travel + B.stageMargin)
-          || (stored >= 6 && active && this.collectT > B.cycleTime)
           || (stored > 0 && left < travel + 4);
         // a turret already in its zone just keeps collecting there and shoots as it goes
         if (go && !(this.turret && r.lastInZone && canShoot && this._zoneWorthIt() && stored < cap)) {

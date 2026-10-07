@@ -56,7 +56,7 @@ The dashboard shows whether it's improving. If points per match stay flat for ma
 **Same network:** the observation is built exactly like the real game's. All 482 numbers match real-game snapshots in 1v1 and 3v3; the only difference is the score when fouls happened. The controls are the same too. So `js/nn/driver.json` from the GPU trainer drives in the real game as is.
 
 **Opponents:**
-- **To start:** scripted bots (80%, some of them defending) and nobody (20%).
+- **To start:** scripted bots (80%, some of them defending) and nobody (20%). The scripted bots fill their hoppers before a trip and head in with less only when time runs short: at the last moment they can still empty the hopper before their HUB turns off, or in time to be staged when it turns on. (They used to head in with a few FUEL whenever their HUB was active; filling up more than doubled their score, from about 150 to 350–380 points per alliance in 1v1.)
 - **Self-play:** once it beats the bots 60% of the time, it switches to:
   - 35% of matches against itself, with both alliances learning;
   - 35% against older versions of itself (a new one is saved every 50 updates; it keeps the last 16);
@@ -86,7 +86,7 @@ The console shows the current `win-weight` (0 = points only, 1 = mostly winning)
 
 **Then fine-tune in the real game.** The two trainers save the same checkpoint format, so `nn-train.bat --resume --level 3` continues the same run (`runs/driver`) in the full game. It plays 1v1 and 3v3 there (`--teams`), with its teammates driven by the network too.
 
-**Learning from the pre-programmed AIs** (imitation, then training on top):
+**Learning from the pre-programmed AIs** (imitation, then training on top). Recordings made before the AIs learned to fill their hoppers (October 2026) show them heading in with a few FUEL: delete the `recordings-ai` folder and record them again.
 1. `nn-record-ai.bat` records the Champs-level AIs (mostly Scorer, some Hybrid and Defense) playing full matches in the real game, 1v1 and 3v3: what each robot saw and did, every 0.1 s. It uses every CPU thread and saves 1,000,000 decisions to `recordings-ai` (about 15–40 minutes). Running it again adds more, up to `--samples`.
 2. `nn-train-from-ai.bat` starts a new network in its own run (`runs\from-ai`), so your current one stays as it is. It first copies the AIs' driving, so it starts out playing like them instead of twitching randomly. Then it trains on the GPU as usual, imitating them a little less as it goes (`--bc-weight 0.5`, fading over `--bc-steps` 300M decisions). Pick `from-ai` on the dashboard to compare the two runs' real-game records.
 3. To have your current network learn from them too, add `--bc recordings-ai` to its usual command. It doesn't start over, it just gets pulled toward the AIs' habits while it keeps training. `--bc-pretrain` copies them outright first, which overwrites much of what it learned.
@@ -98,7 +98,27 @@ The console shows the current `win-weight` (0 = points only, 1 = mostly winning)
 **Continuing a trained network** (double-click):
 - `nn-continue-gpu.bat`: resumes `runs\driver` on the GPU with `--compile` and a mix of mostly older versions of itself, itself, and the bots. Add options after it, for example `nn-continue-gpu.bat --envs 8192`.
 - `nn-overnight.bat`: the same, plus learning from the pre-programmed AIs recorded in the background (see below).
+- `nn-train-pro.bat`: the strongest recipe (see below), in its own run `runs\pro`.
 - `nn-continue-champs.bat`: backs up `runs\driver` to `runs\driver-gpu`, then trains in the full game against the Champs AIs, 1v1 and 3v3. It's slower, but it learns the real physics.
+
+**The strongest recipe** (`nn-train-pro.bat`, its own run `runs\pro`): a bigger network (1024 × 512 instead of 512 × 256) that starts by copying a teacher and then trains past it in self-play.
+- If you already have a trained network (`runs\driver`), that's the teacher. The new network copies it first (`--teacher-warmup`, 30 updates), so nothing it learned is lost, then keeps improving with more room to learn. It writes `js/nn/driver.json` like the others.
+- Otherwise the teacher is the GPU simulator's scripted robot, so it starts out playing sensibly instead of twitching at random.
+- Running it again continues where it left off, teacher included.
+
+**Learning from a teacher** (`--teacher`): each decision, the teacher says what it would do in the very situation the network is in, and the network is pulled toward that on top of its own trial and error. This is different from copying recordings (`--bc`): recordings only show the teacher's own matches, so a network that drifts somewhere the teacher never went has nothing to go on. Here it learns from its own mistakes too. The pull fades out over `--teacher-steps` (200M decisions), so it can go past the teacher.
+- `--teacher bot`: the GPU simulator's scripted robot.
+- `--teacher runs\driver` (a run folder, its `ckpt.pt`, or a policy `.json`, such as a shared network): an earlier network. With a new `--run` and a bigger `--hidden`, this grows a bigger network from a trained one.
+- A new teacher starts with `--teacher-warmup` updates of copying only. `--teacher none` stops learning from it.
+
+**How it learns (these are on by default):**
+- **The critic sees the whole match.** Besides the three teammates' views, it gets every robot's load, flywheel and readiness, how fast and accurate each robot is this match, who's driving the other alliance, the FUEL in flight (and whether it will score), in the HUBs and in the CHUTES, and the score by period. It never goes into the game, so it may see what the driving network can't. The better it judges a situation, the clearer the lesson from each decision. `--no-priv` turns it off.
+- **The critic learns normalized returns** (PopArt). The reward changes scale as the win bonus ramps in, and the critic's targets would change with it; normalizing them keeps its learning steady and keeps its gradients from crowding out the driving network's in their shared gradient clip. `--no-popart` turns it off.
+- **Updates stop early** once the network has moved far enough from the one that played the matches (`--target-kl`, 0.02): more passes over the same matches would only overfit them, and they cost time.
+- **The older versions it keeps** are the ones that still give it trouble: when the pool is full, a new version replaces the one it beats most easily (of those it has played enough, keeping the 4 newest), not the oldest. So it can't forget how to beat a strategy it once struggled with. `--pool-evict oldest` goes back to dropping the oldest.
+- The console shows `critic` (how much of the outcome the critic explains: 1 is all of it, 0 no better than the average) and `epochs` (update passes it made).
+
+Earlier networks carry over: `--resume` adds the critic's new inputs with zero weights, so it judges exactly as before until it learns to use them. `nn-train.bat --resume` (the real-game trainer) still continues a GPU run: it folds the normalization into the critic and drops the inputs it can't fill.
 
 **Options** (`tools/nn/train_gpu.py --help`):
 
@@ -123,6 +143,15 @@ The console shows the current `win-weight` (0 = points only, 1 = mostly winning)
 | `--compile` | off | `torch.compile` fuses the simulator into a few GPU kernels. On Windows it needs `.venv\Scripts\pip install triton-windows` first; without it the trainer says so and carries on normally. |
 | `--no-graph` | | don't record the decision as a CUDA graph (only to rule it out if something looks wrong) |
 | `--no-amp` | | run the critic in full precision instead of bf16 on the tensor cores |
+| `--teacher` | | learn from a teacher on its own matches: `bot`, a run folder, its `ckpt.pt`, or a policy `.json` (see above) |
+| `--teacher-weight` | 1.0 | how strongly it's pulled toward the teacher |
+| `--teacher-steps` | 200M | decisions over which that pull fades out |
+| `--teacher-warmup` | 30 | updates at the start of a new teacher where it only copies it |
+| `--hidden` | 512 256 | network size for a new run (`nn-train-pro.bat` uses 1024 512) |
+| `--no-priv` | | the critic sees only the teammates' views, not the whole match |
+| `--no-popart` | | the critic learns plain returns |
+| `--target-kl` | 0.02 | stop the update passes early once the network has moved this far (0: always all of them) |
+| `--pool-evict` | easiest | which older version a new one replaces: the one it beats most easily, or the `oldest` |
 
 The console prints decisions per second and roughly how many matches per hour that is. On this project's 4-thread cloud CPU, with no GPU, it runs about 1,000–2,500 robot decisions/s with a few dozen matches; the full game manages about 20–50. On an RTX 3070, before the CUDA graph, it ran about 45,000–50,000 decisions/s (about 30,000 matches an hour).
 

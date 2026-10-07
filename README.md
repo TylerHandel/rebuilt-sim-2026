@@ -96,10 +96,10 @@ How the Scorer collects:
 - It goes where it gets the most FUEL per second of driving. A target counts the FUEL around it (up to what still fits), so a big pile a few meters away beats picking through scraps, like the piles that collect in front of each HUB's exits. A trip out of its zone also pays for the drive back. FUEL it can shoot while picking it up (in its zone, HUB active) counts extra, and so does FUEL stolen from your zone. FUEL behind it costs the turn.
 - A turret robot collecting in its zone while shooting stays there only while that's still the best place to collect.
 - Its intake goes down on the way to the FUEL and stays down while it collects (and on the way home, except the robots whose intakes fold in to compact their load: 2910, 971, 1678, 4930 and 1706). It comes up only when the hopper is full, when an opponent is about to be inside its reach (allowing for how fast they're closing and how long the intake takes to come up; a latched intake slows the robot instead), or for the moment a FUEL just released by a HUB would drop into it (G408).
-- It fills its whole hopper before a cycle when there's time (Cycle fill).
+- It fills its hopper all the way before a trip: it's full when the intake stalls against the load. (Rookie and Regional make smaller trips: Cycle fill.)
 
 How the Scorer handles time and traffic:
-- It measures its own collection rate. If its HUB's active window won't last long enough to fill up, travel and shoot, it scores the partial load it has. It also heads in with any load just before its HUB activates.
+- It heads in with less than a full hopper only when time runs short. While its HUB is active, it keeps collecting until the last moment it can still get back and empty the hopper before the HUB turns off: every FUEL it picks up until then is one more to score. While its HUB is inactive, it heads in early enough to be staged when the HUB turns on. And at the end of the match it brings in whatever it has.
 - Turret robots (4414, 8793, 971, 1690, 4946) don't use a fixed shooting spot. Once inside their zone with the HUB active, they shoot from wherever they are while collecting. Outside the zone they head for the nearest point inside it. 2910 and 1678 still drive to a shooting spot, because the whole chassis has to turn to aim; they turn to face their shot over the last few meters, so they arrive aimed.
 - While shooting or passing on the move, it drives smoothly: capped speed, limited acceleration and turning (only while it has FUEL to shoot). This lets the turret, hood and flywheel settle so the shot actually releases (a shot only fires when aim, flywheel speed and hood are all on target).
 - If you block it on the way to its zone, it goes around at first. Once it stops gaining ground (you're mirroring it), it drives straight through you.
@@ -207,6 +207,7 @@ The self-play trainer above tunes the scripted AI's strategy values. The neural-
 - **Setup (Windows):** run `nn-setup.bat` once. It installs PyTorch for your NVIDIA GPU.
 - **Train fast on the GPU:** run `nn-train-gpu.bat`. It plays thousands of simplified matches at once on your graphics card, each decision replayed as a CUDA graph. Ctrl+C saves; `--resume` continues; `--compile` is faster still.
 - **Keep training a network you already have:** double-click `nn-continue-gpu.bat` (GPU) or `nn-continue-champs.bat` (full game against the Champs AIs).
+- **The strongest recipe:** double-click `nn-train-pro.bat`. It grows a bigger network (1024 × 512) in its own run (`runs\pro`): the new network first learns from your trained one (or from the scripted robot if you don't have one yet), on its own matches, then trains past it in self-play. The trainer's critic sees the whole match and learns normalized returns, and the older versions it keeps playing are the ones that still give it trouble. See `tools/nn/README.md`.
 - **Fine-tune in the real game:** run `nn-train.bat --resume --level 3`. It uses every CPU thread for the full simulation and the GPU for learning.
 - **Watch progress:** `nn-dashboard.bat` opens a live chart page.
 - **Play with it:** in the menu set **Your robot driven by → Neural net (watch)**, or **Opponent → Neural net**. In a 3v3, set any slot to **Neural net**.
@@ -419,6 +420,7 @@ tools/train.mjs             self-play trainer (Node); tools/match.mjs runs one h
 tools/headless.mjs          headless match runner; tools/node-env.mjs + resolve-hook.mjs load the game in Node
 tools/auto-search.mjs       finds each robot's best AUTO (tools/auto-eval.mjs, auto-worker.mjs)
 tools/bench.mjs, tools/intake-test.mjs   regression checks: AI matches, and a straight-line intake run
+tools/ai-trips.mjs          how full the scripted Scorers are when they head in, and their points
 js/nn/                      neural-net driver: observations, policy (plain-JS MLP), in-game driver, recorder
 tools/nn/                   neural-net trainer (train.py, PyTorch) and its simulation worker (worker.mjs)
 nn.html                     neural-net training dashboard

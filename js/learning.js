@@ -16,7 +16,7 @@ const KEY = 'rebuiltSim.learner';
 export const KEYS = Object.keys(BRAIN_SPEC);
 const DEFENSE_KEYS = ['pinLimit', 'pushSpeed', 'blockLead', 'engage'];
 // samples needed before a measurement of your driving is trusted
-const MIN_SAMPLES = { spotFx: 3, spotZ: 3, fill: 2, cycleTime: 2, stageMargin: 1, collectSpeed: 20, intakeDist: 4, pinLimit: 2, pushSpeed: 2, blockLead: 12, engage: 2, shuttle: 2, passBatch: 2, shootSpeed: 20 };
+const MIN_SAMPLES = { spotFx: 3, spotZ: 3, fill: 2, stageMargin: 1, collectSpeed: 20, intakeDist: 4, pinLimit: 2, pushSpeed: 2, blockLead: 12, engage: 2, shuttle: 2, passBatch: 2, shootSpeed: 20 };
 export const EXPLORE_LEVELS = [[0, 'Off'], [0.04, 'Small'], [0.08, 'Medium'], [0.14, 'Large']];
 export const IMITATE_LEVELS = [[0, 'Off'], [0.15, 'A little'], [0.3, 'Some'], [0.5, 'A lot']];
 
@@ -265,7 +265,6 @@ export class DrivingRecorder {
         O.spotZ.push(Math.abs(r.pos.z));
         const cap = r.maxCapacity();
         O.fill.push((r.stored.length + fired) / (cap < 20 ? cap : Math.min(cap, 60)));
-        if (this.lastBurstEnd !== null && m.hubActive(own)) O.cycleTime.push(t - this.lastBurstEnd);
       }
       this.lastShotT = t;
     }

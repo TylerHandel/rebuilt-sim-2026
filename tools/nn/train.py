@@ -143,8 +143,10 @@ def upgrade_inputs(ck, new_dim):
     pad = lambda w: torch.cat([w, torch.zeros(w.shape[0], new_dim - old, dtype=w.dtype, device=w.device)], 1)
     ck['actor']['body.0.weight'] = pad(ck['actor']['body.0.weight'])
     w = ck['critic']['0.weight']
+    P = ck.get('priv_dim', 0)  # the GPU trainer's privileged inputs come after the views: keep them as they are
+    w, pw = w[:, :w.shape[1] - P], w[:, w.shape[1] - P:]
     k = w.shape[1] // old  # a team critic sees 3 views: grow each
-    ck['critic']['0.weight'] = torch.cat([pad(b) for b in w.split(old, 1)], 1) if k > 1 else pad(w)
+    ck['critic']['0.weight'] = torch.cat([*([pad(b) for b in w.split(old, 1)] if k > 1 else [pad(w)]), pw], 1)
     n = ck['norm']
     n['mean'] = list(n['mean']) + [0.0] * (new_dim - old)
     n['var'] = list(n['var']) + [1.0] * (new_dim - old)
@@ -169,6 +171,40 @@ def team_critic(ck):
             if st and key in st and st[key].shape == w.shape:
                 st[key] = torch.cat([st[key], torch.zeros(w.shape[0], 2 * D, dtype=st[key].dtype, device=st[key].device)], 1)
     ck['critic_in'] = 'team'
+    return True
+
+
+def critic_priv(ck, P):
+    """Fit a checkpoint's critic to P privileged inputs (the GPU trainer's whole-match state,
+    after the views; train.py has none, P = 0). New inputs get zero weights, so it judges as before
+    until it learns to use them; dropped ones take their part of the judgment with them (the critic
+    relearns it). Returns True if it changed anything."""
+    old = ck.get('priv_dim', 0)
+    if old == P:
+        return False
+    w = ck['critic']['0.weight']
+    fit = lambda t: torch.cat([t[:, :t.shape[1] - old + min(old, P)], torch.zeros(t.shape[0], max(0, P - old), dtype=t.dtype, device=t.device)], 1)
+    ck['critic']['0.weight'] = fit(w)
+    opt = ck.get('opt')
+    if opt:  # the critic's first layer comes right after the actor's parameters
+        st = opt['state'].get(len(ck['actor']))
+        for key in ('exp_avg', 'exp_avg_sq'):
+            if st and key in st and st[key].shape == w.shape:
+                st[key] = fit(st[key])
+    ck['priv_dim'] = P
+    return True
+
+
+def fold_vnorm(ck):
+    """The GPU trainer's critic predicts normalized returns (PopArt, ck['vnorm']): fold the scale
+    into its last layer, so it predicts plain returns (for train.py). Returns True if it changed
+    anything."""
+    v = ck.pop('vnorm', None)
+    if not v:
+        return False
+    last = max(int(k.split('.')[0]) for k in ck['critic'])
+    ck['critic'][f'{last}.weight'] = ck['critic'][f'{last}.weight'] * v['sig']
+    ck['critic'][f'{last}.bias'] = ck['critic'][f'{last}.bias'] * v['sig'] + v['mu']
     return True
 
 
@@ -396,6 +432,8 @@ class Trainer:
                      f'Training progress is kept in the runs folder of the copy of the project you trained in. If you '
                      f'downloaded a new copy, copy the old runs folder (and js/nn/driver.json) into it, or leave out --resume to start fresh.')
         ck = torch.load(self.run / 'ckpt.pt', map_location=self.dev, weights_only=False)
+        fold_vnorm(ck)  # (from the GPU trainer: plain returns, no privileged inputs here)
+        critic_priv(ck, 0)
         if self.obs_dim and upgrade_inputs(ck, self.obs_dim):
             print(f'Upgraded the network to the new observation ({self.obs_dim} inputs: teammates and all opponents for 3v3)')
         self.a.hidden, self.a.critic = ck['hidden'], ck['critic_sizes']

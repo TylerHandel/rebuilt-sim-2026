@@ -1,8 +1,7 @@
 // Strategy learned by AI training. Written by tools/train.mjs or exported from the in-game
 // AI Tuning screen; replace this file to change the shipped "Trained" AI.
 export const TRAINED_BRAIN = {
-  fill: 0.799, // fraction of the hopper (up to 60 FUEL) collected before a cycle
-  cycleTime: 16.908, // s of collecting before it scores what it has while its HUB is active
+  fill: 0.799, // fraction of the hopper collected before a cycle (Rookie / Regional only: full-skill robots fill it all the way)
   stageMargin: 2.334, // s of slack when heading in to stage before its HUB turns active
   topUp: 4.434, // tops up its hopper if its HUB stays inactive this much longer than the trip back (s)
   spotFx: 2.919, // shooting spot distance from its ALLIANCE WALL for a chassis-aimed shooter (turrets shoot from anywhere in the zone) (m)

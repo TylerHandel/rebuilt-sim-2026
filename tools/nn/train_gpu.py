@@ -39,7 +39,7 @@ import torch
 import torch.nn as nn
 
 sys.path.insert(0, str(Path(__file__).parent))
-from train import ROOT, ACT_CONT, ACT_BIN, Actor, mlp, export_policy, publish_file, upgrade_inputs, team_critic, load_demos  # noqa: E402
+from train import ROOT, ACT_CONT, ACT_BIN, Actor, mlp, export_policy, publish_file, upgrade_inputs, team_critic, critic_priv, load_demos  # noqa: E402
 from gpusim import GpuSim, RS, OPP_NONE, OPP_BOT, OPP_SNAP, OPP_SELF  # noqa: E402
 
 KIND = {OPP_NONE: 'alone', OPP_BOT: 'bot', OPP_SNAP: 'older', OPP_SELF: 'self'}
@@ -149,6 +149,67 @@ class SnapBank:
         return torch.cat([a_c, a_b], -1)
 
 
+class Teacher:
+    """Who the network learns from on its own matches (--teacher), on top of its own trial and
+    error: the GPU simulator's scripted robot ('bot'), or an earlier network (a run folder, its
+    ckpt.pt, or a policy .json such as js/nn/driver.json or a shared one). Each decision the
+    teacher says what it would do in the very situation the network is in, so the network learns
+    to recover from its own mistakes too (unlike copying recordings, which only show the
+    teacher's own matches). Its pull fades out over --teacher-steps.
+    act(raw) -> [R, 7]: drive / turn commands, then the probability of each button."""
+
+    def __init__(self, spec, D, dev):
+        self.kind = 'bot' if spec == 'bot' else 'net'
+        self.name = spec
+        if self.kind == 'bot':
+            return
+        path = Path(spec) if Path(spec).is_absolute() else ROOT / spec
+        if path.is_dir():
+            path = path / 'ckpt.pt'
+        if not path.exists():
+            sys.exit(f'--teacher: {path} not found (give a run folder, its ckpt.pt, a policy .json, or "bot")')
+        if path.suffix == '.json':
+            d = json.loads(path.read_text())
+            hidden, old = d['hidden'], d['obsDim']
+            actor = Actor(old, hidden)
+            w = np.frombuffer(base64.b64decode(d['weights']), dtype='<f4')
+            lins = [m for m in actor.body if isinstance(m, nn.Linear)] + [actor.mu, actor.lg]
+            i = 0
+            with torch.no_grad():
+                for m in lins:
+                    for t in (m.weight, m.bias):
+                        t.copy_(torch.from_numpy(w[i:i + t.numel()].copy()).view_as(t))
+                        i += t.numel()
+            with torch.no_grad():
+                actor.log_std.copy_(torch.tensor(d['logStd']))
+            sd = actor.state_dict()
+            mean, std = np.array(d['obsMean']), np.array(d['obsStd'])
+        else:
+            ck = torch.load(path, map_location='cpu', weights_only=False)
+            hidden, old, sd = ck['hidden'], ck['obs_dim'], ck['actor']
+            mean = np.array(ck['norm']['mean'])
+            std = np.sqrt(np.array(ck['norm']['var']) + 1e-8)
+        if old > D:
+            sys.exit(f'--teacher {spec} was trained on a newer observation ({old} > {D}); update the code')
+        if old < D:  # an older observation: the new inputs get zero weights (it plays as it did)
+            sd = dict(sd)
+            w0 = sd['body.0.weight']
+            sd['body.0.weight'] = torch.cat([w0, torch.zeros(w0.shape[0], D - old, dtype=w0.dtype)], 1)
+            mean = np.concatenate([mean, np.zeros(D - old)])
+            std = np.concatenate([std, np.ones(D - old)])
+        self.actor = Actor(D, hidden).to(dev)
+        self.actor.load_state_dict(sd)
+        self.actor.requires_grad_(False)
+        self.mean = torch.tensor(mean, dtype=torch.float32, device=dev)
+        self.std = torch.tensor(std, dtype=torch.float32, device=dev)
+        self.hidden = hidden
+
+    def act(self, raw):
+        x = ((raw - self.mean) / self.std).clamp(-10, 10)
+        mu, lg = self.actor(x)
+        return torch.cat([mu, torch.sigmoid(lg)], -1)
+
+
 class GpuTrainer:
     def __init__(self, a):
         self.a = a
@@ -172,10 +233,17 @@ class GpuTrainer:
             if not ok and os.name == 'nt':
                 print('  On Windows torch.compile needs Triton: .venv\\Scripts\\pip install triton-windows')
             print(f'  done in {time.time() - t:.0f} s')
+        self.P = self.sim.PRIV if a.priv else 0   # privileged inputs the critic sees (gpusim.priv)
         self.actor = Actor(self.D, a.hidden).to(self.dev)
-        self.critic = mlp([TEAM * self.D, *a.critic, 1]).to(self.dev)
+        self.critic = self._critic()
         self.opt = self._optimizer()
         self.norm = TorchNorm(self.D, self.dev)
+        # PopArt: the critic predicts normalized returns; V() scales them back with these (changed in
+        # place, so the recorded graph sees them). Starts as the identity.
+        self.v_mu = torch.zeros((), device=self.dev)
+        self.v_sig = torch.ones((), device=self.dev)
+        self.v_init = False
+        self.teacher = None
         self.version = self.steps = self.updates = self.episodes = 0
         self.selfplay = False
         self.selfplay_step = 0
@@ -192,13 +260,40 @@ class GpuTrainer:
         self.graph = None
         self.evals = []
 
+    def _critic(self):
+        return mlp([TEAM * self.D + self.P, *self.a.critic, 1]).to(self.dev)
+
     def _optimizer(self):
         return torch.optim.Adam([*self.actor.parameters(), *self.critic.parameters()], lr=self.a.lr, eps=1e-5)
 
-    def V(self, x):
-        """Critic values (bf16 tensor cores with --amp)."""
+    def Vn(self, x):
+        """Critic output: the normalized value (bf16 tensor cores with --amp)."""
         with torch.autocast(device_type='cuda', dtype=torch.bfloat16, enabled=self.amp, cache_enabled=False):
             return self.critic(x).squeeze(-1).float()
+
+    def V(self, x):
+        """Critic values in reward units."""
+        return self.Vn(x) * self.v_sig + self.v_mu
+
+    @torch.no_grad()
+    def popart(self, ret):
+        """Update the return statistics from this rollout's returns and rescale the critic's last
+        layer so its values don't change (PopArt). Keeps the critic's targets near unit scale while
+        the reward changes scale (the win bonus ramping in), and keeps its gradients from swamping
+        the policy's in the shared gradient clip."""
+        m, m2 = ret.mean().double(), (ret.double() ** 2).mean()
+        b = 1.0 if not self.v_init else self.a.popart_beta
+        mu0, sig0 = self.v_mu.clone(), self.v_sig.clone()
+        nu0 = sig0.double() ** 2 + mu0.double() ** 2
+        mu = (1 - b) * mu0.double() + b * m
+        nu = (1 - b) * nu0 + b * m2
+        sig = (nu - mu * mu).clamp(min=1e-4).sqrt().clamp(min=0.05)
+        last = self.critic[-1]
+        last.weight.mul_((sig0 / sig).float())
+        last.bias.copy_(((sig0 * last.bias + mu0 - mu) / sig).float())
+        self.v_mu.copy_(mu.float())
+        self.v_sig.copy_(sig.float())
+        self.v_init = True
 
     # ---- checkpoints (same format as train.py, so it can --resume there)
     def save(self):
@@ -206,9 +301,11 @@ class GpuTrainer:
             'actor': self.actor.state_dict(), 'critic': self.critic.state_dict(), 'opt': self.opt.state_dict(),
             'norm': self.norm.state(), 'version': self.version, 'steps': self.steps, 'updates': self.updates,
             'level': self.a.real_level, 'pool': [], 'obs_dim': self.D, 'hidden': self.a.hidden, 'critic_sizes': self.a.critic,
-            'critic_in': 'team', 'episodes': self.episodes, 'hist': {}, 'own_hist': {}, 'elapsed': self.elapsed(),
+            'critic_in': 'team', 'priv_dim': self.P, 'vnorm': {'mu': float(self.v_mu), 'sig': float(self.v_sig)} if self.v_init else None,
+            'episodes': self.episodes, 'hist': {}, 'own_hist': {}, 'elapsed': self.elapsed(),
             'gpu': {'selfplay': self.selfplay, 'selfplay_step': self.selfplay_step, 'pool': [p['sd'] for p in self.pool],
                     'pool_meta': [{k: p[k] for k in ('id', 'wins', 'games')} for p in self.pool], 'bc_start': getattr(self, 'bc_start', None),
+                    'teacher_start': getattr(self, 'teacher_start', None), 'teacher': self.teacher.name if self.teacher else None,
                     'hist': {k: list(v) for k, v in self.hist.items()}},
         }
         tmp = self.run / 'ckpt.tmp'
@@ -234,9 +331,11 @@ class GpuTrainer:
                   f'It plays exactly as before until it learns to use them.')
         if team_critic(ck):
             print("Upgraded the critic to see the teammates' views too (team critic): it judges exactly as before until it learns to use them.")
+        if critic_priv(ck, self.P) and self.P:
+            print('Upgraded the critic to see the whole match (privileged state: every robot\'s load, FUEL in flight, ...): it judges exactly as before until it learns to use it.')
         self.a.hidden, self.a.critic = ck['hidden'], ck['critic_sizes']
         self.actor = Actor(self.D, self.a.hidden).to(self.dev)
-        self.critic = mlp([TEAM * self.D, *self.a.critic, 1]).to(self.dev)
+        self.critic = self._critic()
         self.actor.load_state_dict(ck['actor'])
         self.critic.load_state_dict(ck['critic'])
         self.opt = self._optimizer()
@@ -248,6 +347,11 @@ class GpuTrainer:
             except ValueError:
                 pass
         self.norm.load(ck['norm'])
+        v = ck.get('vnorm')
+        if v:
+            self.v_mu.fill_(v['mu'])
+            self.v_sig.fill_(v['sig'])
+            self.v_init = True
         self.version, self.steps, self.updates, self.episodes = ck['version'], ck['steps'], ck['updates'], ck['episodes']
         self.selfplay = g.get('selfplay', False)
         self.selfplay_step = g.get('selfplay_step', self.steps if self.selfplay else 0)
@@ -263,6 +367,10 @@ class GpuTrainer:
             self.hist[k].extend(v)
         self.prev_elapsed = ck.get('elapsed', 0)
         self.saved_bc_start = g.get('bc_start')
+        self.saved_teacher_start = g.get('teacher_start')
+        self.saved_teacher = g.get('teacher')
+        if self.a.teacher is None and g.get('teacher'):
+            self.a.teacher = g['teacher']  # keeps learning from the teacher it started with (--teacher none: stop)
         print(f'Resumed {self.run.name}: {self.steps / 1e6:.1f}M decisions, {self.updates} updates' + (' (self-play on)' if self.selfplay else ''))
 
     def elapsed(self):
@@ -304,10 +412,22 @@ class GpuTrainer:
             self.pool.append(e)
             i = len(self.pool) - 1
         else:
-            i = min(range(len(self.pool)), key=lambda j: self.pool[j]['id'])
+            i = self.evict()
             self.pool[i] = e
         self.bank.set(i, sd)
         self.update_pfsp()
+
+    def evict(self):
+        """Which older version makes room for a new one: of those it has played enough (keeping
+        the 4 newest), the one it beats most easily. The versions that still give it trouble stay
+        however old they are, so it can't forget how to beat them (no going round in circles);
+        --pool-evict oldest drops the oldest instead."""
+        ids = sorted(p['id'] for p in self.pool)
+        newest = set(ids[-4:])
+        cand = [j for j, p in enumerate(self.pool) if p['id'] not in newest and p['games'] >= 20]
+        if self.a.pool_evict == 'oldest' or not cand:
+            return min(range(len(self.pool)), key=lambda j: self.pool[j]['id'])
+        return max(cand, key=lambda j: (self.pool[j]['wins'] + 1) / (self.pool[j]['games'] + 2))
 
     def update_pfsp(self):
         """Prioritized fictitious self-play: an older version it loses to gets played more often
@@ -386,6 +506,7 @@ class GpuTrainer:
         z = lambda *s, **k: torch.zeros(*s, device=dev, **k)
         self.buf = {
             'obs': z(T, NL, D, dtype=torch.float16), 'act': z(T, NL, ACT_CONT + ACT_BIN), 'lp': z(T, NL), 'v': z(T, NL), 'r': z(T, NL),
+            'priv': z(T, NL, self.P, dtype=torch.float16), 'tact': z(T, NL, ACT_CONT + ACT_BIN) if self.teacher else None,
             'pres': z(T, NL, dtype=torch.bool), 'valid': z(T, NL, dtype=torch.bool),
             'done': z(T, N, dtype=torch.bool), 'margin': z(T, N), 'own': z(T, N), 'k': z(T, N, dtype=torch.long), 'slot': z(T, N, dtype=torch.long),
             'turn': z(T, NL), 'robot': z(T, N, 2),
@@ -401,16 +522,18 @@ class GpuTrainer:
         sim.firstInactive.copy_((torch.rand(N, device=dev) < 0.5).long())
         self.full = np.zeros(N, dtype=bool)  # those first matches are partial: not counted
         self.obs_s = sim.obs().clone()
+        self.priv_s = sim.priv().clone() if self.P else None
         if a.graph and dev.type == 'cuda':
             self.build_graph()
         parts = ', '.join(f'{KIND[k]} {hi - lo}' for k, (lo, hi) in enumerate(kr) if hi > lo)
         print(f'Matches against: {parts}. The network drives {NL} robots per decision' + (', recorded as a CUDA graph' if self.graph else '') + '.')
 
-    def team_in(self, x, pres):
-        """Critic input: a robot's own view and its two teammates' (zeros for an absent one)."""
+    def team_in(self, x, pres, priv=None):
+        """Critic input: a robot's own view and its two teammates' (zeros for an absent one), then
+        the whole match (privileged state, --priv)."""
         mr = self.mate_row.view(-1)
         m = x.index_select(0, mr).view(-1, 2, self.D) * pres.index_select(0, mr).view(-1, 2, 1)
-        return torch.cat([x, m.view(-1, 2 * self.D)], -1)
+        return torch.cat([x, m.view(-1, 2 * self.D)] + ([priv] if self.P else []), -1)
 
     @torch.no_grad()
     def decide(self):
@@ -422,8 +545,14 @@ class GpuTrainer:
         raw = of.index_select(0, self.L_flat).half()                     # stored like this, and what the network sees
         x = self.norm.apply(raw.float())
         pres = sim.present.view(-1).index_select(0, self.L_flat)
+        pv = self.priv_s.view(N * RS, -1).index_select(0, self.L_flat) if self.P else None
         a_l, lp_l, mu_l = sample(self.actor, x)
-        v_l = self.V(self.team_in(x, pres))
+        v_l = self.V(self.team_in(x, pres, pv))
+        # the scripted robots' actions, for every robot (once: they keep some state), when they're
+        # the teacher; otherwise only for the matches against them
+        bot_all = sim.bot_actions() if self.teacher is not None and self.teacher.kind == 'bot' else None
+        if self.teacher is not None:
+            t_l = bot_all.view(N * RS, -1).index_select(0, self.L_flat) if bot_all is not None else self.teacher.act(raw.float())
         act = torch.zeros(N * RS, ACT_CONT + ACT_BIN, device=self.dev).index_copy(0, self.L_flat, a_l)
         if self.S_flat is not None:
             xs = self.norm.apply(of.index_select(0, self.S_flat))
@@ -431,12 +560,16 @@ class GpuTrainer:
         act = act.view(N, RS, -1)
         if self.bots:
             lo, hi = self.bots
-            act[lo:hi, 3:] = sim.bot_actions(slice(lo, hi))[:, 3:]
+            act[lo:hi, 3:] = (bot_all[lo:hi] if bot_all is not None else sim.bot_actions(slice(lo, hi)))[:, 3:]
         auto, gap, tele, post, tt = sim.phase()
         valid = (auto | tele).index_select(0, self.L_env) & pres
         rew, done = sim.step(act)
         r_l = self.reward(rew.view(N * RS, -1).index_select(0, self.L_flat), done.index_select(0, self.L_env))
         totA = sim.totals().gather(1, sim.alliance_idx()[:, :1]).squeeze(1)
+        if self.P:
+            b['priv'].index_copy_(0, t, pv.half().unsqueeze(0))
+        if self.teacher is not None:
+            b['tact'].index_copy_(0, t, t_l.unsqueeze(0))
         for k, v in (('obs', raw), ('act', a_l), ('lp', lp_l), ('v', v_l), ('r', r_l), ('pres', pres), ('valid', valid),
                      ('done', done), ('margin', rew[:, 0, 4]), ('own', totA), ('k', sim.k), ('slot', sim.snap_slot),
                      ('turn', mu_l[:, 2]), ('robot', torch.stack([sim.intaked[:, 0], sim.shots[:, 0]], -1))):
@@ -445,6 +578,8 @@ class GpuTrainer:
             b['live'].index_copy_(0, t, sim.live_pack(self.live_idx).unsqueeze(0))
         sim.reset(done)
         self.obs_s.copy_(sim.obs())
+        if self.P:
+            self.priv_s.copy_(sim.priv())
         t.add_(1)
 
     def build_graph(self):
@@ -602,6 +737,17 @@ class GpuTrainer:
             return 0.0
         return self.a.bc_weight * max(0.0, 1.0 - (self.steps - self.bc_start) / self.a.bc_steps)
 
+    def teacher_weight(self):
+        """(weight of the teacher's pull, warming up?): during the first --teacher-warmup updates
+        of a teacher it only copies it; then the pull fades out over --teacher-steps decisions."""
+        if self.teacher is None:
+            return 0.0, False
+        a = self.a
+        warm = self.updates < self.teacher_upd0 + a.teacher_warmup
+        if warm:
+            return a.teacher_weight, True
+        return a.teacher_weight * max(0.0, 1.0 - (self.steps - self.teacher_start) / max(1.0, a.teacher_steps)), False
+
     def bc_pretrain(self):
         """A fresh network first copies the recorded driving (supervised), so training starts from
         how the AIs play instead of from random twitching."""
@@ -643,7 +789,23 @@ class GpuTrainer:
             if self.load_bc() and (not a.resume or a.bc_pretrain):
                 self.bc_pretrain()
             print(f'It keeps imitating the recordings a little (weight {a.bc_weight}) while it trains, fading out over {a.bc_steps / 1e6:.0f}M decisions.')
-        if a.selfplay and not self.selfplay:
+        if a.teacher == 'none':
+            a.teacher = None
+        if a.teacher:
+            self.teacher = Teacher(a.teacher, D, dev)
+            resumed = a.resume and getattr(self, 'saved_teacher_start', None) is not None and getattr(self, 'saved_teacher', None) == a.teacher
+            self.teacher_start = self.saved_teacher_start if resumed else self.steps
+            self.teacher_upd0 = -10**9 if resumed else self.updates  # warm-up only when a teacher is new
+            if self.teacher.kind == 'net' and not a.resume and not a.bc:
+                # a new network learning from a trained one: start from its observation statistics
+                self.norm.load({'mean': self.teacher.mean.double().cpu().tolist(), 'var': (self.teacher.std.double().cpu() ** 2).tolist(), 'count': 1e6})
+                with torch.no_grad():  # and explore as much as it does
+                    self.actor.log_std.copy_(self.teacher.actor.log_std)
+            who = "the GPU simulator's scripted robot" if self.teacher.kind == 'bot' else f'{a.teacher} ({"x".join(map(str, self.teacher.hidden))} network)'
+            print(f'Teacher: {who}. ' + (f'It copies it for {a.teacher_warmup} updates, then ' if a.teacher_warmup and not resumed else 'It ') +
+                  f'keeps learning from it (weight {a.teacher_weight}) on its own matches, fading out over {a.teacher_steps / 1e6:.0f}M decisions.')
+        self.selfplay_pending = bool(a.selfplay and not self.selfplay and self.teacher_weight()[1])
+        if a.selfplay and not self.selfplay and not self.selfplay_pending:
             self.selfplay = True
             self.selfplay_step = self.steps
             self.snapshot()
@@ -719,7 +881,8 @@ class GpuTrainer:
                 with torch.no_grad():
                     pres_now = sim.present.view(-1).index_select(0, self.L_flat)
                     x_now = self.norm.apply(self.obs_s.view(N * RS, D).index_select(0, self.L_flat).half().float())
-                    Vn = self.V(self.team_in(x_now, pres_now))
+                    pv_now = self.priv_s.view(N * RS, -1).index_select(0, self.L_flat).half().float() if self.P else None
+                    Vn = self.V(self.team_in(x_now, pres_now, pv_now))
                     P_b = b['pres'].float()
                     D_b = b['done'].float().index_select(1, self.L_env)
                     adv = torch.zeros(T, NL, device=dev)
@@ -733,30 +896,54 @@ class GpuTrainer:
                     ret = (adv + b['v']).view(-1)
                     adv = adv.view(-1)
                     rows = b['pres'].view(-1).nonzero().squeeze(-1)
+                    # how much of the returns the critic explains (1 = all, 0 = no better than the mean)
+                    ev = (1 - (ret[rows] - b['v'].view(-1)[rows]).var() / ret[rows].var().clamp(min=1e-8)).item()
+                    if a.popart:
+                        self.popart(ret[rows])
                 # ---- PPO, a minibatch at a time (observations stay fp16 until then)
                 OBS, PRES = b['obs'].view(T * NL, D), b['pres'].view(-1)
                 ACT, LP, VAL = b['act'].view(T * NL, -1), b['lp'].view(-1), b['valid'].view(-1).float()
+                PRIV = b['priv'].view(T * NL, -1) if self.P else None
+                TACT = b['tact'].view(T * NL, -1) if self.teacher is not None else None
                 n = len(rows)
                 ent_sum = torch.zeros((), device=dev)
                 bc_sum = torch.zeros((), device=dev)
+                t_sum = torch.zeros((), device=dev)
                 bc_w = self.bc_weight()
+                t_w, warm = self.teacher_weight()
                 kl_sum = torch.zeros((), device=dev)
                 nmb = 0
+                epochs_done = 0
                 for _ in range(a.epochs):
                     perm = rows[torch.randperm(n, device=dev)]
+                    kl_ep = torch.zeros((), device=dev)
+                    nmb_ep = 0
                     for i in range(0, n, a.minibatch):
                         ix = perm[i:i + a.minibatch]
                         x = self.norm.apply(OBS[ix].float())
                         mf = (ix - ix % NL)[:, None] + self.mate_row[ix % NL]
                         xm = self.norm.apply(OBS[mf.view(-1)].float()).view(-1, 2, D) * PRES[mf].float()[..., None]
-                        lp, ent, _, _ = self.actor.dist_terms(x, ACT[ix])
+                        lp, ent, mu_s, lg_s = self.actor.dist_terms(x, ACT[ix])
                         ratio = (lp - LP[ix]).exp()
                         ad = adv[ix]
                         ad = (ad - ad.mean()) / (ad.std() + 1e-8)
                         vm = VAL[ix]  # no policy gradient while the robot is disabled
-                        pl = -(torch.min(ratio * ad, ratio.clamp(1 - a.clip, 1 + a.clip) * ad) * vm).sum() / vm.sum().clamp(min=1)
-                        vl = 0.5 * ((self.V(torch.cat([x, xm.view(-1, 2 * D)], -1)) - ret[ix]) ** 2).mean()
-                        loss = pl + a.vf * vl - a.ent * (ent * vm).sum() / vm.sum().clamp(min=1)
+                        vs = vm.sum().clamp(min=1)
+                        pl = -(torch.min(ratio * ad, ratio.clamp(1 - a.clip, 1 + a.clip) * ad) * vm).sum() / vs
+                        cin = torch.cat([x, xm.view(-1, 2 * D)] + ([PRIV[ix].float()] if self.P else []), -1)
+                        # the critic learns normalized returns (PopArt; with --no-popart the scale stays 1)
+                        vl = 0.5 * ((self.Vn(cin) - (ret[ix] - self.v_mu) / self.v_sig) ** 2).mean()
+                        if warm:  # learning to play like the teacher first: no trial and error yet
+                            loss = a.vf * vl
+                        else:
+                            loss = pl + a.vf * vl - a.ent * (ent * vm).sum() / vs
+                        if t_w > 0:
+                            ta = TACT[ix]
+                            tl = ((mu_s - ta[:, :ACT_CONT]) ** 2).sum(-1) + nn.functional.binary_cross_entropy_with_logits(lg_s, ta[:, ACT_CONT:], reduction='none').sum(-1)
+                            tl = (tl * vm).sum() / vs
+                            loss = loss + t_w * tl
+                            with torch.no_grad():
+                                t_sum += tl
                         if bc_w > 0:
                             bl = self.bc_loss(*self.bc_batch(4096))
                             loss = loss + bc_w * bl
@@ -768,8 +955,15 @@ class GpuTrainer:
                         self.opt.step()
                         with torch.no_grad():
                             ent_sum += ent.mean()
-                            kl_sum += (LP[ix] - lp).mean()
+                            kl_ep += (LP[ix] - lp).mean()
                         nmb += 1
+                        nmb_ep += 1
+                    kl_sum += kl_ep
+                    epochs_done += 1
+                    # it has moved far enough from the network that played the rollout: stop here
+                    # (more epochs on the same data would only overfit it, and cost time)
+                    if a.target_kl > 0 and not warm and (kl_ep / max(1, nmb_ep)).item() > a.target_kl:
+                        break
                 # ---- observation statistics: after the update, which used what the rollout saw
                 with torch.no_grad():
                     s1 = torch.zeros(D, dtype=torch.float64, device=dev)
@@ -793,6 +987,18 @@ class GpuTrainer:
                 for e in self.pool:  # forget old results slowly: the network keeps changing
                     e['wins'] *= 0.99
                     e['games'] *= 0.99
+                if self.teacher is not None and self.teacher_weight() == (0.0, False):
+                    print(f'\nIt has finished learning from its teacher ({self.teacher.name}): on its own from here\n')
+                    self.teacher = None
+                    self.configure()
+                if self.selfplay_pending and not self.teacher_weight()[1]:
+                    # it has copied its teacher: now its first version joins the older versions
+                    self.selfplay_pending = False
+                    self.selfplay = True
+                    self.selfplay_step = self.steps
+                    self.snapshot()
+                    print('\nIt has copied its teacher: self-play on (--selfplay)\n')
+                    self.configure()
                 self.check_selfplay()
                 if self.selfplay and self.updates % a.snapshot_every == 0:
                     self.snapshot()
@@ -804,11 +1010,14 @@ class GpuTrainer:
                 mph = n_done * 3600 / max(1e-6, sim_s + upd_s)
                 ent_m, kl_m = (ent_sum / max(1, nmb)).item(), (kl_sum / max(1, nmb)).item()
                 imit = f'  imitation {(bc_sum / max(1, nmb)).item():.3f} (x{bc_w:.2f})' if bc_w > 0 else ''
+                if t_w > 0:
+                    imit += f'  teacher {(t_sum / max(1, nmb)).item():.3f} (x{t_w:.2f}{", copying it first" if warm else ""})'
                 vs = '  '.join(f'{k}: {np.mean([m for _, m in v]):+.0f} ({sum(m > 0 for _, m in v)}/{len(v)})' for k, v in sorted(ep.items()))
                 own_all = [o for v in ep.values() for o, _ in v]
                 gpu = f'  gpu {torch.cuda.max_memory_allocated() / 2**30:.1f}GB' if dev.type == 'cuda' else ''
                 print(f'[{self.elapsed() / 3600:5.2f}h] upd {self.updates:5d}  {self.steps / 1e6:8.2f}M decisions  {sps:7.0f}/s (~{mph:,.0f} matches/h)  '
                       f'pts {np.mean(own_all) if own_all else 0:5.1f}  turn flips {turn_stats[1] * 600:4.0f}/min  win-weight {self.win_weight():.2f}  gamma {gamma:.4f}  ent {ent_m:+.2f}  kl {kl_m:+.4f}  '
+                      f'critic {ev:+.2f}  epochs {epochs_done}  '
                       f'sim {sim_s:.1f}s upd {upd_s:.1f}s{gpu}{imit}')
                 if vs:
                     print(f'      vs {vs}')
@@ -821,7 +1030,7 @@ class GpuTrainer:
                 if own_all:
                     rec = {'t': round(self.elapsed(), 1), 'steps': self.steps, 'updates': self.updates, 'level': int(self.selfplay), 'sps': round(sps, 1),
                            'own': round(float(np.mean(own_all)), 2), 'winWeight': round(self.win_weight(), 3), 'gamma': round(gamma, 4),
-                           'ent': round(ent_m, 5), 'kl': round(kl_m, 5),
+                           'ent': round(ent_m, 5), 'kl': round(kl_m, 5), 'ev': round(ev, 3), 'epochs': epochs_done,
                            'vs': {k: round(float(np.mean([m for _, m in v])), 2) for k, v in ep.items()},
                            'win': {k: round(sum(m > 0 for _, m in v) / len(v), 3) for k, v in ep.items()}, 'trainer': 'gpu'}
                     if robot_st:
@@ -887,6 +1096,16 @@ def main():
     p.add_argument('--record-ai', type=int, default=0, help='record the pre-programmed AIs on this many CPU threads while it trains, into the --bc folder')
     p.add_argument('--bc-reload', type=float, default=20, help='minutes between picking up new recordings')
     p.add_argument('--bc-max', type=int, default=2000000, help='use at most this many recorded decisions (a random sample)')
+    p.add_argument('--teacher', help="learn from a teacher on its own matches: 'bot' (the GPU simulator's scripted robot), a run folder "
+                   "(runs/driver), its ckpt.pt, or a policy .json. With a new --run and a bigger --hidden this grows a bigger network from a trained one")
+    p.add_argument('--teacher-weight', type=float, default=1.0, help="how strongly it's pulled toward the teacher ...")
+    p.add_argument('--teacher-steps', type=float, default=200e6, help='... fading out over this many decisions')
+    p.add_argument('--teacher-warmup', type=int, default=30, help='updates at the start of a new teacher where it only copies it (no trial and error yet)')
+    p.add_argument('--popart', action=argparse.BooleanOptionalAction, default=True, help='normalize the returns the critic learns (PopArt; --no-popart to turn off)')
+    p.add_argument('--popart-beta', type=float, default=0.05, help='how fast the return statistics follow the latest rollouts')
+    p.add_argument('--priv', action=argparse.BooleanOptionalAction, default=True, help="the critic sees the whole match (every robot's load, FUEL in flight, ...); --no-priv to turn off")
+    p.add_argument('--target-kl', type=float, default=0.02, help='stop the update epochs early once the network has moved this far from the one that played (0 = always all epochs)')
+    p.add_argument('--pool-evict', choices=['easiest', 'oldest'], default='easiest', help='which older version a new one replaces when the pool is full')
     p.add_argument('--smooth', type=float, default=0.005, help='cost of changing the drive / turn command between decisions (stops twitchy driving)')
     p.add_argument('--spin', type=float, default=0.003, help='cost of turning (it should turn when it needs to, not all the time)')
     p.add_argument('--no-randomize', action='store_true', help="don't vary robot speed / intake / accuracy per match")
