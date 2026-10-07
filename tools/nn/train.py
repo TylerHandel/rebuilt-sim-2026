@@ -756,7 +756,9 @@ class Trainer:
                     print(f'      vs: {vs}')
                 rec = {'t': round(self.elapsed(), 1), 'steps': self.steps, 'updates': self.updates, 'level': self.level, 'sps': round(sps, 1), 'own': round(float(own), 2), **{k: round(v, 5) for k, v in st.items()},
                        'vs': {k: round(float(np.mean([e['margin'] for e in v])), 2) for k, v in by.items()},
-                       'win': {k: round(sum(e['margin'] > 0 for e in v) / len(v), 3) for k, v in by.items()}}
+                       'win': {k: round(sum(e['margin'] > 0 for e in v) / len(v), 3) for k, v in by.items()},
+                       'n': {k: len(v) for k, v in by.items()}, 'trainer': 'real', 'wall': round(time.time()),
+                       'std': [round(v, 4) for v in self.actor.log_std.detach().clamp(-3.0, 0.5).exp().tolist()]}
                 log.write(json.dumps(rec) + '\n')
                 log.flush()
                 recent_eps.clear()

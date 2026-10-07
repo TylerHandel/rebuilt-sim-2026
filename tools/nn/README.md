@@ -74,7 +74,16 @@ The console shows the current `win-weight` (0 = points only, 1 = mostly winning)
 
 **Real-game scoreboard:** while the GPU trains, the CPU has little to do. So the trainer runs 2 full-game matches at a time there, at low priority: the latest network against the Scorer, Defense and Hybrid AIs at Champs skill, 1v1 and 3v3, with every robot on its alliance driven by the network. The dashboard shows its real-game win rate over time and by opponent, and a table comparing the simulator with the real game: FUEL picked up, shots, how much it turns, and how often it flips its turn direction. A big difference there points to what the simulator gets wrong. A full match takes a minute or two of CPU. `--eval 0` turns this off; `--eval 4` plays more at once.
 
-**Live view:** the dashboard (`nn-dashboard.bat`) shows a grid of the matches the trainer is playing right now, as a bird's-eye view: robots in alliance colors, learning robots outlined, FUEL, HUB lights, score and clock. It shows 4 matches by default; `--live 0` turns it off and `--live 9` shows more, at a small cost in speed.
+**The dashboard** (`nn-dashboard.bat`, the page `nn.html`) follows a run as it trains. It opens the run updated most recently (pick another in the Run menu) and says whether it's training right now. The Range and Across controls scope every chart (all of it or the last 24 / 6 / 1 hours; by training hours or decisions), every chart has a Table button, and the settings stick in your browser.
+- **Headline numbers:** points per match, win rates against the scripted bots, its older versions and (real game) the Champs AIs, speed, training so far, each with its change over the last hour of training.
+- **What's going on:** plain-language notes read from the log: improving or flat, the stage it's in (self-play, win weight, teacher), how it does against its older versions, how well its critic predicts, warnings (stopped, exploration nearly gone, slower than earlier, wasted FUEL, a big gap between the simulator and the real game) and its best and weakest robot.
+- **Is it getting better:** points per match (its alliance and the opponents), win rates over time, where its points come from (AUTO / TELEOP), runs side by side (tick runs to compare), win rate by match size and opponent, and its win rate against each older version it keeps.
+- **How it plays:** FUEL picked up, shot and passed per match, where it drives (own zone / NEUTRAL ZONE / their zone), FUEL carried, distance, FUEL put into an inactive HUB, and a table by robot (GPU simulator and real game).
+- **Real game, learning health and speed:** the full-game record against the Champs AIs, the simulator-vs-real table, critic accuracy, step size, exploration, losses, the win weight and teacher pulls, decisions per second, and where the time goes (playing vs learning).
+
+It reads only what the logs gained since its last look, so a log of several nights stays quick. If the dashboard's port is taken (an older dashboard still running, maybe from another copy of the project), it uses the next free one, and it shows which folder's runs it's reading.
+
+**Live view:** the dashboard shows a grid of the matches the trainer is playing right now, as a bird's-eye view: robots in alliance colors, learning robots outlined, FUEL, HUB lights, score and clock. It shows 4 matches by default; `--live 0` turns it off and `--live 9` shows more, at a small cost in speed.
 
 **Your earlier network carries over.** The observation grew for 3v3: teammates and the 2nd and 3rd opponents were added at the end. When you `--resume` a run trained before that, it's upgraded automatically with zero weights on the new inputs, so it plays exactly as before until it learns to use them. The same goes for the team critic. Older driving recordings still load too.
 
@@ -173,7 +182,7 @@ python3 -m venv .venv && .venv/bin/pip install numpy torch
 | Start training | `nn-train.bat` |
 | Stop | **Ctrl+C**. It saves `runs/driver/ckpt.pt` and the current network, then exits. Press Ctrl+C twice to quit immediately. |
 | Continue later | `nn-train.bat --resume` |
-| Watch progress | `nn-dashboard.bat` opens a live page with points per match, speed, and margin and win rate against each opponent |
+| Watch progress | `nn-dashboard.bat` opens the training dashboard (see below) |
 | Watch it play | In the game menu set **Your robot driven by → Neural net (watch)**, or **Opponent → Neural net** to play against it |
 
 While training runs, the newest network is written to `js/nn/driver.json` after every update. The game reloads it after each match, so you can play against it as it learns. Keep the file you like: it's the one the game ships with, the same way `js/trainedBrain.js` is for the scripted AI.

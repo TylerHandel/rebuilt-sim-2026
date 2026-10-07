@@ -7,239 +7,823 @@
 <style>
   :root {
     color-scheme: light;
-    --surface-0: #f4f4f1; --surface-1: #fcfcfb; --border: #e2e1dc;
-    --text-primary: #0b0b0b; --text-secondary: #52514e; --text-muted: #8a8984;
-    --grid: #ecebe7; --series-1: #2a78d6; --series-2: #eb6834; --good: #1a7f37;
+    --page: #f4f4f1; --surface-1: #fcfcfb; --border: #e2e1dc; --hover: #f0efec;
+    --text-primary: #0b0b0b; --text-secondary: #52514e; --text-muted: #898781;
+    --grid: #e1e0d9; --axis: #c3c2b7;
+    --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100;
+    --seq1: #cde2fb; --seq2: #9ec5f4; --seq3: #6da7ec; --seq4: #3987e5; --seq5: #256abf; --seq6: #184f95;
+    --good: #0ca30c; --good-text: #006300; --warning: #fab219; --serious: #ec835a; --critical: #d03b3b;
     --field: #e3e5df; --field-line: #b8bbb3; --element: #8f938b; --blue: #2a78d6; --red: #e34948; --fuel: #d99400; --learner: #0b0b0b;
   }
   @media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) {
+    :root:where(:not([data-theme="light"])) {
       color-scheme: dark;
-      --surface-0: #111110; --surface-1: #1a1a19; --border: #2e2e2c;
-      --text-primary: #ffffff; --text-secondary: #c3c2b7; --text-muted: #8b8a82;
-      --grid: #262624; --series-1: #3987e5; --series-2: #d95926; --good: #4cc26a;
+      --page: #0d0d0d; --surface-1: #1a1a19; --border: #2e2e2c; --hover: #232321;
+      --text-primary: #ffffff; --text-secondary: #c3c2b7; --text-muted: #898781;
+      --grid: #2c2c2a; --axis: #383835;
+      --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
+      --seq1: #104281; --seq2: #184f95; --seq3: #1c5cab; --seq4: #2a78d6; --seq5: #5598e7; --seq6: #86b6ef;
+      --good-text: #0ca30c;
       --field: #22242a; --field-line: #3c3f47; --element: #5d616b; --blue: #3987e5; --red: #e66767; --fuel: #f2c230; --learner: #ffffff;
     }
   }
   :root[data-theme="dark"] {
     color-scheme: dark;
-    --surface-0: #111110; --surface-1: #1a1a19; --border: #2e2e2c;
-    --text-primary: #ffffff; --text-secondary: #c3c2b7; --text-muted: #8b8a82;
-    --grid: #262624; --series-1: #3987e5; --series-2: #d95926; --good: #4cc26a;
-      --field: #22242a; --field-line: #3c3f47; --element: #5d616b; --blue: #3987e5; --red: #e66767; --fuel: #f2c230; --learner: #ffffff;
+    --page: #0d0d0d; --surface-1: #1a1a19; --border: #2e2e2c; --hover: #232321;
+    --text-primary: #ffffff; --text-secondary: #c3c2b7; --text-muted: #898781;
+    --grid: #2c2c2a; --axis: #383835;
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
+    --seq1: #104281; --seq2: #184f95; --seq3: #1c5cab; --seq4: #2a78d6; --seq5: #5598e7; --seq6: #86b6ef;
+    --good-text: #0ca30c;
+    --field: #22242a; --field-line: #3c3f47; --element: #5d616b; --blue: #3987e5; --red: #e66767; --fuel: #f2c230; --learner: #ffffff;
   }
   * { box-sizing: border-box; }
-  body { margin: 0; background: var(--surface-0); color: var(--text-primary); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
-  main { max-width: 1100px; margin: 0 auto; padding: 24px 16px 48px; }
-  h1 { font-size: 20px; margin: 0 0 4px; }
-  .sub { color: var(--text-secondary); margin: 0 0 20px; }
-  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 16px; }
-  .tile, .card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+  body { margin: 0; background: var(--page); color: var(--text-primary); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 1240px; margin: 0 auto; padding: 20px 16px 48px; }
+  h1 { font-size: 20px; margin: 0; }
+  h2 { font-size: 15px; margin: 22px 0 8px; }
+  h3 { font-size: 14px; margin: 0 0 2px; }
+  code { font-size: 12px; }
+  .top { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
+  .status { font-size: 13px; color: var(--text-secondary); display: flex; align-items: center; gap: 6px; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; background: var(--text-muted); }
+  .dot.live { background: var(--good); box-shadow: 0 0 0 3px color-mix(in srgb, var(--good) 25%, transparent); }
+  .dot.stale { background: var(--warning); }
+  .filters { display: flex; gap: 14px 18px; align-items: center; flex-wrap: wrap; padding: 10px 12px; background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 14px; }
+  .filters label { display: flex; align-items: center; gap: 6px; color: var(--text-secondary); font-size: 13px; }
+  select, button { font: inherit; font-size: 13px; background: var(--surface-1); color: var(--text-primary); border: 1px solid var(--border); border-radius: 6px; padding: 3px 8px; }
+  button { cursor: pointer; }
+  button:hover { background: var(--hover); }
+  .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+  .seg button { border: 0; border-radius: 0; padding: 3px 10px; }
+  .seg button + button { border-left: 1px solid var(--border); }
+  .seg button[aria-pressed="true"] { background: var(--text-primary); color: var(--surface-1); }
+  .cmp { display: inline-flex; gap: 10px; flex-wrap: wrap; }
+  .cmp label { color: var(--text-primary); }
+  .folder { color: var(--text-muted); font-size: 12px; margin: -6px 0 12px; overflow-wrap: anywhere; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; margin-bottom: 12px; }
+  .tile, .card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; min-width: 0; }
   .tile .k { color: var(--text-secondary); font-size: 12px; }
-  .tile .v { font-size: 26px; font-weight: 600; font-variant-numeric: tabular-nums; }
-  .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 12px; margin-bottom: 12px; }
-  .card h2 { font-size: 14px; margin: 0 0 2px; }
-  .card .note { color: var(--text-muted); font-size: 12px; margin: 0 0 8px; }
-  .chart { position: relative; height: 220px; }
-  .chart svg { width: 100%; height: 100%; display: block; overflow: visible; }
-  .tip { position: absolute; pointer-events: none; background: var(--surface-1); border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px; font-size: 12px; white-space: nowrap; display: none; box-shadow: 0 2px 8px rgb(0 0 0 / .15); }
-  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
-  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); }
+  .tile .v { font-size: 26px; font-weight: 600; line-height: 1.2; margin-top: 2px; }
+  .tile .d { font-size: 12px; color: var(--text-muted); min-height: 17px; }
+  .tile .d .up { color: var(--good-text); } .tile .d .down { color: var(--critical); }
+  .tile svg { display: block; width: 100%; height: 26px; margin-top: 4px; }
+  .insights { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+  .insights li { display: grid; grid-template-columns: 22px 1fr; gap: 6px; align-items: start; }
+  .ic { width: 18px; height: 18px; border-radius: 50%; display: inline-grid; place-items: center; font-size: 11px; font-weight: 700; color: #fff; margin-top: 1px; }
+  .ic.good { background: var(--good); } .ic.warning { background: var(--warning); color: #0b0b0b; } .ic.critical { background: var(--critical); } .ic.info { background: var(--text-muted); }
+  .insights .lab { font-size: 11px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: .03em; margin-right: 6px; }
+  .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 10px; margin-bottom: 10px; }
+  .grid3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; margin-bottom: 10px; }
+  .card .head { display: flex; justify-content: space-between; align-items: start; gap: 8px; }
+  .card .note { color: var(--text-muted); font-size: 12px; margin: 0 0 6px; }
+  .card .tv { font-size: 11px; padding: 1px 7px; color: var(--text-secondary); }
+  .legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; color: var(--text-secondary); margin: 2px 0 4px; }
+  .legend .k { display: inline-block; width: 14px; height: 2px; vertical-align: 4px; margin-right: 5px; border-radius: 1px; }
+  .legend .k.box { height: 10px; vertical-align: -1px; border-radius: 2px; }
+  .chart { position: relative; }
+  .chart svg { display: block; width: 100%; height: 200px; overflow: visible; }
+  .chart svg:focus { outline: 2px solid var(--s1); outline-offset: 2px; border-radius: 4px; }
+  .small .chart svg { height: 150px; }
+  .tip { position: absolute; pointer-events: none; background: var(--surface-1); border: 1px solid var(--border); border-radius: 6px; padding: 6px 9px; font-size: 12px; white-space: nowrap; display: none; box-shadow: 0 2px 10px rgb(0 0 0 / .15); z-index: 2; }
+  .tip .row { display: flex; align-items: center; gap: 6px; }
+  .tip .row b { font-variant-numeric: tabular-nums; }
+  .tip .k { display: inline-block; width: 12px; height: 2px; border-radius: 1px; }
+  .tip .x { color: var(--text-muted); margin-bottom: 3px; }
+  .empty { color: var(--text-muted); font-size: 13px; padding: 30px 4px; text-align: center; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--border); }
   th { color: var(--text-secondary); font-weight: 500; font-size: 12px; }
-  td.num, th.num { text-align: right; }
-  .bar { height: 8px; border-radius: 4px; background: var(--series-1); }
-  .barbg { background: var(--grid); border-radius: 4px; width: 120px; display: inline-block; vertical-align: middle; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .tablewrap { max-height: 320px; overflow: auto; }
+  #robots, #evalTable, #gapTable, #heat { overflow-x: auto; }
+  .bar { height: 8px; border-radius: 0 4px 4px 0; background: var(--s1); }
+  .barbg { background: var(--grid); border-radius: 0 4px 4px 0; width: 90px; display: inline-block; vertical-align: middle; margin-right: 6px; }
+  .heat td.cell { text-align: center; font-variant-numeric: tabular-nums; border: 2px solid var(--surface-1); border-radius: 4px; }
+  .heat td.cell small { display: block; font-size: 11px; opacity: .85; }
   .muted { color: var(--text-muted); }
-  .err { color: var(--series-2); }
+  .err { color: var(--critical); }
   .live { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 8px; }
-  .live figure { margin: 0; }
+  .live figure { margin: 0; cursor: zoom-in; }
+  .live figure.big { grid-column: 1 / -1; cursor: zoom-out; }
   .live canvas { width: 100%; aspect-ratio: 2.05; display: block; border-radius: 6px; background: var(--field); }
   .live figcaption { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-secondary); font-variant-numeric: tabular-nums; padding: 2px 2px 0; }
   .live figcaption b.bl { color: var(--blue); } .live figcaption b.rd { color: var(--red); }
-  .liveHead { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
-  .legend { display: flex; gap: 12px; font-size: 12px; color: var(--text-secondary); flex-wrap: wrap; }
   .sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; vertical-align: -1px; margin-right: 4px; }
-  button.small { font: inherit; font-size: 12px; background: var(--surface-1); color: var(--text-primary); border: 1px solid var(--border); border-radius: 6px; padding: 2px 8px; cursor: pointer; }
-  select { font: inherit; background: var(--surface-1); color: var(--text-primary); border: 1px solid var(--border); border-radius: 6px; padding: 2px 6px; }
+  details summary { cursor: pointer; color: var(--text-secondary); font-size: 13px; }
+  .loading { opacity: .55; transition: opacity .2s; }
 </style>
 </head>
 <body>
 <main>
-  <h1>Neural net training</h1>
-  <p class="sub">Live progress of the neural-net trainers (<code>nn-train-gpu.bat</code>, <code>nn-train.bat</code>). Refreshes every 10 s. Run <select id="run"></select> <span id="status" class="muted"></span></p>
+  <div class="top">
+    <h1>Neural net training</h1>
+    <span class="status" id="status"><span class="dot" id="dot"></span><span id="statusText">Loading…</span></span>
+  </div>
+  <div class="filters" role="group" aria-label="What to show">
+    <label>Run <select id="run"></select></label>
+    <label>Range <span class="seg" id="range"><button data-v="all" aria-pressed="true">All</button><button data-v="24">Last 24 h</button><button data-v="6">6 h</button><button data-v="1">1 h</button></span></label>
+    <label>Across <span class="seg" id="xmode"><button data-v="hours" aria-pressed="true">Training hours</button><button data-v="steps">Decisions</button></span></label>
+    <span class="cmp" id="cmp"></span>
+  </div>
+  <p class="folder" id="folder"></p>
+
   <div class="tiles" id="tiles"></div>
-  <div class="card" id="liveCard" style="margin-bottom:12px">
-    <div class="liveHead"><h2>Live matches</h2><span class="legend"><span><span class="sw" style="background:var(--blue)"></span>Blue</span><span><span class="sw" style="background:var(--red)"></span>Red</span><span><span class="sw" style="background:var(--fuel);border-radius:50%"></span>FUEL</span><span><span class="sw" style="border:2px solid var(--learner)"></span>Learning robot</span><span id="liveState" class="muted"></span><button class="small" id="liveToggle">Hide</button></span></div>
-    <p class="note">A bird's-eye view of some of the matches the GPU trainer is playing right now (nn-train-gpu.bat). The number on a robot is the FUEL it holds; a lit HUB is active.</p>
+
+  <div class="card" style="margin-bottom:10px">
+    <h3>What's going on</h3>
+    <p class="note">Read from the training log: what's improving, what to watch, and what to try.</p>
+    <ul class="insights" id="insights"></ul>
+  </div>
+
+  <div class="card" id="liveCard" style="margin-bottom:10px">
+    <div class="head"><h3>Live matches</h3><span class="legend"><span><span class="sw" style="background:var(--blue)"></span>Blue</span><span><span class="sw" style="background:var(--red)"></span>Red</span><span><span class="sw" style="background:var(--fuel);border-radius:50%"></span>FUEL</span><span><span class="sw" style="border:2px solid var(--learner)"></span>Learning robot</span><span id="liveState" class="muted"></span><button id="liveToggle">Hide</button></span></div>
+    <p class="note">Some of the matches the GPU trainer is playing right now. The number on a robot is the FUEL it holds; a lit HUB is active. Click a match to enlarge it.</p>
     <div class="live" id="live"></div>
   </div>
+
+  <h2>Is it getting better?</h2>
   <div class="grid2">
-    <div class="card"><h2>Points per match</h2><p class="note">The network's own score, averaged per update (FUEL, plus fouls by the other robot)</p><div class="chart" id="cPts"></div></div>
-    <div class="card"><h2>Simulation speed</h2><p class="note">Decisions per second across all workers (10 per robot per match-second)</p><div class="chart" id="cSps"></div></div>
+    <div class="card" id="cPts"></div>
+    <div class="card" id="cWin"></div>
   </div>
-  <div class="card" id="evalCard" style="margin-bottom:12px"><h2>Real game vs the Champs AIs</h2><p class="note">Full-game matches the GPU trainer plays on the otherwise idle CPU with the latest network (every robot on its ALLIANCE is the network) against the Scorer, Defense and Hybrid AIs at Champs skill. Last 30 matches per row; the chart is the win rate over the last 30 matches.</p>
-    <div class="grid2" style="margin:0"><div class="chart" id="cEval"></div><div id="evalTable"></div></div>
-    <h2 style="margin-top:12px">GPU simulator vs real game</h2><p class="note">Per robot of the network's, per match. Where the two differ a lot, the simulator is teaching it something the real game doesn't reward. Turn flips: how often its turn command reverses direction (twitching).</p>
-    <div id="gapTable"></div></div>
-  <div class="card"><h2>Against each opponent</h2><p class="note">Last 5 updates. Real-game trainer: an opponent level unlocks at a 55% win rate against everything in the level before it. GPU trainer: self-play turns on at a 60% win rate against the bot.</p><div id="vs"></div></div>
+  <div class="grid2">
+    <div class="card" id="cScore"></div>
+    <div class="card" id="cCompare"></div>
+  </div>
+  <div class="grid2">
+    <div class="card"><h3>By match size and opponent</h3><p class="note">Win rate (and average margin) over the selected range. Alone: points per match.</p><div id="heat"></div></div>
+    <div class="card" id="cPool"></div>
+  </div>
+
+  <h2>How it plays</h2>
+  <div class="grid2">
+    <div class="card" id="cFuel"></div>
+    <div class="card" id="cZone"></div>
+  </div>
+  <div class="grid3 small">
+    <div class="card" id="cLoad"></div>
+    <div class="card" id="cDist"></div>
+    <div class="card" id="cWaste"></div>
+  </div>
+  <div class="card" style="margin-bottom:10px"><h3>By robot</h3><p class="note">The network's robot in each finished match against an opponent, over the selected range (GPU simulator), and its record in the real game. Sorted by win rate.</p><div id="robots"></div></div>
+
+  <h2>Real game vs the Champs AIs</h2>
+  <div class="grid2">
+    <div class="card"><h3>By opponent and match size</h3><p class="note">Full-game matches the GPU trainer plays on the otherwise idle CPU with the latest network against the Scorer, Defense and Hybrid AIs at Champs skill (<code>--eval</code>). Last 30 matches per row.</p><div id="evalTable"></div></div>
+    <div class="card"><h3>GPU simulator vs real game</h3><p class="note">Per robot of the network's, per match. A big difference means the simulator teaches something the real game doesn't reward. Turn flips: how often its turn command reverses (twitching).</p><div id="gapTable"></div></div>
+  </div>
+
+  <h2>Learning health</h2>
+  <div class="grid3 small">
+    <div class="card" id="cEv"></div>
+    <div class="card" id="cKl"></div>
+    <div class="card" id="cStd"></div>
+    <div class="card" id="cLoss"></div>
+    <div class="card" id="cPull"></div>
+    <div class="card" id="cEnt"></div>
+  </div>
+
+  <h2>Speed</h2>
+  <div class="grid2">
+    <div class="card" id="cSps"></div>
+    <div class="card" id="cTime"></div>
+  </div>
 </main>
 <script>
+'use strict';
 const $ = (id) => document.getElementById(id);
 const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
-const fmt = (n, d = 0) => Number(n).toLocaleString(undefined, { maximumFractionDigits: d, minimumFractionDigits: d });
-const runs = (new URLSearchParams(location.search).get('runs') || 'driver').split(',');
-let run = new URLSearchParams(location.search).get('run') || runs[0];
-$('run').innerHTML = [...new Set([run, ...runs])].map((r) => `<option>${r}</option>`).join('');
-// every training run in the runs folder (the server's folder listing)
-fetch('runs/', { cache: 'no-store' }).then((r) => (r.ok ? r.text() : '')).then((html) => {
-  const found = [...html.matchAll(/href="([^"?/][^"/]*)\/"/g)].map((m) => decodeURIComponent(m[1])).filter((n) => !n.startsWith('.'));
-  const all = [...new Set([run, ...runs, ...found])];
-  $('run').innerHTML = all.map((r) => `<option${r === run ? ' selected' : ''}>${r}</option>`).join('');
-}).catch(() => {});
-$('run').onchange = () => { run = $('run').value; load(); };
+const fmt = (n, d = 0) => (n === null || n === undefined || !isFinite(n) ? '–' : Number(n).toLocaleString(undefined, { maximumFractionDigits: d, minimumFractionDigits: d }));
+const compact = (n) => (n >= 1e9 ? fmt(n / 1e9, n >= 1e10 ? 0 : 1) + 'B' : n >= 1e6 ? fmt(n / 1e6, n >= 1e7 ? 0 : 1) + 'M' : n >= 1e3 ? fmt(n / 1e3, n >= 1e4 ? 0 : 1) + 'K' : fmt(n));
+const pct = (v, d = 0) => (v === null || v === undefined || !isFinite(v) ? '–' : fmt(100 * v, d) + '%');
+const el = (tag, props = {}, kids = []) => { const e = document.createElement(tag); for (const [k, v] of Object.entries(props)) { if (k === 'text') e.textContent = v; else if (k === 'class') e.className = v; else if (k === 'style') e.style.cssText = v; else e.setAttribute(k, v); } for (const c of [].concat(kids)) if (c !== null && c !== undefined) e.append(c); return e; };
+const ago = (s) => (s < 90 ? `${Math.round(s)} s` : s < 5400 ? `${Math.round(s / 60)} min` : s < 172800 ? `${fmt(s / 3600, 1)} h` : `${Math.round(s / 86400)} days`);
+const mean = (xs) => { const v = xs.filter((x) => x !== null && x !== undefined && isFinite(x)); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null; };
+const median = (xs) => { const v = xs.filter((x) => isFinite(x)).sort((a, b) => a - b); return v.length ? v[Math.floor(v.length / 2)] : null; };
+const SERIES = ['--s1', '--s2', '--s3', '--s4'];
 
-function lineChart(el, pts, { y, label, unit = '', digits = 0 }) {
-  const W = el.clientWidth, H = el.clientHeight, L = 44, R = 8, T = 8, B = 24;
-  if (pts.length < 2) { el.innerHTML = '<p class="muted">Waiting for data…</p>'; return; }
-  const xs = pts.map((p) => p.steps / 1e6), ys = pts.map(y);
-  const x0 = Math.min(...xs), x1 = Math.max(...xs);
-  let y0 = Math.min(0, ...ys), y1 = Math.max(...ys) * 1.08 || 1;
-  const sx = (v) => L + ((v - x0) / (x1 - x0 || 1)) * (W - L - R), sy = (v) => T + (1 - (v - y0) / (y1 - y0 || 1)) * (H - T - B);
-  const dec = (st) => Math.max(0, -Math.floor(Math.log10(st) + 1e-9));
-  const ticks = (a, b, n) => { const s = Math.pow(10, Math.floor(Math.log10((b - a) / n || 1))); const st = [1, 2, 5, 10].map((m) => m * s).find((m) => (b - a) / m <= n) || s * 10; const out = []; for (let v = Math.ceil(a / st) * st; v <= b + 1e-9; v += st) out.push(v); return out; };
-  let s = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${label}">`;
-  const yt = ticks(y0, y1, 4), xt = ticks(x0, x1, 5);
-  const yd = yt.length > 1 ? dec(yt[1] - yt[0]) : 0, xd = xt.length > 1 ? dec(xt[1] - xt[0]) : 2;
-  for (const t of yt) s += `<line x1="${L}" x2="${W - R}" y1="${sy(t)}" y2="${sy(t)}" stroke="${css('--grid')}"/><text x="${L - 6}" y="${sy(t) + 4}" text-anchor="end" font-size="11" fill="${css('--text-muted')}">${fmt(t, yd)}</text>`;
-  for (const t of xt) s += `<text x="${sx(t)}" y="${H - 6}" text-anchor="middle" font-size="11" fill="${css('--text-muted')}">${fmt(t, xd)}M</text>`;
-  s += `<path d="${xs.map((v, i) => `${i ? 'L' : 'M'}${sx(v).toFixed(1)},${sy(ys[i]).toFixed(1)}`).join('')}" fill="none" stroke="${css('--series-1')}" stroke-width="2" stroke-linejoin="round"/>`;
-  s += `<line id="xh" y1="${T}" y2="${H - B}" stroke="${css('--text-muted')}" stroke-dasharray="3 3" visibility="hidden"/><circle id="dot" r="4" fill="${css('--series-1')}" stroke="${css('--surface-1')}" stroke-width="2" visibility="hidden"/>`;
-  s += `<rect x="${L}" y="${T}" width="${W - L - R}" height="${H - T - B}" fill="transparent"/></svg><div class="tip"></div>`;
-  el.innerHTML = s;
-  const svg = el.querySelector('svg'), tip = el.querySelector('.tip'), xh = svg.querySelector('#xh'), dot = svg.querySelector('#dot');
-  svg.onmousemove = (e) => {
-    const r = svg.getBoundingClientRect(), mx = ((e.clientX - r.left) / r.width) * W;
-    let i = 0; for (let k = 1; k < xs.length; k++) if (Math.abs(sx(xs[k]) - mx) < Math.abs(sx(xs[i]) - mx)) i = k;
-    const px = sx(xs[i]), py = sy(ys[i]);
-    xh.setAttribute('x1', px); xh.setAttribute('x2', px); xh.setAttribute('visibility', 'visible');
-    dot.setAttribute('cx', px); dot.setAttribute('cy', py); dot.setAttribute('visibility', 'visible');
-    tip.style.display = 'block';
-    tip.innerHTML = `<b>${fmt(ys[i], digits)}${unit}</b> <span class="muted">at ${fmt(xs[i], 2)}M steps · ${fmt(pts[i].t / 3600, 1)} h</span>`;
-    tip.style.left = Math.min(px + 10, W - tip.offsetWidth) + 'px'; tip.style.top = Math.max(0, py - 34) + 'px';
-  };
-  svg.onmouseleave = () => { tip.style.display = 'none'; xh.setAttribute('visibility', 'hidden'); dot.setAttribute('visibility', 'hidden'); };
+// ------------------------------------------------------------------ settings (remembered in this browser)
+const store = { get(k, d) { try { const v = localStorage.getItem('nnDash.' + k); return v === null ? d : v; } catch { return d; } }, set(k, v) { try { localStorage.setItem('nnDash.' + k, v); } catch { /* unavailable */ } } };
+const qs = new URLSearchParams(location.search);
+let run = qs.get('run') || null, range = store.get('range', 'all'), xmode = store.get('xmode', 'hours');
+const compare = new Set();
+function segment(id, value, onPick) {
+  const box = $(id);
+  for (const b of box.querySelectorAll('button')) {
+    b.setAttribute('aria-pressed', String(b.dataset.v === value));
+    b.onclick = () => { for (const o of box.querySelectorAll('button')) o.setAttribute('aria-pressed', String(o === b)); onPick(b.dataset.v); };
+  }
 }
+segment('range', range, (v) => { range = v; store.set('range', v); render(); });
+segment('xmode', xmode, (v) => { xmode = v; store.set('xmode', v); render(); });
 
-// average over neighbouring updates so the line shows the trend, not each update's noise
-const smooth = (rows, key, k = 5) => rows.map((r, i) => { const w = rows.slice(Math.max(0, i - k + 1), i + 1); return { ...r, [key + 'S']: w.reduce((s, x) => s + x[key], 0) / w.length }; });
-
-let rows = [], evals = null;
-async function loadEval() {
+// ------------------------------------------------------------------ data: the run list and the growing log files
+// Logs are read incrementally: the server answers "bytes=N-" with just what the file gained (a plain
+// server sends the whole file; that works too, only slower). A half-written last line waits for the next read.
+const runs = new Map();   // name -> { rows, evals, files: {progress: {off, rem}, eval: {...}} }
+let runList = [], serverNow = null, serverOff = 0, folder = '';
+function runData(name) {
+  if (!runs.has(name)) runs.set(name, { rows: [], evals: [], files: { progress: { off: 0, rem: '' }, eval: { off: 0, rem: '' } }, version: 0 });
+  return runs.get(name);
+}
+async function readLog(name, file, onLine, onReset) {
+  const st = runData(name).files[file];
+  const url = `runs/${encodeURIComponent(name)}/${file}.jsonl`;
+  let res = await fetch(url, { cache: 'no-store', headers: st.off ? { Range: `bytes=${st.off}-` } : {} });
+  if (res.status === 416) {
+    const size = +((res.headers.get('Content-Range') || '').split('/')[1] || 0);
+    if (size >= st.off) return false;                   // nothing new
+    st.off = 0; st.rem = ''; onReset();                  // the file was replaced: start over
+    res = await fetch(url, { cache: 'no-store' });
+  }
+  if (res.status === 404) return false;
+  if (!res.ok) throw new Error(`${file}.jsonl: HTTP ${res.status}`);
+  const buf = await res.arrayBuffer();
+  if (res.status === 200 && st.off) { st.off = 0; st.rem = ''; onReset(); }   // a server without ranges: the whole file again
+  st.off += buf.byteLength;
+  const text = st.rem + new TextDecoder().decode(buf);
+  const lines = text.split('\n');
+  st.rem = lines.pop();
+  let n = 0;
+  for (const l of lines) { if (!l.trim()) continue; try { onLine(JSON.parse(l)); n++; } catch { /* a damaged line: skip it */ } }
+  return n > 0;
+}
+async function loadRun(name) {
+  const d = runData(name);
+  const a = await readLog(name, 'progress', (r) => {
+    const last = d.rows[d.rows.length - 1];
+    if (last && r.steps < last.steps) d.rows = [];   // a fresh run started in the same folder: show that one
+    d.rows.push(r);
+  }, () => { d.rows = []; });
+  const b = await readLog(name, 'eval', (r) => d.evals.push(r), () => { d.evals = []; });
+  if (a || b) d.version++;
+  return a || b;
+}
+async function loadRuns() {
   try {
-    const res = await fetch(`runs/${run}/eval.jsonl`, { cache: 'no-store' });
-    evals = res.ok ? (await res.text()).trim().split('\n').filter(Boolean).map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean) : null;
-  } catch { evals = null; }
+    const r = await fetch('nn-api/runs', { cache: 'no-store' });
+    if (!r.ok) throw new Error();
+    const j = await r.json();
+    runList = j.runs; folder = j.folder; serverOff = j.now - Date.now() / 1000;
+  } catch {
+    // another server: its folder listing (no update times)
+    try {
+      const html = await (await fetch('runs/', { cache: 'no-store' })).text();
+      runList = [...html.matchAll(/href="([^"?/][^"/]*)\/"/g)].map((m) => ({ name: decodeURIComponent(m[1]), updated: 0 })).filter((x) => !x.name.startsWith('.'));
+    } catch { runList = []; }
+  }
+  if (!run || !runList.some((x) => x.name === run)) run = runList.length ? runList[0].name : (run || 'driver');   // the most recently updated
+  const sel = $('run');
+  const want = runList.map((x) => x.name).join('|') + '#' + run;
+  if (sel.dataset.k !== want) {
+    sel.replaceChildren(...runList.map((x) => { const o = el('option', { text: x.name + (x.updated ? ` · ${ago(Date.now() / 1000 + serverOff - x.updated)} ago` : '') }); o.value = x.name; o.selected = x.name === run; return o; }));
+    if (!runList.length) sel.append(el('option', { text: run }));
+    sel.dataset.k = want;
+  } else {
+    [...sel.options].forEach((o, i) => { const x = runList[i]; if (x && x.updated) o.textContent = `${x.name} · ${ago(Date.now() / 1000 + serverOff - x.updated)} ago`; });
+  }
+  const cmp = $('cmp');
+  const others = runList.filter((x) => x.name !== run && x.progress);
+  const wantC = others.map((x) => x.name).join('|');
+  if (cmp.dataset.k !== wantC) {
+    cmp.replaceChildren(...(others.length ? [el('span', { class: 'muted', text: 'Compare with', style: 'font-size:13px' })] : []), ...others.slice(0, 8).map((x) => {
+      const box = el('input', { type: 'checkbox' }); box.checked = compare.has(x.name);
+      box.onchange = async () => { if (box.checked && compare.size < 3) compare.add(x.name); else { compare.delete(x.name); box.checked = false; } await loadRun(x.name).catch(() => {}); render(); };
+      return el('label', {}, [box, x.name]);
+    }));
+    cmp.dataset.k = wantC;
+  }
+  $('folder').textContent = folder ? `Training runs in ${folder}${runList.length ? '' : ' · none yet: start one with nn-train-gpu.bat or nn-train-pro.bat'}` : '';
 }
-function renderEval() {
-  if (!evals || !evals.length) {
-    $('cEval').innerHTML = '<p class="muted">No real-game matches yet. The GPU trainer starts them (unless run with --eval 0); a full match takes a minute or two of CPU.</p>';
-    $('evalTable').innerHTML = '';
+$('run').onchange = () => { run = $('run').value; history.replaceState(null, '', `?run=${encodeURIComponent(run)}`); lastQ = null; tick(true); };
+
+// ------------------------------------------------------------------ deriving: the selected range, buckets, weighted means
+const xOf = (r) => (xmode === 'hours' ? r.t / 3600 : r.steps);
+let xSpan = 1;   // the x range being drawn (picks the units of the hour ticks)
+const xFmt = (v) => (xmode !== 'hours' ? compact(v) : xSpan < 1.5 ? `${fmt(v * 60)} min` : `${fmt(v, xSpan < 15 ? 1 : 0)} h`);
+const xName = () => (xmode === 'hours' ? 'training hours' : 'decisions');
+function inRange(rows) {
+  if (range === 'all' || !rows.length) return rows;
+  const t1 = rows[rows.length - 1].t, t0 = t1 - +range * 3600;
+  let i = rows.length; while (i > 0 && rows[i - 1].t >= t0) i--;
+  return rows.slice(i);
+}
+function bucketize(rows, B = 160) {
+  if (!rows.length) return [];
+  if (rows.length <= B) return rows.map((r) => ({ x: xOf(r), rows: [r] }));
+  const x0 = xOf(rows[0]), x1 = xOf(rows[rows.length - 1]), w = (x1 - x0) / B || 1;
+  const out = []; let ci = -1;
+  for (const r of rows) { const i = Math.min(B - 1, Math.floor((xOf(r) - x0) / w)); if (i !== ci) { out.push({ rows: [] }); ci = i; } out[out.length - 1].rows.push(r); }
+  for (const b of out) b.x = xOf(b.rows[b.rows.length - 1]);
+  return out;
+}
+const kindOf = (k) => k.split(' ')[0];
+const sizeOf = (k) => (k.match(/(\d)v\d/) || [])[1];
+// win rate / margin over the matches against a kind of opponent (weighted by how many finished)
+function winOf(rows, pred) {
+  let w = 0, n = 0, m = 0;
+  for (const r of rows) for (const [k, v] of Object.entries(r.win || {})) { if (!pred(k)) continue; const c = (r.n && r.n[k]) || 1; w += v * c; n += c; m += ((r.vs || {})[k] || 0) * c; }
+  return n ? { win: w / n, margin: m / n, n } : null;
+}
+const isOpp = (k) => !['alone', 'none', 'off'].includes(kindOf(k));
+const KIND_NAME = { bot: 'Scripted bots', older: 'Older versions', self: 'Itself', alone: 'Alone', snapshot: 'Older versions', off: 'Alone', none: 'Alone' };
+const fieldMean = (rows, f) => mean(rows.map(f));
+
+// ------------------------------------------------------------------ charts (SVG line / stacked area / bars), each with a table view
+// card: the card element; spec: { title, note, series: [{ name, color, y(bucket) }], stacked, yMax, yMin, yFmt, ref, empty }
+const chartState = new Map();
+function lineCard(card, spec, buckets) {
+  if (!chartState.has(card.id)) chartState.set(card.id, { table: false });
+  const st = chartState.get(card.id);
+  const series = spec.series.map((s) => ({ ...s, ys: buckets.map((b) => { const v = s.y(b); return v === null || v === undefined || !isFinite(v) ? null : v; }) }));
+  const hasData = series.some((s) => s.ys.filter((v) => v !== null).length >= 2);
+  const tv = el('button', { class: 'tv', type: 'button', text: st.table ? 'Chart' : 'Table', 'aria-pressed': String(st.table) });
+  tv.onclick = () => { st.table = !st.table; lineCard(card, spec, buckets); };
+  const head = el('div', { class: 'head' }, [el('h3', { text: spec.title }), hasData ? tv : null]);
+  const kids = [head, el('p', { class: 'note', text: spec.note || '' })];
+  if (series.length > 1) kids.push(el('div', { class: 'legend' }, series.map((s) => el('span', {}, [el('span', { class: 'k' + (spec.stacked ? ' box' : ''), style: `background:${css(s.color)}` }), s.name]))));
+  const box = el('div', { class: 'chart' });
+  kids.push(box);
+  card.replaceChildren(...kids);
+  if (!hasData) { box.append(el('div', { class: 'empty', text: spec.empty || 'Waiting for data…' })); return; }
+  const yFmt = spec.yFmt || ((v) => fmt(v, Math.abs(v) < 10 ? 1 : 0));
+  if (st.table) {
+    const rows = buckets.map((b, i) => [b.x, ...series.map((s) => s.ys[i])]).filter((r) => r.slice(1).some((v) => v !== null));
+    const step = Math.max(1, Math.ceil(rows.length / 60));
+    const tb = el('table', {}, [el('thead', {}, el('tr', {}, [el('th', { text: xName() }), ...series.map((s) => el('th', { class: 'num', text: s.name }))])),
+      el('tbody', {}, rows.filter((_, i) => i % step === 0 || i === rows.length - 1).reverse().map((r) => el('tr', {}, [el('td', { text: xFmt(r[0]) }), ...r.slice(1).map((v) => el('td', { class: 'num', text: v === null ? '–' : yFmt(v) }))])))]);
+    box.append(el('div', { class: 'tablewrap' }, tb));
     return;
   }
-  const win = (r) => (r.result === 'win' ? 1 : r.result === 'tie' ? 0.5 : 0);
-  const pts = evals.map((r, i) => { const w = evals.slice(Math.max(0, i - 29), i + 1); return { steps: r.steps || 0, t: (r.hours || 0) * 3600, w: (100 * w.reduce((s, x) => s + win(x), 0)) / w.length }; });
-  const simRows = rows.filter((r) => r.sim).slice(-10), real = evals.filter((r) => r.turn !== undefined).slice(-30);
-  const avg = (xs, f) => (xs.length ? xs.reduce((a, x) => a + f(x), 0) / xs.length : null);
-  const show = (v, d = 0, u = '') => (v === null || v === undefined ? '<span class="muted">–</span>' : fmt(v, d) + u);
-  const gap = [['FUEL picked up', (r) => r.sim.intaked, (r) => r.intaked, 0, ''], ['Shots', (r) => r.sim.shots, (r) => r.shots, 0, ''],
-    ['Turning (share of top turn rate)', (r) => 100 * r.sim.turn, (r) => 100 * r.turn, 0, '%'], ['Turn flips per minute', (r) => r.sim.flipsPerMin, (r) => r.flipsPerMin, 0, '']];
-  $('gapTable').innerHTML = `<table><thead><tr><th></th><th class="num">GPU simulator</th><th class="num">Real game</th></tr></thead><tbody>${gap.map(([n, fs, fr, d, u]) =>
-    `<tr><td>${n}</td><td class="num">${show(avg(simRows, fs), d, u)}</td><td class="num">${show(avg(real, fr), d, u)}</td></tr>`).join('')}</tbody></table>`;
-  lineChart($('cEval'), pts, { y: (r) => r.w, label: 'Real-game win rate', unit: '%' });
-  const groups = {};
-  for (const r of evals) (groups[`${r.teams}v${r.teams} · ${r.opp}`] ||= []).push(r);
-  const keys = Object.keys(groups).sort();
-  $('evalTable').innerHTML = `<table><thead><tr><th>Match</th><th class="num">Played</th><th class="num">Avg score</th><th>Win rate</th></tr></thead><tbody>${keys.map((k) => {
-    const g = groups[k].slice(-30), n = g.length;
-    const w = g.reduce((s, x) => s + win(x), 0) / n, us = g.reduce((s, x) => s + x.nn, 0) / n, them = g.reduce((s, x) => s + x.them, 0) / n;
-    const name = k.replace(/ · (\w)/, (_, c) => ' · ' + c.toUpperCase());
-    return `<tr><td>${name}</td><td class="num">${groups[k].length}</td><td class="num">${fmt(us)} – ${fmt(them)}</td><td><span class="barbg"><span class="bar" style="display:block;width:${Math.round(w * 100)}%"></span></span> ${fmt(w * 100)}%</td></tr>`;
-  }).join('')}</tbody></table>`;
+  drawLines(box, buckets.map((b) => b.x), series, spec, yFmt);
 }
-async function load() {
-  try {
-    const res = await fetch(`runs/${run}/progress.jsonl`, { cache: 'no-store' });
-    if (!res.ok) throw new Error(res.status === 404 ? `no runs/${run}/progress.jsonl yet — start training first` : `HTTP ${res.status}`);
-    rows = (await res.text()).trim().split('\n').filter(Boolean).map((l) => JSON.parse(l));
-    await loadEval();
-    $('status').textContent = `· updated ${new Date().toLocaleTimeString()}`;
-    $('status').className = 'muted';
-  } catch (e) { $('status').textContent = '· ' + e.message; $('status').className = 'err'; }
-  render();
+function niceTicks(a, b, n) {
+  const span = b - a || 1, raw = span / n, p = Math.pow(10, Math.floor(Math.log10(raw)));
+  const st = [1, 2, 2.5, 5, 10].map((m) => m * p).find((m) => span / m <= n) || p * 10;
+  const out = []; for (let v = Math.ceil(a / st - 1e-9) * st; v <= b + 1e-9; v += st) out.push(+v.toFixed(10));
+  return out;
+}
+function drawLines(box, xs, series, spec, yFmt) {
+  const W = Math.max(240, box.clientWidth || 400), H = box.closest('.small') ? 150 : 200, L = 46, R = 10, T = 8, B = 22;
+  const ns = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(ns, 'svg');
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`); svg.setAttribute('tabindex', '0'); svg.setAttribute('role', 'img');
+  svg.setAttribute('aria-label', `${spec.title}: ${series.map((s) => `${s.name} ${yFmt(s.ys.filter((v) => v !== null).slice(-1)[0] ?? 0)}`).join(', ')} at the end`);
+  // stacked: cumulative tops
+  const tops = series.map((s, i) => s.ys.map((v, j) => (spec.stacked ? series.slice(0, i + 1).reduce((a, q) => a + (q.ys[j] ?? 0), 0) : v)));
+  const all = tops.flat().filter((v) => v !== null);
+  const x0 = Math.min(...xs), x1 = Math.max(...xs);
+  xSpan = xmode === 'hours' ? x1 : x1 - x0;
+  let y0 = spec.yMin ?? Math.min(0, ...all), y1 = spec.yMax ?? Math.max(...all) * 1.08;
+  if (spec.ref !== undefined) { y0 = Math.min(y0, spec.ref); y1 = Math.max(y1, spec.ref); }
+  if (y1 <= y0) y1 = y0 + 1;
+  const sx = (v) => L + ((v - x0) / (x1 - x0 || 1)) * (W - L - R), sy = (v) => T + (1 - (v - y0) / (y1 - y0)) * (H - T - B);
+  const add = (tag, attrs) => { const e = document.createElementNS(ns, tag); for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); svg.append(e); return e; };
+  const txt = (x, y, s, anchor) => { const t = add('text', { x, y, 'text-anchor': anchor, 'font-size': 11, fill: css('--text-muted') }); t.textContent = s; };
+  for (const t of niceTicks(y0, y1, 4)) { add('line', { x1: L, x2: W - R, y1: sy(t), y2: sy(t), stroke: css('--grid') }); txt(L - 6, sy(t) + 4, yFmt(t), 'end'); }
+  const xt = niceTicks(x0, x1, Math.max(2, Math.floor((W - L) / 90)));
+  for (const t of xt) txt(sx(t), H - 6, xFmt(t), 'middle');
+  add('line', { x1: L, x2: W - R, y1: sy(Math.max(y0, 0)), y2: sy(Math.max(y0, 0)), stroke: css('--axis') });
+  if (spec.ref !== undefined) { add('line', { x1: L, x2: W - R, y1: sy(spec.ref), y2: sy(spec.ref), stroke: css('--text-muted'), 'stroke-width': 1 }); txt(W - R, sy(spec.ref) - 4, spec.refLabel || '', 'end'); }
+  const path = (ys) => { let d = '', pen = false; ys.forEach((v, i) => { if (v === null) { pen = false; return; } d += `${pen ? 'L' : 'M'}${sx(xs[i]).toFixed(1)},${sy(v).toFixed(1)}`; pen = true; }); return d; };
+  series.forEach((s, i) => {
+    const col = css(s.color);
+    if (spec.stacked) {
+      const lo = i ? tops[i - 1] : xs.map(() => y0);
+      let d = ''; xs.forEach((x, j) => { d += `${j ? 'L' : 'M'}${sx(x).toFixed(1)},${sy(tops[i][j] ?? lo[j] ?? 0).toFixed(1)}`; });
+      for (let j = xs.length - 1; j >= 0; j--) d += `L${sx(xs[j]).toFixed(1)},${sy(lo[j] ?? 0).toFixed(1)}`;
+      add('path', { d: d + 'Z', fill: col, 'fill-opacity': 0.3, stroke: 'none' });
+      add('path', { d: path(tops[i]), fill: 'none', stroke: css('--surface-1'), 'stroke-width': 2 });   // the surface gap between bands
+    }
+    add('path', { d: path(tops[i]), fill: 'none', stroke: col, 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round', transform: spec.stacked ? 'translate(0,-1)' : '' });
+    // end dot + direct label for the last value of each series (up to 4 series)
+    const j = tops[i].map((v, k) => (v === null ? -1 : k)).filter((k) => k >= 0).pop();
+    if (j !== undefined) add('circle', { cx: sx(xs[j]), cy: sy(tops[i][j]), r: 4, fill: col, stroke: css('--surface-1'), 'stroke-width': 2 });
+  });
+  const xh = add('line', { y1: T, y2: H - B, stroke: css('--text-muted'), visibility: 'hidden' });
+  const dots = series.map((s) => add('circle', { r: 4, fill: css(s.color), stroke: css('--surface-1'), 'stroke-width': 2, visibility: 'hidden' }));
+  add('rect', { x: L, y: T, width: W - L - R, height: H - T - B, fill: 'transparent' });
+  box.append(svg);
+  const tip = el('div', { class: 'tip' });
+  box.append(tip);
+  let cur = xs.length - 1;
+  const show = (i) => {
+    cur = Math.max(0, Math.min(xs.length - 1, i));
+    const px = sx(xs[cur]);
+    xh.setAttribute('x1', px); xh.setAttribute('x2', px); xh.setAttribute('visibility', 'visible');
+    series.forEach((s, k) => { const v = tops[k][cur]; if (v === null) dots[k].setAttribute('visibility', 'hidden'); else { dots[k].setAttribute('cx', px); dots[k].setAttribute('cy', sy(v)); dots[k].setAttribute('visibility', 'visible'); } });
+    tip.replaceChildren(el('div', { class: 'x', text: `${xFmt(xs[cur])}` }), ...series.map((s) => el('div', { class: 'row' }, [el('span', { class: 'k', style: `background:${css(s.color)}` }), el('b', { text: s.ys[cur] === null ? '–' : yFmt(s.ys[cur]) }), el('span', { class: 'muted', text: s.name })])));
+    tip.style.display = 'block';
+    const bw = box.clientWidth, scale = bw / W;
+    tip.style.left = Math.min(px * scale + 12, bw - tip.offsetWidth - 2) + 'px';
+    tip.style.top = '4px';
+  };
+  const hide = () => { tip.style.display = 'none'; xh.setAttribute('visibility', 'hidden'); dots.forEach((d) => d.setAttribute('visibility', 'hidden')); };
+  svg.addEventListener('pointermove', (e) => {
+    const r = svg.getBoundingClientRect(), mx = ((e.clientX - r.left) / r.width) * W;
+    let i = 0; for (let k = 1; k < xs.length; k++) if (Math.abs(sx(xs[k]) - mx) < Math.abs(sx(xs[i]) - mx)) i = k;
+    show(i);
+  });
+  svg.addEventListener('pointerleave', hide);
+  svg.addEventListener('focus', () => show(cur));
+  svg.addEventListener('blur', hide);
+  svg.addEventListener('keydown', (e) => { if (e.key === 'ArrowLeft') { show(cur - 1); e.preventDefault(); } if (e.key === 'ArrowRight') { show(cur + 1); e.preventDefault(); } });
+}
+function sparkline(ys) {
+  const v = ys.filter((y) => y !== null && isFinite(y));
+  if (v.length < 2) return null;
+  const lo = Math.min(...v), hi = Math.max(...v), W = 160, H = 26;
+  const pts = ys.map((y, i) => (y === null ? null : [((i / (ys.length - 1)) * W).toFixed(1), (H - 3 - ((y - lo) / (hi - lo || 1)) * (H - 6)).toFixed(1)])).filter(Boolean);
+  const ns = 'http://www.w3.org/2000/svg', svg = document.createElementNS(ns, 'svg');
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`); svg.setAttribute('preserveAspectRatio', 'none'); svg.setAttribute('aria-hidden', 'true');
+  const p = document.createElementNS(ns, 'path');
+  p.setAttribute('d', pts.map((q, i) => `${i ? 'L' : 'M'}${q[0]},${q[1]}`).join(''));
+  p.setAttribute('fill', 'none'); p.setAttribute('stroke', css('--s1')); p.setAttribute('stroke-width', 1.5); p.setAttribute('vector-effect', 'non-scaling-stroke');
+  svg.append(p);
+  return svg;
 }
 
+// ------------------------------------------------------------------ the page
+let lastQ = null;
 function render() {
-  const last = rows[rows.length - 1];
-  const tile = (k, v) => `<div class="tile"><div class="k">${k}</div><div class="v">${v}</div></div>`;
-  $('tiles').innerHTML = last
-    ? tile('Training time', `${fmt(last.t / 3600, 1)} h`) + tile('Decisions learned', `${fmt(last.steps / 1e6, 2)}M`) + tile('Matches played', fmt(last.steps / 1600)) + (last.trainer === 'gpu' ? tile('Self-play', last.level ? 'On' : 'Off (beat the bot first)') : tile('Opponent level', `${last.level} / 5`)) + tile('Speed', `${fmt(last.sps)}/s`)
-    : '';
-  const sm = smooth(smooth(rows, 'own'), 'sps');
-  lineChart($('cPts'), sm, { y: (r) => r.ownS, label: 'Points per match', digits: 1 });
-  lineChart($('cSps'), sm, { y: (r) => r.spsS, label: 'Decisions per second', unit: '/s' });
-  const recent = rows.slice(-5), agg = {};
-  for (const r of recent) for (const [k, v] of Object.entries(r.vs || {})) { const a = (agg[k] ||= { m: [], w: [] }); a.m.push(v); a.w.push(r.win[k]); }
-  const keys = Object.keys(agg).sort();
-  $('vs').innerHTML = keys.length
-    ? `<table><thead><tr><th>Opponent</th><th class="num">Avg margin</th><th>Win rate</th></tr></thead><tbody>${keys.map((k) => {
-        const m = agg[k].m.reduce((a, b) => a + b, 0) / agg[k].m.length, w = agg[k].w.reduce((a, b) => a + b, 0) / agg[k].w.length;
-        const name = { off: 'Solo (no opponent)', none: 'Solo (no opponent)', self: last && last.trainer === 'gpu' ? 'Itself (both robots learning)' : 'Itself (older versions)', snapshot: 'Older versions of itself', bot: 'Scripted bot (GPU sim)' }[k] || k.replace(':', ' · ');
-        if (k === 'none') return `<tr><td>${name}</td><td class="num">${fmt(m)} pts</td><td class="muted">alone on the field</td></tr>`;
-        if (k === 'off') return `<tr><td>${name}</td><td class="num">${fmt(m)} pts</td><td class="muted">level 0 is passed at 100 pts per match</td></tr>`;
-        return `<tr><td>${name}</td><td class="num">${m > 0 ? '+' : ''}${fmt(m)}</td><td><span class="barbg"><span class="bar" style="display:block;width:${Math.round(w * 100)}%"></span></span> ${fmt(w * 100)}%</td></tr>`;
-      }).join('')}</tbody></table>`
-    : '<p class="muted">No matches finished yet.</p>';
-  renderEval();
+  const d = runData(run);
+  const all = d.rows, rows = inRange(all);
+  const B = bucketize(rows);
+  const last = all[all.length - 1];
+  const gpu = !last || last.trainer === 'gpu' || last.trainer === undefined && last.sim !== undefined;
+  renderStatus(d);
+  renderTiles(d, rows, B);
+  renderInsights(d, rows);
+  const m = (f) => (b) => fieldMean(b.rows, f);
+  // ---- better?
+  lineCard($('cPts'), { title: 'Points per match', note: 'Its ALLIANCE\'s score per finished match (all opponents), and the other ALLIANCE\'s.', series: [
+    { name: 'Its alliance', color: '--s1', y: m((r) => r.own) },
+    { name: 'Opponents', color: '--s2', y: m((r) => (r.match ? r.match.oppPts : null)) }] }, B);
+  const evRoll = (b) => { // real-game win rate: the last 30 full-game matches played by then
+    const xEnd = b.x, ev = d.evals.filter((e) => (xmode === 'hours' ? (e.hours ?? 0) : (e.steps ?? 0)) <= xEnd).slice(-30);
+    return ev.length >= 5 ? ev.reduce((s, e) => s + (e.result === 'win' ? 1 : e.result === 'tie' ? 0.5 : 0), 0) / ev.length : null;
+  };
+  lineCard($('cWin'), { title: 'Win rate', note: gpu ? 'Against the GPU simulator\'s scripted bots and its own older versions; and in the real game against the Champs AIs (last 30 matches).' : 'Against every opponent in the real game.', ref: 0.5, refLabel: '50%', yMin: 0, yMax: 1, yFmt: (v) => pct(v), series: [
+    { name: gpu ? 'Scripted bots' : 'All opponents', color: '--s1', y: (b) => (winOf(b.rows, gpu ? (k) => kindOf(k) === 'bot' : isOpp) || {}).win },
+    { name: 'Older versions', color: '--s2', y: (b) => (winOf(b.rows, (k) => ['older', 'snapshot'].includes(kindOf(k))) || {}).win },
+    { name: 'Real game (Champs)', color: '--s3', y: evRoll }] }, B);
+  lineCard($('cScore'), { title: 'Where its points come from', note: 'Its ALLIANCE\'s points per match, stacked: AUTO and TELEOP.', stacked: true, series: [
+    { name: 'AUTO', color: '--s1', y: m((r) => (r.match ? r.match.auto : null)) },
+    { name: 'TELEOP', color: '--s2', y: m((r) => (r.match ? r.match.tele : null)) }], empty: 'Logged by the GPU trainer (updated version).' }, B);
+  renderCompare();
+  renderHeat(rows);
+  renderPool(last);
+  // ---- how it plays
+  lineCard($('cFuel'), { title: 'FUEL per match', note: 'One robot of the network\'s: FUEL it picks up, shoots (at its HUB) and passes, per match.', series: [
+    { name: 'Picked up', color: '--s1', y: m((r) => (r.match ? r.match.intaked : r.sim ? r.sim.intaked : null)) },
+    { name: 'Shot', color: '--s2', y: m((r) => (r.match ? r.match.shots : r.sim ? r.sim.shots : null)) },
+    { name: 'Passed', color: '--s3', y: m((r) => (r.match ? r.match.passes : null)) }] }, B);
+  lineCard($('cZone'), { title: 'Where it drives', note: 'Share of the match (AUTO and TELEOP) in its own ALLIANCE ZONE, the NEUTRAL ZONE and the other ALLIANCE\'s zone (defense).', stacked: true, yMin: 0, yMax: 1, yFmt: (v) => pct(v), series: [
+    { name: 'Own zone', color: '--s1', y: m((r) => (r.match ? r.match.own : null)) },
+    { name: 'Neutral zone', color: '--s2', y: m((r) => (r.match ? r.match.neutral : null)) },
+    { name: 'Their zone', color: '--s3', y: m((r) => (r.match ? r.match.opp : null)) }], empty: 'Logged by the GPU trainer (updated version).' }, B);
+  lineCard($('cLoad'), { title: 'FUEL carried', note: 'Average load in its hopper.', series: [{ name: 'FUEL carried', color: '--s1', y: m((r) => (r.match ? r.match.load : null)) }], empty: 'Not logged yet.' }, B);
+  lineCard($('cDist'), { title: 'Distance per match', note: 'Meters driven.', yFmt: (v) => fmt(v) + ' m', series: [{ name: 'Distance', color: '--s1', y: m((r) => (r.match ? r.match.dist : null)) }], empty: 'Not logged yet.' }, B);
+  lineCard($('cWaste'), { title: 'FUEL into an inactive HUB', note: 'Its ALLIANCE\'s FUEL per match that scored nothing (HUB inactive).', series: [{ name: 'Wasted FUEL', color: '--s1', y: m((r) => (r.match ? r.match.wasted : null)) }], empty: 'Not logged yet.' }, B);
+  renderRobots(rows, d.evals);
+  renderEval(d, rows);
+  // ---- learning health
+  lineCard($('cEv'), { title: 'Critic accuracy', note: 'How much of the outcome its critic predicts (100% = all). Higher means clearer lessons.', yMax: 1, yFmt: (v) => pct(v), series: [{ name: 'Explained', color: '--s1', y: m((r) => r.ev) }], empty: 'Logged by the updated GPU trainer.' }, B);
+  lineCard($('cKl'), { title: 'Step size', note: 'How far each update moves the network (KL). Updates stop early above 0.02.', yFmt: (v) => fmt(v, 3), series: [{ name: 'KL', color: '--s1', y: m((r) => r.kl) }] }, B);
+  lineCard($('cStd'), { title: 'Exploration', note: 'Randomness in its drive and turn commands. It shrinks as it gets sure of itself.', yMin: 0, yFmt: (v) => fmt(v, 2), series: [
+    { name: 'Forward', color: '--s1', y: m((r) => (r.std ? r.std[0] : null)) },
+    { name: 'Sideways', color: '--s2', y: m((r) => (r.std ? r.std[1] : null)) },
+    { name: 'Turn', color: '--s3', y: m((r) => (r.std ? r.std[2] : null)) }], empty: 'Logged by the updated trainers.' }, B);
+  lineCard($('cLoss'), { title: 'Critic error', note: 'The critic\'s error on normalized returns (lower is better); and how far it is from its teacher.', yFmt: (v) => fmt(v, 2), series: [
+    { name: 'Critic', color: '--s1', y: m((r) => (r.loss ? r.loss.value : r.v ?? null)) },
+    { name: 'Teacher gap', color: '--s2', y: m((r) => (r.loss ? r.loss.teacher ?? null : null)) }] }, B);
+  lineCard($('cPull'), { title: 'What drives it', note: 'Win weight: how much the reward is about winning (vs points). Teacher / imitation: how strongly it copies.', yMin: 0, yMax: 1, yFmt: (v) => fmt(v, 2), series: [
+    { name: 'Win weight', color: '--s1', y: m((r) => r.winWeight) },
+    { name: 'Teacher', color: '--s2', y: m((r) => (r.pull ? r.pull.teacher : null)) },
+    { name: 'Imitation', color: '--s3', y: m((r) => (r.pull ? r.pull.imitation : null)) }] }, B);
+  lineCard($('cEnt'), { title: 'Entropy', note: 'Overall randomness of its choices (drive, turn and buttons).', yFmt: (v) => fmt(v, 1), series: [{ name: 'Entropy', color: '--s1', y: m((r) => r.ent) }] }, B);
+  // ---- speed
+  lineCard($('cSps'), { title: 'Decisions per second', note: 'Robot decisions simulated and learned from per second (10 per robot per match-second).', yFmt: (v) => compact(v), series: [{ name: 'Decisions/s', color: '--s1', y: m((r) => r.sps) }] }, B);
+  lineCard($('cTime'), { title: 'Where the time goes', note: 'Seconds per update: playing the matches, then learning from them.', stacked: true, yFmt: (v) => fmt(v, 1) + ' s', series: [
+    { name: 'Playing', color: '--s1', y: m((r) => (r.time ? r.time.sim : null)) },
+    { name: 'Learning', color: '--s2', y: m((r) => (r.time ? r.time.upd : null)) }], empty: 'Logged by the updated GPU trainer.' }, B);
 }
-window.addEventListener('resize', render);
+
+function renderStatus(d) {
+  const last = d.rows[d.rows.length - 1], info = runList.find((x) => x.name === run);
+  const now = Date.now() / 1000 + serverOff;
+  const upd = (info && info.updated) || (last && last.wall) || null;
+  const age = upd ? now - upd : null;
+  const dot = $('dot'), t = $('statusText');
+  if (!last && !info) { dot.className = 'dot'; t.textContent = `No training log in runs/${run} yet`; return; }
+  if (age !== null && age < 120) { dot.className = 'dot live'; t.textContent = `Training now · updated ${ago(age)} ago`; }
+  else if (age !== null) { dot.className = 'dot stale'; t.textContent = `Not running · last update ${ago(age)} ago`; }
+  else { dot.className = 'dot'; t.textContent = last ? `Last update at ${fmt(last.t / 3600, 1)} h of training` : 'Waiting for the first update…'; }
+}
+
+function delta(cur, prev, { pctPts = false, unit = '' } = {}) {
+  if (cur === null || prev === null || cur === undefined || prev === undefined) return null;
+  const dv = cur - prev;
+  if (pctPts ? Math.abs(dv) < 0.005 : Math.abs(dv) < 0.05) return el('span', { text: 'about the same as an hour earlier' });
+  const up = dv > 0;
+  const s = pctPts ? `${up ? '+' : '−'}${fmt(Math.abs(dv) * 100, 0)} pts` : `${up ? '+' : '−'}${fmt(Math.abs(dv), Math.abs(dv) < 10 ? 1 : 0)}${unit}`;
+  return el('span', {}, [el('span', { class: up ? 'up' : 'down', text: `${up ? '▲' : '▼'} ${s}` }), ' vs an hour earlier']);
+}
+function renderTiles(d, rows, B) {
+  const all = d.rows, last = all[all.length - 1];
+  const tiles = [];
+  const hourAgo = (f, win = 0.25) => { // the value around an hour of training earlier, and now (last ~15 min)
+    if (!last) return [null, null];
+    const t1 = last.t;
+    const nowRows = all.filter((r) => r.t > t1 - win * 3600), before = all.filter((r) => r.t > t1 - 3600 - win * 3600 && r.t <= t1 - 3600);
+    return [f(nowRows), before.length ? f(before) : null];
+  };
+  const tile = (k, v, dEl, spark, title) => el('div', { class: 'tile', title: title || '' }, [el('div', { class: 'k', text: k }), el('div', { class: 'v', text: v }), el('div', { class: 'd' }, dEl || ''), spark || null]);
+  const sp = (f) => sparkline(B.slice(-40).map((b) => f(b.rows)));
+  const own = (rs) => mean(rs.map((r) => r.own));
+  const [o1, o0] = hourAgo(own);
+  tiles.push(tile('Points per match', fmt(o1, 0), delta(o1, o0), sp(own)));
+  const gpuRun = !last || last.trainer !== 'real';
+  const wb = (rs) => (winOf(rs, gpuRun ? (k) => kindOf(k) === 'bot' : isOpp) || {}).win ?? null;
+  const [b1, b0] = hourAgo(wb);
+  tiles.push(tile(gpuRun ? 'Wins vs scripted bots' : 'Wins vs all opponents', pct(b1), delta(b1, b0, { pctPts: true }), sp(wb)));
+  if (gpuRun) {
+    const wo = (rs) => (winOf(rs, (k) => kindOf(k) === 'older') || {}).win ?? null;
+    const [w1, w0] = hourAgo(wo);
+    tiles.push(tile('Wins vs older versions', w1 === null ? (last && last.level ? '–' : 'Self-play off') : pct(w1), w1 === null ? el('span', { text: last && !last.level ? 'turns on at 60% vs the bots' : '' }) : delta(w1, w0, { pctPts: true }), sp(wo)));
+  }
+  const ev = d.evals.slice(-30);
+  const rw = ev.length ? ev.reduce((s, e) => s + (e.result === 'win' ? 1 : e.result === 'tie' ? 0.5 : 0), 0) / ev.length : null;
+  tiles.push(tile('Real game vs Champs AIs', rw === null ? '–' : pct(rw), el('span', { text: ev.length ? `last ${ev.length} full-game matches` : 'no full-game matches yet' })));
+  const sps = last ? median(all.slice(-10).map((r) => r.sps)) : null;
+  tiles.push(tile('Decisions per second', sps ? compact(sps) : '–', el('span', { text: last && last.matchesPerHour ? `≈ ${compact(last.matchesPerHour)} matches an hour` : '' }), sp((rs) => mean(rs.map((r) => r.sps)))));
+  tiles.push(tile('Trained', last ? `${fmt(last.t / 3600, last.t < 36000 ? 1 : 0)} h` : '–', el('span', { text: last ? `${compact(last.steps)} decisions · ${fmt(last.updates)} updates` : '' })));
+  $('tiles').replaceChildren(...tiles);
+}
+
+function renderInsights(d, rows) {
+  const all = d.rows, last = all[all.length - 1], out = [];
+  const add = (kind, label, text) => out.push({ kind, label, text });
+  const now = Date.now() / 1000 + serverOff, info = runList.find((x) => x.name === run);
+  if (!last) {
+    add('info', 'Waiting', `No updates in runs/${run}/progress.jsonl yet. Start training (nn-train-gpu.bat, nn-train-pro.bat); the first line appears after its first update (with --compile, the first start takes a few minutes).`);
+    $('insights').replaceChildren(...out.map(li));
+    return;
+  }
+  const upd = (info && info.updated) || last.wall;
+  if (upd && now - upd > 300) add('warning', 'Stopped', `This run hasn't updated for ${ago(now - upd)}. If you're training, pick the run you're training in the Run menu (the newest is picked when the page opens), or check the trainer's window.`);
+  // trend: the last hour of training vs the hour before
+  const t1 = last.t, win = (a, b) => all.filter((r) => r.t > t1 - b * 3600 && r.t <= t1 - a * 3600);
+  const pNow = mean(win(0, 1).map((r) => r.own)), pBefore = mean(win(1, 2).map((r) => r.own));
+  if (pNow !== null && pBefore !== null && t1 > 2 * 3600) {
+    const ch = (pNow - pBefore) / Math.max(1, Math.abs(pBefore));
+    if (ch > 0.03) add('good', 'Improving', `Points per match up ${fmt(ch * 100)}% over the last hour of training (${fmt(pBefore)} → ${fmt(pNow)}).`);
+    else if (ch < -0.05) add('warning', 'Slipping', `Points per match down ${fmt(-ch * 100)}% over the last hour (${fmt(pBefore)} → ${fmt(pNow)}). Normal for a while after self-play or the win weight kicks in (it trades points for wins); watch the win rates.`);
+    else add('info', 'Flat', `Points per match about the same as an hour earlier (${fmt(pNow)}). Look at the win rates: once self-play is on, that's where progress shows.`);
+  }
+  // stage
+  const gpu = last.trainer !== 'real';
+  if (gpu) {
+    const wb = winOf(all.slice(-30), (k) => kindOf(k) === 'bot');
+    if (!last.level) add('info', 'Stage', `Learning against the scripted bots. Self-play turns on once it wins 60% against them${wb ? ` (now ${pct(wb.win)})` : ''}.`);
+    else {
+      const first = all.find((r) => r.level);
+      add('info', 'Stage', `Self-play on since ${fmt((last.t - first.t) / 3600, 1)} h ago. The reward is ${pct(last.winWeight ?? 0)} about winning (the rest is points margin).`);
+    }
+  }
+  if (last.pull && last.pull.teacher > 0) add('info', 'Teacher', `Still learning from its teacher (pull ${fmt(last.pull.teacher, 2)}, fading to 0).${last.loss && last.loss.teacher !== undefined ? ` Its gap to the teacher: ${fmt(last.loss.teacher, 2)}.` : ''}`);
+  // league
+  if (last.pool && last.pool.length) {
+    const played = last.pool.filter((p) => p[3] === undefined || p[3] >= 10);
+    const w = mean(played.map((p) => p[1]));
+    if (w !== null) {
+      if (w >= 0.55) add('good', 'League', `It beats its older versions ${pct(w)} of the time on average: it keeps getting stronger.`);
+      else if (w < 0.45) add('warning', 'League', `It wins only ${pct(w)} against its older versions: it may be going in circles. The pool keeps the versions it struggles with so it relearns how to beat them.`);
+      else add('info', 'League', `About even with its older versions (${pct(w)}): it's improving slowly, or finding new strategies that trade off.`);
+    }
+  }
+  // critic
+  const ev = mean(all.slice(-20).map((r) => r.ev));
+  if (ev !== null) {
+    if (ev < 0.3) add('warning', 'Critic', `The critic predicts only ${pct(ev)} of the outcome: the lessons it gets are noisy. Normal early on; if it stays low for hours, the reward may be too random.`);
+    else add('good', 'Critic', `The critic predicts ${pct(ev)} of the outcome: clear lessons.`);
+  }
+  // exploration
+  if (last.std) {
+    const s = mean(last.std);
+    if (s < 0.08) add('warning', 'Exploration', `Very little randomness left (${fmt(s, 2)}): it may stop finding new strategies. More --ent keeps it exploring.`);
+  }
+  const ep = mean(all.slice(-20).map((r) => r.epochs));
+  if (ep !== null && ep < 2) add('warning', 'Step size', 'Updates stop after about one pass (the network moves fast). A lower --lr steadies it.');
+  // real game
+  const evs = d.evals.slice(-30);
+  if (evs.length >= 10) {
+    const rw = evs.reduce((s, e) => s + (e.result === 'win' ? 1 : e.result === 'tie' ? 0.5 : 0), 0) / evs.length;
+    const sim = gpu ? winOf(all.slice(-30), (k) => kindOf(k) === 'bot') : null;
+    add(rw >= 0.5 ? 'good' : 'info', 'Real game', `It wins ${pct(rw)} of its last ${evs.length} full-game matches against the Champs AIs${sim ? ` (and ${pct(sim.win)} against the simpler GPU bots)` : ''}.`);
+    const simF = mean(all.slice(-30).map((r) => (r.sim ? r.sim.intaked : null))), realF = mean(evs.map((e) => e.intaked));
+    if (simF && realF && Math.abs(realF - simF) / simF > 0.35) add('warning', 'Sim vs real', `In the real game it picks up ${fmt(realF)} FUEL per match, against ${fmt(simF)} in the GPU simulator: what it learns there carries over only partly. Fine-tuning in the full game (nn-continue-champs.bat) closes the gap.`);
+  } else if (gpu) add('info', 'Real game', d.evals.length ? `${d.evals.length} full-game matches so far; a record shows after 10.` : 'No full-game matches yet (the GPU trainer plays them on the CPU unless run with --eval 0; each takes a minute or two).');
+  // robots
+  const rob = robotTable(rows).filter((r) => r.n >= 30);
+  if (rob.length >= 3) {
+    const best = rob[0], worst = rob[rob.length - 1];
+    add('info', 'Robots', `Best with ${best.key} (wins ${pct(best.win)}), weakest with ${worst.key} (${pct(worst.win)}).${worst.win < 0.4 ? ` Train more on it: --robots ${worst.key}.` : ''}`);
+  }
+  // wasted shots
+  const wasted = mean(all.slice(-30).map((r) => (r.match ? r.match.wasted : null)));
+  if (wasted !== null && wasted >= 4) add('warning', 'Wasted FUEL', `Its alliance puts ${fmt(wasted)} FUEL per match into its HUB while it's inactive (no points). It should be learning to hold them; it costs time.`);
+  // speed
+  if (all.length > 60) {
+    const sNow = median(all.slice(-15).map((r) => r.sps)), sBefore = median(all.slice(-200, -30).map((r) => r.sps));
+    if (sNow && sBefore && sNow < 0.75 * sBefore) add('warning', 'Speed', `Running ${fmt(100 - (100 * sNow) / sBefore)}% slower than earlier (${compact(sNow)}/s vs ${compact(sBefore)}/s). Is something else using the GPU?`);
+    if (last.time) { const tot = last.time.sim + last.time.upd; if (tot > 0) add('info', 'Time', `${pct(last.time.sim / tot)} of the time goes to playing the matches, ${pct(last.time.upd / tot)} to learning from them.`); }
+  }
+  $('insights').replaceChildren(...out.map(li));
+}
+const ICON = { good: '✓', warning: '!', critical: '✕', info: 'i' };
+const li = (o) => el('li', {}, [el('span', { class: `ic ${o.kind}`, 'aria-hidden': 'true', text: ICON[o.kind] }), el('span', {}, [el('span', { class: 'lab', text: o.label }), o.text])]);
+
+function renderCompare() {
+  const card = $('cCompare');
+  const names = [run, ...[...compare].filter((n) => n !== run)].slice(0, 4);
+  if (names.length < 2) {
+    card.replaceChildren(el('h3', { text: 'Compare runs' }), el('p', { class: 'note', text: 'Tick other runs in the filter bar to put their points per match next to this one (by training hours).' }),
+      el('div', { class: 'empty', text: runList.length > 1 ? 'No runs ticked.' : 'Only one training run so far.' }));
+    return;
+  }
+  const save = xmode; xmode = 'hours';
+  const series = names.map((n, i) => ({ name: n, color: SERIES[i], rows: inRange(runData(n).rows) }));
+  // one x grid across runs: each run bucketed on its own, merged by hours
+  const B = 120, xMax = Math.max(...series.map((s) => (s.rows.length ? s.rows[s.rows.length - 1].t / 3600 : 0))), xMin = Math.min(...series.map((s) => (s.rows.length ? s.rows[0].t / 3600 : 0)));
+  const w = (xMax - xMin) / B || 1;
+  const buckets = Array.from({ length: B }, (_, i) => ({ x: xMin + (i + 1) * w, i }));
+  const per = series.map((s) => { const acc = Array.from({ length: B }, () => []); for (const r of s.rows) acc[Math.min(B - 1, Math.floor((r.t / 3600 - xMin) / w))].push(r.own); return acc.map(mean); });
+  lineCard(card, { title: 'Compare runs', note: 'Points per match by training hours.', series: series.map((s, k) => ({ name: s.name, color: s.color, y: (b) => per[k][b.i] })) }, buckets);
+  xmode = save;
+}
+
+function renderHeat(rows) {
+  const box = $('heat');
+  const kinds = [...new Set(rows.flatMap((r) => Object.keys(r.win || {})).map(kindOf))];
+  const order = ['bot', 'older', 'snapshot', 'self', 'alone', 'none', 'off'];
+  kinds.sort((a, b) => (order.indexOf(a) + 99 * (order.indexOf(a) < 0)) - (order.indexOf(b) + 99 * (order.indexOf(b) < 0)));
+  const sizes = ['1', '2', '3'];
+  const sized = rows.some((r) => Object.keys(r.win || {}).some((k) => sizeOf(k)));
+  if (!kinds.length) { box.replaceChildren(el('div', { class: 'empty', text: 'No finished matches yet.' })); return; }
+  const ramp = ['--seq1', '--seq2', '--seq3', '--seq4', '--seq5', '--seq6'];
+  const cell = (kind, size) => {
+    const pick = (k) => kindOf(k) === kind && (!sized || sizeOf(k) === size);
+    const w = winOf(rows, pick);
+    if (!w) return el('td', { class: 'cell muted', text: '–' });
+    if (['alone', 'none', 'off'].includes(kind)) return el('td', { class: 'cell', text: `${fmt(w.margin)} pts` }, []);
+    const lvl = Math.min(5, Math.floor(w.win * 6));
+    const bg = css(ramp[lvl]);
+    const dark = document.documentElement.dataset.theme === 'dark' || (matchMedia('(prefers-color-scheme: dark)').matches && document.documentElement.dataset.theme !== 'light');
+    const ink = (dark ? lvl <= 3 : lvl >= 3) ? '#ffffff' : '#0b0b0b';
+    const td = el('td', { class: 'cell', style: `background:${bg};color:${ink}`, title: `${KIND_NAME[kind] || kind}${sized ? `, ${size}v${size}` : ''}: wins ${pct(w.win)} of ${fmt(w.n)} matches, average margin ${w.margin > 0 ? '+' : ''}${fmt(w.margin)}` });
+    td.append(pct(w.win), el('small', { text: `${w.margin > 0 ? '+' : ''}${fmt(w.margin)} · ${compact(w.n)}` }));
+    return td;
+  };
+  const cols = sized ? sizes : ['all'];
+  box.replaceChildren(el('table', { class: 'heat' }, [
+    el('thead', {}, el('tr', {}, [el('th', { text: 'Opponent' }), ...cols.map((s) => el('th', { class: 'num', style: 'text-align:center', text: sized ? `${s}v${s}` : 'All' }))])),
+    el('tbody', {}, kinds.map((k) => el('tr', {}, [el('td', { text: KIND_NAME[k] || k.replace(':', ' · ') }), ...cols.map((s) => cell(k, s))])))]),
+  el('p', { class: 'note', style: 'margin-top:6px', text: 'Each cell: win rate, then average margin · matches. Darker = wins more.' }));
+}
+
+function renderPool(last) {
+  const card = $('cPool');
+  const head = [el('h3', { text: 'Against its older versions' }), el('p', { class: 'note', text: 'Self-play: its win rate against each older version it keeps (by version number), and how often it plays it (it picks the ones it struggles with).' })];
+  if (!last || !last.pool || !last.pool.length) { card.replaceChildren(...head, el('div', { class: 'empty', text: last && !last.level ? 'Self-play is off: it starts once it wins 60% against the scripted bots.' : 'No older versions logged yet.' })); return; }
+  const pool = [...last.pool].sort((a, b) => a[0] - b[0]);
+  const W = Math.max(260, card.clientWidth - 30), H = 170, L = 40, R = 6, T = 8, B = 22, ns = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(ns, 'svg'); svg.setAttribute('viewBox', `0 0 ${W} ${H}`); svg.setAttribute('role', 'img');
+  svg.setAttribute('aria-label', 'Win rate against each older version');
+  svg.style.cssText = 'display:block;width:100%;height:170px';
+  const add = (tag, a) => { const e = document.createElementNS(ns, tag); for (const [k, v] of Object.entries(a)) e.setAttribute(k, v); svg.append(e); return e; };
+  const sy = (v) => T + (1 - v) * (H - T - B);
+  for (const t of [0, 0.25, 0.5, 0.75, 1]) { add('line', { x1: L, x2: W - R, y1: sy(t), y2: sy(t), stroke: css(t === 0.5 ? '--text-muted' : '--grid') }); const tx = add('text', { x: L - 6, y: sy(t) + 4, 'text-anchor': 'end', 'font-size': 11, fill: css('--text-muted') }); tx.textContent = pct(t); }
+  const slot = (W - L - R) / pool.length, bw = Math.min(24, slot - 4);
+  const box = el('div', { class: 'chart' });
+  const tip = el('div', { class: 'tip' });
+  pool.forEach((p, i) => {
+    const x = L + i * slot + (slot - bw) / 2, h = Math.max(1, (H - T - B) * p[1]);
+    const g = document.createElementNS(ns, 'g');
+    const r = document.createElementNS(ns, 'path');
+    const y = sy(p[1]), rr = Math.min(4, h);
+    r.setAttribute('d', `M${x},${sy(0)}V${y + rr}Q${x},${y} ${x + rr},${y}H${x + bw - rr}Q${x + bw},${y} ${x + bw},${y + rr}V${sy(0)}Z`);
+    r.setAttribute('fill', css('--s1'));
+    const hit = document.createElementNS(ns, 'rect');
+    hit.setAttribute('x', L + i * slot); hit.setAttribute('y', T); hit.setAttribute('width', slot); hit.setAttribute('height', H - T - B); hit.setAttribute('fill', 'transparent'); hit.setAttribute('tabindex', '0');
+    const showTip = () => { r.setAttribute('fill-opacity', '0.75'); tip.replaceChildren(el('div', { class: 'x', text: `version ${p[0]}` }), el('div', { class: 'row' }, [el('b', { text: pct(p[1]) }), el('span', { class: 'muted', text: 'its win rate' })]), el('div', { class: 'row' }, [el('b', { text: pct(p[2]) }), el('span', { class: 'muted', text: 'of matches vs older versions' })]), p[3] !== undefined ? el('div', { class: 'row' }, [el('b', { text: fmt(p[3]) }), el('span', { class: 'muted', text: 'matches (recent ones count more)' })]) : null); tip.style.display = 'block'; tip.style.left = Math.min((x + bw + 8) * box.clientWidth / W, box.clientWidth - tip.offsetWidth) + 'px'; tip.style.top = '4px'; };
+    const hideTip = () => { r.setAttribute('fill-opacity', '1'); tip.style.display = 'none'; };
+    hit.addEventListener('pointerenter', showTip); hit.addEventListener('pointerleave', hideTip); hit.addEventListener('focus', showTip); hit.addEventListener('blur', hideTip);
+    g.append(r, hit); svg.append(g);
+    const every = Math.max(1, Math.ceil(44 / slot));
+    if (i % every === 0) { const tx = add('text', { x: x + bw / 2, y: H - 6, 'text-anchor': 'middle', 'font-size': 10, fill: css('--text-muted') }); tx.textContent = p[0] >= 1e6 ? compact(p[0]) : fmt(p[0]); }
+  });
+  box.append(svg, tip);
+  card.replaceChildren(...head, box);
+}
+
+function robotTable(rows) {
+  const acc = {};
+  for (const r of rows) for (const [k, v] of Object.entries(r.robots || {})) { const a = (acc[k] ||= [0, 0, 0, 0, 0, 0]); v.forEach((x, i) => { a[i] += x; }); }
+  return Object.entries(acc).map(([key, a]) => ({ key, n: a[0], win: a[1] / a[0], margin: a[2] / a[0], own: a[3] / a[0], fuel: a[4] / a[0], shots: a[5] / a[0] })).sort((a, b) => b.win - a.win);
+}
+function renderRobots(rows, evals) {
+  const t = robotTable(rows);
+  if (!t.length) { $('robots').replaceChildren(el('div', { class: 'empty', text: 'Logged by the updated GPU trainer once matches finish.' })); return; }
+  const real = {};
+  for (const e of evals.slice(-300)) for (const r of e.robots || []) { const a = (real[r] ||= [0, 0]); a[0]++; a[1] += e.result === 'win' ? 1 : e.result === 'tie' ? 0.5 : 0; }
+  const winCell = (w) => el('td', {}, [el('span', { class: 'barbg' }, el('span', { class: 'bar', style: `display:block;width:${Math.round(w * 100)}%` })), pct(w)]);
+  $('robots').replaceChildren(el('table', {}, [
+    el('thead', {}, el('tr', {}, ['Robot', 'Matches', 'Win rate', 'Avg margin', 'Points', 'FUEL picked up', 'Shots', 'Real game'].map((h, i) => el('th', { class: i === 0 || i === 2 ? '' : 'num', text: h })))),
+    el('tbody', {}, t.map((r) => el('tr', {}, [el('td', { text: r.key }), el('td', { class: 'num', text: compact(r.n) }), winCell(r.win), el('td', { class: 'num', text: `${r.margin > 0 ? '+' : ''}${fmt(r.margin)}` }),
+      el('td', { class: 'num', text: fmt(r.own) }), el('td', { class: 'num', text: fmt(r.fuel) }), el('td', { class: 'num', text: fmt(r.shots) }),
+      el('td', { class: 'num', text: real[r.key] ? `${pct(real[r.key][1] / real[r.key][0])} of ${real[r.key][0]}` : '–' })])))]));
+}
+
+function renderEval(d, rows) {
+  const evals = d.evals;
+  const win = (r) => (r.result === 'win' ? 1 : r.result === 'tie' ? 0.5 : 0);
+  if (!evals.length) $('evalTable').replaceChildren(el('div', { class: 'empty', text: 'No full-game matches yet. The GPU trainer plays them on the CPU (unless run with --eval 0); each takes a minute or two.' }));
+  else {
+    const groups = {};
+    for (const r of evals) (groups[`${r.teams}v${r.teams} · ${r.opp[0].toUpperCase()}${r.opp.slice(1)}`] ||= []).push(r);
+    $('evalTable').replaceChildren(el('table', {}, [
+      el('thead', {}, el('tr', {}, ['Match', 'Played', 'Avg score', 'Win rate'].map((h, i) => el('th', { class: i === 1 || i === 2 ? 'num' : '', text: h })))),
+      el('tbody', {}, Object.keys(groups).sort().map((k) => {
+        const g = groups[k].slice(-30), n = g.length, w = g.reduce((s, x) => s + win(x), 0) / n;
+        return el('tr', {}, [el('td', { text: k }), el('td', { class: 'num', text: fmt(groups[k].length) }), el('td', { class: 'num', text: `${fmt(mean(g.map((x) => x.nn)))} – ${fmt(mean(g.map((x) => x.them)))}` }),
+          el('td', {}, [el('span', { class: 'barbg' }, el('span', { class: 'bar', style: `display:block;width:${Math.round(w * 100)}%` })), pct(w)])]);
+      }))]));
+  }
+  const sim = rows.slice(-30), real = evals.slice(-30);
+  const fields = [['FUEL picked up', (r) => (r.match ? r.match.intaked : r.sim ? r.sim.intaked : null), (r) => r.intaked, 0, ''], ['Shots', (r) => (r.match ? r.match.shots : r.sim ? r.sim.shots : null), (r) => r.shots, 0, ''],
+    ['Passes', (r) => (r.match ? r.match.passes : null), (r) => r.passes, 1, ''], ['Turning (share of top turn rate)', (r) => (r.sim ? 100 * r.sim.turn : null), (r) => 100 * r.turn, 0, '%'],
+    ['Turn flips per minute', (r) => (r.sim ? r.sim.flipsPerMin : null), (r) => r.flipsPerMin, 0, '']];
+  const show = (v, dg, u) => (v === null || v === undefined || !isFinite(v) ? '–' : fmt(v, dg) + u);
+  $('gapTable').replaceChildren(el('table', {}, [el('thead', {}, el('tr', {}, [el('th', { text: '' }), el('th', { class: 'num', text: 'GPU simulator' }), el('th', { class: 'num', text: 'Real game' })])),
+    el('tbody', {}, fields.map(([n, fs, fr, dg, u]) => el('tr', {}, [el('td', { text: n }), el('td', { class: 'num', text: show(mean(sim.map(fs)), dg, u) }), el('td', { class: 'num', text: show(mean(real.map(fr)), dg, u) })])))]));
+}
+
+// ------------------------------------------------------------------ refresh loop
+let busy = false;
+async function tick(force = false) {
+  if (busy) return;
+  busy = true;
+  try {
+    await loadRuns();
+    const changed = await loadRun(run);
+    for (const n of compare) await loadRun(n).catch(() => {});
+    const d = runData(run), q = `${run}|${d.version}|${range}|${xmode}|${[...compare].join(',')}|${runList.length}`;
+    if (force || changed || q !== lastQ) { render(); lastQ = q; } else renderStatus(d);
+  } catch (e) {
+    $('dot').className = 'dot stale';
+    $('statusText').textContent = `Can't read the training log (${e.message}). Is the dashboard server (nn-dashboard.bat) running?`;
+  } finally { busy = false; }
+}
+let rz = null;
+window.addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(render, 150); });
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', render);
+tick(true);
+setInterval(tick, 5000);
 
 // ------------------------------------------------------------------ live matches
-let field = null, liveData = null, queue = [], lastSeq = 0, shown = null, liveOn = true;
-try { liveOn = localStorage.getItem('nnLive') !== 'off'; } catch { /* storage unavailable */ }
-$('liveToggle').onclick = () => { liveOn = !liveOn; try { localStorage.setItem('nnLive', liveOn ? 'on' : 'off'); } catch { /* */ } applyLiveToggle(); };
+let field = null, liveData = null, queue = [], lastSeq = 0, shown = null, liveOn = store.get('live', 'on') !== 'off', liveRun = null;
+$('liveToggle').onclick = () => { liveOn = !liveOn; store.set('live', liveOn ? 'on' : 'off'); applyLiveToggle(); };
 function applyLiveToggle() { $('live').style.display = liveOn ? '' : 'none'; $('liveToggle').textContent = liveOn ? 'Hide' : 'Show'; }
 applyLiveToggle();
 fetch('tools/nn/gpusim-params.json', { cache: 'no-store' }).then((r) => r.json()).then((p) => { field = p; }).catch(() => {});
-// The trainer simulates in bursts (it pauses while it updates the network), at whatever pace the
-// GPU allows. Frames carry the trainer's clock; we play them at that pace, a few seconds behind,
-// with enough buffered to ride over the pauses, so the matches move smoothly.
+// The trainer simulates in bursts (it pauses while it updates the network). Frames carry the
+// trainer's clock; they play at that pace, a few seconds behind, buffered over the pauses.
 let clockOff = null, gaps = [], delay = 3;
 async function pollLive() {
-  if (!liveOn) return;
+  if (!liveOn || document.hidden) return;
+  if (liveRun !== run) { liveRun = run; queue = []; lastSeq = 0; shown = null; clockOff = null; gaps = []; $('live').replaceChildren(); }
   try {
-    const r = await fetch(`runs/${run}/live.json`, { cache: 'no-store' });
+    const r = await fetch(`runs/${encodeURIComponent(run)}/live.json`, { cache: 'no-store' });
     if (!r.ok) throw new Error();
     const d = await r.json();
     liveData = d;
     const first = d.seq - d.frames.length + 1;
     const fresh = d.frames.filter((f, i) => first + i > lastSeq);
+    if (d.seq < lastSeq) { queue = []; }
     lastSeq = d.seq;
     if (fresh.length) {
       const nowS = performance.now() / 1000;
-      const off = fresh[fresh.length - 1].w - nowS;   // trainer clock - our clock (minus a little latency)
+      const off = fresh[fresh.length - 1].w - nowS;
       clockOff = clockOff === null ? off : Math.max(off, clockOff - 0.05);
       let prev = queue.length ? queue[queue.length - 1].w : null;
-      for (const f of fresh) {
-        if (prev !== null) gaps.push([nowS, f.w - prev]);
-        prev = f.w;
-        queue.push(f);
-      }
+      for (const f of fresh) { if (prev !== null) gaps.push([nowS, f.w - prev]); prev = f.w; queue.push(f); }
       gaps = gaps.filter(([t]) => nowS - t < 90);
       const maxGap = gaps.reduce((m, [, g]) => Math.max(m, g), 0);
       delay = Math.min(30, Math.max(1.5, 1.2 * maxGap + 1.2));
     }
-    $('liveState').textContent = '';
-  } catch { $('liveState').textContent = 'waiting for the GPU trainer…'; }
+  } catch { if (!shown) $('liveState').textContent = 'waiting for the GPU trainer (--live)…'; }
 }
 setInterval(pollLive, 1000);
 let lastDraw = 0, drawn = null;
@@ -255,7 +839,7 @@ function tickLive(now) {
     if (queue.length > 3000) queue = queue.slice(-1500);
   }
   if (shown && shown !== drawn) { drawLive(shown); drawn = shown; }
-  $('liveState').textContent = shown ? `${delay.toFixed(0)} s behind the trainer` : '';
+  if (shown) $('liveState').textContent = `${delay.toFixed(0)} s behind the trainer`;
 }
 requestAnimationFrame(tickLive);
 function clockText(t) {
@@ -269,8 +853,8 @@ const OPP = ['alone', 'vs bots', 'vs older self', 'vs itself'];
 function drawLive(fr) {
   const box = $('live');
   while (box.children.length < fr.envs.length) {
-    const f = document.createElement('figure');
-    f.innerHTML = '<canvas role="img" aria-label="Bird\'s-eye view of a training match"></canvas><figcaption><span></span><span></span></figcaption>';
+    const f = el('figure', {}, [el('canvas', { role: 'img', 'aria-label': "Bird's-eye view of a training match" }), el('figcaption', {}, [el('span'), el('span')])]);
+    f.onclick = () => { f.classList.toggle('big'); drawn = null; };
     box.appendChild(f);
   }
   while (box.children.length > fr.envs.length) box.lastChild.remove();
@@ -285,7 +869,6 @@ function drawLive(fr) {
     const sc = Math.min(W / (2 * HL), H / (2 * HW));
     const X = (x) => W / 2 + x * sc, Z = (z) => H / 2 + z * sc;
     g.fillStyle = col.field; g.fillRect(0, 0, W, H);
-    // alliance zones and center line
     const lx = field.field.allianceLineX;
     g.globalAlpha = 0.14;
     g.fillStyle = col.blue; g.fillRect(X(-HL), Z(-HW), (lx + HL) * sc, 2 * HW * sc);
@@ -293,7 +876,6 @@ function drawLive(fr) {
     g.globalAlpha = 1;
     g.strokeStyle = col.line; g.lineWidth = 1;
     g.beginPath(); g.moveTo(X(0), Z(-HW)); g.lineTo(X(0), Z(HW)); g.stroke();
-    // field elements; HUBS light up while active
     for (const o of field.obstacles) {
       const isHub = o.kind === 'hub', al = o.x < 0 ? 0 : 1;
       g.fillStyle = isHub ? (e.active[al] ? (al ? col.red : col.blue) : col.el) : col.el;
@@ -301,7 +883,6 @@ function drawLive(fr) {
       g.fillRect(X(o.x - o.hx), Z(o.z - o.hz), 2 * o.hx * sc, 2 * o.hz * sc);
       g.globalAlpha = 1;
     }
-    // FUEL
     const raw = atob(e.balls), n = raw.length / 4;
     g.fillStyle = col.fuel;
     const r = Math.max(1, field.fuel.radius * sc);
@@ -310,7 +891,6 @@ function drawLive(fr) {
       const bz = (raw.charCodeAt(4 * k + 2) | (raw.charCodeAt(4 * k + 3) << 8)) << 16 >> 16;
       g.fillRect(X(bx / 100) - r, Z(bz / 100) - r, 2 * r, 2 * r);
     }
-    // robots
     for (const [x, z, yaw, al, type, stored, learn] of e.robots) {
       const [hl, hw] = sizes[type] || [0.45, 0.45];
       g.save();
@@ -318,7 +898,7 @@ function drawLive(fr) {
       g.rotate(-yaw);
       g.fillStyle = al ? col.red : col.blue;
       g.fillRect(-hl * sc, -hw * sc, 2 * hl * sc, 2 * hw * sc);
-      g.fillStyle = col.field; // front marker
+      g.fillStyle = col.field;
       g.fillRect(hl * sc - 3, -hw * sc * 0.5, 3, hw * sc);
       if (learn) { g.strokeStyle = col.learner; g.lineWidth = 1.5; g.strokeRect(-hl * sc, -hw * sc, 2 * hl * sc, 2 * hw * sc); }
       g.restore();
@@ -328,12 +908,11 @@ function drawLive(fr) {
       }
     }
     const k = Math.max(e.robots.filter((q) => q[3] === 0).length, e.robots.filter((q) => q[3] === 1).length);
-    fig.lastChild.firstChild.innerHTML = `<b class="bl">${e.score[0]}</b> – <b class="rd">${e.score[1]}</b> · ${clockText(e.t)}`;
-    fig.lastChild.lastChild.textContent = `${k}v${k} ${OPP[e.opp] || ''}`;
+    const cap = fig.lastChild;
+    cap.firstChild.replaceChildren(el('b', { class: 'bl', text: String(e.score[0]) }), ' – ', el('b', { class: 'rd', text: String(e.score[1]) }), ` · ${clockText(e.t)}`);
+    cap.lastChild.textContent = `${k}v${k} ${OPP[e.opp] || ''}`;
   });
 }
-load();
-setInterval(load, 10000);
 </script>
 </body>
 </html>

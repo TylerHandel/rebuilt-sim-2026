@@ -225,6 +225,9 @@ class GpuSim:
         self.cmd = z(n, RS, 7)
         self.prev_a = z(n, RS, 3)          # last decision's drive / turn command (smoothness)
         self.intaked, self.shots, self.passes, self._prevIntaked = z(n, RS), z(n, RS), z(n, RS), z(n, RS)
+        # per robot this match, for the dashboard: m driven, s in its own zone / the NEUTRAL ZONE /
+        # the other alliance's zone, and FUEL x s carried (average load = loadT / time)
+        self.dist, self.tZone, self.loadT = z(n, RS), z(n, RS, 3), z(n, RS)
         self.t = z(n)
         self.firstInactive = zl(n)
         self.prevActive = zb(n, 2)
@@ -326,7 +329,7 @@ class GpuSim:
         self.pos = sel(p, self.pos)
         self.yaw = sel(torch.where(s > 0, 0.0, math.pi), self.yaw)
         for name in ['vel', 'omega', 'deploy', 'hopper', 'fly', 'turret', 'tokens', 'feedT', 'holdV', 'intaked', 'shots', 'passes',
-                     '_prevIntaked', 'hpCool', 'cmd', 'prev_a', 't', 'score', 'btim', 'bvel', 'bkind']:
+                     '_prevIntaked', 'hpCool', 'cmd', 'prev_a', 't', 'score', 'btim', 'bvel', 'bkind', 'dist', 'tZone', 'loadT']:
             cur = getattr(self, name)
             setattr(self, name, sel(torch.zeros_like(cur), cur))
         for name in ['ready', 'shot', 'feeding', 'prevActive', 'bot_ret']:
@@ -658,6 +661,12 @@ class GpuSim:
         self._robot_vs_rects(self.arms, self.present & ~self.spec('fits'))
         self._robot_vs_robot()
         self._walls()
+        # where it drives, and how much it carries (the dashboard's play-style numbers)
+        enh = enabled.float() * h
+        own_z, opp_z = self.in_zone(s), self.in_zone(-s)
+        self.dist = self.dist + self.vel.norm(dim=-1) * enh
+        self.tZone = self.tZone + torch.stack([own_z & ~opp_z, ~own_z & ~opp_z, opp_z], -1).float() * enh[..., None]
+        self.loadT = self.loadT + self.stored * enh
 
         # ---- intake and hopper
         want = enabled & ((cmd[..., 3] > 0.5) | (cmd[..., 6] > 0.5))
@@ -1128,6 +1137,19 @@ class GpuSim:
         inZ = self.in_zone(self.sgn)[sl]
         return torch.stack([vx / nv * sp, vz / nv * sp, (wrap(want - yaw) * 2).clamp(-1, 1) * (~go_score).float(), collecting.float(),
                             (go_score & ~defend & inZ & (act | (nc < 1.0))).float(), torch.zeros_like(x), torch.zeros_like(x)], -1)
+
+    MSTAT = ['intaked', 'shots', 'passes', 'dist', 'tOwn', 'tNeutral', 'tOpp', 'loadT', 'auto', 'tele', 'wasted', 'oppPts', 'rtype']
+
+    def match_stats(self):
+        """[N, len(MSTAT)]: the first robot of alliance A (one the network drives) and its alliance,
+        this match so far: FUEL it picked up, shot and passed, m driven, s in its own zone / the
+        NEUTRAL ZONE / the other zone, FUEL x s carried; its alliance's AUTO and TELEOP points, FUEL
+        it put in its HUB while inactive; the other alliance's points; which robot it is."""
+        al = self.alliance_idx()[:, :1]
+        sc = self.score.gather(1, al[..., None].expand(-1, -1, 3)).squeeze(1)
+        opp = self.totals().gather(1, 1 - al).squeeze(1)
+        return torch.cat([torch.stack([self.intaked[:, 0], self.shots[:, 0], self.passes[:, 0], self.dist[:, 0]], -1), self.tZone[:, 0],
+                          torch.stack([self.loadT[:, 0], sc[:, 0], sc[:, 1], sc[:, 2], opp, self.rtype[:, 0].float()], -1)], -1)
 
     # ------------------------------------------------------------------ privileged state (critic only)
     PRIV_ROBOT, PRIV_GLOBAL = 15, 30

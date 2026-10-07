@@ -509,7 +509,7 @@ class GpuTrainer:
             'priv': z(T, NL, self.P, dtype=torch.float16), 'tact': z(T, NL, ACT_CONT + ACT_BIN) if self.teacher else None,
             'pres': z(T, NL, dtype=torch.bool), 'valid': z(T, NL, dtype=torch.bool),
             'done': z(T, N, dtype=torch.bool), 'margin': z(T, N), 'own': z(T, N), 'k': z(T, N, dtype=torch.long), 'slot': z(T, N, dtype=torch.long),
-            'turn': z(T, NL), 'robot': z(T, N, 2),
+            'turn': z(T, NL), 'mstat': z(T, N, len(sim.MSTAT)),
         }
         nl = min(a.live, N)
         self.live_idx = torch.tensor([int((i + 0.5) * N / nl) for i in range(nl)], device=dev) if nl else None
@@ -572,7 +572,7 @@ class GpuTrainer:
             b['tact'].index_copy_(0, t, t_l.unsqueeze(0))
         for k, v in (('obs', raw), ('act', a_l), ('lp', lp_l), ('v', v_l), ('r', r_l), ('pres', pres), ('valid', valid),
                      ('done', done), ('margin', rew[:, 0, 4]), ('own', totA), ('k', sim.k), ('slot', sim.snap_slot),
-                     ('turn', mu_l[:, 2]), ('robot', torch.stack([sim.intaked[:, 0], sim.shots[:, 0]], -1))):
+                     ('turn', mu_l[:, 2]), ('mstat', sim.match_stats())):
             b[k].index_copy_(0, t, v.unsqueeze(0))
         if self.live_idx is not None:
             b['live'].index_copy_(0, t, sim.live_pack(self.live_idx).unsqueeze(0))
@@ -834,6 +834,7 @@ class GpuTrainer:
         self.live_q = collections.deque(maxlen=96)
         ep = collections.defaultdict(list)
         robot_st = []
+        by_robot = collections.defaultdict(lambda: [0, 0.0, 0.0, 0.0, 0.0, 0.0])  # matches, wins, margin, own pts, FUEL, shots
         try:
             while not stop['flag'] and self.steps < a.total_steps:
                 t0 = time.time()
@@ -846,7 +847,8 @@ class GpuTrainer:
                     else:
                         self.decide()
                 b = self.buf
-                res = torch.stack([b['done'].float(), b['margin'], b['own'], b['k'].float(), b['slot'].float(), b['robot'][..., 0], b['robot'][..., 1]]).cpu().numpy()
+                res = torch.stack([b['done'].float(), b['margin'], b['own'], b['k'].float(), b['slot'].float()]).cpu().numpy()
+                mst = b['mstat'].cpu().numpy()
                 # how it turns (its intended turn, as the game sees it): how hard, and how often it flips direction
                 with torch.no_grad():
                     mw, vd = b['turn'], b['valid']
@@ -867,7 +869,15 @@ class GpuTrainer:
                         key = f'{KIND[kind]} {k}v{k}'
                         self.hist[key].append(m)
                         ep[key].append((float(res[2, t, e]), m))
-                        robot_st.append((float(res[5, t, e]), float(res[6, t, e])))
+                        robot_st.append(mst[t, e])
+                        if kind != OPP_NONE:
+                            r = by_robot[sim.order[int(mst[t, e, -1])]]
+                            r[0] += 1
+                            r[1] += 1.0 if m > 0 else 0.5 if m == 0 else 0.0
+                            r[2] += m
+                            r[3] += float(res[2, t, e])
+                            r[4] += float(mst[t, e, 0])
+                            r[5] += float(mst[t, e, 1])
                         self.episodes += 1
                         s = int(res[4, t, e])
                         if kind == OPP_SNAP and s < len(self.pool):
@@ -909,6 +919,8 @@ class GpuTrainer:
                 ent_sum = torch.zeros((), device=dev)
                 bc_sum = torch.zeros((), device=dev)
                 t_sum = torch.zeros((), device=dev)
+                pl_sum = torch.zeros((), device=dev)
+                vl_sum = torch.zeros((), device=dev)
                 bc_w = self.bc_weight()
                 t_w, warm = self.teacher_weight()
                 kl_sum = torch.zeros((), device=dev)
@@ -956,6 +968,8 @@ class GpuTrainer:
                         with torch.no_grad():
                             ent_sum += ent.mean()
                             kl_ep += (LP[ix] - lp).mean()
+                            pl_sum += pl
+                            vl_sum += vl
                         nmb += 1
                         nmb_ep += 1
                     kl_sum += kl_ep
@@ -1027,19 +1041,48 @@ class GpuTrainer:
                     pp = (sim.pfsp_p / sim.pfsp_p.sum().clamp(min=1e-9)).tolist()
                     print('      older versions (its win rate against each / share of those matches): ' + '  '.join(
                         f'v{e["id"]} {(e["wins"] + 1) / (e["games"] + 2):.0%}/{pp[i]:.0%}' for i, e in enumerate(self.pool)))
-                if own_all:
-                    rec = {'t': round(self.elapsed(), 1), 'steps': self.steps, 'updates': self.updates, 'level': int(self.selfplay), 'sps': round(sps, 1),
-                           'own': round(float(np.mean(own_all)), 2), 'winWeight': round(self.win_weight(), 3), 'gamma': round(gamma, 4),
-                           'ent': round(ent_m, 5), 'kl': round(kl_m, 5), 'ev': round(ev, 3), 'epochs': epochs_done,
-                           'vs': {k: round(float(np.mean([m for _, m in v])), 2) for k, v in ep.items()},
-                           'win': {k: round(sum(m > 0 for _, m in v) / len(v), 3) for k, v in ep.items()}, 'trainer': 'gpu'}
-                    if robot_st:
-                        rec['sim'] = {'intaked': round(float(np.mean([x for x, _ in robot_st])), 1), 'shots': round(float(np.mean([y for _, y in robot_st])), 1),
-                                      'turn': round(turn_stats[0], 3), 'flipsPerMin': round(turn_stats[1] * 600, 1)}
-                    log.write(json.dumps(rec) + '\n')
-                    log.flush()
-                    ep.clear()
-                    robot_st.clear()
+                # every update: the dashboard shows speed and learning from the start, match results once matches finish
+                rec = {'t': round(self.elapsed(), 1), 'steps': self.steps, 'updates': self.updates, 'level': int(self.selfplay), 'sps': round(sps, 1),
+                       'own': round(float(np.mean(own_all)), 2) if own_all else None, 'winWeight': round(self.win_weight(), 3), 'gamma': round(gamma, 4),
+                       'ent': round(ent_m, 5), 'kl': round(kl_m, 5), 'ev': round(ev, 3), 'epochs': epochs_done,
+                       'vs': {k: round(float(np.mean([m for _, m in v])), 2) for k, v in ep.items()},
+                       'win': {k: round(sum(m > 0 for _, m in v) / len(v), 3) for k, v in ep.items()}, 'trainer': 'gpu'}
+                rec['n'] = {k: len(v) for k, v in ep.items()}
+                if robot_st:
+                    ms = np.mean(np.stack(robot_st), 0)
+                    rec['sim'] = {'intaked': round(float(ms[0]), 1), 'shots': round(float(ms[1]), 1),
+                                  'turn': round(turn_stats[0], 3), 'flipsPerMin': round(turn_stats[1] * 600, 1)}
+                    # per match: the network's robot (play style) and its alliance's score
+                    play = sim.T_AUTO + sim.T_TELE
+                    rec['match'] = {'intaked': round(float(ms[0]), 2), 'shots': round(float(ms[1]), 2), 'passes': round(float(ms[2]), 2),
+                                    'dist': round(float(ms[3]), 1), 'own': round(float(ms[4] / play), 4), 'neutral': round(float(ms[5] / play), 4),
+                                    'opp': round(float(ms[6] / play), 4), 'load': round(float(ms[7] / play), 2), 'auto': round(float(ms[8]), 2),
+                                    'tele': round(float(ms[9]), 2), 'wasted': round(float(ms[10]), 2), 'oppPts': round(float(ms[11]), 2)}
+                if by_robot:
+                    rec['robots'] = {k: [v[0], v[1], round(v[2], 1), round(v[3], 1), round(v[4], 1), round(v[5], 1)] for k, v in by_robot.items()}
+                # how it learns: losses, exploration noise of the drive / turn commands, pulls toward a
+                # teacher or recordings, where the time goes, and the older versions it plays
+                rec['loss'] = {'policy': round((pl_sum / max(1, nmb)).item(), 5), 'value': round((vl_sum / max(1, nmb)).item(), 5)}
+                if t_w > 0:
+                    rec['loss']['teacher'] = round((t_sum / max(1, nmb)).item(), 5)
+                if bc_w > 0:
+                    rec['loss']['imitation'] = round((bc_sum / max(1, nmb)).item(), 5)
+                rec['pull'] = {'teacher': round(t_w, 4), 'imitation': round(bc_w, 4)}
+                rec['std'] = [round(v, 4) for v in self.actor.log_std.detach().clamp(-3.0, 0.5).exp().tolist()]
+                rec['time'] = {'sim': round(sim_s, 2), 'upd': round(upd_s, 2)}
+                rec['matchesPerHour'] = round(mph)
+                rec['wall'] = round(time.time())
+                if dev.type == 'cuda':
+                    rec['gpuGB'] = round(torch.cuda.max_memory_allocated() / 2**30, 2)
+                if self.pool:
+                    pp = (sim.pfsp_p / sim.pfsp_p.sum().clamp(min=1e-9)).tolist()
+                    rec['pool'] = [[e['id'], round((e['wins'] + 1) / (e['games'] + 2), 3), round(pp[i], 3), round(e['games'], 1)] for i, e in enumerate(self.pool)]
+                rec['version'] = self.version
+                log.write(json.dumps(rec) + '\n')
+                log.flush()
+                ep.clear()
+                robot_st.clear()
+                by_robot.clear()
                 if a.bc and time.time() - last_bc > a.bc_reload * 60:
                     last_bc = time.time()
                     if self.bc_count() > self.bc_files and self.load_bc():

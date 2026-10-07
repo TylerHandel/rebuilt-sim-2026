@@ -88,6 +88,8 @@ async function playMatch(k, strategy) {
       teams: k, opp: strategy, nn, them, margin: nn - them, result: nn > them ? 'win' : nn < them ? 'loss' : 'tie',
       intaked: mine.reduce((s, r) => s + r.stats.intaked, 0) / mine.length,
       shots: mine.reduce((s, r) => s + r.stats.shots, 0) / mine.length,
+      passes: mine.reduce((s, r) => s + r.stats.passes, 0) / mine.length,
+      auto: m.score[A].autoFuel, oppAuto: m.score[B].autoFuel, wall: Math.round(Date.now() / 1000),
       turn: tr.reduce((s, x) => s + x.turn / Math.max(1, x.n), 0) / tr.length,
       flipsPerMin: tr.reduce((s, x) => s + (600 * x.flips) / Math.max(1, x.n), 0) / tr.length,
       robots: slots.filter((s, i) => s.driver !== 'empty' && (i < 3 ? BLUE : RED) === A).map((s) => s.robot),
