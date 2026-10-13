@@ -82,8 +82,13 @@ export class OpponentAI {
   // foes: the other alliance's robots (foe: just one); mates: the rest of its own alliance.
   // this.foe is the opponent it's paying attention to right now: the one it defends, or else
   // the nearest.
-  constructor({ robot, foe = null, foes = null, mates = [], match, fuel, rules, strategy, skill, brain = null }) {
+  // shadow: it only says what it would do for a robot someone else drives (a teacher for the
+  // neural network, tools/nn/worker.mjs): the caller swaps robot.cmd for its own while it runs
+  // update(), and it leaves the robot alone otherwise (no climbing, no shot scatter, no
+  // unsticking a robot it isn't driving)
+  constructor({ robot, foe = null, foes = null, mates = [], match, fuel, rules, strategy, skill, brain = null, shadow = false }) {
     this.robot = robot;
+    this.shadow = shadow;
     this.foes = foes || (foe ? [foe] : []);
     this.mates = mates;
     this.others = [...this.foes, ...this.mates];
@@ -125,7 +130,7 @@ export class OpponentAI {
     this.rate = 2.5; // FUEL per second it has been collecting at (learned as it plays)
     this.cycleStart = null;
     const cap = robot.maxCapacity();
-    robot.noiseScale = this.skill.noise;
+    if (!shadow) robot.noiseScale = this.skill.noise;
     this.maxLoad = cap < 20 ? cap : Math.max(10, Math.round(this.skill.load * cap));
     // a full-skill scorer fills its hopper all the way before a trip (it leaves with less only when
     // time runs short); the handicapped skills (Rookie, Regional) make smaller trips
@@ -179,7 +184,7 @@ export class OpponentAI {
     const want = Math.hypot(cmd.vx, cmd.vz), have = Math.hypot(r.vel.x, r.vel.z);
     const pushing = this.others.some((o) => (this.foes.includes(o) ? this.rules.inContact(r, o) : Math.hypot(o.pos.x - r.pos.x, o.pos.z - r.pos.z) < r.halfL + o.halfL + 0.15));
     if (want > 1.0 && have < 0.15 && !pushing) this.stuckT += dt; else this.stuckT = Math.max(0, this.stuckT - dt);
-    if (this.stuckT > 1.2) {
+    if (this.stuckT > 1.2 && !this.shadow) {
       this.stuckT = 0;
       this.unstick = 0.7;
       const a = Math.atan2(-cmd.vz, -cmd.vx) + rand(-1, 1);
@@ -195,7 +200,7 @@ export class OpponentAI {
   // while it's busy with that.
   _climb() {
     const r = this.robot, m = this.match;
-    if (!r.climberCfg || !r.cfg.climber) return false;
+    if (this.shadow || !r.climberCfg || !r.cfg.climber) return false;
     if (r.climbState !== 'none') { this.label = r.climbState === 'hanging' ? `Hanging (L${r.climbLevel})` : 'Climbing'; return true; }
     const left = TIMING.teleop - m.phaseTime;
     const p = r.climbPose();

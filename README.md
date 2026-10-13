@@ -166,17 +166,18 @@ The matches are headless: the same code, field, rules and all 504 FUEL as the br
 
 How training works:
 1. Each generation samples candidate brains around the current one (an evolution strategy with mirrored sampling).
-2. Every candidate plays the same seeded scenarios, with mixed strategies, robots and alliances. Its opponents come from a league: the hand-tuned brain plus earlier snapshots of the trained brain.
+2. Every candidate plays the same seeded scenarios. By default these are 3v3 matches: robots and roles (Scorer, Hybrid, Defense) are drawn at random for both ALLIANCES, all three robots on the candidate's ALLIANCE run the candidate brain, and the other three run a brain from a league (the hand-tuned brain plus earlier snapshots of the trained one). `--teams 1` plays 1v1 matches instead, as it used to.
 3. Scores are ranked per scenario, and the brain moves toward the best half.
 4. At the end, the trained and hand-tuned brains play the same held-out matches, and the paired difference is reported.
-5. The result is saved to `js/trainedBrain.js` (the **Trained** skill level) only if it beats the hand-tuned brain. Each run's history is appended to `tools/training-log.json`.
+5. The result is saved to `js/trainedBrain.js` (the **Trained** skill level) only if it beats the hand-tuned brain. Each run's history is appended to `tools/training-log.json`. With `--out FILE` it goes to that JSON file instead (`nn-train-cpu.bat` keeps it in `runs\brain.json`, which an update leaves alone).
 
 Requires Node 18+:
 
 ```
 npm install                                   # three + rapier for Node (the browser still uses the CDN)
-npm run train                                 # 10 generations, about 45 min on 4 cores
-npm run train -- --gens 30 --pop 12 --scenarios 6 --resume   # longer run, continuing from the last result
+npm run train                                 # 10 generations of 3v3 matches, about 3 h on 4 cores (about 45 min on 16 threads)
+npm run train -- --gens 30 --pop 12 --scenarios 8 --resume   # longer run, continuing from the last result
+npm run train -- --teams 1                    # 1v1 matches (faster: a 1v1 takes about half the CPU of a 3v3)
 npm run train -- --quick                      # smoke test, nothing saved
 npm run train -- --from rebuilt-ai-brain.json # continue from a brain exported in AI Tuning
 npm run match -- --a hybrid:trained:4414 --b defense:champs:2910   # one headless match
@@ -188,7 +189,9 @@ Each side of `npm run match` is `strategy:skill:robot`. Training options:
 |---|---|
 | `--gens` | Number of generations |
 | `--pop` | Candidates per generation |
-| `--scenarios` | Matches per candidate per generation |
+| `--scenarios` | Matches per candidate per generation (default 6 in 3v3, 4 in 1v1) |
+| `--teams` | `3` (default), `1`, or `1,3` for both |
+| `--out FILE` | Save the result to this JSON file instead of `js/trainedBrain.js` (and continue from it with `--resume`) |
 | `--validate` | Held-out validation matches |
 | `--workers` | Parallel processes (default: all cores) |
 | `--seed` | Random seed |
@@ -198,7 +201,7 @@ Each side of `npm run match` is `strategy:skill:robot`. Training options:
 | `--no-save` | Don't write the result |
 | `--force` | Save even if validation didn't show an improvement |
 
-A match takes about 30 s of CPU, so more cores train faster.
+A 3v3 match takes about a minute of one CPU thread (a 1v1 about half that), so more cores train faster.
 
 ## Neural-net driver (end-to-end)
 
@@ -208,7 +211,8 @@ The self-play trainer above tunes the scripted AI's strategy values. The neural-
 - **Train fast on the GPU:** run `nn-train-gpu.bat`. It plays thousands of simplified matches at once on your graphics card, each decision replayed as a CUDA graph. Ctrl+C saves; `--resume` continues; `--compile` is faster still.
 - **Keep training a network you already have:** double-click `nn-continue-gpu.bat` (GPU) or `nn-continue-champs.bat` (full game against the Champs AIs).
 - **Attention and memory:** double-click `nn-train-memory.bat` when progress levels off. It trains a network built differently, in its own run (`runs\memory`): it treats the other robots and the patches of FUEL as separate objects and picks out what matters right now (attention), and it remembers what it saw over the last seconds (which way an opponent is heading, whether a defender keeps following it). It starts by learning from your best trained network, then trains past it in self-play.
-- **Train on real matches:** double-click `nn-train-real.bat`. The full game with its real physics, on every CPU thread (the GPU does the learning), starting from your best network trained in the GPU simulator. Much slower, but it learns exactly what the real game rewards. A bigger network to take there: `nn-train-memory-large.bat` first.
+- **Train on real matches only (no GPU simulator):** double-click `nn-train-cpu.bat`. First the scripted AI's strategy evolves in generations of 3v3 real matches (an hour or two, first time only). Then a new attention + memory network learns from that AI: the AI rides along with every robot the network drives and says what it would do, the network copies it, then improves on it by trial and error as the AI's pull fades out. It judges each decision by what it does to the whole match (it looks about a minute ahead). It runs as long as you let it; running it again continues. See `tools/nn/README.md`.
+- **Train on real matches from a GPU-trained network:** double-click `nn-train-real.bat`. The full game with its real physics, on every CPU thread (the GPU does the learning), starting from your best network trained in the GPU simulator. Much slower, but it learns exactly what the real game rewards. A bigger network to take there: `nn-train-memory-large.bat` first.
 - **The strongest recipe:** double-click `nn-train-pro.bat`. It grows a bigger network (1024 × 512) in its own run (`runs\pro`): the new network first learns from your trained one (or from the scripted robot if you don't have one yet), on its own matches, then trains past it in self-play. The trainer's critic sees the whole match and learns normalized returns, and the older versions it keeps playing are the ones that still give it trouble. See `tools/nn/README.md`.
 - **Fine-tune in the real game:** run `nn-train.bat --resume --level 3`. It uses every CPU thread for the full simulation and the GPU for learning.
 - **Watch progress:** `nn-dashboard.bat` opens the training dashboard: whether it's training right now, its win rates (against the bots, its older versions and the real Champs AIs), how it plays (FUEL, zones, robots), how well it's learning and how fast, with plain-language notes on what's going on.

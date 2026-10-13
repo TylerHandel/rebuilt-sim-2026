@@ -88,7 +88,7 @@ export async function runGame(settings, { seed = 1, trace = null } = {}) {
       if (trace) trace(game, step);
       if (++step % 2 === 0) frameGame(game, 2 * PHYSICS_DT);
     }
-    const total = (al) => ({ total: m.total(al), fuel: m.fuelPoints(al), autoFuel: m.score[al].autoFuel, fouls: m.score[al].fouls.map((f) => f.rule) });
+    const total = (al) => ({ total: m.total(al), fuel: m.fuelPoints(al), autoFuel: m.score[al].autoFuel, fouls: m.score[al].fouls.map((f) => f.rule), foulPtsGiven: m.score[al].fouls.reduce((s, f) => s + f.pts, 0) });
     return {
       blue: total(BLUE), red: total(RED),
       robots: game.units.map((u) => ({ alliance: u.robot.alliance, station: u.entry.station + 1, robot: u.robot.cfg.key, driver: u.entry.driver, start: u.entry.startKey, shots: u.robot.stats.shots, intaked: u.robot.stats.intaked, passes: u.robot.stats.passes })),

@@ -109,6 +109,7 @@ It reads only what the logs gained since its last look, so a log of several nigh
 - `nn-overnight.bat`: the same, plus learning from the pre-programmed AIs recorded in the background (see below).
 - `nn-train-pro.bat`: the strongest recipe (see below), in its own run `runs\pro`.
 - `nn-train-memory.bat`: a network with attention and memory (see below), in its own run `runs\memory`, learning from `runs\pro` or `runs\driver` first. `nn-train-memory-large.bat`: the large one (`runs\memory-large`).
+- `nn-train-cpu.bat`: training on real matches only, no GPU simulator at all: the scripted AI evolves first, then a new network learns from it and goes past it (see below), in its own run `runs\cpu`.
 - `nn-train-real.bat`: training on real matches (the full game), starting from your best GPU-trained network (see below).
 - `nn-continue-champs.bat`: backs up `runs\driver` to `runs\driver-gpu`, then trains in the full game against the Champs AIs, 1v1 and 3v3. It's slower, but it learns the real physics.
 
@@ -117,8 +118,16 @@ It reads only what the logs gained since its last look, so a log of several nigh
 - Otherwise the teacher is the GPU simulator's scripted robot, so it starts out playing sensibly instead of twitching at random.
 - Running it again continues where it left off, teacher included.
 
+**Training on real matches only** (`nn-train-cpu.bat`, its own run `runs\cpu`): for when networks trained in the GPU simulator score far more there than in the real game. Nothing here comes from the simplified simulator, so everything it learns works in the real game. It's slow, so it's built to get the most out of every match, and to keep improving for as long as you let it run:
+1. **Generations of the scripted AI** (first time only, an hour or two on 16 threads): `tools/train.mjs` evolves the AI's strategy (its "brain") in 3v3 real matches. Each generation plays variations of it against a league of earlier ones and moves toward the variations that won. Its result goes to `runs\brain.json`; if nothing beat the hand-tuned strategy on held-out matches, that's what it keeps. Delete the file to evolve it again.
+2. **A teacher that rides along.** A new attention + memory network starts out by learning from that AI. In every match, a copy of the AI rides along with each robot the network drives, without driving it, and says what it would do right there (`--teacher scorer`). The network learns to do the same in the situations it gets itself into, including its own mistakes, which recordings of the AI's own matches never show. For its first 30 updates it only copies (`--teacher-warmup`); then it also learns by trial and error, and the teacher's pull fades out over 40M decisions (`--teacher-steps`, a day or so), so it can go past the AI.
+3. **Judged over the whole match.** `--gamma 0.999`: the value of a decision counts everything that follows over about the next minute and a half (the usual 0.995 counts about the next 15 seconds), so it learns plays that pay off later, like filling up before its HUB turns on. That makes each lesson a little noisier, which more matches make up for.
+4. **Then on its own:** the Champs AIs, 1v1 and 3v3 with every robot, and its own older versions, which are the network's generations: each new version plays the ones that still give it trouble.
+
+Starting from scratch here works because of the teacher: it plays like the AI after a few hours, rather than spending weeks learning to drive at all.
+
 **Training on real matches** (`nn-train-real.bat`, its own run `runs\real`): the full game, with its real physics, instead of the simplified GPU simulator. The real game's physics engine (Rapier) runs on the CPU only, so the matches can't move to the GPU: every CPU thread but one plays matches, and the GPU does the learning.
-- **Speed:** a full match takes one CPU thread about a minute (1v1) or a minute and a half (3v3), roughly 1.5–2.5x real time. Every robot of the network's ALLIANCE is the network, and it learns from each of them, so a 3v3 match gives three robots' worth of experience. On an 8-core / 16-thread CPU that's very roughly 400–800 decisions a second, a few million an hour: hundreds of times fewer than the GPU simulator, but every one of them real.
+- **Speed:** a full match takes one CPU thread about 40 seconds (1v1) or a minute (3v3), roughly 2.5x real time. (Upgrading the physics engine to Rapier 0.21's SIMD build made matches about a quarter faster. Intake and shooting measure the same as before: `tools/intake-test.mjs` and `tools/nn/shoot-test.mjs` agree within a couple of percent.) Most of a match's CPU time is the physics of the 504 FUEL; it can't be cut further without changing how the game plays. Every robot of the network's ALLIANCE is the network, and it learns from each of them, so a 3v3 match gives three robots' worth of experience. On an 8-core / 16-thread CPU that's very roughly 400–800 decisions a second, a few million an hour: hundreds of times fewer than the GPU simulator, but every one of them real.
 - **Start from the GPU simulator.** The first time, it copies your best network trained there (`runs\memory-large`, else `runs\memory`, `runs\pro` or `runs\driver`) into `runs\real`, and carries on from it. Learning the basics from scratch on real matches would take weeks; the GPU simulator teaches them in hours, and the real matches then correct what it got wrong.
 - It plays the Champs AIs (Scorer, Defense, Hybrid), 1v1 and 3v3 (one third / two thirds), with every robot, and its own older versions.
 - **Bigger networks:** the GPU has time to spare here, so the size of the network is limited by the CPU threads, which run it during the matches: the base attention + memory network adds about 5% to a match, the large one (`nn-train-memory-large.bat`, about 3.1 million weights) about 30%. Train the large one in the GPU simulator first; `nn-train-real.bat` then picks it up.
@@ -247,6 +256,13 @@ Opponents it doesn't beat yet get picked more often. Use `--level N` to start at
 | `--critic` | 1024 512 256 | value network (GPU only, never exported) |
 | `--shaping-steps` | 20M | a small bonus for picking up FUEL that fades out over this many decisions |
 | `--no-publish` | | don't overwrite `js/nn/driver.json` |
+| `--teacher` | none | learn from a scripted AI (`scorer`, `hybrid` or `defense`) that rides along with every robot the network drives (see `nn-train-cpu.bat` above) |
+| `--teacher-skill` | champs | its skill level: `champs`, or `trained` (the shipped evolved strategy) |
+| `--teacher-brain` | | its strategy from a file written by `tools/train.mjs --out` |
+| `--teacher-weight` | 1.0 | how strongly it copies the teacher |
+| `--teacher-steps` | 40M | decisions over which that pull fades out |
+| `--teacher-warmup` | 30 | updates at the start where it only copies the teacher |
+| `--gamma` | 0.995 | how far ahead each decision is judged (0.995: about 15 s; 0.999: about a minute and a half) |
 
 ## Files
 | File | What it is |

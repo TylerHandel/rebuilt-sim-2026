@@ -360,11 +360,19 @@ def read_chunk(msg):
         o += k
         return a
 
-    return {
+    c = {
         'obs': take(n * D).reshape(n, D), 'act': take(n * A).reshape(n, A), 'logp': take(n).copy(),
         'rew': take(n * R).reshape(n, R), 'done': take(n).copy(), 'next': take(D).copy(),
         'h0': take(msg.get('G', 0)).copy(), 'version': msg['version'],
     }
+    if msg.get('T'):  # what the scripted teacher would have done at each decision (0 = nothing to say)
+        c['tact'], c['ton'] = take(n * A).reshape(n, A), take(n).copy()
+    return c
+
+
+def teacher_loss(mu, lg, ta):
+    """How far the network's choice is from the teacher's: drive / turn (squared) and buttons."""
+    return ((mu - ta[:, :ACT_CONT]) ** 2).sum(-1) + nn.functional.binary_cross_entropy_with_logits(lg, ta[:, ACT_CONT:], reduction='none').sum(-1)
 
 
 def load_demos(folder, obs_dim, max_n=None, half=False):
@@ -435,6 +443,8 @@ class Trainer:
         self.own_hist = collections.defaultdict(lambda: collections.deque(maxlen=100))
         self.pool = []  # self-play snapshot paths
         self.demos = None
+        self.teacher_start = None  # steps when it started learning from its teacher (--teacher)
+        self.teacher_upd0 = None   # (updates then: it only copies it for --teacher-warmup updates)
 
     # ---- setup
     def build(self, obs_dim, team=False, arch='mlp', spec=None):
@@ -456,7 +466,8 @@ class Trainer:
             'critic_sizes': self.a.critic, 'critic_in': 'team' if self.team else 'own', 'episodes': self.episodes,
             'arch': self.arch, 'arch_spec': self.actor.spec() if self.rec else None,
             'hist': {k: list(v) for k, v in self.hist.items()}, 'own_hist': {k: list(v) for k, v in self.own_hist.items()},
-            'elapsed': self.elapsed(),
+            'elapsed': self.elapsed(), 'teacher': self.teacher_key(), 'teacher_start': self.teacher_start,
+            'teacher_upd0': self.teacher_upd0,
         }
         tmp = self.run / 'ckpt.tmp'
         torch.save(ck, tmp)
@@ -496,6 +507,8 @@ class Trainer:
         for k, v in ck['own_hist'].items():
             self.own_hist[k].extend(v)
         self.t_start = time.time() - ck.get('elapsed', 0)
+        if ck.get('teacher') and ck.get('teacher') == self.teacher_key():  # the same teacher: carry on fading it out
+            self.teacher_start, self.teacher_upd0 = ck.get('teacher_start'), ck.get('teacher_upd0')
         print(f'Resumed {self.run.name}: {self.steps:,} steps, {self.updates} updates, level {self.level}')
 
     def elapsed(self):
@@ -607,6 +620,41 @@ class Trainer:
         mu, lg = self.actor(X[idx])
         return ((mu - Y[idx, :ACT_CONT]) ** 2).sum(-1).mean() + nn.functional.binary_cross_entropy_with_logits(lg, Y[idx, ACT_CONT:], reduction='none').sum(-1).mean()
 
+    # ---- learning from a scripted AI (--teacher): it rides along with every robot the network
+    # drives and says what it would do there (the network learns to play like it in the situations
+    # it gets itself into, not just the ones the AI would), fading out as trial and error takes over
+    def teacher_key(self):
+        a = self.a
+        if not a.teacher or a.teacher == 'none':
+            return None
+        return f'{a.teacher}:{a.teacher_skill}' + (':evolved' if a.teacher_brain else '')
+
+    def teacher_brain(self):
+        """The strategy evolved by tools/train.mjs --out (--teacher-brain), if any."""
+        f = self.a.teacher_brain
+        if not f:
+            return None
+        d = json.loads(Path(f).read_text())
+        return d.get('brain', d)
+
+    def teacher_weight(self):
+        """(pull of the teacher, copying it only?): for its first --teacher-warmup updates it only
+        copies the teacher (no trial and error yet); then the pull fades out over --teacher-steps."""
+        a = self.a
+        if not self.teacher_key() or self.teacher_start is None or self.teacher_start < 0:
+            return 0.0, False
+        if self.updates < self.teacher_upd0 + a.teacher_warmup:
+            return a.teacher_weight, True
+        return a.teacher_weight * max(0.0, 1.0 - (self.steps - self.teacher_start) / max(1.0, a.teacher_steps)), False
+
+    def teacher_cfg(self):
+        w, _ = self.teacher_weight()
+        if w <= 0:
+            return None
+        if not hasattr(self, '_tbrain'):
+            self._tbrain = self.teacher_brain()
+        return {'strategy': self.a.teacher, 'skill': self.a.teacher_skill, 'brain': self._tbrain}
+
     # ---- PPO
     def win_weight(self):
         """How much the reward is about winning rather than points: grows with the opponent level."""
@@ -687,6 +735,10 @@ class Trainer:
         LP, ADV, RET = pad([c['logp'] for c in chunks]), pad(adv_l), pad(ret_l)
         DONE = pad([c['done'] for c in chunks])
         M = pad([np.ones(len(c['obs'])) for c in chunks])
+        t_w, warm = self.teacher_weight()
+        A_ = ACT_CONT + ACT_BIN
+        TA = pad([c.get('tact', np.zeros((len(c['obs']), A_), np.float32)) for c in chunks], (A_,))
+        TON = pad([c.get('ton', np.zeros(len(c['obs']), np.float32)) for c in chunks])
         H0 = torch.tensor(np.stack([c['h0'] if len(c['h0']) == G else np.zeros(G, np.float32) for c in chunks]), device=dev)
         nb = Tp // L
         with torch.no_grad():                                     # the memory at the start of each piece
@@ -698,7 +750,7 @@ class Trainer:
                 h = h * (1.0 - DONE[t])[:, None]
             S0 = torch.stack(hs).reshape(nb * C, G)
         seg = lambda T: T.view(nb, L, C, *T.shape[2:]).transpose(1, 2).reshape(nb * C, L, *T.shape[2:]).transpose(0, 1)  # [L, nb*C, ...]
-        Xs, RAWs, ACTs, LPs, ADVs, RETs, DONEs, Ms = map(seg, (X, RAW, ACT, LP, ADV, RET, DONE, M))
+        Xs, RAWs, ACTs, LPs, ADVs, RETs, DONEs, Ms, TAs, TONs = map(seg, (X, RAW, ACT, LP, ADV, RET, DONE, M, TA, TON))
         rows = Ms.sum(0).nonzero().squeeze(-1)
         mbr = max(1, a.minibatch // L)
         stats = collections.defaultdict(list)
@@ -719,7 +771,13 @@ class Trainer:
                 pl = -(torch.min(ratio * ad, ratio.clamp(1 - a.clip, 1 + a.clip) * ad) * m).sum() / ms
                 vl = 0.5 * (((self.value(Xs[:, r].reshape(-1, D)) - RETs[:, r].reshape(-1)) ** 2) * m).sum() / ms
                 e = (ent * m).sum() / ms
-                loss = pl + a.vf * vl - a.ent * e
+                # (while it only copies its teacher, no trial and error yet: the critic still learns)
+                loss = a.vf * vl if warm else pl + a.vf * vl - a.ent * e
+                if t_w > 0:
+                    ton = TONs[:, r].reshape(-1) * m
+                    tl = (teacher_loss(mu.reshape(-1, ACT_CONT), lg.reshape(-1, ACT_BIN), TAs[:, r].reshape(-1, A_)) * ton).sum() / ton.sum().clamp(min=1)
+                    loss = loss + t_w * tl
+                    stats['teacher'].append(tl.item())
                 self.opt.zero_grad()
                 loss.backward()
                 nn.utils.clip_grad_norm_([*self.actor.parameters(), *self.critic.parameters()], 0.5)
@@ -746,18 +804,28 @@ class Trainer:
         RET = torch.tensor(np.concatenate(ret_l), device=self.dev)
         n = len(X)
         stats = collections.defaultdict(list)
+        t_w, warm = self.teacher_weight()
+        if t_w > 0:
+            A_ = ACT_CONT + ACT_BIN
+            TA = torch.tensor(np.concatenate([c.get('tact', np.zeros((len(c['obs']), A_), np.float32)) for c in chunks]), device=self.dev)
+            TON = torch.tensor(np.concatenate([c.get('ton', np.zeros(len(c['obs']), np.float32)) for c in chunks]), device=self.dev)
         bc_w = a.bc_weight * max(0.0, 1.0 - self.steps / a.bc_steps) if self.demos is not None and a.bc_steps > 0 else 0.0
         for _ in range(a.epochs):
             perm = torch.randperm(n, device=self.dev)
             for i in range(0, n, a.minibatch):
                 idx = perm[i:i + a.minibatch]
-                lp, ent, _, _ = self.actor.dist_terms(X[idx], ACT[idx])
+                lp, ent, mu, lg = self.actor.dist_terms(X[idx], ACT[idx])
                 ratio = (lp - LP[idx]).exp()
                 ad = ADV[idx]
                 ad = (ad - ad.mean()) / (ad.std() + 1e-8)
                 pl = -torch.min(ratio * ad, ratio.clamp(1 - a.clip, 1 + a.clip) * ad).mean()
                 vl = 0.5 * ((self.value(X[idx]) - RET[idx]) ** 2).mean()
-                loss = pl + a.vf * vl - a.ent * ent.mean()
+                loss = a.vf * vl if warm else pl + a.vf * vl - a.ent * ent.mean()
+                if t_w > 0:
+                    ton = TON[idx]
+                    tl = (teacher_loss(mu, lg, TA[idx]) * ton).sum() / ton.sum().clamp(min=1)
+                    loss = loss + t_w * tl
+                    stats['teacher'].append(tl.item())
                 if bc_w > 0:
                     bl = self.bc_loss(len(idx))
                     loss = loss + bc_w * bl
@@ -811,10 +879,18 @@ class Trainer:
                 self.demos = (torch.tensor(self.norm.apply(demos[0]), device=self.dev), torch.tensor(demos[1], device=self.dev))
         if a.level is not None:
             self.level = max(0, min(len(LEVELS) - 1, a.level))
+        if self.teacher_key() and self.teacher_start is None:
+            self.teacher_start, self.teacher_upd0 = self.steps, self.updates
+            if not a.resume:  # a new network follows its own best guess closely while it copies
+                with torch.no_grad():
+                    self.actor.log_std.fill_(-1.0)
+            print(f'Teacher: the {a.teacher_skill} {a.teacher} AI. ' + (f'It only copies it for {a.teacher_warmup} updates, then ' if a.teacher_warmup else 'It ') +
+                  f'keeps learning from it (pull {a.teacher_weight}) while it learns by trial and error, fading out over {a.teacher_steps / 1e6:.0f}M decisions.')
         policy = self.publish()
 
         def config():
-            W.broadcast({'cmd': 'config', 'policy': str(policy), 'version': self.version, 'opponents': self.opponents(), 'robots': a.robots, 'chunk': a.chunk, 'teams': a.teams})
+            W.broadcast({'cmd': 'config', 'policy': str(policy), 'version': self.version, 'opponents': self.opponents(), 'robots': a.robots, 'chunk': a.chunk, 'teams': a.teams,
+                         'teacher': self.teacher_cfg()})
 
         config()
         stop = {'flag': False}
@@ -878,18 +954,25 @@ class Trainer:
                 vs = '  '.join(f'{k} {np.mean([e["margin"] for e in v]):+.0f} ({sum(e["margin"] > 0 for e in v)}/{len(v)})' for k, v in sorted(by.items()))
                 own = np.mean([e['own'] for e in eps]) if eps else 0
                 gpu = f'  gpu {torch.cuda.max_memory_allocated() / 2**20:.0f}MB' if self.dev.type == 'cuda' else ''
+                t_w, warm = self.teacher_weight()
+                imit = f'  teacher {st["teacher"]:.3f} (x{t_w:.2f}{", copying it first" if warm else ""})' if 'teacher' in st else ''
                 print(f'[{self.elapsed() / 3600:5.2f}h] upd {self.updates:4d}  steps {self.steps / 1e6:7.2f}M  {sps:5.0f} steps/s ({sps * 0.1 / 160 * 3600:.0f} matches/h)  '
-                      f'lvl {self.level}  pts {own:5.1f}  ent {st["ent"]:+.2f}  kl {st["kl"]:+.4f}  upd {upd_s:.1f}s{gpu}')
+                      f'lvl {self.level}  pts {own:5.1f}  ent {st["ent"]:+.2f}  kl {st["kl"]:+.4f}  upd {upd_s:.1f}s{gpu}{imit}')
                 if vs:
                     print(f'      vs: {vs}')
                 rec = {'t': round(self.elapsed(), 1), 'steps': self.steps, 'updates': self.updates, 'level': self.level, 'sps': round(sps, 1), 'own': round(float(own), 2), **{k: round(v, 5) for k, v in st.items()},
                        'vs': {k: round(float(np.mean([e['margin'] for e in v])), 2) for k, v in by.items()},
                        'win': {k: round(sum(e['margin'] > 0 for e in v) / len(v), 3) for k, v in by.items()},
                        'n': {k: len(v) for k, v in by.items()}, 'trainer': 'real', 'wall': round(time.time()), 'arch': self.arch,
-                       'std': [round(v, 4) for v in self.actor.log_std.detach().clamp(-3.0, 0.5).exp().tolist()]}
+                       'std': [round(v, 4) for v in self.actor.log_std.detach().clamp(-3.0, 0.5).exp().tolist()],
+                       'loss': {'policy': round(st['pi'], 5), 'value': round(st['v'], 5), **({'teacher': round(st['teacher'], 5)} if 'teacher' in st else {})},
+                       'pull': {'teacher': round(t_w, 4)}, 'winWeight': self.win_weight(), 'gamma': a.gamma}
                 log.write(json.dumps(rec) + '\n')
                 log.flush()
                 recent_eps.clear()
+                if self.teacher_key() and self.teacher_start is not None and self.teacher_start >= 0 and t_w == 0:
+                    print('\nIt has finished learning from its teacher: on its own from here\n')
+                    self.teacher_start = -1  # (done: stays off when resumed)
                 if time.time() - last_save > a.save_minutes * 60:
                     self.save()
                     last_save = time.time()
@@ -945,9 +1028,20 @@ def main():
     p.add_argument('--bc-only', action='store_true', help='only clone the recordings, export and exit')
     p.add_argument('--bc-weight', type=float, default=0.5, help='keep imitating the recordings this much during PPO ...')
     p.add_argument('--bc-steps', type=float, default=10e6, help='... fading out over this many steps')
+    p.add_argument('--teacher', choices=['scorer', 'hybrid', 'defense', 'none'], default='none',
+                   help='learn from a scripted AI: it rides along with every robot the network drives and says what it would do '
+                        '(the network copies it first, then improves on it by trial and error while its pull fades out)')
+    p.add_argument('--teacher-skill', default='champs', help="the teacher's skill level: champs, or trained (the shipped evolved strategy)")
+    p.add_argument('--teacher-brain', default=None, help='a strategy evolved by tools/train.mjs --out <file> for the teacher (its brain overrides)')
+    p.add_argument('--teacher-weight', type=float, default=1.0, help="how strongly it copies the teacher (fades out to 0)")
+    p.add_argument('--teacher-steps', type=float, default=40e6, help='decisions over which the pull fades out')
+    p.add_argument('--teacher-warmup', type=int, default=30, help='updates at the start in which it only copies the teacher (no trial and error yet)')
     a = p.parse_args()
     if a.robots == ['all']:
         a.robots = None
+    if a.teacher_brain and not Path(a.teacher_brain).exists():
+        print(f'(--teacher-brain {a.teacher_brain} not found: the teacher uses its usual strategy)')
+        a.teacher_brain = None
 
     tr = Trainer(a)
     if a.bc_only:

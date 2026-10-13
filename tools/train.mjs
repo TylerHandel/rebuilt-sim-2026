@@ -1,16 +1,20 @@
 // Self-play training for the robot AI's strategy ("brain", see BRAIN_SPEC in js/opponent.js).
 //
-//   npm run train                       # 10 generations, ~40 min on 4 cores
-//   npm run train -- --gens 30 --pop 12 --scenarios 6 --resume
+//   npm run train                       # 10 generations of 3v3 matches
+//   npm run train -- --gens 30 --pop 12 --scenarios 8 --resume
+//   npm run train -- --teams 1          # 1v1 matches (the original setup)
 //   npm run train -- --quick            # smoke test
 //   npm run train -- --from rebuilt-ai-brain.json   # continue from a brain exported in-game
+//   npm run train -- --out runs/brain.json --resume  # keep the result in its own file (and go on from it)
 //
 // Each generation samples candidate brains around the current mean (mirrored Gaussian noise
 // in normalized parameter space) and plays every candidate through the same seeded scenarios:
 // full 2:40 headless matches on the real field with all 504 FUEL, against opponents from a
-// league (the hand-tuned brain plus earlier snapshots of the trained one). Scores are ranked
-// per scenario so a lopsided matchup counts as much as a close one, and the mean moves toward
-// the best half. At the end the trained brain and the hand-tuned brain each play the same
+// league (the hand-tuned brain plus earlier snapshots of the trained one). In 3v3 a scenario is
+// a random draw of robots and roles (scorer / hybrid / defense) for both ALLIANCES: all three on
+// the candidate's ALLIANCE run the candidate brain, the other three a brain from the league.
+// Scores are ranked per scenario so a lopsided matchup counts as much as a close one, and the
+// mean moves toward the best half. At the end the trained brain and the hand-tuned brain each play the same
 // held-out scenarios and the paired score difference is reported. The result is written to
 // js/trainedBrain.js (the "Trained" skill level) and the history to tools/training-log.json.
 import { Worker } from 'node:worker_threads';
@@ -19,6 +23,8 @@ import { cpus } from 'node:os';
 import { BRAIN_SPEC, DEFAULT_BRAIN } from '../js/opponent.js';
 import { TRAINED_BRAIN } from '../js/trainedBrain.js';
 import { mulberry32 } from './headless.mjs';
+import { ROBOT_ORDER } from '../js/robotConfigs.js';
+import { START_ORDER } from '../js/auto.js';
 import { brainFileText, parseBrainText } from '../js/brainFile.js';
 
 // ------------------------------------------------------------------ options
@@ -28,12 +34,17 @@ const flag = (k) => args.includes('--' + k);
 const QUICK = flag('quick');
 const GENS = opt('gens', QUICK ? 1 : 10);
 const POP = Math.max(2, 2 * Math.round(opt('pop', QUICK ? 2 : 8) / 2)); // even (mirrored pairs)
-const SCEN = opt('scenarios', QUICK ? 2 : 4);
+const TEAMS = (() => { const i = args.indexOf('--teams'); return (i >= 0 ? args[i + 1] : '3').split(',').map(Number); })();
+const SCEN = opt('scenarios', QUICK ? 2 : TEAMS.includes(3) ? 6 : 4);
 const VALID = opt('validate', QUICK ? 2 : 12);
-const WORKERS = Math.max(1, Math.min(opt('workers', cpus().length), POP + 1));
+const WORKERS = Math.max(1, Math.min(opt('workers', cpus().length), (POP + 1) * SCEN));
 const SEED = opt('seed', Date.now() % 1e9);
 const RESUME = flag('resume');
-const FROM = (() => { const i = args.indexOf('--from'); return i >= 0 ? args[i + 1] : null; })();
+const sarg = (k) => { const i = args.indexOf('--' + k); return i >= 0 ? args[i + 1] : null; };
+// --out: the result goes to this JSON file ({ brain, info, history }) instead of js/trainedBrain.js
+// (a file an update leaves alone); with --resume it goes on from what's there
+const OUT = sarg('out');
+const FROM = sarg('from') || (OUT && RESUME && existsSync(OUT) ? OUT : null);
 const NO_SAVE = flag('no-save');
 const rng = mulberry32(SEED);
 
@@ -85,9 +96,21 @@ class Pool {
 // ------------------------------------------------------------------ scenarios
 const ROBOTS = ['2910', '4414', '8793'];
 const A_STRATS = ['scorer', 'hybrid', 'scorer', 'hybrid', 'defense']; // what the learner plays
+const role = () => { const u = rng(); return u < 0.6 ? 'scorer' : u < 0.85 ? 'hybrid' : 'defense'; };
+// 3v3: robots and roles drawn for both ALLIANCES; the candidate's brain goes in at evaluate()
+function scenario3(league) {
+  const slots = [];
+  for (let a = 0; a < 2; a++) {
+    const st = [...START_ORDER].sort(() => rng() - 0.5);
+    const brain = a === 1 ? pick(league) : null;
+    for (let i = 0; i < 3; i++) slots.push({ driver: role(), skill: 'champs', robot: pick(ROBOT_ORDER), auto: 'best', start: st[i], brain });
+  }
+  return { teams: 3, slots, allianceA: 'blue', seed: Math.floor(rng() * 1e9) };
+}
 function scenarios(n, league, offset) {
   const out = [];
   for (let i = 0; i < n; i++) {
+    if (TEAMS[(offset + i) % TEAMS.length] === 3) { out.push(scenario3(league)); continue; }
     const sa = A_STRATS[(offset + i) % A_STRATS.length];
     const sb = sa === 'defense' ? pick(['scorer', 'hybrid']) : pick(['scorer', 'hybrid', 'defense']);
     out.push({
@@ -104,7 +127,10 @@ function scenarios(n, league, offset) {
 async function evaluate(pool, brains, scen) {
   const tasks = [];
   brains.forEach((brain, c) => scen.forEach((s, j) => {
-    tasks.push(pool.run({ ...s, a: { ...s.a, brain } }).then((r) => ({ c, j, r })));
+    const task = s.teams === 3
+      ? { game: { matchMode: '3v3', alliance: 'blue', slots: s.slots.map((sl, k) => (k < 3 ? { ...sl, brain } : sl)) }, allianceA: s.allianceA, seed: s.seed }
+      : { ...s, a: { ...s.a, brain } };
+    tasks.push(pool.run(task).then((r) => ({ c, j, r })));
   }));
   const margins = brains.map(() => new Array(scen.length).fill(0));
   const detail = brains.map(() => []);
@@ -152,7 +178,7 @@ const league = [DEFAULT_BRAIN];
 if (RESUME || fromBrain) league.push(start);
 const history = [];
 let matches = 0;
-console.log(`Self-play training: ${GENS} generations x (${POP} candidates + mean) x ${SCEN} scenarios, ${WORKERS} workers, seed ${SEED}`);
+console.log(`Self-play training (${TEAMS.map((k) => `${k}v${k}`).join(" + ")}): ${GENS} generations x (${POP} candidates + mean) x ${SCEN} scenarios, ${WORKERS} workers, seed ${SEED}`);
 console.log(`start: ${fmtBrain(toBrain(mean))}`);
 
 for (let g = 1; g <= GENS; g++) {
@@ -177,7 +203,7 @@ for (let g = 1; g <= GENS; g++) {
   const meanIdx = xs.length - 1;
   const rec = {
     gen: g, sigma: +sigma.toFixed(3), seconds: Math.round((performance.now() - tg) / 1000),
-    scenarios: scen.map((s) => `${s.a.strategy}/${s.a.robot} vs ${s.b.strategy}/${s.b.robot}`),
+    scenarios: scen.map((s) => (s.teams === 3 ? s.slots.map((sl) => `${sl.driver[0].toUpperCase()}${sl.robot}`).join(' ').replace(/^((?:\S+ ){2}\S+) /, '$1 vs ') : `${s.a.strategy}/${s.a.robot} vs ${s.b.strategy}/${s.b.robot}`)),
     meanMargin: Math.round(avg(margins[meanIdx])), bestMargin: Math.round(avg(margins[order[0]])),
     meanRank: +fit[meanIdx].toFixed(2), brain: toBrain(mean),
   };
@@ -197,7 +223,7 @@ matches += 2 * VALID;
 const gains = vm[0].map((m, j) => m - vm[1][j]);
 const fouls = (d) => d.reduce((s, r) => s + r.a.foulPtsGiven, 0);
 const byStrat = {};
-vscen.forEach((s, j) => { (byStrat[s.a.strategy] ??= []).push(gains[j]); });
+vscen.forEach((s, j) => { (byStrat[s.teams === 3 ? '3v3' : s.a.strategy] ??= []).push(gains[j]); });
 const validation = {
   scenarios: VALID,
   avgGain: Math.round(avg(gains)),
@@ -213,9 +239,18 @@ pool.close();
 
 // ------------------------------------------------------------------ save
 const minutes = Math.round((performance.now() - t0) / 60000);
-const info = { source: 'tools/train.mjs self-play', from: FROM || (RESUME ? 'shipped trained brain' : 'hand-tuned brain'), date: new Date().toISOString().slice(0, 10), generations: GENS, population: POP, scenariosPerGen: SCEN, matches, minutes, seed: SEED, resumed: RESUME, validation };
+const info = { source: 'tools/train.mjs self-play', teams: TEAMS, from: FROM || (RESUME ? 'shipped trained brain' : 'hand-tuned brain'), date: new Date().toISOString().slice(0, 10), generations: GENS, population: POP, scenariosPerGen: SCEN, matches, minutes, seed: SEED, resumed: RESUME, validation };
 if (NO_SAVE || QUICK) {
   console.log(`\n(not saved: ${QUICK ? '--quick' : '--no-save'}) ${matches} matches in ${minutes} min`);
+} else if (OUT) {
+  // (always written, so a pipeline doesn't evolve it again: the hand-tuned brain if the evolved one
+  // didn't beat it on validation, or what was there before)
+  const old = existsSync(OUT) ? JSON.parse(readFileSync(OUT, 'utf8')) : {};
+  const better = validation.avgGain > 0 || flag('force');
+  const brain = better ? trained : old.brain || DEFAULT_BRAIN;
+  writeFileSync(OUT, JSON.stringify({ brain, evolved: better || !!old.evolved, info, history: [...(old.history || []), { ...info, history, trained }] }, null, 1) + '\n');
+  console.log(better ? `\nSaved the evolved brain to ${OUT} (${matches} matches in ${minutes} min)`
+    : `\nThe evolved brain did not beat the hand-tuned one on validation: ${OUT} keeps ${old.brain ? 'the brain it had' : 'the hand-tuned brain'}.`);
 } else if (validation.avgGain <= 0 && !flag('force')) {
   console.log(`\nNot saved: the trained brain did not beat the hand-tuned one on validation (use --force to save anyway).`);
 } else {

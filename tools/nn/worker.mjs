@@ -5,20 +5,26 @@
 // Every robot of the network's ALLIANCE is the network, and each one's experience is kept (its
 // own stream: 3 in a 3v3). A network with memory (attn-gru) keeps one per robot, and each chunk
 // carries the memory it started with, so the trainer can replay it.
+// With a teacher (config.teacher: {strategy, skill, brain?}), a scripted AI rides along with each of those
+// robots without driving it (OpponentAI's shadow mode) and says what it would do at every
+// decision, so the network can learn to play like it in the very situations it gets itself into.
 //
-// stdin  (JSON lines): {cmd:'config', policy, version, opponents:[...], robots:[...], chunk}
+// stdin  (JSON lines): {cmd:'config', policy, version, opponents:[...], robots:[...], chunk, teacher}
 //                      {cmd:'stop'}
-// stdout (JSON lines): {type:'ready'} {type:'chunk', file, n, version, G} {type:'episode', ...}
+// stdout (JSON lines): {type:'ready'} {type:'chunk', file, n, version, G, T} {type:'episode', ...}
 //                      {type:'error', msg}
 // A chunk file holds float32: obs[n*D] act[n*A] logp[n] rew[n*R] done[n] nextObs[D] h0[G]
-// (G = 0 for a network without memory). A chunk is one robot's decisions in one match.
+// (G = 0 for a network without memory), then with a teacher (T = 1): teacherAct[n*A]
+// teacherOn[n] (0 where the teacher has nothing to say: AUTO). A chunk is one robot's decisions
+// in one match.
 import fs from 'node:fs';
 import path from 'node:path';
 import readline from 'node:readline';
 import { createWorld } from '../headless.mjs';
 import { createGame, stepGame, frameGame } from '../../js/game.js';
 import { Policy } from '../../js/nn/policy.js';
-import { buildObs, actionToCmd, OBS_DIM, ACT_DIM, DECISION_DT } from '../../js/nn/obs.js';
+import { buildObs, actionToCmd, cmdToAction, OBS_DIM, ACT_DIM, DECISION_DT } from '../../js/nn/obs.js';
+import { OpponentAI } from '../../js/opponent.js';
 import { PHYSICS_DT, BLUE, RED, other } from '../../js/constants.js';
 import { ROBOT_ORDER } from '../../js/robotConfigs.js';
 import { START_ORDER } from '../../js/auto.js';
@@ -81,7 +87,26 @@ function newStream(robot) {
     robot, obs: new Float32Array(CHUNK_MAX * OBS_DIM), act: new Float32Array(CHUNK_MAX * ACT_DIM),
     logp: new Float32Array(CHUNK_MAX), rew: new Float32Array(CHUNK_MAX * REW), done: new Float32Array(CHUNK_MAX),
     n: 0, version: -1, state: policy.newState(), h0: null, last: null, cur: new Float32Array(OBS_DIM),
+    teacher: null, tcmd: {}, tact: null, ton: null,
   };
+}
+// the scripted AI that rides along with a robot the network drives (see the top)
+function addTeacher(st, game, t) {
+  const r = st.robot, a = r.alliance, robots = game.robots;
+  st.teacher = new OpponentAI({
+    robot: r, foes: robots.filter((q) => q.alliance !== a), mates: robots.filter((q) => q.alliance === a && q !== r),
+    match: game.match, fuel: game.fuel, rules: game.rules, strategy: t.strategy || 'scorer', skill: t.skill || 'champs', brain: t.brain || null, shadow: true,
+  });
+  st.tcmd = { ...r.cmd };
+  st.tact = new Float32Array(CHUNK_MAX * ACT_DIM);
+  st.ton = new Float32Array(CHUNK_MAX);
+}
+// one physics step of the teacher: it thinks about the robot as if it drove it, into its own
+// command (the robot's own command, and what the AI would otherwise set on it, stay as they are)
+function teacherStep(st, dt) {
+  const r = st.robot, cmd = r.cmd, pass = r.passTarget;
+  r.cmd = st.tcmd;
+  try { st.teacher.update(dt); } finally { r.cmd = cmd; r.passTarget = pass; }
 }
 let chunkSeq = 0;
 function flush(st, nextObs) {
@@ -89,12 +114,13 @@ function flush(st, nextObs) {
   const n = st.n;
   const h0 = st.h0 || new Float32Array(0);
   const parts = [st.obs.subarray(0, n * OBS_DIM), st.act.subarray(0, n * ACT_DIM), st.logp.subarray(0, n), st.rew.subarray(0, n * REW), st.done.subarray(0, n), nextObs, h0];
+  if (st.teacher) parts.push(st.tact.subarray(0, n * ACT_DIM), st.ton.subarray(0, n));
   const file = path.join(DIR, `w${ID}_${chunkSeq++}.bin`);
   const fd = fs.openSync(file + '.tmp', 'w');
   for (const p of parts) fs.writeSync(fd, Buffer.from(p.buffer, p.byteOffset, p.byteLength));
   fs.closeSync(fd);
   fs.renameSync(file + '.tmp', file);
-  send({ type: 'chunk', file, n, version: st.version, D: OBS_DIM, A: ACT_DIM, R: REW, G: h0.length });
+  send({ type: 'chunk', file, n, version: st.version, D: OBS_DIM, A: ACT_DIM, R: REW, G: h0.length, T: st.teacher ? 1 : 0 });
   st.n = 0;
 }
 
@@ -142,6 +168,7 @@ async function playEpisode() {
     // every robot the network drives on its ALLIANCE (it decides for all of them at the same steps)
     const streams = game.units.filter((u) => u.external).map((u) => newStream(u.robot));
     for (const st of streams) st.others = { foes: game.robots.filter((r) => r.alliance !== A), mates: game.robots.filter((r) => r.alliance === A && r !== st.robot) };
+    if (config.teacher) for (const st of streams) addTeacher(st, game, config.teacher);
     const snap = (r) => [m.total(A), m.total(B), r.stats.intaked, m.score[A].inactiveFuel, m.score[A].fouls.reduce((s, f) => s + f.pts, 0), m.total(A) - m.total(B)];
     let since = STEPS_PER_DECISION, step = 0, decisions = 0;
     const record = (st, done) => {
@@ -174,10 +201,16 @@ async function playEpisode() {
           st.obs.set(st.cur, j * OBS_DIM);
           st.act.set(action, j * ACT_DIM);
           st.logp[j] = logp;
+          if (st.teacher) {
+            // what the teacher would do right now (it only drives TELEOP: AUTO is left to the network)
+            cmdToAction(st.robot, st.tcmd, st.tact.subarray(j * ACT_DIM, (j + 1) * ACT_DIM));
+            st.ton[j] = m.isTeleop ? 1 : 0;
+          }
           actionToCmd(st.robot, action, st.robot.cmd);
         }
         decisions++;
       }
+      for (const st of streams) if (st.teacher) teacherStep(st, PHYSICS_DT);
       stepGame(game, world, PHYSICS_DT);
       since++;
       if (++step % 2 === 0) frameGame(game, 2 * PHYSICS_DT);

@@ -4,7 +4,7 @@
 // Any number of ROBOTS per ALLIANCE. settings.matchMode picks how they're set up:
 //   'practice' - just your robot
 //   '1v1'      - you (or an AI in watch mode) against one AI opponent (settings.opponent...)
-//   '3v3'      - settings.slots: six { robot, auto, start, driver, skill }, blue 1-3 then red 1-3;
+//   '3v3'      - settings.slots: six { robot, auto, start, driver, skill, brain? }, blue 1-3 then red 1-3;
 //                driver is 'you', an AI strategy ('scorer', 'defense', 'hybrid') or 'empty'
 // Without a matchMode (the headless tools) it's '1v1', with no opponent if opponent is 'off'.
 // Neural-network drivers (js/nn): a driver / opponent of 'nn' drives with settings.driverPolicy /
@@ -41,7 +41,7 @@ export function matchEntries(s) {
   if (s.matchMode === '3v3') {
     return (s.slots || DEFAULT_SLOTS).map((sl, i) => ({ sl, i })).filter(({ sl }) => sl.driver !== 'empty').map(({ sl, i }) => ({
       alliance: slotAlliance(i), station: i % 3, robot: sl.robot, auto: sl.auto, start: sl.start, customSide: 'drawn',
-      driver: sl.driver === 'you' ? 'human' : sl.driver, skill: sl.skill, brain: sl.skill === 'mine' ? s.mineBrain : null,
+      driver: sl.driver === 'you' ? 'human' : sl.driver, skill: sl.skill, brain: sl.brain || (sl.skill === 'mine' ? s.mineBrain : null),
       preload, you: sl.driver === 'you' || sl.driver === 'external', policy: sl.policy || s.slotPolicy,
     }));
   }

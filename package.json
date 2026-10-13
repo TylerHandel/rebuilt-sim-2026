@@ -8,7 +8,7 @@
     "train": "node --import ./tools/node-env.mjs tools/train.mjs"
   },
   "devDependencies": {
-    "@dimforge/rapier3d-compat": "0.14.0",
+    "@dimforge/rapier3d-simd-compat": "0.21.0",
     "three": "0.169.0"
   }
 }
