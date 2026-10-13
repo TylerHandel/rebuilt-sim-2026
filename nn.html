@@ -558,7 +558,8 @@ function renderTiles(d, rows, B) {
   tiles.push(tile('Real game vs Champs AIs', rw === null ? '–' : pct(rw), el('span', { text: ev.length ? `last ${ev.length} full-game matches` : 'no full-game matches yet' })));
   const sps = last ? median(all.slice(-10).map((r) => r.sps)) : null;
   tiles.push(tile('Decisions per second', sps ? compact(sps) : '–', el('span', { text: last && last.matchesPerHour ? `≈ ${compact(last.matchesPerHour)} matches an hour` : '' }), sp((rs) => mean(rs.map((r) => r.sps)))));
-  tiles.push(tile('Trained', last ? `${fmt(last.t / 3600, last.t < 36000 ? 1 : 0)} h` : '–', el('span', { text: last ? `${compact(last.steps)} decisions · ${fmt(last.updates)} updates` : '' })));
+  const net = last && last.arch === 'attn-gru' ? ' · attention + memory network' : '';
+  tiles.push(tile('Trained', last ? `${fmt(last.t / 3600, last.t < 36000 ? 1 : 0)} h` : '–', el('span', { text: last ? `${compact(last.steps)} decisions · ${fmt(last.updates)} updates${net}` : '' })));
   $('tiles').replaceChildren(...tiles);
 }
 

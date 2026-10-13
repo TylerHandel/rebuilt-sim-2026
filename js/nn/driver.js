@@ -19,6 +19,7 @@ export class NNDriver {
     this.drivesAuto = true; // the network plays the whole match, AUTO included
     this.t = DECISION_DT;   // decide on the first step
     this.obs = new Float32Array(OBS_DIM);
+    this.state = policy.newState ? policy.newState() : null; // its memory this match (attn-gru networks)
     this.strategy = 'nn';
     this.label = 'Neural net';
     this.status = 'Neural net';
@@ -29,7 +30,7 @@ export class NNDriver {
     if (this.t < DECISION_DT - 1e-9) return;
     this.t = 0;
     buildObs(this.robot, { foes: this.foes, mates: this.mates }, this.match, this.fuel, this.obs);
-    const { action } = this.policy.act(this.obs, { sampleButtons: this.sampleButtons });
+    const { action } = this.policy.act(this.obs, { sampleButtons: this.sampleButtons, state: this.state });
     actionToCmd(this.robot, action, this.robot.cmd);
   }
 }

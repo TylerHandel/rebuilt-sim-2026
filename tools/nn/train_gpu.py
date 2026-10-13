@@ -39,7 +39,8 @@ import torch
 import torch.nn as nn
 
 sys.path.insert(0, str(Path(__file__).parent))
-from train import ROOT, ACT_CONT, ACT_BIN, Actor, mlp, export_policy, publish_file, upgrade_inputs, team_critic, critic_priv, load_demos  # noqa: E402
+from train import ROOT, ACT_CONT, ACT_BIN, OBS_VERSION, Actor, mlp, export_policy, publish_file, upgrade_inputs, team_critic, critic_priv, load_demos  # noqa: E402
+from models import AttnGruActor, from_policy_json  # noqa: E402
 from gpusim import GpuSim, RS, OPP_NONE, OPP_BOT, OPP_SNAP, OPP_SELF  # noqa: E402
 
 KIND = {OPP_NONE: 'alone', OPP_BOT: 'bot', OPP_SNAP: 'older', OPP_SELF: 'self'}
@@ -90,9 +91,36 @@ class TorchNorm:
         return n
 
 
+ARCHS = {'mlp': 'a plain network (MLP)', 'attn-gru': 'attention over the objects on the field + memory'}
+
+
+def make_actor(arch, D, hidden, spec=None):
+    """The driving network: 'mlp' (hidden layers) or 'attn-gru' (tools/nn/models.py; spec:
+    {layout, field, cfg})."""
+    if arch == 'mlp':
+        return Actor(D, hidden)
+    if arch == 'attn-gru':
+        return AttnGruActor(D, spec['layout'], spec['field'], spec.get('cfg'))
+    sys.exit(f'Unknown network kind {arch!r} (known: {", ".join(ARCHS)})')
+
+
+def dist_from(actor, mu, lg, act):
+    """Log-probability and entropy of actions act under means mu / logits lg (like Actor.dist_terms)."""
+    ls = actor.log_std.clamp(-3.0, 0.5)
+    a, b = act[:, :ACT_CONT], act[:, ACT_CONT:]
+    lp_c = (-0.5 * ((a - mu) / ls.exp()) ** 2 - ls - 0.5 * math.log(2 * math.pi)).sum(-1)
+    lp_b = -nn.functional.binary_cross_entropy_with_logits(lg, b, reduction='none').sum(-1)
+    ent_c = (ls + 0.5 * math.log(2 * math.pi * math.e)).sum().expand(mu.shape[0])
+    ent_b = nn.functional.binary_cross_entropy_with_logits(lg, torch.sigmoid(lg), reduction='none').sum(-1)
+    return lp_c + lp_b, ent_c + ent_b
+
+
 def sample(actor, x):
     """Sample actions (and their log-probs) like js/nn/policy.js does in training."""
-    mu, lg = actor(x)
+    return sample_from(actor, *actor(x))
+
+
+def sample_from(actor, mu, lg):
     ls = actor.log_std.clamp(-3.0, 0.5)
     a_c = mu + ls.exp() * torch.randn_like(mu)
     p = torch.sigmoid(lg)
@@ -149,6 +177,40 @@ class SnapBank:
         return torch.cat([a_c, a_b], -1)
 
 
+class SnapBankRec:
+    """The older copies of an attention + memory network: all of them run at once (torch.func.vmap
+    over their stacked weights); each robot gets the actions of the version its match picked, and
+    keeps that version's memory."""
+
+    def __init__(self, actor, n, dev):
+        import copy
+        from torch.func import functional_call, vmap
+        self.n = n
+        self.model = copy.deepcopy(actor).requires_grad_(False)
+        self.params = {k: torch.zeros(n, *v.shape, device=dev) for k, v in actor.named_parameters()}
+        self.buffers = dict(self.model.named_buffers())
+        run = lambda p, x, raw, h: functional_call(self.model, (p, self.buffers), (x, raw, h))
+        self.run = vmap(run, in_dims=(0, None, None, None))
+
+    @torch.no_grad()
+    def set(self, i, sd):
+        for k, v in self.params.items():
+            v[i].copy_(sd[k])
+
+    def act(self, x, raw, h, slot):
+        """x / raw [R,D], h [R,G] memory, slot [R] -> sampled actions [R,7], new memory [R,G]."""
+        R = x.shape[0]
+        mu, lg, hn = self.run(self.params, x, raw, h)                     # [n,R,...]
+        sel = slot[None, :, None]
+        mu = mu.gather(0, sel.expand(1, R, ACT_CONT))[0]
+        lg = lg.gather(0, sel.expand(1, R, ACT_BIN))[0]
+        hn = hn.gather(0, sel.expand(1, R, hn.shape[-1]))[0]
+        ls = self.params['log_std'][slot].clamp(-3.0, 0.5)
+        a_c = mu + ls.exp() * torch.randn_like(mu)
+        a_b = (torch.rand_like(lg) < torch.sigmoid(lg)).float()
+        return torch.cat([a_c, a_b], -1), hn
+
+
 class Teacher:
     """Who the network learns from on its own matches (--teacher), on top of its own trial and
     error: the GPU simulator's scripted robot ('bot'), or an earlier network (a run folder, its
@@ -161,6 +223,7 @@ class Teacher:
     def __init__(self, spec, D, dev):
         self.kind = 'bot' if spec == 'bot' else 'net'
         self.name = spec
+        self.recurrent = False
         if self.kind == 'bot':
             return
         path = Path(spec) if Path(spec).is_absolute() else ROOT / spec
@@ -168,8 +231,13 @@ class Teacher:
             path = path / 'ckpt.pt'
         if not path.exists():
             sys.exit(f'--teacher: {path} not found (give a run folder, its ckpt.pt, a policy .json, or "bot")')
+        self.recurrent = False
         if path.suffix == '.json':
             d = json.loads(path.read_text())
+            if d.get('arch', 'mlp') != 'mlp':
+                m, mean, std = from_policy_json(d)
+                self._set_rec(m, mean, std, D, dev)
+                return
             hidden, old = d['hidden'], d['obsDim']
             actor = Actor(old, hidden)
             w = np.frombuffer(base64.b64decode(d['weights']), dtype='<f4')
@@ -186,6 +254,11 @@ class Teacher:
             mean, std = np.array(d['obsMean']), np.array(d['obsStd'])
         else:
             ck = torch.load(path, map_location='cpu', weights_only=False)
+            if ck.get('arch', 'mlp') != 'mlp':
+                m = make_actor(ck['arch'], ck['obs_dim'], None, ck['arch_spec'])
+                m.load_state_dict(ck['actor'])
+                self._set_rec(m, np.array(ck['norm']['mean']), np.sqrt(np.array(ck['norm']['var']) + 1e-8), D, dev)
+                return
             hidden, old, sd = ck['hidden'], ck['obs_dim'], ck['actor']
             mean = np.array(ck['norm']['mean'])
             std = np.sqrt(np.array(ck['norm']['var']) + 1e-8)
@@ -204,8 +277,21 @@ class Teacher:
         self.std = torch.tensor(std, dtype=torch.float32, device=dev)
         self.hidden = hidden
 
-    def act(self, raw):
+    def _set_rec(self, m, mean, std, D, dev):
+        if m.obs_dim != D:
+            sys.exit(f'--teacher {self.name}: an attention + memory network for a {m.obs_dim}-number observation; this one has {D}')
+        self.recurrent = True
+        self.actor = m.to(dev).requires_grad_(False)
+        self.mean = torch.tensor(mean, dtype=torch.float32, device=dev)
+        self.std = torch.tensor(std, dtype=torch.float32, device=dev)
+        self.hidden = ['attention + memory']
+
+    def act(self, raw, h=None):
+        """-> targets [R,7] (and, for a teacher with memory, its new memory)."""
         x = ((raw - self.mean) / self.std).clamp(-10, 10)
+        if self.recurrent:
+            mu, lg, h = self.actor.step(x, raw, h)
+            return torch.cat([mu, torch.sigmoid(lg)], -1), h
         mu, lg = self.actor(x)
         return torch.cat([mu, torch.sigmoid(lg)], -1)
 
@@ -234,7 +320,9 @@ class GpuTrainer:
                 print('  On Windows torch.compile needs Triton: .venv\\Scripts\\pip install triton-windows')
             print(f'  done in {time.time() - t:.0f} s')
         self.P = self.sim.PRIV if a.priv else 0   # privileged inputs the critic sees (gpusim.priv)
-        self.actor = Actor(self.D, a.hidden).to(self.dev)
+        self.arch = a.arch or 'mlp'                 # (a resumed run keeps its own: load())
+        self.arch_spec = {'layout': self.sim.P['obs']['layout'], 'field': {'halfL': self.sim.HL, 'halfW': self.sim.HW}}
+        self.actor = make_actor(self.arch, self.D, a.hidden, self.arch_spec).to(self.dev)
         self.critic = self._critic()
         self.opt = self._optimizer()
         self.norm = TorchNorm(self.D, self.dev)
@@ -248,7 +336,7 @@ class GpuTrainer:
         self.selfplay = False
         self.selfplay_step = 0
         self.pool = []        # older versions {'sd', 'id', 'wins', 'games'}; pool[i] plays from bank slot i
-        self.bank = SnapBank(self.actor, a.pool_size, self.dev)
+        self.bank = self._bank()
         self.sim.set_snapshots(torch.zeros(a.pool_size))
         self.hist = collections.defaultdict(lambda: collections.deque(maxlen=400))
         self.t_start = time.time()
@@ -259,6 +347,13 @@ class GpuTrainer:
         self.t_idx = torch.zeros(1, dtype=torch.long, device=self.dev)
         self.graph = None
         self.evals = []
+
+    @property
+    def rec(self):
+        return getattr(self.actor, 'recurrent', False)
+
+    def _bank(self):
+        return (SnapBankRec if self.rec else SnapBank)(self.actor, self.a.pool_size, self.dev)
 
     def _critic(self):
         return mlp([TEAM * self.D + self.P, *self.a.critic, 1]).to(self.dev)
@@ -301,7 +396,7 @@ class GpuTrainer:
             'actor': self.actor.state_dict(), 'critic': self.critic.state_dict(), 'opt': self.opt.state_dict(),
             'norm': self.norm.state(), 'version': self.version, 'steps': self.steps, 'updates': self.updates,
             'level': self.a.real_level, 'pool': [], 'obs_dim': self.D, 'hidden': self.a.hidden, 'critic_sizes': self.a.critic,
-            'critic_in': 'team', 'priv_dim': self.P, 'vnorm': {'mu': float(self.v_mu), 'sig': float(self.v_sig)} if self.v_init else None,
+            'critic_in': 'team', 'priv_dim': self.P, 'arch': self.arch, 'arch_spec': self.actor.spec() if self.rec else None, 'vnorm': {'mu': float(self.v_mu), 'sig': float(self.v_sig)} if self.v_init else None,
             'episodes': self.episodes, 'hist': {}, 'own_hist': {}, 'elapsed': self.elapsed(),
             'gpu': {'selfplay': self.selfplay, 'selfplay_step': self.selfplay_step, 'pool': [p['sd'] for p in self.pool],
                     'pool_meta': [{k: p[k] for k in ('id', 'wins', 'games')} for p in self.pool], 'bc_start': getattr(self, 'bc_start', None),
@@ -319,6 +414,11 @@ class GpuTrainer:
                      f'downloaded a new copy, run import-old.bat in it (it copies the runs folder and the network over), '
                      f'or leave out --resume to start fresh.')
         ck = torch.load(self.run / 'ckpt.pt', map_location=self.dev, weights_only=False)
+        arch = ck.get('arch', 'mlp')
+        if self.a.arch and self.a.arch != arch:
+            print(f'Note: {self.run.name} is {ARCHS.get(arch, arch)}; --arch only picks the network of a new run (use a new --run for {self.a.arch}).')
+        if arch != 'mlp' and ck['obs_dim'] != self.D:
+            sys.exit(f'{self.run / "ckpt.pt"} has a {ck["obs_dim"]}-number observation and this build {self.D}: an attention + memory network can\'t grow with it. Start a new run that learns from it (--teacher).')
         if ck['obs_dim'] > self.D:
             sys.exit(f'{self.run / "ckpt.pt"} was trained with a newer observation ({ck["obs_dim"]} > {self.D}); update the code')
         g = ck.get('gpu') or {}
@@ -334,7 +434,8 @@ class GpuTrainer:
         if critic_priv(ck, self.P) and self.P:
             print('Upgraded the critic to see the whole match (privileged state: every robot\'s load, FUEL in flight, ...): it judges exactly as before until it learns to use it.')
         self.a.hidden, self.a.critic = ck['hidden'], ck['critic_sizes']
-        self.actor = Actor(self.D, self.a.hidden).to(self.dev)
+        self.arch = arch
+        self.actor = make_actor(arch, self.D, self.a.hidden, ck.get('arch_spec')).to(self.dev)
         self.critic = self._critic()
         self.actor.load_state_dict(ck['actor'])
         self.critic.load_state_dict(ck['critic'])
@@ -355,7 +456,7 @@ class GpuTrainer:
         self.version, self.steps, self.updates, self.episodes = ck['version'], ck['steps'], ck['updates'], ck['episodes']
         self.selfplay = g.get('selfplay', False)
         self.selfplay_step = g.get('selfplay_step', self.steps if self.selfplay else 0)
-        self.bank = SnapBank(self.actor, self.a.pool_size, self.dev)
+        self.bank = self._bank()
         sds = g.get('pool', [])
         meta = g.get('pool_meta') or [{'id': i} for i in range(len(sds))]
         for i, (sd, m) in enumerate(list(zip(sds, meta))[-self.a.pool_size:]):
@@ -381,7 +482,11 @@ class GpuTrainer:
                 'date': time.strftime('%Y-%m-%d %H:%M'), 'device': str(self.dev), 'winWeight': round(self.win_weight(), 3), 'robots': self.a.robots,
                 'vs': {k: round(float(np.mean(v)), 1) for k, v in self.hist.items() if v}}
         cur = self.run / 'policy' / 'current.json'
-        export_policy(self.actor, self.norm.numpy(), cur, self.version, info)
+        info['arch'] = self.arch
+        if self.rec:
+            self.actor.export(self.norm.numpy(), cur, self.version, info, OBS_VERSION)
+        else:
+            export_policy(self.actor, self.norm.numpy(), cur, self.version, info)
         if self.a.publish:
             publish_file(cur, ROOT / 'js' / 'nn' / 'driver.json')
 
@@ -523,6 +628,14 @@ class GpuTrainer:
         self.full = np.zeros(N, dtype=bool)  # those first matches are partial: not counted
         self.obs_s = sim.obs().clone()
         self.priv_s = sim.priv().clone() if self.P else None
+        # memory (attention + memory networks): each robot's, carried from decision to decision and
+        # emptied when its match ends; h0 is where this rollout started (training replays from it)
+        if self.rec:
+            G = self.actor.hdim
+            self.h_s, self.h0 = z(NL, G), z(NL, G)
+            self.h_S = z(len(self.S_env), G) if self.S_env is not None else None
+        if self.teacher is not None and getattr(self.teacher, 'recurrent', False):
+            self.h_T = z(NL, self.teacher.actor.hdim)
         if a.graph and dev.type == 'cuda':
             self.build_graph()
         parts = ', '.join(f'{KIND[k]} {hi - lo}' for k, (lo, hi) in enumerate(kr) if hi > lo)
@@ -546,17 +659,31 @@ class GpuTrainer:
         x = self.norm.apply(raw.float())
         pres = sim.present.view(-1).index_select(0, self.L_flat)
         pv = self.priv_s.view(N * RS, -1).index_select(0, self.L_flat) if self.P else None
-        a_l, lp_l, mu_l = sample(self.actor, x)
+        if self.rec:
+            mu_l, lg_l, h_new = self.actor.step(x, raw.float(), self.h_s)
+            a_l, lp_l, _ = sample_from(self.actor, mu_l, lg_l)
+        else:
+            a_l, lp_l, mu_l = sample(self.actor, x)
         v_l = self.V(self.team_in(x, pres, pv))
         # the scripted robots' actions, for every robot (once: they keep some state), when they're
         # the teacher; otherwise only for the matches against them
         bot_all = sim.bot_actions() if self.teacher is not None and self.teacher.kind == 'bot' else None
         if self.teacher is not None:
-            t_l = bot_all.view(N * RS, -1).index_select(0, self.L_flat) if bot_all is not None else self.teacher.act(raw.float())
+            if bot_all is not None:
+                t_l = bot_all.view(N * RS, -1).index_select(0, self.L_flat)
+            elif self.teacher.recurrent:
+                t_l, hT_new = self.teacher.act(raw.float(), self.h_T)
+            else:
+                t_l = self.teacher.act(raw.float())
         act = torch.zeros(N * RS, ACT_CONT + ACT_BIN, device=self.dev).index_copy(0, self.L_flat, a_l)
         if self.S_flat is not None:
-            xs = self.norm.apply(of.index_select(0, self.S_flat))
-            act = act.index_copy(0, self.S_flat, self.bank.act(xs, sim.snap_slot.index_select(0, self.S_env)))
+            raw_s = of.index_select(0, self.S_flat)
+            xs = self.norm.apply(raw_s)
+            if self.rec:
+                a_s, hS_new = self.bank.act(xs, raw_s, self.h_S, sim.snap_slot.index_select(0, self.S_env))
+            else:
+                a_s = self.bank.act(xs, sim.snap_slot.index_select(0, self.S_env))
+            act = act.index_copy(0, self.S_flat, a_s)
         act = act.view(N, RS, -1)
         if self.bots:
             lo, hi = self.bots
@@ -576,6 +703,14 @@ class GpuTrainer:
             b[k].index_copy_(0, t, v.unsqueeze(0))
         if self.live_idx is not None:
             b['live'].index_copy_(0, t, sim.live_pack(self.live_idx).unsqueeze(0))
+        # memories carry on, except where the match just ended
+        if self.rec:
+            keep = 1.0 - done.index_select(0, self.L_env).float()[:, None]
+            self.h_s.copy_(h_new * keep)
+            if self.S_flat is not None:
+                self.h_S.copy_(hS_new * (1.0 - done.index_select(0, self.S_env).float()[:, None]))
+        if self.teacher is not None and self.teacher.kind != 'bot' and self.teacher.recurrent:
+            self.h_T.copy_(hT_new * (1.0 - done.index_select(0, self.L_env).float()[:, None]))
         sim.reset(done)
         self.obs_s.copy_(sim.obs())
         if self.P:
@@ -784,6 +919,9 @@ class GpuTrainer:
         if a.resume:
             self.load()
         self.bc_obs = None
+        if a.bc and self.rec:
+            sys.exit('Learning from recordings (--bc) works with the plain network only: recordings are single moments, and a network with '
+                     'memory learns from whole stretches of a match. Use --teacher (the scripted bot or a trained network) instead.')
         if a.bc:
             self.bc_dir = Path(a.bc) if Path(a.bc).is_absolute() else ROOT / a.bc
             if self.load_bc() and (not a.resume or a.bc_pretrain):
@@ -841,6 +979,8 @@ class GpuTrainer:
                 self.w_t.fill_(self.win_weight())
                 self.k_t.fill_(self.shaping())
                 self.t_idx.zero_()
+                if self.rec:
+                    self.h0.copy_(self.h_s)
                 for _ in range(T):
                     if self.graph is not None:
                         self.graph.replay()
@@ -926,25 +1066,46 @@ class GpuTrainer:
                 kl_sum = torch.zeros((), device=dev)
                 nmb = 0
                 epochs_done = 0
+                # a network with memory learns from whole rollouts of robots (its memory replayed from
+                # where the rollout started, emptied where a match ended); the plain one from any decisions
+                if self.rec:
+                    seq_rows = b['pres'].any(0).nonzero().squeeze(-1)
+                    n_units, mb_units = len(seq_rows), max(1, a.minibatch // T)
+                    D_seq = b['done'].float().index_select(1, self.L_env)          # [T,NL]
+                    t_off = (torch.arange(T, device=dev) * NL)[:, None]
+                else:
+                    n_units, mb_units = n, a.minibatch
                 for _ in range(a.epochs):
-                    perm = rows[torch.randperm(n, device=dev)]
+                    perm = (seq_rows if self.rec else rows)[torch.randperm(n_units, device=dev)]
                     kl_ep = torch.zeros((), device=dev)
                     nmb_ep = 0
-                    for i in range(0, n, a.minibatch):
-                        ix = perm[i:i + a.minibatch]
+                    for i in range(0, n_units, mb_units):
+                        if self.rec:
+                            r_ix = perm[i:i + mb_units]
+                            raw_seq = b['obs'][:, r_ix].float()                           # [T,r,D]
+                            mu_q, lg_q = self.actor.seq(self.norm.apply(raw_seq), raw_seq, self.h0[r_ix], D_seq[:, r_ix])
+                            ix = (t_off + r_ix[None]).reshape(-1)
+                            mu_s, lg_s = mu_q.reshape(-1, ACT_CONT), lg_q.reshape(-1, ACT_BIN)
+                            lp, ent = dist_from(self.actor, mu_s, lg_s, ACT[ix])
+                            pm = PRES[ix].float()                                         # (rows of absent robots)
+                        else:
+                            ix = perm[i:i + mb_units]
+                            lp, ent, mu_s, lg_s = self.actor.dist_terms(self.norm.apply(OBS[ix].float()), ACT[ix])
+                            pm = torch.ones(len(ix), device=dev)
                         x = self.norm.apply(OBS[ix].float())
                         mf = (ix - ix % NL)[:, None] + self.mate_row[ix % NL]
                         xm = self.norm.apply(OBS[mf.view(-1)].float()).view(-1, 2, D) * PRES[mf].float()[..., None]
-                        lp, ent, mu_s, lg_s = self.actor.dist_terms(x, ACT[ix])
                         ratio = (lp - LP[ix]).exp()
                         ad = adv[ix]
-                        ad = (ad - ad.mean()) / (ad.std() + 1e-8)
+                        ps = pm.sum().clamp(min=1)
+                        am = (ad * pm).sum() / ps
+                        ad = (ad - am) / (((ad - am) ** 2 * pm).sum() / ps).sqrt().clamp(min=1e-8)
                         vm = VAL[ix]  # no policy gradient while the robot is disabled
                         vs = vm.sum().clamp(min=1)
                         pl = -(torch.min(ratio * ad, ratio.clamp(1 - a.clip, 1 + a.clip) * ad) * vm).sum() / vs
                         cin = torch.cat([x, xm.view(-1, 2 * D)] + ([PRIV[ix].float()] if self.P else []), -1)
                         # the critic learns normalized returns (PopArt; with --no-popart the scale stays 1)
-                        vl = 0.5 * ((self.Vn(cin) - (ret[ix] - self.v_mu) / self.v_sig) ** 2).mean()
+                        vl = 0.5 * (((self.Vn(cin) - (ret[ix] - self.v_mu) / self.v_sig) ** 2) * pm).sum() / ps
                         if warm:  # learning to play like the teacher first: no trial and error yet
                             loss = a.vf * vl
                         else:
@@ -967,7 +1128,7 @@ class GpuTrainer:
                         self.opt.step()
                         with torch.no_grad():
                             ent_sum += ent.mean()
-                            kl_ep += (LP[ix] - lp).mean()
+                            kl_ep += ((LP[ix] - lp) * pm).sum() / ps
                             pl_sum += pl
                             vl_sum += vl
                         nmb += 1
@@ -1078,6 +1239,7 @@ class GpuTrainer:
                     pp = (sim.pfsp_p / sim.pfsp_p.sum().clamp(min=1e-9)).tolist()
                     rec['pool'] = [[e['id'], round((e['wins'] + 1) / (e['games'] + 2), 3), round(pp[i], 3), round(e['games'], 1)] for i, e in enumerate(self.pool)]
                 rec['version'] = self.version
+                rec['arch'] = self.arch
                 log.write(json.dumps(rec) + '\n')
                 log.flush()
                 ep.clear()
@@ -1117,7 +1279,10 @@ def main():
     p.add_argument('--clip', type=float, default=0.2)
     p.add_argument('--ent', type=float, default=0.003)
     p.add_argument('--vf', type=float, default=0.5)
-    p.add_argument('--hidden', type=int, nargs='+', default=[512, 256])
+    p.add_argument('--hidden', type=int, nargs='+', default=[512, 256], help='hidden layers of the plain network (--arch mlp)')
+    p.add_argument('--arch', choices=list(ARCHS), default=None,
+                   help="the network of a new run: 'mlp' (default) or 'attn-gru': attention over the robots and FUEL on the field, plus memory "
+                        "(tools/nn/models.py). Start it with --teacher (a trained network) so it doesn't begin from scratch")
     p.add_argument('--critic', type=int, nargs='+', default=[1024, 512, 256])
     p.add_argument('--shaping-steps', type=float, default=200e6, help='decisions over which the pickup bonus fades out')
     p.add_argument('--robots', nargs='+', default=None, help='robots it learns to drive (default: all)')

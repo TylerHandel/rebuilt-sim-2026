@@ -432,6 +432,9 @@ class Trainer:
                      f'Training progress is kept in the runs folder of the copy of the project you trained in. If you '
                      f'downloaded a new copy, copy the old runs folder (and js/nn/driver.json) into it, or leave out --resume to start fresh.')
         ck = torch.load(self.run / 'ckpt.pt', map_location=self.dev, weights_only=False)
+        if ck.get('arch', 'mlp') != 'mlp':
+            sys.exit(f'{self.run.name} is an attention + memory network: it trains in the GPU trainer (train_gpu.py) only. '
+                     f'The real-game scoreboard there plays it in the full game.')
         fold_vnorm(ck)  # (from the GPU trainer: plain returns, no privileged inputs here)
         critic_priv(ck, 0)
         if self.obs_dim and upgrade_inputs(ck, self.obs_dim):

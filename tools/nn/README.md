@@ -108,12 +108,22 @@ It reads only what the logs gained since its last look, so a log of several nigh
 - `nn-continue-gpu.bat`: resumes `runs\driver` on the GPU with `--compile` and a mix of mostly older versions of itself, itself, and the bots. Add options after it, for example `nn-continue-gpu.bat --envs 8192`.
 - `nn-overnight.bat`: the same, plus learning from the pre-programmed AIs recorded in the background (see below).
 - `nn-train-pro.bat`: the strongest recipe (see below), in its own run `runs\pro`.
+- `nn-train-memory.bat`: a network with attention and memory (see below), in its own run `runs\memory`, learning from `runs\pro` or `runs\driver` first.
 - `nn-continue-champs.bat`: backs up `runs\driver` to `runs\driver-gpu`, then trains in the full game against the Champs AIs, 1v1 and 3v3. It's slower, but it learns the real physics.
 
 **The strongest recipe** (`nn-train-pro.bat`, its own run `runs\pro`): a bigger network (1024 × 512 instead of 512 × 256) that starts by copying a teacher and then trains past it in self-play.
 - If you already have a trained network (`runs\driver`), that's the teacher. The new network copies it first (`--teacher-warmup`, 30 updates), so nothing it learned is lost, then keeps improving with more room to learn. It writes `js/nn/driver.json` like the others.
 - Otherwise the teacher is the GPU simulator's scripted robot, so it starts out playing sensibly instead of twitching at random.
 - Running it again continues where it left off, teacher included.
+
+**Attention and memory** (`nn-train-memory.bat`, its own run `runs\memory`; `--arch attn-gru` for a new run): a network built differently from the plain one, for when progress levels off.
+- **Attention over the objects on the field.** It reads the same observation, but instead of taking it as one long list of numbers, it treats the other five robots, the 128 cells of the whole-field FUEL map (where each is relative to it, and how much FUEL) and the 8 nearest FUEL as separate objects. A multi-head attention, steered by its own situation (where it is, its load, the clock, the shift), picks out what matters right now: a pile worth the drive, a defender closing in, a teammate already on that pile.
+- **Memory.** A GRU carries what it has seen from one decision to the next, so it can tell which way an opponent is heading, whether a defender keeps following it, and what it was in the middle of. Each robot it drives has its own memory, emptied at the start of each match.
+- About 820,000 weights (the plain network has about 400,000; the `nn-train-pro.bat` one 1.1 million). It costs roughly three times as much GPU time per decision as the plain network, so it plays fewer matches an hour; `nn-train-memory.bat` runs 4,096 at once. In the game it's fine: about 1.5 ms per robot per decision (six of them use under a tenth of one CPU core).
+- It starts by learning from your best trained network as its teacher (`runs\pro`, else `runs\driver`, else the scripted robot), so it doesn't begin from scratch, then trains past it in self-play. The older versions it plays have memory too.
+- It trains in the GPU trainer only. Learning from recordings (`--bc`) and the full-game trainer (`nn-train.bat`) work with the plain network; use `--teacher` instead. The real-game scoreboard plays it in the full game as usual.
+- It learns from whole stretches of matches (the 32 decisions of each rollout, its memory replayed from where the rollout began), not from single moments.
+- `tools/nn/policy-parity.py` checks that the game's JavaScript gives exactly the same answers as PyTorch, memory included.
 
 **Learning from a teacher** (`--teacher`): each decision, the teacher says what it would do in the very situation the network is in, and the network is pulled toward that on top of its own trial and error. This is different from copying recordings (`--bc`): recordings only show the teacher's own matches, so a network that drifts somewhere the teacher never went has nothing to go on. Here it learns from its own mistakes too. The pull fades out over `--teacher-steps` (200M decisions), so it can go past the teacher.
 - `--teacher bot`: the GPU simulator's scripted robot.
@@ -157,6 +167,7 @@ Earlier networks carry over: `--resume` adds the critic's new inputs with zero w
 | `--teacher-steps` | 200M | decisions over which that pull fades out |
 | `--teacher-warmup` | 30 | updates at the start of a new teacher where it only copies it |
 | `--hidden` | 512 256 | network size for a new run (`nn-train-pro.bat` uses 1024 512) |
+| `--arch` | mlp | the network of a new run: `mlp` (plain) or `attn-gru` (attention over the objects on the field + memory) |
 | `--no-priv` | | the critic sees only the teammates' views, not the whole match |
 | `--no-popart` | | the critic learns plain returns |
 | `--target-kl` | 0.02 | stop the update passes early once the network has moved this far (0: always all of them) |
@@ -228,7 +239,9 @@ Opponents it doesn't beat yet get picked more often. Use `--level N` to start at
 | File | What it is |
 |---|---|
 | `js/nn/obs.js` | What the network sees: its robot, both HUBs, the shift clock and score, the other robot, 16 distance rays, and FUEL around it and over the whole field. It also converts the network's output into a robot command and back. |
-| `js/nn/policy.js` | The network run in plain JavaScript, used by the browser and by the workers. |
+| `js/nn/policy.js` | The network run in plain JavaScript, used by the browser and by the workers: the plain network and the attention + memory one. |
+| `tools/nn/models.py` | The attention + memory network (`--arch attn-gru`). |
+| `tools/nn/policy-parity.py` | Checks that `js/nn/policy.js` and PyTorch agree on the attention + memory network. |
 | `js/nn/driver.js` | Lets the network drive in the game (Neural net option). |
 | `js/nn/recorder.js` | Records your driving and handles the download. |
 | `tools/nn/worker.mjs` | A simulation worker. |
