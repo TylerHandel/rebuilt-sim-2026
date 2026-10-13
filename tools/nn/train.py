@@ -103,6 +103,39 @@ class Actor(nn.Module):
         return lp_c + lp_b, ent_c + ent_b, mu, lg
 
 
+ARCHS = {'mlp': 'a plain network (MLP)', 'attn-gru': 'attention over the objects on the field + memory'}
+
+
+def make_actor(arch, D, hidden, spec=None):
+    """The driving network: 'mlp' (hidden layers) or 'attn-gru' (tools/nn/models.py; spec:
+    {layout, field, cfg})."""
+    if arch == 'mlp':
+        return Actor(D, hidden)
+    if arch == 'attn-gru':
+        from models import AttnGruActor
+        return AttnGruActor(D, spec['layout'], spec['field'], spec.get('cfg'))
+    sys.exit(f'Unknown network kind {arch!r} (known: {", ".join(ARCHS)})')
+
+
+def dist_from(actor, mu, lg, act):
+    """Log-probability and entropy of actions act under means mu / logits lg (like Actor.dist_terms)."""
+    ls = actor.log_std.clamp(-3.0, 0.5)
+    a, b = act[:, :ACT_CONT], act[:, ACT_CONT:]
+    lp_c = (-0.5 * ((a - mu) / ls.exp()) ** 2 - ls - 0.5 * math.log(2 * math.pi)).sum(-1)
+    lp_b = -nn.functional.binary_cross_entropy_with_logits(lg, b, reduction='none').sum(-1)
+    ent_c = (ls + 0.5 * math.log(2 * math.pi * math.e)).sum().expand(mu.shape[0])
+    ent_b = nn.functional.binary_cross_entropy_with_logits(lg, torch.sigmoid(lg), reduction='none').sum(-1)
+    return lp_c + lp_b, ent_c + ent_b
+
+
+def new_arch_spec(size='base'):
+    """What a new attention + memory network is built from: the observation layout and field size
+    (tools/nn/gpusim-params.json, exported from the game) and its size."""
+    from models import SIZES
+    P = json.loads((Path(__file__).with_name('gpusim-params.json')).read_text())
+    return {'layout': P['obs']['layout'], 'field': {'halfL': P['field']['halfL'], 'halfW': P['field']['halfW']}, 'cfg': dict(SIZES[size])}
+
+
 class RunningNorm:
     """Running mean / variance of the observations (exported with the weights)."""
 
@@ -330,7 +363,7 @@ def read_chunk(msg):
     return {
         'obs': take(n * D).reshape(n, D), 'act': take(n * A).reshape(n, A), 'logp': take(n).copy(),
         'rew': take(n * R).reshape(n, R), 'done': take(n).copy(), 'next': take(D).copy(),
-        'version': msg['version'],
+        'h0': take(msg.get('G', 0)).copy(), 'version': msg['version'],
     }
 
 
@@ -404,11 +437,13 @@ class Trainer:
         self.demos = None
 
     # ---- setup
-    def build(self, obs_dim, team=False):
+    def build(self, obs_dim, team=False, arch='mlp', spec=None):
         a = self.a
         self.obs_dim = obs_dim
         self.team = team  # a team critic (from the GPU trainer) also sees two teammates' views: zeros here
-        self.actor = Actor(obs_dim, a.hidden).to(self.dev)
+        self.arch = arch
+        self.actor = make_actor(arch, obs_dim, a.hidden, spec).to(self.dev)
+        self.rec = getattr(self.actor, 'recurrent', False)
         self.critic = mlp([obs_dim * (3 if team else 1), *a.critic, 1]).to(self.dev)
         self.opt = torch.optim.Adam([*self.actor.parameters(), *self.critic.parameters()], lr=a.lr, eps=1e-5)
         self.norm = RunningNorm(obs_dim)
@@ -419,6 +454,7 @@ class Trainer:
             'norm': self.norm.state(), 'version': self.version, 'steps': self.steps, 'updates': self.updates,
             'level': self.level, 'pool': self.pool, 'obs_dim': self.obs_dim, 'hidden': self.a.hidden,
             'critic_sizes': self.a.critic, 'critic_in': 'team' if self.team else 'own', 'episodes': self.episodes,
+            'arch': self.arch, 'arch_spec': self.actor.spec() if self.rec else None,
             'hist': {k: list(v) for k, v in self.hist.items()}, 'own_hist': {k: list(v) for k, v in self.own_hist.items()},
             'elapsed': self.elapsed(),
         }
@@ -432,19 +468,24 @@ class Trainer:
                      f'Training progress is kept in the runs folder of the copy of the project you trained in. If you '
                      f'downloaded a new copy, copy the old runs folder (and js/nn/driver.json) into it, or leave out --resume to start fresh.')
         ck = torch.load(self.run / 'ckpt.pt', map_location=self.dev, weights_only=False)
-        if ck.get('arch', 'mlp') != 'mlp':
-            sys.exit(f'{self.run.name} is an attention + memory network: it trains in the GPU trainer (train_gpu.py) only. '
-                     f'The real-game scoreboard there plays it in the full game.')
+        arch = ck.get('arch', 'mlp')
+        if arch != 'mlp' and self.obs_dim and ck['obs_dim'] != self.obs_dim:
+            sys.exit(f'{self.run.name} has a {ck["obs_dim"]}-number observation and this build {self.obs_dim}: an attention + memory network can\'t grow with it.')
         fold_vnorm(ck)  # (from the GPU trainer: plain returns, no privileged inputs here)
         critic_priv(ck, 0)
         if self.obs_dim and upgrade_inputs(ck, self.obs_dim):
             print(f'Upgraded the network to the new observation ({self.obs_dim} inputs: teammates and all opponents for 3v3)')
         self.a.hidden, self.a.critic = ck['hidden'], ck['critic_sizes']
-        self.build(ck['obs_dim'], team=ck.get('critic_in') == 'team')
+        self.build(ck['obs_dim'], team=ck.get('critic_in') == 'team', arch=arch, spec=ck.get('arch_spec'))
+        if arch != 'mlp':
+            print(f'{self.run.name} is {ARCHS[arch]}: it keeps its memory from decision to decision in the full game too.')
         self.actor.load_state_dict(ck['actor'])
         self.critic.load_state_dict(ck['critic'])
         if ck.get('opt'):
-            self.opt.load_state_dict(ck['opt'])
+            try:
+                self.opt.load_state_dict(ck['opt'])
+            except ValueError:
+                pass  # (another trainer's optimizer layout: start it fresh)
         for g in self.opt.param_groups:
             g['lr'] = self.a.lr
         self.norm.load(ck['norm'])
@@ -464,13 +505,19 @@ class Trainer:
         return {
             'run': self.a.run, 'steps': self.steps, 'updates': self.updates, 'level': self.level,
             'hours': round(self.elapsed() / 3600, 2), 'episodes': self.episodes,
-            'date': time.strftime('%Y-%m-%d %H:%M'), 'device': str(self.dev),
+            'date': time.strftime('%Y-%m-%d %H:%M'), 'device': str(self.dev), 'arch': self.arch,
             'vs': {k: round(float(np.mean(v)), 1) for k, v in self.hist.items() if v},
         }
 
+    def export(self, path):
+        if self.rec:
+            self.actor.export(self.norm, path, self.version, self.info(), OBS_VERSION)
+        else:
+            export_policy(self.actor, self.norm, path, self.version, self.info())
+
     def publish(self):
         cur = self.run / 'policy' / 'current.json'
-        export_policy(self.actor, self.norm, cur, self.version, self.info())
+        self.export(cur)
         if self.a.publish:
             publish_file(cur, ROOT / 'js' / 'nn' / 'driver.json')
         return cur
@@ -518,7 +565,7 @@ class Trainer:
         d = self.run / 'pool'
         d.mkdir(exist_ok=True)
         p = d / f'v{self.version}.json'
-        export_policy(self.actor, self.norm, p, self.version, self.info())
+        self.export(p)
         self.pool.append(str(p))
         while len(self.pool) > self.a.pool_size:
             old = self.pool.pop(0)
@@ -595,10 +642,9 @@ class Trainer:
             x = torch.cat([x, torch.zeros(x.shape[0], 2 * self.obs_dim, device=x.device)], 1)
         return self.critic(x).squeeze(-1)
 
-    def update(self, chunks):
+    def advantages(self, chunks):
+        """GAE per chunk (each chunk is one robot's decisions in order)."""
         a = self.a
-        obs = np.concatenate([c['obs'] for c in chunks])
-        self.norm.update(obs)
         with torch.no_grad():
             V = lambda x: self.value(torch.tensor(self.norm.apply(x), device=self.dev)).cpu().numpy()
             adv_l, ret_l = [], []
@@ -617,6 +663,82 @@ class Trainer:
                     adv[t] = last
                 adv_l.append(adv)
                 ret_l.append(adv + v)
+        return adv_l, ret_l
+
+    def update_rec(self, chunks):
+        """PPO for a network with memory. Each chunk is one robot's decisions in one match, with the
+        memory it started with: replayed (without learning) to find its memory every --seq-len
+        decisions, then learned from in pieces of that length, many at once."""
+        a, dev, L = self.a, self.dev, self.a.seq_len
+        obs = np.concatenate([c['obs'] for c in chunks])
+        self.norm.update(obs)
+        adv_l, ret_l = self.advantages(chunks)
+        C, Tm = len(chunks), max(len(c['obs']) for c in chunks)
+        Tp = -(-Tm // L) * L
+        D, G = self.obs_dim, self.actor.hdim
+        def pad(arrs, tail=()):
+            out = np.zeros((Tp, C, *tail), np.float32)
+            for j, x in enumerate(arrs):
+                out[:len(x), j] = x
+            return torch.tensor(out, device=dev)
+        RAW = pad([c['obs'] for c in chunks], (D,))
+        X = torch.tensor(self.norm.apply(RAW.cpu().numpy().reshape(-1, D)), device=dev).view(Tp, C, D)
+        ACT = pad([c['act'] for c in chunks], (ACT_CONT + ACT_BIN,))
+        LP, ADV, RET = pad([c['logp'] for c in chunks]), pad(adv_l), pad(ret_l)
+        DONE = pad([c['done'] for c in chunks])
+        M = pad([np.ones(len(c['obs'])) for c in chunks])
+        H0 = torch.tensor(np.stack([c['h0'] if len(c['h0']) == G else np.zeros(G, np.float32) for c in chunks]), device=dev)
+        nb = Tp // L
+        with torch.no_grad():                                     # the memory at the start of each piece
+            hs, h = [], H0
+            for t in range(Tp):
+                if t % L == 0:
+                    hs.append(h)
+                _, _, h = self.actor.step(X[t], RAW[t], h)
+                h = h * (1.0 - DONE[t])[:, None]
+            S0 = torch.stack(hs).reshape(nb * C, G)
+        seg = lambda T: T.view(nb, L, C, *T.shape[2:]).transpose(1, 2).reshape(nb * C, L, *T.shape[2:]).transpose(0, 1)  # [L, nb*C, ...]
+        Xs, RAWs, ACTs, LPs, ADVs, RETs, DONEs, Ms = map(seg, (X, RAW, ACT, LP, ADV, RET, DONE, M))
+        rows = Ms.sum(0).nonzero().squeeze(-1)
+        mbr = max(1, a.minibatch // L)
+        stats = collections.defaultdict(list)
+        for _ in range(a.epochs):
+            perm = rows[torch.randperm(len(rows), device=dev)]
+            for i in range(0, len(perm), mbr):
+                r = perm[i:i + mbr]
+                mu, lg = self.actor.seq(Xs[:, r], RAWs[:, r], S0[r], DONEs[:, r])
+                m = Ms[:, r].reshape(-1)
+                act = ACTs[:, r].reshape(-1, ACT_CONT + ACT_BIN)
+                lp, ent = dist_from(self.actor, mu.reshape(-1, ACT_CONT), lg.reshape(-1, ACT_BIN), act)
+                lp0 = LPs[:, r].reshape(-1)
+                ratio = (lp - lp0).exp()
+                ad = ADVs[:, r].reshape(-1)
+                ms = m.sum().clamp(min=1)
+                am = (ad * m).sum() / ms
+                ad = (ad - am) / (((ad - am) ** 2 * m).sum() / ms).sqrt().clamp(min=1e-8)
+                pl = -(torch.min(ratio * ad, ratio.clamp(1 - a.clip, 1 + a.clip) * ad) * m).sum() / ms
+                vl = 0.5 * (((self.value(Xs[:, r].reshape(-1, D)) - RETs[:, r].reshape(-1)) ** 2) * m).sum() / ms
+                e = (ent * m).sum() / ms
+                loss = pl + a.vf * vl - a.ent * e
+                self.opt.zero_grad()
+                loss.backward()
+                nn.utils.clip_grad_norm_([*self.actor.parameters(), *self.critic.parameters()], 0.5)
+                self.opt.step()
+                with torch.no_grad():
+                    stats['pi'].append(pl.item())
+                    stats['v'].append(vl.item())
+                    stats['ent'].append(e.item())
+                    stats['kl'].append((((lp0 - lp) * m).sum() / ms).item())
+                    stats['clip'].append(((((ratio - 1).abs() > a.clip).float() * m).sum() / ms).item())
+        self.version += 1
+        self.updates += 1
+        return {k: float(np.mean(v)) for k, v in stats.items()}
+
+    def update(self, chunks):
+        a = self.a
+        obs = np.concatenate([c['obs'] for c in chunks])
+        self.norm.update(obs)
+        adv_l, ret_l = self.advantages(chunks)
         X = torch.tensor(self.norm.apply(obs), device=self.dev)
         ACT = torch.tensor(np.concatenate([c['act'] for c in chunks]), device=self.dev)
         LP = torch.tensor(np.concatenate([c['logp'] for c in chunks]), device=self.dev)
@@ -670,12 +792,15 @@ class Trainer:
             if m['type'] == 'ready':
                 ready += 1
                 if self.obs_dim is None:
-                    self.build(m['obsDim'])
+                    arch = a.arch or 'mlp'
+                    self.build(m['obsDim'], arch=arch, spec=new_arch_spec(a.size) if arch != 'mlp' else None)
             elif m['type'] == 'exit':
                 sys.exit('a worker exited during startup (see the messages above)')
         if a.resume:
             self.load()
-        elif a.bc:
+        if a.bc and self.rec:
+            sys.exit('Learning from recordings (--bc) works with the plain network only (recordings are single moments; a network with memory learns from whole stretches of a match).')
+        if not a.resume and a.bc:
             demos = load_demos(a.bc, self.obs_dim, max_n=a.bc_max)
             if demos is None:
                 sys.exit(f'No recordings found in {a.bc}')
@@ -734,7 +859,7 @@ class Trainer:
                 if n_pending < a.batch:
                     continue
                 t0 = time.time()
-                st = self.update(pending)
+                st = self.update_rec(pending) if self.rec else self.update(pending)
                 self.steps += n_pending
                 upd_s = time.time() - t0
                 pending, n_pending = [], 0
@@ -760,7 +885,7 @@ class Trainer:
                 rec = {'t': round(self.elapsed(), 1), 'steps': self.steps, 'updates': self.updates, 'level': self.level, 'sps': round(sps, 1), 'own': round(float(own), 2), **{k: round(v, 5) for k, v in st.items()},
                        'vs': {k: round(float(np.mean([e['margin'] for e in v])), 2) for k, v in by.items()},
                        'win': {k: round(sum(e['margin'] > 0 for e in v) / len(v), 3) for k, v in by.items()},
-                       'n': {k: len(v) for k, v in by.items()}, 'trainer': 'real', 'wall': round(time.time()),
+                       'n': {k: len(v) for k, v in by.items()}, 'trainer': 'real', 'wall': round(time.time()), 'arch': self.arch,
                        'std': [round(v, 4) for v in self.actor.log_std.detach().clamp(-3.0, 0.5).exp().tolist()]}
                 log.write(json.dumps(rec) + '\n')
                 log.flush()
@@ -798,12 +923,16 @@ def main():
     p.add_argument('--ent', type=float, default=0.003)
     p.add_argument('--vf', type=float, default=0.5)
     p.add_argument('--max-lag', type=int, default=1, help='oldest policy version (behind the current one) whose experience is used')
-    p.add_argument('--hidden', type=int, nargs='+', default=[512, 256], help='actor hidden layers (runs in the browser)')
+    p.add_argument('--hidden', type=int, nargs='+', default=[512, 256], help='actor hidden layers of the plain network (runs in the browser)')
+    p.add_argument('--arch', choices=list(ARCHS), default=None, help="the network of a new run: 'mlp' (default) or 'attn-gru' (attention + memory). "
+                   "A resumed run keeps its own (a GPU-trained attention + memory run continues here as it is)")
+    p.add_argument('--size', choices=['base', 'large'], default='base', help='size of a new attention + memory network: base (~0.8M weights) or large (~3.1M)')
+    p.add_argument('--seq-len', type=int, default=32, help='a network with memory learns from pieces of this many decisions')
     p.add_argument('--critic', type=int, nargs='+', default=[1024, 512, 256], help='critic hidden layers (GPU only)')
     p.add_argument('--smooth', type=float, default=0.005, help='cost of changing the drive / turn command between decisions (stops twitchy driving)')
     p.add_argument('--spin', type=float, default=0.003, help='cost of turning (it should turn when it needs to, not all the time)')
     p.add_argument('--shaping-steps', type=float, default=20e6, help='steps over which the pickup bonus fades out')
-    p.add_argument('--robots', nargs='+', default=['2910', '4414', '8793'], help='robots it learns to drive')
+    p.add_argument('--robots', nargs='+', default=['2910', '4414', '8793'], help="robots it learns to drive ('all': every robot)")
     p.add_argument('--teams', type=int, nargs='+', choices=[1, 2, 3], default=[1, 3], help='match sizes (repeat to weight): 1 = 1v1, 3 = 3v3 with its teammates driven by the network too')
     p.add_argument('--win-weight', type=float, default=None, help='fix how much the reward is about winning (default: 0.3 / 0.6 / 1.0 at levels 3 / 4 / 5)')
     p.add_argument('--snapshot-every', type=int, default=25, help='updates between self-play snapshots')
@@ -817,6 +946,8 @@ def main():
     p.add_argument('--bc-weight', type=float, default=0.5, help='keep imitating the recordings this much during PPO ...')
     p.add_argument('--bc-steps', type=float, default=10e6, help='... fading out over this many steps')
     a = p.parse_args()
+    if a.robots == ['all']:
+        a.robots = None
 
     tr = Trainer(a)
     if a.bc_only:

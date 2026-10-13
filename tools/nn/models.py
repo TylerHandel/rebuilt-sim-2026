@@ -33,8 +33,16 @@ ROBOT_BLOCK = 24        # a robot as seen by another (obs.js robotBlock)
 EXTRA = 8               # one-hot slots for robots added since v3 (robotsNew)
 
 
+SIZES = {
+    # ~0.8M weights: ~1.5 ms per robot per decision in the browser
+    'base': {'ctx': [256, 256], 'heads': 4, 'dh': 32, 'remb': 64, 'att': 128, 'gru': 256, 'head': [256]},
+    # ~3.1M weights: ~4x the compute (for the full-game trainer, where the GPU has time to spare)
+    'large': {'ctx': [512, 512], 'heads': 8, 'dh': 32, 'remb': 128, 'att': 256, 'gru': 512, 'head': [512]},
+}
+
+
 def default_cfg():
-    return {'ctx': [256, 256], 'heads': 4, 'dh': 32, 'remb': 64, 'att': 128, 'gru': 256, 'head': [256]}
+    return dict(SIZES['base'])
 
 
 def obs_slices(layout):

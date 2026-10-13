@@ -39,7 +39,7 @@ import torch
 import torch.nn as nn
 
 sys.path.insert(0, str(Path(__file__).parent))
-from train import ROOT, ACT_CONT, ACT_BIN, OBS_VERSION, Actor, mlp, export_policy, publish_file, upgrade_inputs, team_critic, critic_priv, load_demos  # noqa: E402
+from train import ROOT, ACT_CONT, ACT_BIN, OBS_VERSION, ARCHS, Actor, make_actor, dist_from, new_arch_spec, mlp, export_policy, publish_file, upgrade_inputs, team_critic, critic_priv, load_demos  # noqa: E402
 from models import AttnGruActor, from_policy_json  # noqa: E402
 from gpusim import GpuSim, RS, OPP_NONE, OPP_BOT, OPP_SNAP, OPP_SELF  # noqa: E402
 
@@ -89,30 +89,6 @@ class TorchNorm:
         n = N()
         n.mean, n.std = self.mean.cpu().numpy(), torch.sqrt(self.var + 1e-8).cpu().numpy()
         return n
-
-
-ARCHS = {'mlp': 'a plain network (MLP)', 'attn-gru': 'attention over the objects on the field + memory'}
-
-
-def make_actor(arch, D, hidden, spec=None):
-    """The driving network: 'mlp' (hidden layers) or 'attn-gru' (tools/nn/models.py; spec:
-    {layout, field, cfg})."""
-    if arch == 'mlp':
-        return Actor(D, hidden)
-    if arch == 'attn-gru':
-        return AttnGruActor(D, spec['layout'], spec['field'], spec.get('cfg'))
-    sys.exit(f'Unknown network kind {arch!r} (known: {", ".join(ARCHS)})')
-
-
-def dist_from(actor, mu, lg, act):
-    """Log-probability and entropy of actions act under means mu / logits lg (like Actor.dist_terms)."""
-    ls = actor.log_std.clamp(-3.0, 0.5)
-    a, b = act[:, :ACT_CONT], act[:, ACT_CONT:]
-    lp_c = (-0.5 * ((a - mu) / ls.exp()) ** 2 - ls - 0.5 * math.log(2 * math.pi)).sum(-1)
-    lp_b = -nn.functional.binary_cross_entropy_with_logits(lg, b, reduction='none').sum(-1)
-    ent_c = (ls + 0.5 * math.log(2 * math.pi * math.e)).sum().expand(mu.shape[0])
-    ent_b = nn.functional.binary_cross_entropy_with_logits(lg, torch.sigmoid(lg), reduction='none').sum(-1)
-    return lp_c + lp_b, ent_c + ent_b
 
 
 def sample(actor, x):
@@ -321,7 +297,7 @@ class GpuTrainer:
             print(f'  done in {time.time() - t:.0f} s')
         self.P = self.sim.PRIV if a.priv else 0   # privileged inputs the critic sees (gpusim.priv)
         self.arch = a.arch or 'mlp'                 # (a resumed run keeps its own: load())
-        self.arch_spec = {'layout': self.sim.P['obs']['layout'], 'field': {'halfL': self.sim.HL, 'halfW': self.sim.HW}}
+        self.arch_spec = new_arch_spec(a.size)
         self.actor = make_actor(self.arch, self.D, a.hidden, self.arch_spec).to(self.dev)
         self.critic = self._critic()
         self.opt = self._optimizer()
@@ -1280,6 +1256,7 @@ def main():
     p.add_argument('--ent', type=float, default=0.003)
     p.add_argument('--vf', type=float, default=0.5)
     p.add_argument('--hidden', type=int, nargs='+', default=[512, 256], help='hidden layers of the plain network (--arch mlp)')
+    p.add_argument('--size', choices=['base', 'large'], default='base', help="size of a new attention + memory network: base (~0.8M weights) or large (~3.1M, about 4x the compute)")
     p.add_argument('--arch', choices=list(ARCHS), default=None,
                    help="the network of a new run: 'mlp' (default) or 'attn-gru': attention over the robots and FUEL on the field, plus memory "
                         "(tools/nn/models.py). Start it with --teacher (a trained network) so it doesn't begin from scratch")

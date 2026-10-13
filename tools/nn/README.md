@@ -108,7 +108,8 @@ It reads only what the logs gained since its last look, so a log of several nigh
 - `nn-continue-gpu.bat`: resumes `runs\driver` on the GPU with `--compile` and a mix of mostly older versions of itself, itself, and the bots. Add options after it, for example `nn-continue-gpu.bat --envs 8192`.
 - `nn-overnight.bat`: the same, plus learning from the pre-programmed AIs recorded in the background (see below).
 - `nn-train-pro.bat`: the strongest recipe (see below), in its own run `runs\pro`.
-- `nn-train-memory.bat`: a network with attention and memory (see below), in its own run `runs\memory`, learning from `runs\pro` or `runs\driver` first.
+- `nn-train-memory.bat`: a network with attention and memory (see below), in its own run `runs\memory`, learning from `runs\pro` or `runs\driver` first. `nn-train-memory-large.bat`: the large one (`runs\memory-large`).
+- `nn-train-real.bat`: training on real matches (the full game), starting from your best GPU-trained network (see below).
 - `nn-continue-champs.bat`: backs up `runs\driver` to `runs\driver-gpu`, then trains in the full game against the Champs AIs, 1v1 and 3v3. It's slower, but it learns the real physics.
 
 **The strongest recipe** (`nn-train-pro.bat`, its own run `runs\pro`): a bigger network (1024 × 512 instead of 512 × 256) that starts by copying a teacher and then trains past it in self-play.
@@ -116,12 +117,21 @@ It reads only what the logs gained since its last look, so a log of several nigh
 - Otherwise the teacher is the GPU simulator's scripted robot, so it starts out playing sensibly instead of twitching at random.
 - Running it again continues where it left off, teacher included.
 
+**Training on real matches** (`nn-train-real.bat`, its own run `runs\real`): the full game, with its real physics, instead of the simplified GPU simulator. The real game's physics engine (Rapier) runs on the CPU only, so the matches can't move to the GPU: every CPU thread but one plays matches, and the GPU does the learning.
+- **Speed:** a full match takes one CPU thread about a minute (1v1) or a minute and a half (3v3), roughly 1.5–2.5x real time. Every robot of the network's ALLIANCE is the network, and it learns from each of them, so a 3v3 match gives three robots' worth of experience. On an 8-core / 16-thread CPU that's very roughly 400–800 decisions a second, a few million an hour: hundreds of times fewer than the GPU simulator, but every one of them real.
+- **Start from the GPU simulator.** The first time, it copies your best network trained there (`runs\memory-large`, else `runs\memory`, `runs\pro` or `runs\driver`) into `runs\real`, and carries on from it. Learning the basics from scratch on real matches would take weeks; the GPU simulator teaches them in hours, and the real matches then correct what it got wrong.
+- It plays the Champs AIs (Scorer, Defense, Hybrid), 1v1 and 3v3 (one third / two thirds), with every robot, and its own older versions.
+- **Bigger networks:** the GPU has time to spare here, so the size of the network is limited by the CPU threads, which run it during the matches: the base attention + memory network adds about 5% to a match, the large one (`nn-train-memory-large.bat`, about 3.1 million weights) about 30%. Train the large one in the GPU simulator first; `nn-train-real.bat` then picks it up.
+- Networks with memory learn from each robot's decisions in order: every chunk a worker sends carries the memory it started with, and the trainer replays it and learns from pieces of `--seq-len` (32) decisions.
+- `nn-continue-champs.bat` still continues `runs\driver` itself in the full game.
+
 **Attention and memory** (`nn-train-memory.bat`, its own run `runs\memory`; `--arch attn-gru` for a new run): a network built differently from the plain one, for when progress levels off.
 - **Attention over the objects on the field.** It reads the same observation, but instead of taking it as one long list of numbers, it treats the other five robots, the 128 cells of the whole-field FUEL map (where each is relative to it, and how much FUEL) and the 8 nearest FUEL as separate objects. A multi-head attention, steered by its own situation (where it is, its load, the clock, the shift), picks out what matters right now: a pile worth the drive, a defender closing in, a teammate already on that pile.
 - **Memory.** A GRU carries what it has seen from one decision to the next, so it can tell which way an opponent is heading, whether a defender keeps following it, and what it was in the middle of. Each robot it drives has its own memory, emptied at the start of each match.
 - About 820,000 weights (the plain network has about 400,000; the `nn-train-pro.bat` one 1.1 million). It costs roughly three times as much GPU time per decision as the plain network, so it plays fewer matches an hour; `nn-train-memory.bat` runs 4,096 at once. In the game it's fine: about 1.5 ms per robot per decision (six of them use under a tenth of one CPU core).
 - It starts by learning from your best trained network as its teacher (`runs\pro`, else `runs\driver`, else the scripted robot), so it doesn't begin from scratch, then trains past it in self-play. The older versions it plays have memory too.
-- It trains in the GPU trainer only. Learning from recordings (`--bc`) and the full-game trainer (`nn-train.bat`) work with the plain network; use `--teacher` instead. The real-game scoreboard plays it in the full game as usual.
+- It trains in both trainers: the GPU simulator, and real matches (`nn-train-real.bat`, below). Learning from recordings (`--bc`) works with the plain network only; use `--teacher` instead.
+- `--size large` (or `nn-train-memory-large.bat`, run `runs\memory-large`): about 3.1 million weights and 4x the compute (about 6 ms per robot per decision in the browser; 2,048 matches at once on the GPU).
 - It learns from whole stretches of matches (the 32 decisions of each rollout, its memory replayed from where the rollout began), not from single moments.
 - `tools/nn/policy-parity.py` checks that the game's JavaScript gives exactly the same answers as PyTorch, memory included.
 
@@ -226,11 +236,14 @@ Opponents it doesn't beat yet get picked more often. Use `--level N` to start at
 | `--run NAME` | driver | separate runs live in `runs/NAME/` |
 | `--workers N` | CPU threads − 1 | simulation workers |
 | `--device` | auto | `cuda`, `cpu` or `auto` |
-| `--robots` | 2910 4414 8793 | robots it learns to drive. One network drives them all, because it sees which robot it's in. Add any of the 11 robots by team number. Train on one robot for faster learning. |
+| `--robots` | 2910 4414 8793 | robots it learns to drive. One network drives them all, because it sees which robot it's in. Add any robot by team number, or `all`. Train on one robot for faster learning. |
 | `--teams` | 1 3 | match sizes: half 1v1, half 3v3 (its teammates are driven by the network too). 3v3 matches take about 3× the CPU. |
 | `--win-weight` | 0.3 / 0.6 / 1.0 | how much the reward is about winning rather than points, at levels 3 / 4 / 5 |
 | `--batch` | 16384 | decisions per PPO update |
-| `--hidden` | 512 256 | network size (this is what runs in the browser) |
+| `--hidden` | 512 256 | size of the plain network (this is what runs in the browser) |
+| `--arch` | mlp | the network of a new run: `mlp` or `attn-gru` (attention + memory). A resumed run keeps its own: a GPU-trained attention + memory run continues here as it is |
+| `--size` | base | size of a new attention + memory network: `base` (~0.8M weights) or `large` (~3.1M) |
+| `--seq-len` | 32 | a network with memory learns from pieces of this many decisions |
 | `--critic` | 1024 512 256 | value network (GPU only, never exported) |
 | `--shaping-steps` | 20M | a small bonus for picking up FUEL that fades out over this many decisions |
 | `--no-publish` | | don't overwrite `js/nn/driver.json` |
