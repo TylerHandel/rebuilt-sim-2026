@@ -41,7 +41,7 @@ The render uses nicer lighting than the game (reflections, arena spotlights), sm
 
 | Action | Xbox controller | Keyboard |
 |---|---|---|
-| Drive (field-relative: up is away from the camera, toward your robot, whichever camera you use) | Left stick | W A S D |
+| Drive (field-relative. Driver Station camera: field-centric like a real driver, up is always straight downfield, away from your ALLIANCE WALL. Other cameras: up is away from the camera, toward your robot) | Left stick | W A S D |
 | Rotate | Right stick X | Q / E or ← → |
 | Shoot: auto-aim, shoot on the move | RT | Space |
 | Intake | LT | Shift |

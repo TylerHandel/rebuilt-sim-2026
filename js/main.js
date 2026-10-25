@@ -255,7 +255,8 @@ function driverCommand(inp, dt) {
   const scale = game.slow ? 0.4 : 1;
   // field-relative: stick up is away from the camera, toward the robot, from wherever the camera is
   // (it turns as the robot moves past a fixed camera, and round when the camera turns around);
-  // stick right is to the right on screen
+  // stick right is to the right on screen. From the driver station it's field-centric: up is
+  // always straight downfield (CameraRig.driveForward)
   let vx, vz;
   if (game.fieldRelative) {
     const f = rig.driveForward(r);

@@ -47,10 +47,13 @@ export class CameraRig {
 
   // Which way "up" on the stick drives, field-relative: away from the camera, toward the robot (the
   // way you're looking at it), so forward is forward whichever camera you watch from, even a fixed
-  // one the robot drives around in front of. Overhead: up the screen. Returns a unit {x, z}.
+  // one the robot drives around in front of. Overhead: up the screen. Driver Station: field-centric,
+  // as a real driver drives: straight downfield, away from its own ALLIANCE WALL, wherever the robot
+  // is and wherever the driver turns to look (turned around: toward the wall). Returns a unit {x, z}.
   driveForward(robot) {
     const cam = this.camera;
     let x, z;
+    if (this.mode === 'driver') return { x: (this.alliance === BLUE ? 1 : -1) * (this.flip ? -1 : 1), z: 0 };
     if (this.mode === 'overhead') { x = cam.up.x; z = cam.up.z; }
     else {
       x = (robot ? robot.pos.x : this.look.x) - cam.position.x;
