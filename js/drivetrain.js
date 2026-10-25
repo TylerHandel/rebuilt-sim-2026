@@ -91,6 +91,29 @@ export class Drivetrain {
     return ((this.grip + this.drag(v)) / this.m) * dt;
   }
 
+  // The change of velocity (vx, vz) this step toward the change wanted (dvx, dvz), as the tires
+  // and motors allow; share: the part of the robot's weight on its wheels (traction). Along the
+  // way it's going, speeding up takes what the motors have left (little near top speed) and
+  // slowing down is the motors braking plus drag. Across it, turning the velocity at speed, the
+  // modules steer and the tires push sideways: that takes no power, only grip. Both together
+  // stay within the tires' grip (the friction circle), turning first.
+  limitDv(vx, vz, dvx, dvz, dt, share = 1) {
+    const v = Math.hypot(vx, vz);
+    let ux, uz;
+    if (v > 0.05) { ux = vx / v; uz = vz / v; } else { const d = Math.hypot(dvx, dvz) || 1; ux = dvx / d; uz = dvz / d; }
+    const par = dvx * ux + dvz * uz;
+    let px = dvx - par * ux, pz = dvz - par * uz;
+    const g = (this.grip / this.m) * dt * share;
+    const per = Math.hypot(px, pz);
+    if (per > g) { px *= g / per; pz *= g / per; }
+    const left = Math.sqrt(Math.max(0, g * g - Math.min(per, g) ** 2));
+    const lim = par > 0
+      ? Math.min(left, Math.max(0, (this.forceAt(v) - this.drag(v)) / this.m) * dt * share)
+      : left + (this.drag(v) / this.m) * dt * share;
+    const pa = Math.max(-lim, Math.min(lim, par));
+    return { x: px + pa * ux, z: pz + pa * uz };
+  }
+
   // Stated numbers for the robot card and the AI: top speed, turn rate, spin-up
   stats() {
     const vT = this.topSpeed;

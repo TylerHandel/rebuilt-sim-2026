@@ -445,13 +445,11 @@ export class Robot {
     }
     if (grip > 0) {
       const lv = this.body.linvel();
-      let dvx = tvx - lv.x, dvz = tvz - lv.z;
-      // how much the speed can change this step (drivetrain.js): speeding up, the motors' force
-      // falls off with speed (back-EMF, battery sag, current limits); slowing down, they brake
-      const v = Math.hypot(lv.x, lv.z);
-      const dm = Math.hypot(dvx, dvz), maxDv = this.drivetrain.maxDv(v, Math.hypot(tvx, tvz) > v - 0.05, dt) * grip;
-      if (dm > maxDv) { dvx *= maxDv / dm; dvz *= maxDv / dm; }
-      this.body.setLinvel({ x: lv.x + dvx, y: lv.y, z: lv.z + dvz }, true);
+      // how much the velocity can change this step (drivetrain.js): speeding up, the motors' force
+      // falls off with speed (back-EMF, battery sag, current limits); slowing down, they brake;
+      // changing direction at speed, the modules steer and only the tires' grip limits it
+      const dv = this.drivetrain.limitDv(lv.x, lv.z, tvx - lv.x, tvz - lv.z, dt, grip);
+      this.body.setLinvel({ x: lv.x + dv.x, y: lv.y, z: lv.z + dv.z }, true);
       const av = this.body.angvel();
       const w = approach(av.y, tw, d.maxAlpha * dt * grip);
       this.body.setAngvel({ x: av.x, y: w, z: av.z }, true); // pitch and roll are the physics'
