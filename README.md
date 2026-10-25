@@ -19,6 +19,8 @@ To run it from a copy on your computer instead (to work on it, or offline once t
 
 Keep the server window open while you play; close it to stop.
 
+The menu's last line shows which folder the game is running from. If your copy looks older than the website (robots with their old models, for example), a server from another copy is probably still running: `start.bat` says so when it starts. Close that copy's server window, then start the game again. (On Windows, two servers could otherwise share port 8765 and mix one copy's files with the other's.) Starting a second server for the same folder just opens the one already running.
+
 ES modules won't load from `file://`, so always use `serve.py` instead of opening `index.html` directly.
 
 **Controller:** connect an Xbox controller (USB or Bluetooth) and press any button so the browser detects it. The menus, the match, the Auto Editor and the pause/results screens all work from the controller.

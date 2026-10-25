@@ -130,6 +130,11 @@ const learner = new Learner();
 ui.tuning = new TuningScreen({ learner, onClose: () => ui.show('menu') });
 ui.show('menu');
 $('loading').classList.add('hidden');
+// a copy on this computer (served by serve.py) says which folder it runs from, so a server still
+// running from an older copy can't pass for this one
+fetch('nn-api/runs', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).then((d) => {
+  if (d && d.folder) $('copyInfo').textContent = `Running from ${d.folder}`;
+}).catch(() => {});
 
 function onEvent(type, d) {
   if (!game) return;

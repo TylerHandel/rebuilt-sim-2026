@@ -3,8 +3,11 @@
 
 Usage:  python3 serve.py [port] [--open] [--nn]   (--nn opens the neural-net training dashboard)
 
-If the port is taken (say, by a server still running from another copy of the project), it uses
-the next free one, so the page always comes from this folder.
+If the port is taken by this same folder's server, it just opens that one. If another copy of the
+project (or another program) has it, it uses the next free port and says which copy is in the way,
+so the page always comes from this folder. (On Windows a second server could otherwise start on a
+port that's in use and quietly share it: the browser then gets some files from one copy and some
+from the other, such as an older copy's robot models.)
 
 For the training dashboard (nn.html) it also answers:
   * Range requests (bytes=N-): the dashboard reads only what a training log gained since its
@@ -14,9 +17,12 @@ For the training dashboard (nn.html) it also answers:
 import http.server
 import json
 import os
+import socket
 import sys
 import threading
 import time
+import urllib.error
+import urllib.request
 import webbrowser
 
 args = [a for a in sys.argv[1:] if not a.startswith("--")]
@@ -101,22 +107,59 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         self.wfile.write(data)
 
 
+class Server(http.server.ThreadingHTTPServer):
+    # Windows' SO_REUSEADDR lets a socket bind a port another one is listening on (both then get
+    # connections). Ask for the port exclusively there, so a taken port fails to bind.
+    allow_reuse_address = os.name != "nt"
+
+    def server_bind(self):
+        if os.name == "nt" and hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        super().server_bind()
+
+
+def who_has(port):
+    """The folder the server on this port serves, if it's a copy of this project new enough to say
+    ('' if something else answers, None if nothing does)."""
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    try:
+        with opener.open(f"http://127.0.0.1:{port}/nn-api/runs", timeout=2) as r:
+            return json.loads(r.read().decode()).get("folder", "")
+    except Exception as e:
+        return "" if isinstance(e, urllib.error.HTTPError) else None
+
+
+def same(a, b):
+    return os.path.normcase(os.path.abspath(a)) == os.path.normcase(os.path.abspath(b))
+
+
 def bind(port):
     for p in range(port, port + 20):
         try:
-            return http.server.ThreadingHTTPServer(("127.0.0.1", p), Handler), p
+            return Server(("127.0.0.1", p), Handler), p
         except OSError:
-            continue
+            other = who_has(p)
+            if other and same(other, ROOT):
+                return None, p  # this folder is already being served there
+            if p == port:
+                print(f"Port {port} is in use by " + (f"another copy of the project ({other})." if other else
+                      "another program, or an older copy of the project (an old start.bat or nn-dashboard.bat window?).")
+                      + " Its pages are not this folder's: close that window if it's an old copy.")
     raise SystemExit(f"No free port between {port} and {port + 19}")
 
 
 server, port = bind(PORT)
 url = f"http://localhost:{port}/"
+page = url + ("nn.html" if "--nn" in sys.argv else "")
+if server is None:
+    print(f"This folder is already being served at {url} (another window): opening that.")
+    if "--open" in sys.argv or "--nn" in sys.argv:
+        webbrowser.open(page)
+    sys.exit(0)
 if port != PORT:
-    print(f"Port {PORT} is in use (another server, maybe from another copy of the project): using {port} instead.")
+    print(f"Using port {port} instead: {url}")
 print(f"REBUILT Sim running at {url}  (serving {ROOT}; Ctrl+C to stop)")
 if "--open" in sys.argv or "--nn" in sys.argv:
-    page = url + ("nn.html" if "--nn" in sys.argv else "")
     threading.Timer(0.5, lambda: webbrowser.open(page)).start()
 try:
     server.serve_forever()
