@@ -527,31 +527,44 @@ export class Field {
     }
 
     // ================================================================ TRENCHES
+    // (the shapes of the official field CAD: see TRENCH in constants.js)
     for (const sz of [1, -1]) {
       const zGuard = sz * HALF_W;
       const zOpenEnd = sz * (HALF_W - TRENCH.clearWidth);
       const zPostEnd = sz * (HALF_W - TRENCH.width);
       const postW = Math.abs(zOpenEnd - zPostEnd);
       const postZ = (zOpenEnd + zPostEnd) / 2;
-      const td = TRENCH.depth / 2;
-      // bump-side post (full height)
-      box(TRENCH.depth, TRENCH.height, postW, mats.dark, hx, TRENCH.height / 2, postZ, grp);
-      box(TRENCH.depth + 0.01, 0.1, postW + 0.01, col, hx, TRENCH.height - 0.05, postZ, grp);
-      boxC(hx, TRENCH.height / 2, postZ, td, TRENCH.height / 2, postW / 2, { restitution: 0.4 });
-      // guardrail-side upright
-      box(0.08, TRENCH.height, 0.08, mats.alu, hx, TRENCH.height / 2, zGuard - sz * 0.04, grp);
-      // arm spanning the opening at 22.25in - 40.25in
-      const armH = TRENCH.height - TRENCH.clearHeight;
+      const td = TRENCH.depth / 2, at = TRENCH.armThick / 2;
+      // BUMP-side skirt: 30-degree ramps up from both ends to a short flat top beside the arm
+      const dTop = td - (TRENCH.skirtTopH - TRENCH.skirtEndH) / Math.tan((TRENCH.skirtSlopeDeg * Math.PI) / 180);
+      const prof = [[-td, 0], [td, 0], [td, TRENCH.skirtEndH], [dTop, TRENCH.skirtTopH], [-dTop, TRENCH.skirtTopH], [-td, TRENCH.skirtEndH]];
+      const shape = new THREE.Shape();
+      prof.forEach(([x, y], i) => (i ? shape.lineTo(x, y) : shape.moveTo(x, y)));
+      const skirt = new THREE.Mesh(new THREE.ExtrudeGeometry(shape, { depth: postW, bevelEnabled: false }), col);
+      skirt.position.set(hx, 0, Math.min(zOpenEnd, zPostEnd));
+      skirt.castShadow = skirt.receiveShadow = true;
+      grp.add(skirt);
+      const pts = [];
+      for (const z of [zOpenEnd, zPostEnd]) for (const [x, y] of prof) pts.push(hx + x, y, z);
+      hullC(pts, { restitution: 0.4 });
+      // the arm: on the skirt from the carpet up, then across the opening 22.25in-26.25in up
+      const armH = TRENCH.armTop - TRENCH.clearHeight;
       const armZ = (zGuard + zOpenEnd) / 2;
+      box(TRENCH.armThick, TRENCH.armTop, postW, col, hx, TRENCH.armTop / 2, postZ, grp);
+      boxC(hx, TRENCH.armTop / 2, postZ, at, TRENCH.armTop / 2, postW / 2, { restitution: 0.4 });
       box(TRENCH.armThick, armH, TRENCH.clearWidth, col, hx, TRENCH.clearHeight + armH / 2, armZ, grp);
       box(TRENCH.armThick + 0.02, 0.03, TRENCH.clearWidth, mats.alu, hx, TRENCH.clearHeight + 0.015, armZ, grp);
-      boxC(hx, TRENCH.clearHeight + armH / 2, armZ, TRENCH.armThick / 2, armH / 2, TRENCH.clearWidth / 2, { restitution: 0.4 });
+      boxC(hx, TRENCH.clearHeight + armH / 2, armZ, at, armH / 2, TRENCH.clearWidth / 2, { restitution: 0.4 });
+      // the AprilTag mount standing on the arm over the middle of the opening
+      const tagH = TRENCH.height - TRENCH.armTop;
+      box(TRENCH.tagThick, tagH, TRENCH.tagWidth, mats.alu, hx, TRENCH.armTop + tagH / 2, armZ, grp);
+      boxC(hx, TRENCH.armTop + tagH / 2, armZ, TRENCH.tagThick / 2, tagH / 2, TRENCH.tagWidth / 2, { restitution: 0.4 });
       // floor rails (feet) of the trench, too low to matter for driving
       for (const fx of [-td + 0.02, td - 0.02]) box(0.04, 0.012, TRENCH.clearWidth, mats.alu, hx + fx, 0.006, armZ, grp, false);
-      // AprilTags on the arm
+      // AprilTags on the mount
       for (const sx of [-1, 1]) {
         const tag = new THREE.Mesh(new THREE.PlaneGeometry(0.2, 0.2), mats.tag);
-        tag.position.set(hx + sx * (TRENCH.armThick / 2 + 0.003), 0.889, armZ);
+        tag.position.set(hx + sx * (TRENCH.tagThick / 2 + 0.003), 0.889, armZ);
         tag.rotation.y = sx * Math.PI / 2;
         grp.add(tag);
       }

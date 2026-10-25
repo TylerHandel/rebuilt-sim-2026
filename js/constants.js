@@ -109,13 +109,23 @@ export const BUMP = {
 };
 
 // ---------------------------------------------------------------- TRENCH
+// Measured off the official field CAD (FE-2026: the GE-262xx TRENCH parts): on the BUMP side, a
+// skirt that ramps up at 30 degrees from both ends (8.5in tall there) to 18.86in near the
+// middle; an arm across it and the opening, 6in thick, 22.25in-26.25in up; and on the arm's
+// middle, over the opening, an AprilTag mount 11.5in wide reaching 40.25in.
 export const TRENCH = {
-  width: 65.65 * IN,
+  width: 62.28 * IN,      // FIELD edge to the BUMP side of the skirt
   depth: 47.0 * IN,
-  height: 40.25 * IN,
-  clearWidth: 50.34 * IN,
+  height: 40.25 * IN,     // top of the AprilTag mount
+  clearWidth: 50.34 * IN, // the opening, FIELD edge to the skirt
   clearHeight: 22.25 * IN,
-  armThick: 3.0 * IN,
+  armThick: 6.0 * IN,
+  armTop: 26.25 * IN,
+  skirtEndH: 8.5 * IN,
+  skirtTopH: 18.86 * IN,
+  skirtSlopeDeg: 30,
+  tagWidth: 11.5 * IN,
+  tagThick: 3.0 * IN,
 };
 
 // ---------------------------------------------------------------- TOWER

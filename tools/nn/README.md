@@ -39,7 +39,7 @@ The dashboard shows whether it's improving. If points per match stay flat for ma
 
 **How it's simplified** (`tools/nn/gpusim.py`):
 - **Robots:** the real speed, acceleration and turning limits, and the real sizes, intake width, capacity, shot rate, flywheel spin-up and aiming. Each robot's numbers are exported from the real game into `tools/nn/gpusim-params.json` by `tools/nn/gpusim-export.mjs`.
-- **Collisions:** robots are boxes. They collide with the walls, HUBs, TRENCH posts, TOWERs and each other, so they can push, block and pin. Robots too tall for the TRENCH are stopped by its arm.
+- **Collisions:** robots are boxes. They collide with the walls, HUBs, TRENCH skirts, TOWERs and each other, so they can push, block and pin. Robots too tall for the TRENCH are stopped by its arm.
 - **Intake:** matched to the real robots (`tools/intake-test.mjs`):
   - up to about 70 FUEL/s driving through a pile;
   - the rollers grip about a row at a time;

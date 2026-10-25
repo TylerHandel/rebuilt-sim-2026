@@ -1,5 +1,5 @@
 // Grid A* navigation for the AI opponent. The only things a ROBOT can't drive over or under are
-// the HUBS, the bump-side TRENCH posts, the TOWERS and the field perimeter; BUMPS and the
+// the HUBS, the bump-side TRENCH skirts, the TOWERS and the field perimeter; BUMPS and the
 // TRENCH openings are free space (except for a robot too tall for the TRENCH).
 import { HALF_L, HALF_W, HUB, TRENCH, TOWER, BLUE, RED } from './constants.js';
 import { Field } from './field.js';
@@ -84,7 +84,7 @@ const TRENCH_OPENINGS = (() => {
 // the TRENCH arms over the openings, as boxes (world, center and half sizes), for the FUEL held
 // in robots (Robot._armsNear)
 export const TRENCH_ARMS = TRENCH_OPENINGS.map((o) => {
-  const armH = TRENCH.height - TRENCH.clearHeight;
+  const armH = TRENCH.armTop - TRENCH.clearHeight;
   return { x: o.x, y: TRENCH.clearHeight + armH / 2, z: o.z, hx: TRENCH.armThick / 2, hy: armH / 2, hz: TRENCH.clearWidth / 2 };
 });
 

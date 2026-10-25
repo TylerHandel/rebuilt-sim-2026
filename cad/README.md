@@ -1,7 +1,7 @@
 # Real CAD in the game
 
 Put CAD exports in this folder and list them in `manifest.json`. The game loads them at startup.
-Physics always uses the colliders built from the game-manual dimensions in `js/field.js`; CAD is visual.
+Physics always uses the colliders built in `js/field.js`; CAD is visual. They come from the game-manual dimensions, and the TRENCHES' shape (the sloped skirt, the 6 in arm and the AprilTag mount on it) was measured off this CAD so the colliders match what you see.
 
 ## The field
 `field/field.glb` is the official field CAD (Onshape document 8a691e28680da30504859fce, "FE-2026: REBUILT
