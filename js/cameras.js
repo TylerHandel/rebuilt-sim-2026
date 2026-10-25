@@ -1,5 +1,11 @@
 import * as THREE from 'three';
-import { HALF_L, HALF_W, BLUE, DRIVER_STATIONS, ALLIANCE_WALL_H } from './constants.js';
+import { HALF_L, HALF_W, BLUE, DRIVER_STATIONS } from './constants.js';
+
+// A driver at its driver station: standing right up against the glass (the polycarbonate sits in
+// the middle of the 12 cm ALLIANCE WALL, 6 cm behind the FIELD edge; the eyes are about 12 cm
+// behind it) at standing eye height, turning its head to keep its robot in view.
+const DS_EYE_BACK = 0.06 + 0.12; // m behind the FIELD edge
+const DS_EYE_H = 1.6;            // m above the carpet
 
 export const CAMERA_MODES = ['driver', 'follow', 'chase', 'overhead', 'broadcast'];
 export const CAMERA_NAMES = {
@@ -69,9 +75,10 @@ export class CameraRig {
       case 'driver': {
         const fy = DRIVER_STATIONS[this.ds].fy;
         const z = s * (HALF_W - fy);
-        p = new THREE.Vector3(-s * (HALF_L + 1.1), ALLIANCE_WALL_H + 0.75, z);
-        l = new THREE.Vector3(-s * (HALF_L - 8.5), 0, z * 0.3);
-        fov = 60;
+        p = new THREE.Vector3(-s * (HALF_L + DS_EYE_BACK), DS_EYE_H, z);
+        // watching its robot (a little ahead of it, downfield, where it's headed most of the time)
+        l = robot ? new THREE.Vector3(rp.x + s * 1.0, 0.25, rp.z) : new THREE.Vector3(-s * (HALF_L - 8.5), 0, z * 0.3);
+        fov = 55;
         break;
       }
       case 'follow': {
