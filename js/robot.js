@@ -26,6 +26,12 @@ const INTAKE_SPEED = 3.5; // m/s the rollers pull FUEL in (cfg.intake.pull overr
 // mouth, behind the rollers, until the load gives way.
 const BLOCK_D = 2 * R * 0.85;
 const HOLD_GAP = 2 * R * 0.9;
+// The intake's front roller (where it is when deployed: its front edge at intake.reach past the
+// bumper, about level with the middle of the FUEL it scoops off the carpet, the height of the
+// intake's collider that pushes what it can't take): FUEL is grabbed only when it touches it,
+// within how far the roller squeezes it (intake.squeeze, in)
+const ROLLER_R = 0.032;
+const ROLLER_Y = 0.1;
 const STALL_T = 0.35;
 const FULL_T = 0.75; // s stalled: full
 const FEED_SPEED = 7;     // m/s up the feed path into the shooter
@@ -220,6 +226,15 @@ export class Robot {
         .setCollisionGroups(0),
       this.body,
     );
+    // and its side plates, from the bumper out to the roller: FUEL gets in over the roller at the
+    // front, not in from the sides under the intake (where no roller would touch it)
+    this.sidePlates = [-1, 1].map((sz) => world.createCollider(
+      RAPIER.ColliderDesc.cuboid(ic.reach / 2, 0.08, 0.006)
+        .setTranslation(this.halfL + ic.reach / 2, 0.11, sz * (ic.width / 2 + 0.006))
+        .setDensity(0).setFriction(0.1).setRestitution(0.05)
+        .setCollisionGroups(0),
+      this.body,
+    ));
   }
 
   reset() {
@@ -473,6 +488,23 @@ export class Robot {
     return { lipX, lipY, entryX, entryY, liftY: Math.max(entryY, lipY) };
   }
 
+  // The front roller's axis (robot frame, deployed) and radius
+  _frontRoller() {
+    const ic = this.cfg.intake, r = ic.rollerR ?? ROLLER_R;
+    return { x: this.halfL + ic.reach - r, y: ic.rollerY ?? ROLLER_Y, r, grip: (ic.squeeze ?? 0.75) * 0.0254 };
+  }
+
+  // whether a grabbed FUEL (robot frame) has come away from the rollers lifting it: off the front
+  // roller and off the way they drive it up over the bumper, by more than the foam's squeeze
+  _offRollers(l, path) {
+    const rol = this._frontRoller();
+    const ax = rol.x, ay = rol.y, bx = path.lipX, by = path.liftY;
+    const ex = bx - ax, ey = by - ay, len2 = ex * ex + ey * ey || 1;
+    const u = clamp(((l.x - ax) * ex + (l.y - ay) * ey) / len2, 0, 1);
+    const d = Math.hypot(l.x - ax - u * ex, l.y - ay - u * ey);
+    return d > R + rol.r + rol.grip + 0.04;
+  }
+
   // Where a FUEL that can't get in yet waits, and the way it goes in from there: in the mouth, a
   // ball's width out from the entry toward the lip (or at the lip, if that's farther), behind the
   // rollers, pushing on what's in the way. (It stays there when the rollers stall: jammed in the
@@ -499,16 +531,25 @@ export class Robot {
       const path = this._intakePath(cap.z);
       // up the intake arm to just over the bumper, then into the hopper; while the way in is
       // blocked, the rollers hold it in the mouth (cap.wait, the hold point)
-      if (!cap.over && ly >= path.liftY - 0.03) cap.over = true;
+      const pull = this.cfg.intake.pull ?? INTAKE_SPEED;
+      if (!cap.over && ly >= path.liftY - 0.03) { cap.over = true; cap.coast = pull; cap.yPrev = ly; }
       const up = !cap.over;
       let tx = up ? path.lipX : path.entryX, ty = up ? path.liftY : path.entryY;
+      // the rollers drive it up over the bumper; past the lip nothing does: it carries on into the
+      // hopper on the speed they gave it, gaining speed as it drops (a little lost rubbing the sides)
+      let speed = pull;
+      if (cap.over && !cap.wait) {
+        cap.coast = Math.sqrt(Math.max(0.25, cap.coast * cap.coast + 2 * 9.81 * (cap.yPrev - ly))) * (1 - 1.5 * dt);
+        cap.yPrev = ly;
+        speed = cap.coast;
+      }
       if (cap.wait) {
         const h = this._holdPoint(path);
         tx = h.x; ty = h.y;
       }
       let vx = tx - lx, vy = ty - ly, vz = cap.z - lz;
       const dist = Math.hypot(vx, vy, vz) || 1;
-      const sp = Math.min(this.cfg.intake.pull ?? INTAKE_SPEED, dist / (2 * dt));
+      const sp = Math.min(speed, dist / (2 * dt));
       vx *= sp / dist; vy *= sp / dist; vz *= sp / dist;
       // robot point velocity + the pull, in world axes
       cap.vs = {
@@ -638,6 +679,7 @@ export class Robot {
       feeding: this.feeding > 0,
       intaking: this.intakeSpeed > 0,
       feedPoint: this._feedAt(f.x, 0, f.z ?? 0),
+      feedConverge: this.cfg.shooter.type !== 'fixed', // (a dumper's indexer spans the hopper)
       boxes: this._armsNear(),
     });
     this._applyBoxForce(dt);
@@ -675,6 +717,7 @@ export class Robot {
     // the roller only pushes FUEL (the intake's own collider meets walls and robots)
     const groupsNow = deployed ? groups(GROUP.INTAKE, GROUP.BALL | GROUP.ROBOT_BARRIER) : 0;
     this.intakeCollider.setCollisionGroups(groupsNow);
+    for (const c of this.sidePlates) c.setCollisionGroups(deployed ? groups(GROUP.INTAKE, GROUP.BALL) : 0);
 
     const running = on && this.cmd.intake && deployed;
     this.intakeSpeed = on && this.cmd.outtake ? -1 : running ? 1 : 0;
@@ -686,9 +729,9 @@ export class Robot {
     const row = Math.max(2, Math.floor(ic.width / (2 * R)));
     if (running && !this.stalled && this.captured.length < row && this.stored.length < this.maxCapacity() * 2 + 10) {
       this.intakeTokens = Math.min(Math.max(4, 2 * ic.rate * dt), this.intakeTokens + ic.rate * dt);
-      const front = this.halfL - 0.04;
-      const reach = this.halfL + ic.reach + R + 0.02;
-      const hw = ic.width / 2 + 0.02;
+      const rol = this._frontRoller();
+      const touch = R + rol.r + rol.grip;
+      const hw = ic.width / 2 + 0.3 * R; // (a FUEL a little past the end of the roller still bears on it)
       const balls = this.fuel.balls;
       for (let i = 0; i < balls.length && this.intakeTokens >= 1 && this.captured.length < row; i++) {
         const b = balls[i];
@@ -696,8 +739,11 @@ export class Robot {
         const p = b.pos;
         if (Math.abs(p.x - this.pos.x) > 1.3 || Math.abs(p.z - this.pos.z) > 1.3) continue;
         if (p.y - this.pos.y > 0.33) continue;
-        const l = this.worldToLocal(p.x, p.z);
-        if (l.x < front || l.x > reach || Math.abs(l.z) > hw) continue;
+        // only FUEL touching the spinning roller, on its front (the side that turns up and in),
+        // across its width
+        const l = this.worldToLocal3(p);
+        const dx = l.x - rol.x, dy = l.y - rol.y;
+        if (dx * dx + dy * dy > touch * touch || dx < -0.2 * R || Math.abs(l.z) > hw) continue;
         if (b.hubFresh) this.match.addFoul(this.alliance, 'minor', 'G408', 'Caught FUEL released by the HUB before it touched the carpet');
         // grabbed by the rollers: it stops colliding with this robot and gets pulled in
         b.captor = this;
@@ -748,7 +794,9 @@ export class Robot {
       }
       // (8793's single-file ball path isn't packed by pushing: it holds what its path fits)
       const shut = this.cfg.bay.pack === false && this.stored.length >= this.capacity();
-      const lost = b.state !== 'field' || (!cap.waitT && t - cap.t0 > 0.8) || (cap.waitT && !deployed);
+      // (it comes off the rollers before they've lifted it over: something held it back)
+      const off = !cap.over && !cap.waitT && this._offRollers(l, path);
+      const lost = b.state !== 'field' || (!cap.waitT && t - cap.t0 > 0.8) || (cap.waitT && !deployed) || off;
       if (!lost && !block.length && !shut && l.x <= path.entryX + 0.02 && l.y >= path.entryY - 0.04) {
         this.captured.splice(i, 1);
         const v = b.body.linvel();

@@ -438,10 +438,19 @@ export class Hopper {
       let fy = gy - ay;
       let fz = gz - az + w * w * p.z + 2 * w * v.x + al * p.x;
       const onFloor = p.y - R_WALL - this.floorAt(p.x, p.z) < 0.02;
+      // Mechanisms only move the FUEL they touch: the floor rollers, a rotor or a belt drive the
+      // FUEL sitting on them; the rest of the load follows by gravity and by being pushed.
       if (s.drive === 'floor' && onFloor) {
-        // powered floor rollers carry FUEL back to the indexer
-        const target = env.feeding ? -s.driveSpeed : env.intaking ? -0.5 : null;
-        if (target !== null) fx += 12 * (target - v.x);
+        // powered floor rollers carry FUEL back to the indexer: straight back into one that spans
+        // the hopper (a dumper's lanes), or converging on a single feed (a turret's)
+        if (env.feeding) {
+          let tx = -s.driveSpeed, tz = 0;
+          if (env.feedConverge && env.feedPoint) {
+            const dx = env.feedPoint.x - p.x, dz = env.feedPoint.z - p.z, d = Math.hypot(dx, dz);
+            if (d > 0.03) { tx = (s.driveSpeed * dx) / d; tz = (s.driveSpeed * dz) / d; }
+          }
+          fx += 12 * (tx - v.x); fz += 12 * (tz - v.z);
+        } else if (env.intaking) fx += 12 * (-0.5 - v.x);
       } else if (s.drive === 'rotor' && onFloor) {
         // the rotor spins under the FUEL on it and carries it round (friction), and the Dolphin
         // Fin on its rim pushes the FUEL touching its leading face, which pushes the rest along
@@ -486,7 +495,9 @@ export class Hopper {
             fz += k * (uz - v.z);
           }
         }
-      } else if (s.drive === 'belt') {
+      } else if (s.drive === 'belt' && p.y - R_WALL - this.floorAt(p.x, p.z) < 0.5 * R) {
+        // (the conveyor's wheels line the channel's floor and sides: it drives every FUEL in the
+        // bottom layer, not the ones stacked on top)
         // compliant conveyor wheels grip the FUEL: carry it up to the turret, or hold it
         const b = (this.floorAt(p.x + 0.01, p.z) - this.floorAt(p.x - 0.01, p.z)) / 0.02, n = Math.hypot(1, b);
         const tx = -1 / n, ty = -b / n; // up the slope, toward the turret
@@ -519,12 +530,11 @@ export class Hopper {
         e.pushT -= dt;
         if (e.pushT <= 0) e.push = 0;
       }
-      if (env.feeding && env.feedPoint) {
+      if (env.feeding && env.feedPoint && s.feed && s.feed.pull) {
+        // wheels at the feed that drive FUEL into it (341's serializer omni wheels): only the
+        // FUEL touching them
         const dx = env.feedPoint.x - p.x, dz = env.feedPoint.z - p.z, d = Math.hypot(dx, dz);
-        // (feed.pull: a mechanism that drives the load to the feed harder, as 341's serializer
-        // omni wheels do; otherwise just the pile settling toward the gap FUEL leaves)
-        const k = (s.feed && s.feed.pull) || 2.5;
-        if (d > 0.05) { fx += (k * dx) / d; fz += (k * dz) / d; }
+        if (d > 0.05 && d < (s.feed.reach ?? 0.14) + R) { fx += (s.feed.pull * dx) / d; fz += (s.feed.pull * dz) / d; }
       }
       v.x += fx * dt; v.y += fy * dt; v.z += fz * dt;
       v.multiplyScalar(1 - 0.6 * dt);
