@@ -823,7 +823,12 @@ export class Robot {
         this.captured.splice(i, 1);
         b.captor = null;
         this.stats.dropped++;
-        if (b.state === 'field') { b.ignoring = true; b.ignoreUntil = t + 0.25; }
+        if (b.state === 'field') {
+          b.ignoring = true; b.ignoreUntil = t + 0.25;
+          // let go of inside the frame (waiting in the mouth when the intake folded up): it falls
+          // back out over the bumper, not into the robot's body (where it would be stuck, dragging)
+          if (l.x < this.halfL + R && Math.abs(l.z) < this.halfW + R) this._dropInFront(b, l.z);
+        }
       } else if (block.length || shut) {
         // waiting, pushing on what's in the way
         cap.wait = true;
@@ -873,6 +878,18 @@ export class Robot {
     this.stallT = this.stalled ? (this.stallT || 0) + dt : 0;
     // the rollers slow while FUEL waits in them, and stop when they've stalled
     this.rollerSpeed = this.stalled ? 0 : waited > 0 ? 0.35 : 1;
+  }
+
+  // A FUEL the intake let go of inside the frame: out onto the carpet in front of the bumper,
+  // moving with the robot
+  _dropInFront(b, lz) {
+    const w = this.halfW - R;
+    const p = this.localToWorld(this.halfL + R + 0.01, R + 0.01, clamp(lz, -w, w));
+    const v = this.velocityAt(p), f = this.forward();
+    b.body.setTranslation({ x: p.x, y: p.y, z: p.z }, true);
+    b.body.setLinvel({ x: v.x + 0.3 * f.x, y: 0, z: v.z + 0.3 * f.z }, true);
+    b.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+    b.pos.set(p.x, p.y, p.z);
   }
 
   _startOuttake() {

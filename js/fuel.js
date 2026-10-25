@@ -11,6 +11,7 @@ import { rand, clamp } from './util.js';
 const R = FUEL.radius;
 const NORMAL_GROUPS = groups(GROUP.BALL, GROUP.STATIC | GROUP.TERRAIN | GROUP.BALL | GROUP.ROBOT | GROUP.INTAKE | GROUP.WHEEL);
 const NO_ROBOT_GROUPS = groups(GROUP.BALL, GROUP.STATIC | GROUP.TERRAIN | GROUP.BALL);
+const IN_ROBOT_QUERY = groups(GROUP.BALL, GROUP.ROBOT);
 const HIDDEN = new THREE.Matrix4().makeScale(0, 0, 0);
 
 export class FuelManager {
@@ -203,10 +204,23 @@ export class FuelManager {
       }
       b.prevVel = { x: v.x, y: v.y, z: v.z };
       if (b.ignoring && t >= b.ignoreUntil) {
-        b.col.setCollisionGroups(NORMAL_GROUPS);
-        b.ignoring = false;
+        // (not while it's still inside a robot: solid again there, it would be stuck in it)
+        if (this._inRobot(p)) b.ignoreUntil = t + 0.1;
+        else {
+          b.col.setCollisionGroups(NORMAL_GROUPS);
+          b.ignoring = false;
+        }
       }
     }
+  }
+
+  // whether a FUEL at p is well inside a robot's bumpers or frame (more than ~3 cm in)
+  _inRobot(p) {
+    this._core ||= new RAPIER.Ball(0.6 * R);
+    let hit = false;
+    this.physics.world.intersectionsWithShape(p, { x: 0, y: 0, z: 0, w: 1 }, this._core, () => { hit = true; return false; },
+      undefined, IN_ROBOT_QUERY);
+    return hit;
   }
 
   // ------------------------------------------------------------------ per frame

@@ -92,26 +92,29 @@ export class Drivetrain {
   }
 
   // The change of velocity (vx, vz) this step toward the change wanted (dvx, dvz), as the tires
-  // and motors allow; share: the part of the robot's weight on its wheels (traction). Along the
-  // way it's going, speeding up takes what the motors have left (little near top speed) and
-  // slowing down is the motors braking plus drag. Across it, turning the velocity at speed, the
-  // modules steer and the tires push sideways: that takes no power, only grip. Both together
-  // stay within the tires' grip (the friction circle), turning first.
+  // and motors allow; share: the part of the robot's weight on its wheels (traction). The tires
+  // push at most their grip in any direction (the friction circle); speeding up along the way it's
+  // going also takes motor power (little near top speed), while turning the velocity (modules
+  // steering, tires pushing sideways) and slowing down (motors braking, plus drag) take none.
+  // It heads straight for the target velocity, the quickest way there within the grip. Where the
+  // motors are what holds that back (speeding up), the tires still turn it: more of the change
+  // across, up to pointing it the target's way, never past it (so it can't swing back and forth
+  // across the stick's direction, getting nowhere).
   limitDv(vx, vz, dvx, dvz, dt, share = 1) {
-    const v = Math.hypot(vx, vz);
+    const v = Math.hypot(vx, vz), dm = Math.hypot(dvx, dvz);
+    if (dm < 1e-9) return { x: 0, z: 0 };
     let ux, uz;
-    if (v > 0.05) { ux = vx / v; uz = vz / v; } else { const d = Math.hypot(dvx, dvz) || 1; ux = dvx / d; uz = dvz / d; }
+    if (v > 0.05) { ux = vx / v; uz = vz / v; } else { ux = dvx / dm; uz = dvz / dm; }
     const par = dvx * ux + dvz * uz;
-    let px = dvx - par * ux, pz = dvz - par * uz;
+    const px = dvx - par * ux, pz = dvz - par * uz, per = Math.hypot(px, pz);
     const g = (this.grip / this.m) * dt * share;
-    const per = Math.hypot(px, pz);
-    if (per > g) { px *= g / per; pz *= g / per; }
-    const left = Math.sqrt(Math.max(0, g * g - Math.min(per, g) ** 2));
-    const lim = par > 0
-      ? Math.min(left, Math.max(0, (this.forceAt(v) - this.drag(v)) / this.m) * dt * share)
-      : left + (this.drag(v) / this.m) * dt * share;
-    const pa = Math.max(-lim, Math.min(lim, par));
-    return { x: px + pa * ux, z: pz + pa * uz };
+    let s = Math.min(1, g / dm);
+    if (par > 0) s = Math.min(s, (Math.max(0, (this.forceAt(v) - this.drag(v)) / this.m) * dt * share) / par);
+    let a = s * par, sp = s;
+    if (par > 0 && per > 1e-9) sp = Math.max(s, Math.min(1, Math.sqrt(Math.max(0, g * g - a * a)) / per, (v + a) / (v + par)));
+    // (drag helps it slow down)
+    if (par < 0) a = Math.max(par, a - (this.drag(v) / this.m) * dt * share);
+    return { x: a * ux + sp * px, z: a * uz + sp * pz };
   }
 
   // Stated numbers for the robot card and the AI: top speed, turn rate, spin-up
