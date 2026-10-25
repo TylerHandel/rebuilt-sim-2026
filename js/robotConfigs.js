@@ -2,7 +2,8 @@
 //  - 2910 Jack in the Bot "Re•Blitz" (tech binder): 27.5x27in swerve (MK5n R1), front slap-down
 //    over-bumper intake (4 FUEL wide), one-piece hopper (holds 50+, fits under the TRENCH),
 //    4-FUEL-wide drum shooter with adjustable hood fixed to the chassis, firing out the back (away
-//    from the intake) — the whole robot turns to aim; 30+ BPS (34 sustained). No climber ("Won't: Climb").
+//    from the intake) — the whole robot turns to aim; 23-25 BPS with the intakes saturated, 30 in
+//    short volleys (the team, Chief Delphi reveal thread). No climber ("Won't: Climb").
 //  - 4414 HighTide "RIPCURRENT" (tech binder): 25x32in swerve (7.67:1), over-bumper intake,
 //    extending hopper (85+ under the TRENCH), a Dye Rotor (pocketed rotor, as in a paintball
 //    loader) feeding a single-stream turret shooter
@@ -112,7 +113,7 @@ export const ROBOTS = {
     teamName: 'Jack in the Bot',
     robotName: 'Re•Blitz',
     archetype: 'Dumper',
-    blurb: 'Huge hopper and a 4-wide drum shooter fixed to the chassis — the whole robot rotates to aim. Unloads 30+ FUEL per second.',
+    blurb: 'Huge hopper and a 4-wide drum shooter fixed to the chassis — the whole robot rotates to aim. Unloads about 25 FUEL per second (30 in short volleys).',
     frame: { length: 27.0 * IN, width: 27.5 * IN },
     height: 21.5 * IN,
     mass: 64, // robot (up to 115 lb) + bumpers + battery
@@ -152,7 +153,7 @@ export const ROBOTS = {
       facing: 'back', // the drum at the back fires away from the intake
       lanes: [-0.19, -0.063, 0.063, 0.19],
       exit: { x: -0.34, y: 0.5 }, // where FUEL leaves the hood, over the back of the drum (their CAD)
-      bps: 32,
+      bps: 25, // 23-25 typical with the intakes saturated (the team)
       hoodMin: 42, hoodMax: 74,
       speedMax: 17,
       spinTau: 0.33,
@@ -160,7 +161,7 @@ export const ROBOTS = {
       speedSigma: 0.016, angleSigma: 0.8, yawSigma: 0.8,
     },
     climber: null,
-    stats: { 'Shot rate': '32 BPS', Aiming: 'Chassis', 'Top speed': '14.1 ft/s', Trench: 'Yes' },
+    stats: { 'Shot rate': '25 BPS', Aiming: 'Chassis', 'Top speed': '14.1 ft/s', Trench: 'Yes' },
     colors: { frame: 0xb9bec5, accent: 0x5c6168, trim: 0xc6cbd1 }, // raw aluminum, grey plates (their CAD)
   },
   4414: {
@@ -169,7 +170,7 @@ export const ROBOTS = {
     teamName: 'HighTide',
     robotName: 'RIPCURRENT',
     archetype: 'Dye Rotor',
-    blurb: 'Extending hopper holds about 88 FUEL under a stretchy net. A Dye Rotor single-streams FUEL into a fast turret shooter with precomputed shoot-on-the-move.',
+    blurb: 'Extending hopper holds about 88 FUEL under a stretchy net. A Dye Rotor single-streams FUEL into a turret shooter (about 14 FUEL per second) with precomputed shoot-on-the-move.',
     frame: { length: 25.0 * IN, width: 32.0 * IN, chamfer: 0.12 }, // back corners cut off
     height: 21.75 * IN,
     mass: 64, // robot (up to 115 lb) + bumpers + battery
@@ -216,7 +217,7 @@ export const ROBOTS = {
       exitRadius: 0.1,
       exitY: 0.53,
       turretRange: 200, turretRate: 720,
-      bps: 18,
+      bps: 14, // gap-free 12-14 BPS (their tech binder; ~20 in theory from the rotor)
       hoodMin: 44, hoodMax: 82,
       speedMax: 16,
       spinTau: 0.25,
@@ -224,7 +225,7 @@ export const ROBOTS = {
       speedSigma: 0.013, angleSigma: 0.6, yawSigma: 0.6,
     },
     climber: null,
-    stats: { 'Shot rate': '18 BPS', Aiming: 'Turret', 'Top speed': '13.1 ft/s', Trench: 'Yes' },
+    stats: { 'Shot rate': '14 BPS', Aiming: 'Turret', 'Top speed': '13.1 ft/s', Trench: 'Yes' },
     colors: { frame: 0x0fa3b1, accent: 0x0fa3b1, trim: 0x2b2f36 }, // teal drive rails and truss, black / carbon above
   },
   8793: {
@@ -274,7 +275,7 @@ export const ROBOTS = {
       exitRadius: 0.14, // over the flywheel, which sits 0.127 m out from the turret axis
       exitY: 0.49,
       turretRange: 185, turretRate: 600,
-      bps: 10, // the team's measured rate
+      bps: 8,
       hoodMin: 45, hoodMax: 80,
       speedMax: 15,
       spinTau: 0.28,
@@ -282,7 +283,7 @@ export const ROBOTS = {
       speedSigma: 0.017, angleSigma: 0.9, yawSigma: 0.9,
     },
     climber: null,
-    stats: { 'Shot rate': '10 BPS', Aiming: 'Turret', 'Top speed': '14.8 ft/s', Trench: 'Intake down' },
+    stats: { 'Shot rate': '8 BPS', Aiming: 'Turret', 'Top speed': '14.8 ft/s', Trench: 'Intake down' },
     colors: { frame: 0x1f2126, accent: 0xf07a1a, trim: 0xf07a1a },
   },
   971: {
@@ -340,7 +341,7 @@ export const ROBOTS = {
       exitRadius: 0.1,
       exitY: 0.54,
       turretRange: 105, turretRate: 600, // ~210deg of travel between hard stops
-      bps: 20,
+      bps: 14, // both turrets together, 7 each (an estimate: the team says its indexing isn't fast; no published rate)
       hoodMin: 35, hoodMax: 85, // 50deg of hood travel on the lead screw
       speedMax: 17,
       spinTau: 0.28,
@@ -348,7 +349,7 @@ export const ROBOTS = {
       speedSigma: 0.014, angleSigma: 0.7, yawSigma: 0.7,
     },
     climber: { maxLevel: 1, times: [0, 2.0] }, // one-stage telescoping arm
-    stats: { 'Shot rate': '20 BPS (2 turrets)', Aiming: 'Twin turrets', 'Top speed': '14.4 ft/s', Trench: 'Yes', Climb: 'Level 1' },
+    stats: { 'Shot rate': '2 x 7 BPS (est.)', Aiming: 'Twin turrets', 'Top speed': '14.4 ft/s', Trench: 'Yes', Climb: 'Level 1' },
     colors: { frame: 0xb4b9c1, accent: 0xc62828, trim: 0x2a2c31 }, // raw aluminum, red, black hoods
   },
   1678: {
@@ -448,7 +449,7 @@ export const ROBOTS = {
       exitRadius: 0.09,
       exitY: 0.52,
       turretRange: 200, turretRate: 720,
-      bps: 12,
+      bps: 13, // counted over a cycle in their reveal thread (the wheel recovers fast enough for ~20, the team says)
       hoodMin: 40, hoodMax: 80,
       speedMax: 16,
       spinTau: 0.3, // no added flywheel mass
@@ -456,7 +457,7 @@ export const ROBOTS = {
       speedSigma: 0.012, angleSigma: 0.55, yawSigma: 0.55,
     },
     climber: null,
-    stats: { 'Shot rate': '12 BPS', Aiming: 'Turret', 'Top speed': '13.1 ft/s', Trench: 'Yes' },
+    stats: { 'Shot rate': '13 BPS', Aiming: 'Turret', 'Top speed': '13.1 ft/s', Trench: 'Yes' },
     colors: { frame: 0x2a2d33, accent: 0x2d6fd6, trim: 0x9aa0a8 }, // black lattice, blue, aluminum
   },
   4946: {
@@ -507,7 +508,7 @@ export const ROBOTS = {
       exitRadius: 0.1,
       exitY: 0.72,
       turretRange: 200, turretRate: 720,
-      bps: 20,
+      bps: 14, // ~14 sustained, single stream (counted in their reveal thread)
       hoodMin: 40, hoodMax: 80, // worm-driven hood
       speedMax: 17,
       spinTau: 0.28,
@@ -515,7 +516,7 @@ export const ROBOTS = {
       speedSigma: 0.013, angleSigma: 0.6, yawSigma: 0.6,
     },
     climber: null,
-    stats: { 'Shot rate': '20 BPS', Aiming: 'Turret', 'Top speed': '12.8 ft/s', Trench: 'No (BUMPS)' },
+    stats: { 'Shot rate': '14 BPS', Aiming: 'Turret', 'Top speed': '12.8 ft/s', Trench: 'No (BUMPS)' },
     colors: { frame: 0x9aa0a8, accent: 0xd32f2f, trim: 0x1d1f24 },
   },
   3928: {
@@ -534,7 +535,8 @@ export const ROBOTS = {
     // the intake is a tall box (its sides are hopper walls) that slides 0.3 m out the front on
     // racks, with a 2in and a 1.5in roller at its lip; it stays out (their CAD, exported out)
     intake: { width: 26 * IN, reach: 0.19, rate: 200, pull: 5, deployTime: 0.4, side: 'front', latched: true },
-    storage: { extLen: 0.3, extend: 'latched' },
+    // a hopper for about 80 FUEL (their CAD release notes)
+    storage: { capacity: 80, extLen: 0.3, extend: 'latched' },
     // their CAD: walls to 0.74 m round a spindexer at the front middle: a spoked wheel (r 0.14 m)
     // turning under the load with a printed cone over its hub, in a ring the floor wedges in the
     // corners slope down into. The tower fills the back left corner; FUEL the spokes bring round
@@ -596,8 +598,8 @@ export const ROBOTS = {
       },
     },
     // the slapdown holds FUEL too: with it down, the tray runs out over its rollers (it stays down
-    // while it's holding FUEL the tray can't take)
-    storage: { capacity: 12, extLen: 0.22, extend: 'intake' },
+    // while it's holding FUEL the tray can't take). 8 in all (their spec sheet)
+    storage: { capacity: 8, extLen: 0.22, extend: 'intake' },
     // their CAD: a plate 0.175 m up across the front of the robot under the table the turret sits
     // on (0.375 m): room for one layer of FUEL. Three 6in omni wheels lying flat at the FUEL's
     // middle spin it round toward the uptake ramp at the back, which curls up into the turret.
@@ -764,7 +766,7 @@ export const ROBOTS = {
       exitRadius: 0.12, // the 5in front wheel (their CAD)
       exitY: 0.52,
       turretRange: 170, turretRate: 600,
-      bps: 24, // both together
+      bps: 16, // both turrets together, 8 each (an estimate: no published rate)
       hoodMin: 40, hoodMax: 80,
       speedMax: 17,
       spinTau: 0.3,
@@ -772,7 +774,7 @@ export const ROBOTS = {
       speedSigma: 0.013, angleSigma: 0.6, yawSigma: 0.6,
     },
     climber: null, // taken off (remnants in the CAD)
-    stats: { 'Shot rate': '24 BPS (2 turrets)', Aiming: 'Twin turrets', 'Top speed': '', Trench: 'Yes' },
+    stats: { 'Shot rate': '2 x 8 BPS (est.)', Aiming: 'Twin turrets', 'Top speed': '', Trench: 'Yes' },
     colors: { frame: 0xc3c8ce, accent: 0x2a4fb5, trim: 0x2a2d33 },
   },
   581: {

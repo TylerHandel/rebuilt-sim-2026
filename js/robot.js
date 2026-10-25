@@ -89,6 +89,17 @@ export class Robot {
     // a compacting intake folding in crams the load harder than the roller packs it (compactPush):
     // what the hopper holds without its extension, packed that hard
     if (cfg.intake.compacts) this.geoCap.compacted = Math.max(this.geoCap.retracted, measureCapacity(cfg.bay, cfg.bay.x1, 0, cfg.intake.compactPush ?? this.intakePush));
+    // the team's own capacity (storage.capacity, where it's known) caps what the modeled hopper
+    // holds: the intake stops taking FUEL at it (_settleCaptured), and the hopper retracted, or
+    // compacted, holds as much less in proportion (or the team's retracted number)
+    const real = cfg.storage.capacity;
+    this.capLimited = !!real && real < this.geoCap.extended;
+    if (this.capLimited) {
+      const k = real / this.geoCap.extended, g = this.geoCap;
+      g.retracted = Math.min(g.retracted, cfg.storage.retracted ?? Math.round(g.retracted * k));
+      if (g.compacted !== undefined) g.compacted = Math.min(g.compacted, Math.max(g.retracted, Math.round(g.compacted * k)));
+      g.extended = real;
+    }
     this._createBody();
     this.reset();
   }
@@ -331,8 +342,8 @@ export class Robot {
     return { x: this.vel.x + this.omega * (p.z - this.pos.z), z: this.vel.z - this.omega * (p.x - this.pos.x) };
   }
 
-  // how much FUEL fits right now: what the modeled hopper holds (measured from its geometry,
-  // not the team's stated number), more once an extending hopper is out
+  // how much FUEL fits right now: what the modeled hopper holds (measured from its geometry),
+  // up to the team's own number where it's known, more once an extending hopper is out
   capacity() {
     const g = this.geoCap;
     return Math.floor(g.retracted + (g.extended - g.retracted) * this.hopperDeploy + 1e-6);
@@ -791,7 +802,7 @@ export class Robot {
         if (dx * dx + dy * dy + dz * dz < BLOCK_D * BLOCK_D) block.push(e);
       }
       // (8793's single-file ball path isn't packed by pushing: it holds what its path fits)
-      const shut = this.cfg.bay.pack === false && this.stored.length >= this.capacity();
+      const shut = (this.cfg.bay.pack === false || this.capLimited) && this.stored.length >= this.capacity();
       // (it comes off the rollers before they've lifted it over: something held it back)
       const off = !cap.over && !cap.waitT && this._offRollers(l, path);
       const lost = b.state !== 'field' || (!cap.waitT && t - cap.t0 > 0.8) || (cap.waitT && !deployed) || off;
@@ -1038,18 +1049,31 @@ export class Robot {
     if (!twin) this._flywheelStep(dt, t, on, setpoint);
 
     // feed
-    const period = 1 / sh.bps;
-    // a fixed shooter's lanes each go when their FUEL gets there: the gaps vary (random, 0.5-1.5x
-    // the period, the same rate on average); a single stream keeps its beat
-    if (!this.nextPeriod) this.nextPeriod = period;
-    this.feedTimer = Math.min(this.feedTimer + dt, period * 2);
-    if (wantShoot && ready && has && this.shot) {
-      // one FUEL starts up the feed path every period
-      while (this.feedTimer >= this.nextPeriod && this._startFeed()) {
-        this.feedTimer -= this.nextPeriod;
-        this.nextPeriod = sh.type === 'fixed' ? period * (0.5 + Math.random()) : period;
+    if (twin) {
+      // twin turrets: each has its own feed and fires at its share of the robot's rate (bps is
+      // both together), and only while it's on target: one turret alone fires at half the rate
+      const per = this.tws.length / sh.bps;
+      this.tws.forEach((w, i) => {
+        w.feedT = Math.min((w.feedT || 0) + dt, per * 2);
+        if (wantShoot && w.ok && has && this.shot) {
+          while (w.feedT >= per && this._startFeed(i)) w.feedT -= per;
+          this.feeding = 1;
+        }
+      });
+    } else {
+      const period = 1 / sh.bps;
+      // a fixed shooter's lanes each go when their FUEL gets there: the gaps vary (random, 0.5-1.5x
+      // the period, the same rate on average); a single stream keeps its beat
+      if (!this.nextPeriod) this.nextPeriod = period;
+      this.feedTimer = Math.min(this.feedTimer + dt, period * 2);
+      if (wantShoot && ready && has && this.shot) {
+        // one FUEL starts up the feed path every period
+        while (this.feedTimer >= this.nextPeriod && this._startFeed()) {
+          this.feedTimer -= this.nextPeriod;
+          this.nextPeriod = sh.type === 'fixed' ? period * (0.5 + Math.random()) : period;
+        }
+        this.feeding = 1;
       }
-      this.feeding = 1;
     }
     if (this.hopper.list.some((e) => e.tr && e.tr.feed && e.tr.t < e.tr.T && !e.tr.held)) this.feeding = 1;
     if (this.shot) this.lastMode = this.shot.mode;
@@ -1159,16 +1183,15 @@ export class Robot {
 
   // The FUEL nearest the feed point starts up the feed path (indexer, ramp, turret) and leaves
   // the shooter when it gets there.
-  _startFeed() {
+  // (twin turrets: for turret `turret`, which has to be on target)
+  _startFeed(turret = -1) {
     const sh = this.cfg.shooter, f = this.cfg.bay.feed;
     let laneZ = f.z ?? 0;
     let ti = 0;
     if (this.turrets.length > 1) {
-      // the next turret in turn that's on target
-      const n = this.turrets.length;
-      ti = -1;
-      for (let k = 0; k < n && ti < 0; k++) { const i = (this.lane + k) % n; if (this.tws[i].ok) { ti = i; this.lane = i; } }
-      if (ti < 0) return false;
+      if (turret < 0 || !this.tws[turret].ok) return false;
+      ti = turret;
+      this.lane = ti;
     }
     // a fixed shooter's lanes don't take turns in a perfect order: whichever lane's FUEL gets to
     // its wheels first goes (random, never the same lane twice running)
