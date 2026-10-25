@@ -341,23 +341,38 @@ export class Hopper {
 
   // Send a ball along a path (robot-frame points; end() gives the moving last point, e.g. a
   // turret exit). onDone(e) fires when it gets there.
-  startTransit(e, via, end, speed, onDone) {
+  // A FUEL leaves the load along a path (via points, then end(), which may move) and onDone runs
+  // when it gets there. opts.gate: while it returns false, the FUEL stops at the last via point
+  // (the shooter wheels' entry) and waits; the ones behind it on the same opts.queue stop a ball
+  // apart. A FUEL already past that point carries on.
+  startTransit(e, via, end, speed, onDone, opts = {}) {
     const pts = [e.p.clone(), ...via];
     let len = 0;
     let prev = pts[0];
     for (const q of [...pts.slice(1), end()]) { len += prev.distanceTo(q); prev = q; }
-    e.tr = { pts, end, t: 0, T: clamp(len / speed, 0.04, 0.2), onDone };
+    e.tr = { pts, end, t: 0, T: clamp(len / speed, 0.04, 0.2), onDone, gate: opts.gate || null, queue: opts.queue ?? null, held: false };
     this.quiet = 0;
   }
+
+  // the path's length now, and how far it is from its last via point to its end
+  _transitLen(tr) {
+    const pts = [...tr.pts, tr.end()];
+    let len = 0;
+    for (let i = 1; i < pts.length; i++) len += pts[i - 1].distanceTo(pts[i]);
+    return { len, last: pts[pts.length - 2].distanceTo(pts[pts.length - 1]) };
+  }
+
+  // the distance along the path after time t (ease in, then full speed into the wheels), and back
+  static _easeS(u) { return (u < 0.3 ? (u * u) / 0.6 : u - 0.15) / 0.85; }
+  static _easeU(q) { return 0.85 * q < 0.15 ? Math.sqrt(0.6 * 0.85 * q) : 0.85 * q + 0.15; }
 
   _transitPos(tr, out) {
     const pts = [...tr.pts, tr.end()];
     const segs = [];
     let len = 0;
     for (let i = 1; i < pts.length; i++) { const l = pts[i - 1].distanceTo(pts[i]); segs.push(l); len += l; }
-    // ease in, then full speed into the wheels
     const u = Math.min(1, tr.t / tr.T);
-    let s = len * (u < 0.3 ? (u * u) / 0.6 : u - 0.15) / 0.85;
+    let s = len * Hopper._easeS(u);
     for (let i = 0; i < segs.length; i++) {
       if (s <= segs[i] || i === segs.length - 1) return out.lerpVectors(pts[i], pts[i + 1], segs[i] > 0 ? Math.min(1, s / segs[i]) : 1);
       s -= segs[i];
@@ -371,15 +386,34 @@ export class Hopper {
   step(dt, env) {
     const s = this.spec;
     const list = this.list;
-    // transits first (they push the others out of the way)
-    for (let i = list.length - 1; i >= 0; i--) {
-      const e = list[i];
-      if (!e.tr) continue;
-      e.tr.t = Math.min(e.tr.T, e.tr.t + dt);
+    // transits first (they push the others out of the way), the one nearest its end first: a
+    // gated one that may not go on waits at its last via point, and the ones behind it on the
+    // same queue a ball apart (measured back from the end, which their paths share)
+    const moving = list.filter((e) => e.tr).map((e) => {
+      const L = e.tr.gate ? this._transitLen(e.tr) : null;
+      return { e, L, left: L ? L.len * (1 - Hopper._easeS(Math.min(1, e.tr.t / e.tr.T))) : 0 };
+    });
+    moving.sort((a, b) => a.left - b.left);
+    const queueEnd = new Map(); // queue -> how far from the end the one ahead is
+    for (const { e, L, left } of moving) {
+      const tr = e.tr;
+      let t = Math.min(tr.T, tr.t + dt);
+      tr.held = false;
+      if (L && !tr.gate()) {
+        const ahead = queueEnd.get(tr.queue);
+        const minLeft = Math.max(L.last, ahead !== undefined ? ahead + D_BALL : 0);
+        if (left >= L.last - 1e-6) {
+          // not in the wheels yet: no closer to the end than minLeft (it never backs up)
+          const tStop = L.len > 0 ? tr.T * Hopper._easeU(Math.max(0, 1 - minLeft / L.len)) : 0;
+          if (t > tStop) { t = Math.max(tr.t, tStop); tr.held = true; }
+        }
+      }
+      tr.t = t;
+      if (L) queueEnd.set(tr.queue, L.len * (1 - Hopper._easeS(Math.min(1, t / tr.T))));
       e.prev.copy(e.p);
-      this._transitPos(e.tr, e.p);
+      this._transitPos(tr, e.p);
       e.v.copy(e.p).sub(e.prev).divideScalar(dt);
-      if (e.tr.t >= e.tr.T) e.tr.onDone(e);
+      if (tr.t >= tr.T) tr.onDone(e);
     }
     let spin = 0;
     if (s.drive === 'rotor') {
@@ -391,7 +425,7 @@ export class Hopper {
     const gx = env.g ? env.g.x : 0, gy = env.g ? env.g.y : -G, gz = env.g ? env.g.z : 0;
     const running = env.feeding || env.intaking;
     if (env.intaking && list.some((e) => e.push)) this.quiet = 0;
-    const still = Math.abs(w) < 0.05 && Math.hypot(ax, az) < 0.3 && !running && !spin && !list.some((e) => e.tr);
+    const still = Math.abs(w) < 0.05 && Math.hypot(ax, az) < 0.3 && !running && !spin && !list.some((e) => e.tr && !e.tr.held);
     if (list.some((e) => e.ext)) this.quiet = 0; // something outside is pressing on the load
     if (still && this.quiet > 0.4) return;
 

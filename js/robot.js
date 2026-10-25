@@ -22,11 +22,10 @@ const CAPTURED_GROUPS = groups(GROUP.BALL, GROUP.STATIC);
 const INTAKE_SPEED = 3.5; // m/s the rollers pull FUEL in (cfg.intake.pull overrides)
 // A FUEL goes in only once the one before it is out of the way: while one is within BLOCK_D of
 // the entry, the next waits in the mouth HOLD_GAP out from it and pushes it on in. The rollers
-// stall once one has waited STALL_T (the hopper is full, for now), and it sits in the roller
-// (sticking HOLD_OUT past the front of the intake) until the load gives way.
+// stall once one has waited STALL_T (the hopper is full, for now), and it stays jammed in the
+// mouth, behind the rollers, until the load gives way.
 const BLOCK_D = 2 * R * 0.85;
 const HOLD_GAP = 2 * R * 0.9;
-const HOLD_OUT = 0.06;
 const STALL_T = 0.35;
 const FULL_T = 0.75; // s stalled: full
 const FEED_SPEED = 7;     // m/s up the feed path into the shooter
@@ -474,22 +473,17 @@ export class Robot {
     return { lipX, lipY, entryX, entryY, liftY: Math.max(entryY, lipY) };
   }
 
-  // Where a FUEL that can't get in yet waits (cap.slot), and the way it goes in from there: in the
-  // mouth, a ball's width out from the entry toward the lip (or at the lip, if that's farther),
-  // pushing on what's in the way; once the rollers have stalled, back down in the roller at the
-  // front of the intake, on the carpet, sticking out a little past the intake, so a wall can squash it
-  _holdPoint(path, slot) {
-    let x, y;
-    if (slot === 'roller') { x = this.halfL + this.cfg.intake.reach + 0.04 - R + HOLD_OUT; y = R + 0.01; }
-    else {
-      let dx = path.lipX - path.entryX, dy = path.liftY - path.entryY;
-      const len = Math.hypot(dx, dy);
-      if (len > 0.01) { dx /= len; dy /= len; } else { dx = 1; dy = 0; }
-      const k = Math.max(len, HOLD_GAP);
-      x = path.entryX + dx * k; y = path.entryY + dy * k;
-    }
-    const dx = path.entryX - x, dy = path.entryY - y, len = Math.hypot(dx, dy) || 1;
-    return { x, y, ix: dx / len, iy: dy / len };
+  // Where a FUEL that can't get in yet waits, and the way it goes in from there: in the mouth, a
+  // ball's width out from the entry toward the lip (or at the lip, if that's farther), behind the
+  // rollers, pushing on what's in the way. (It stays there when the rollers stall: jammed in the
+  // intake, not held out in front of it.)
+  _holdPoint(path) {
+    let dx = path.lipX - path.entryX, dy = path.liftY - path.entryY;
+    const len = Math.hypot(dx, dy);
+    if (len > 0.01) { dx /= len; dy /= len; } else { dx = 1; dy = 0; }
+    const k = Math.max(len, HOLD_GAP);
+    const x = path.entryX + dx * k, y = path.entryY + dy * k;
+    return { x, y, ix: -dx, iy: -dy };
   }
 
   // The intake rollers drag grabbed FUEL up over the bumper and into the hopper
@@ -509,9 +503,8 @@ export class Robot {
       const up = !cap.over;
       let tx = up ? path.lipX : path.entryX, ty = up ? path.liftY : path.entryY;
       if (cap.wait) {
-        const h = this._holdPoint(path, cap.slot);
+        const h = this._holdPoint(path);
         tx = h.x; ty = h.y;
-        if (cap.slot === 'roller') cap.over = false; // back down to the roller: up over the bumper again
       }
       let vx = tx - lx, vy = ty - ly, vz = cap.z - lz;
       const dist = Math.hypot(vx, vy, vz) || 1;
@@ -779,9 +772,7 @@ export class Robot {
         cap.wait = true;
         cap.t0 = t;
         cap.waitT = (cap.waitT || 0) + dt;
-        // once the rollers stall, the load pushes it back down the intake into the stalled roller
-        cap.slot = cap.waitT > STALL_T ? 'roller' : 'mouth';
-        const h = this._holdPoint(path, cap.slot);
+        const h = this._holdPoint(path);
         const hx = l.x - h.x, hy = l.y - h.y;
         if (Math.hypot(hx, hy, l.z - cap.z) < 0.02) cap.held = true;
         // pushed in past where it's held by something outside (it didn't move back out as fast as
@@ -790,8 +781,7 @@ export class Robot {
         const c = Math.cos(this.yaw), sn = Math.sin(this.yaw);
         const v = b.body.linvel(), vs = cap.vs || v;
         const blocked = (vs.x - v.x) * -h.ix * c + (vs.z - v.z) * h.ix * sn + (vs.y - v.y) * -h.iy > 0.15;
-        // (in the roller it's pressed straight back; in the mouth, along the way in)
-        const into = cap.slot === 'roller' ? -hx : hx * h.ix + hy * h.iy;
+        const into = hx * h.ix + hy * h.iy; // (along the way in)
         const sq = cap.held && blocked ? Math.max(0, into - 0.005) : 0;
         const f = fuelForce(sq);
         if (f > 0) {
@@ -1015,7 +1005,8 @@ export class Robot {
       }
       this.feeding = 1;
     }
-    if (this.hopper.list.some((e) => e.tr && e.tr.feed && e.tr.t < e.tr.T)) this.feeding = 1;
+    if (this.hopper.list.some((e) => e.tr && e.tr.feed && e.tr.t < e.tr.T && !e.tr.held)) this.feeding = 1;
+    if (this.shot) this.lastMode = this.shot.mode;
     this.status = status;
     this.ready = ready;
   }
@@ -1157,12 +1148,11 @@ export class Robot {
     const end = sh.type === 'fixed'
       ? () => new THREE.Vector3(sh.exit.x, sh.exit.y, laneZ)
       : () => new THREE.Vector3(...this._turretExit(ti));
-    this.hopper.startTransit(best, via, end, FEED_SPEED, (e) => {
-      // a FUEL that reaches the wheels while the shot isn't lined up waits there
-      // (and with more than one turret, its own turret has to be on target)
-      const onTarget = this.turrets.length < 2 || this.tws[ti].ok;
-      if (this.ready && onTarget && this.shot && this.enabled && (this.cmd.shoot || this.cmd.pass)) this._fire(e, this.shot.mode);
-    });
+    // it goes into the wheels only while the shot is on (and with more than one turret, its own
+    // turret is on target); otherwise it waits at their entry (the end of the feed path, inside
+    // the shooter), the ones behind it queued up a ball apart. Once in the wheels it's launched.
+    const gate = () => this.ready && (this.turrets.length < 2 || this.tws[ti].ok) && !!this.shot && this.enabled && (this.cmd.shoot || this.cmd.pass);
+    this.hopper.startTransit(best, via, end, FEED_SPEED, (e) => this._fire(e, this.shot ? this.shot.mode : this.lastMode || 'hub'), { gate, queue: `${ti}:${laneZ}` });
     best.tr.feed = true;
     best.tr.turret = ti;
     return true;
