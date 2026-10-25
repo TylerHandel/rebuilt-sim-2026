@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import { createWorld } from '../headless.mjs';
 import { Robot } from '../../js/robot.js';
 import { Match } from '../../js/match.js';
-import { ROBOTS, ROBOT_ORDER, fitsTrench } from '../../js/robotConfigs.js';
+import { ROBOTS, ROBOT_ORDER, fitsTrench, fixedExit } from '../../js/robotConfigs.js';
 import { START_POSITIONS, START_ORDER, startPose } from '../../js/auto.js';
 import { OBSTACLES, TRENCH_ARMS } from '../../js/nav.js';
 import { Field } from '../../js/field.js';
@@ -32,7 +32,7 @@ for (const key of ROBOT_ORDER) {
   const capOut = r.capacity();
   const sh = cfg.shooter, ic = cfg.intake, d = cfg.drive;
   // flywheel speed a stationary shot needs at each distance (null: out of range)
-  const h0 = sh.type === 'fixed' ? sh.exit.y : sh.exitY;
+  const h0 = sh.type === 'fixed' ? fixedExit(sh, (sh.hoodMin + sh.hoodMax) / 2).y : sh.exitY;
   const hc = Field.hubCenter(BLUE);
   const shotV = (table, d, tx) => { const s = solveMovingShot(table, new THREE.Vector3(tx - d, h0, 0), { x: 0, z: 0 }, { x: tx, z: 0 }); return s ? +s.v.toFixed(3) : null; };
   const hubV = [], passV = [];

@@ -511,6 +511,13 @@ function build2910(cfg, alliance) {
   // their "Shooter & Feeder" assembly: powered floor, the roller ramp that indexes FUEL up under
   // the rollered hood, and the drum at the back; it replaces the drawn tower and floor
   cadPart(root, 'robots/2910-shooter.glb', () => { tower.visible = false; feeder.visible = false; });
+  // their hood (its two rollers on arms that pivot on the drum shaft): it swings back over the
+  // drum for a flatter shot (cfg.shooter.hood)
+  const hoodCfg = cfg.shooter.hood;
+  const cadHood = new THREE.Group();
+  cadHood.position.set(hoodCfg.x, hoodCfg.y, 0);
+  root.add(cadHood);
+  cadPart(cadHood, 'robots/2910-hood.glb', () => {});
 
   // ---- FUEL inside: main hopper, then the extension, then the tower
   const stored = storedGrid([-0.13, 0.02, 0.17, 0.3], [-0.225, -0.075, 0.075, 0.225], [0.2, 0.34, 0.47]);
@@ -528,6 +535,7 @@ function build2910(cfg, alliance) {
     indexer.rotation.z -= st.feeding * dt * 25;
     for (const r of feedRollers) r.rotation.y -= st.feeding * dt * 30;
     hood.rotation.z = -(st.hoodDeg - 58) * Math.PI / 180 * 0.4; // a higher shot tips the exit up
+    cadHood.rotation.z = ((hoodCfg.cadDeg - st.hoodDeg) * Math.PI) / 180;
   };
   return { root, anim, stored, modules, extLen };
 }

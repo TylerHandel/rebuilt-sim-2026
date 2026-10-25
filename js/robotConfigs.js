@@ -97,6 +97,15 @@ export const fitsTrench = (cfg) => cfg.height <= TRENCH.clearHeight - 0.005;
 
 // Top of an intake that folds up over the robot to stow (intake.fold, 8793's): its side outline
 // swung up from deployed by (1 - deploy) x stowDeg about the pivot. 0 for other intakes.
+// Where FUEL leaves a fixed shooter (robot frame, m) with the hood set for a shot thetaDeg up.
+// A hood that swings round the drum (shooter.hood, 2910's) lets it go halfway across the gap
+// between the drum and the hood, square to the shot; otherwise it's shooter.exit.
+export function fixedExit(sh, thetaDeg) {
+  if (!sh.hood) return sh.exit;
+  const th = (thetaDeg * Math.PI) / 180, s = sh.facing === 'back' ? 1 : -1;
+  return { x: sh.hood.x + s * sh.hood.r * Math.sin(th), y: sh.hood.y + sh.hood.r * Math.cos(th) };
+}
+
 export function foldTop(ic, deploy) {
   const f = ic.fold;
   if (!f) return 0;
@@ -145,14 +154,21 @@ export const ROBOTS = {
       x0: -0.143, x1: 0.335, hw: 0.345, top: 0.54, bevel: { dx: 0.16, y: 0.41 },
       floor: { a: 0.1, b: 0.266, lo: 0.09, hi: 0.17 },
       drive: 'floor', driveSpeed: 1.8,
-      // up the roller ramp at the back of the hopper, under the hood to the drum (their CAD)
-      feed: { x: -0.09, via: [[-0.1, 0.25], [-0.12, 0.38], [-0.2, 0.44]] },
+      // up the roller ramp at the back of the hopper, over the indexer wheels, into the pinch
+      // between the drum and the lower hood roller (where their CAD has a FUEL waiting)
+      feed: { x: -0.09, via: [[-0.1, 0.25], [-0.12, 0.38], [-0.166, 0.418]] },
     },
     shooter: {
       type: 'fixed',
       facing: 'back', // the drum at the back fires away from the intake
       lanes: [-0.19, -0.063, 0.063, 0.19],
-      exit: { x: -0.34, y: 0.5 }, // where FUEL leaves the hood, over the back of the drum (their CAD)
+      // the hood (their CAD's 32-17 Hood Assembly): two rollers stacked in front of the drum, on
+      // arms that pivot on the drum shaft. FUEL goes up between the drum and the rollers and
+      // leaves past the top one, halfway across the gap: r from the drum axis (x, y), square to
+      // the shot. Tilting the hood back over the drum flattens the shot and carries that point up
+      // and back with it. cadDeg: the shot the CAD has it set for. Out of a shot it folds back
+      // down to hoodMax, where its rollers are level with the top of the robot. See fixedExit.
+      hood: { x: -0.283, y: 0.47, r: 0.1165, cadDeg: 79 },
       bps: 25, // 23-25 typical with the intakes saturated (the team)
       hoodMin: 42, hoodMax: 74,
       speedMax: 17,

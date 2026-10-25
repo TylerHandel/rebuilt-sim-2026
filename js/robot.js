@@ -3,12 +3,12 @@ import { RAPIER, yawQuat } from './physics.js';
 import {
   BLUE, RED, HALF_L, HALF_W, HUB, FUEL, TOWER, TRENCH, GROUP, groups, IN,
 } from './constants.js';
-import { BUMPER_T, BUMPER_Y0, BUMPER_Y1, fitsTrench, foldTop, frameShape, offsetShape, modulePoints } from './robotConfigs.js';
+import { BUMPER_T, BUMPER_Y0, BUMPER_Y1, fitsTrench, fixedExit, foldTop, frameShape, offsetShape, modulePoints } from './robotConfigs.js';
 import { buildRobotModel, addClimberVisual, BUMP_Y1 } from './robotModels.js';
 import { Hopper, measureCapacity, intakePush, fuelForce } from './hopper.js';
 import { ShotTable, solveMovingShot, trajectoryPoints } from './ballistics.js';
 import { Field } from './field.js';
-import { TRENCH_ARMS } from './nav.js';
+import { TRENCH_ARMS, underTrench } from './nav.js';
 import { Drivetrain } from './drivetrain.js';
 import { clamp, wrapAngle, approach, approachAngle, gauss, DEG, rand } from './util.js';
 
@@ -69,7 +69,7 @@ export class Robot {
     const sh = cfg.shooter;
     // a fixed shooter fires along the robot's heading, or straight out the back (2910)
     this.aimOffset = sh.type === 'fixed' && sh.facing === 'back' ? Math.PI : 0;
-    const h0 = sh.type === 'fixed' ? sh.exit.y : sh.exitY;
+    const h0 = sh.type === 'fixed' ? (sh.hood ? (deg) => fixedExit(sh, deg).y : sh.exit.y) : sh.exitY;
     this.hubTable = new ShotTable({
       h0, Ht: HUB.targetHeight, hoodMin: sh.hoodMin, hoodMax: sh.hoodMax, speedMax: sh.speedMax, mode: 'hub',
       clearDist: HUB.size / 2 + FUEL.radius + 0.02, clearHeight: HUB.rimFront + FUEL.radius + 0.04,
@@ -261,7 +261,7 @@ export class Robot {
     this.hopperDeploy = 0;
     this.intakeSpeed = 0;
     this.flywheel = 0;
-    this.hoodDeg = this.cfg.shooter.hoodMin;
+    this.hoodDeg = this.cfg.shooter.hood ? this.cfg.shooter.hoodMax : this.cfg.shooter.hoodMin;
     this.turretYaw = 0;
     // each turret starts at the middle of its travel (971's point back and out to their sides)
     this.turretYaws = this.turrets.map((t) => (t.center ?? 0) * DEG);
@@ -965,7 +965,7 @@ export class Robot {
 
   _exitPoint(laneZ = 0, ti = 0) {
     const sh = this.cfg.shooter;
-    if (sh.type === 'fixed') return this.localToWorld(sh.exit.x, sh.exit.y, laneZ);
+    if (sh.type === 'fixed') { const e = fixedExit(sh, this.hoodDeg); return this.localToWorld(e.x, e.y, laneZ); }
     const t = this.turrets[ti];
     return this.localToWorld(t.x, sh.exitY, t.z);
   }
@@ -996,15 +996,18 @@ export class Robot {
     const twin = this.turrets.length > 1;
     if (twin) ({ ready, status } = this._twinTurrets(dt, t, tgt, (wantShoot || prespin) && has, wantShoot, status));
     else if ((wantShoot || prespin) && has) {
-      let exit, lv;
+      let exit, lv, exitAt = null;
       if (sh.type === 'fixed') {
         // The drum sits on the robot's centerline, so once aimed the shot line passes through the
         // robot center. Solve from a point that does not move when the chassis rotates: the exit's
         // distance along the shot line (a back-facing drum's exit is toward the target).
         const dx = tgt.x - this.pos.x, dz = tgt.z - this.pos.z;
         const dd = Math.hypot(dx, dz) || 1;
-        const along = this.aimOffset ? -sh.exit.x : sh.exit.x;
-        exit = new THREE.Vector3(this.pos.x + (dx / dd) * along, this.pos.y + sh.exit.y, this.pos.z + (dz / dd) * along);
+        exitAt = (deg) => {
+          const e = fixedExit(sh, deg), along = this.aimOffset ? -e.x : e.x;
+          return new THREE.Vector3(this.pos.x + (dx / dd) * along, this.pos.y + e.y, this.pos.z + (dz / dd) * along);
+        };
+        exit = exitAt(this.hoodDeg);
         lv = { x: this.vel.x, z: this.vel.z };
       } else {
         // FUEL leaves the hood exitRadius in front of the turret axis, along the shot line
@@ -1014,7 +1017,12 @@ export class Robot {
         exit = new THREE.Vector3(c.x + (dx / dd) * sh.exitRadius, c.y, c.z + (dz / dd) * sh.exitRadius);
         lv = this.velocityAt(exit);
       }
-      const sol = solveMovingShot(tgt.table, exit, lv, tgt);
+      let sol = solveMovingShot(tgt.table, exit, lv, tgt);
+      // (where FUEL leaves moves with the hood: solve again from where it leaves at that angle)
+      if (sol && sh.hood) {
+        const e2 = exitAt(sol.theta / DEG), s2 = solveMovingShot(tgt.table, e2, lv, tgt);
+        if (s2) { sol = s2; exit = e2; }
+      }
       if (sol) {
         this.shot = { ...sol, mode: tgt.mode, target: tgt, exit, lv };
         setpoint = sol.v;
@@ -1062,6 +1070,11 @@ export class Robot {
       status = 'Outside ALLIANCE ZONE';
     }
     if (!this.shot) this._lastPsi = undefined;
+    // a hood that swings out over the drum (2910's) folds back down when it isn't aiming a shot,
+    // and to go under a TRENCH (out, it stands taller than the robot)
+    if (sh.hood && (!((wantShoot || prespin) && has) || underTrench(this.pos.x, this.pos.z, this.halfL + 0.3))) {
+      this.hoodDeg = approach(this.hoodDeg, sh.hoodMax, 260 * dt);
+    }
     if (!on) status = this.enabled ? status : 'Disabled';
     if (!twin) this._flywheelStep(dt, t, on, setpoint);
 
@@ -1232,7 +1245,7 @@ export class Robot {
     if (sh.type !== 'fixed') this.lane++;
     const via = (f.vias ? f.vias[ti] : f.via).map(([x, y, z]) => this._feedAt(x, y, z ?? laneZ));
     const end = sh.type === 'fixed'
-      ? () => new THREE.Vector3(sh.exit.x, sh.exit.y, laneZ)
+      ? () => { const e = fixedExit(sh, this.hoodDeg); return new THREE.Vector3(e.x, e.y, laneZ); }
       : () => new THREE.Vector3(...this._turretExit(ti));
     // it goes into the wheels only while the shot is on (and with more than one turret, its own
     // turret is on target); otherwise it waits at their entry (the end of the feed path, inside

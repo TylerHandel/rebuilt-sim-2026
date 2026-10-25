@@ -102,12 +102,14 @@ export class ShotTable {
     if (mode === 'pass') thetas.push(Math.min(Math.max(passTheta, hoodMin), hoodMax));
     else for (let t = hoodMin; t <= hoodMax + 1e-6; t += 1) thetas.push(t);
 
-    // For each hood angle, sweep exit speed
+    // For each hood angle, sweep exit speed (h0: the exit height, or a function of the hood
+    // angle when where FUEL leaves moves with the hood)
     const curves = thetas.map((tdeg) => {
       const th = tdeg * DEG;
+      const h = typeof h0 === 'function' ? h0(tdeg) : h0;
       const pts = [];
       for (let v = speedMin; v <= speedMax + 1e-6; v += 0.1) {
-        const r = sim2D(h0, v, th, Ht, clearDist);
+        const r = sim2D(h, v, th, Ht, clearDist);
         if (r) pts.push({ v, ...r });
       }
       return { th, pts };
