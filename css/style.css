@@ -122,7 +122,16 @@ canvas#view { position: fixed; inset: 0; width: 100vw; height: 100vh; display: b
 .toast.good { border-left-color: var(--ok); }
 .toast.info { border-left-color: var(--blue); }
 @keyframes tin { from { transform: translateY(-6px); opacity: 0; } to { transform: none; opacity: 1; } }
-#fps { position: fixed; left: 10px; bottom: 8px; z-index: 50; font: 12px/1.3 ui-monospace, monospace; color: #cfe3ff; background: rgba(0,0,0,0.45); padding: 3px 8px; border-radius: 5px; pointer-events: none; }
+#fps { position: fixed; left: 10px; top: 10px; z-index: 50; width: 270px; font: 11px/1.35 ui-monospace, monospace; color: #cfe3ff; background: rgba(0,0,0,0.55); padding: 5px 8px; border-radius: 6px; pointer-events: none; }
+#fps .ph { font-weight: 600; margin-bottom: 4px; }
+#fps .pbar { display: flex; height: 7px; background: rgba(255,255,255,0.12); border-radius: 3px; overflow: hidden; margin: 3px 0; }
+#fps .pbar span { display: block; height: 100%; }
+#fps .pr { display: grid; grid-template-columns: 1fr 64px 40px; align-items: center; white-space: nowrap; }
+#fps .pr b { font-weight: 500; text-align: right; }
+#fps .pr i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 6px; }
+#fps .pr small { color: #8fa3bd; }
+#fps .muted { color: #8fa3bd; display: block; }
+#fps .pp { background: #ff9f43; } #fps .pg { background: #2ec4b6; } #fps .pc { background: #4f8cff; } #fps .pu { background: #b06cff; } #fps .pf { background: rgba(255,255,255,0.25); }
 #camName { position: absolute; top: 14px; right: 16px; font-size: 12px; color: var(--muted); background: var(--panel); padding: 4px 10px; border-radius: 6px; border: 1px solid var(--line); }
 #hint { position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); font-size: 12px; color: var(--muted); background: var(--panel); padding: 5px 12px; border-radius: 6px; border: 1px solid var(--line); white-space: nowrap; }
 #hint b { color: var(--text); }

@@ -16,6 +16,7 @@ import { Input } from './input.js';
 import { CameraRig, CAMERA_NAMES } from './cameras.js';
 import { UI, loadSettings, setGraphicsInfo } from './ui.js';
 import { Graphics, PRESETS, detectGPU, storedPreset } from './graphics.js';
+import { FrameStats } from './perf.js';
 import { BLUE, RED, PHYSICS_DT, other } from './constants.js';
 
 const $ = (id) => document.getElementById(id);
@@ -59,6 +60,13 @@ window.addEventListener('resize', () => {
 
 // ------------------------------------------------------------------ world
 const physics = await Physics.create();
+// (timed for the Show FPS readout: js/perf.js)
+const stats = new FrameStats(renderer);
+let tickPhys = 0;
+{
+  const step = physics.step.bind(physics);
+  physics.step = () => { const t = performance.now(); step(); const ms = performance.now() - t; tickPhys += ms; stats.add('physics', ms); stats.step(); };
+}
 const field = new Field(scene, physics);
 field.build();
 const fuel = new FuelManager(physics, scene, field);
@@ -348,12 +356,15 @@ let debugInput = null; // test hook: merged into the polled controller state
 let hold = false; // cover mode steps the game itself (js/cover.js)
 function frame(now) {
   requestAnimationFrame(frame);
+  stats.frame(now - last);
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
   if (!hold) tick(dt, true);
 }
 
 function tick(dt, render) {
+  const tick0 = performance.now();
+  tickPhys = 0;
   const inp = input.poll(dt);
   if (debugInput) {
     for (const [k, v] of Object.entries(debugInput)) {
@@ -427,10 +438,17 @@ function tick(dt, render) {
     // (materials that appeared since: a new match's robots, CAD parts that just loaded)
     gfxRefreshT -= dt;
     if (gfxRefreshT <= 0) { gfxRefreshT = 2; gfx.refresh(); }
+    const r0 = performance.now();
+    stats.add('game', r0 - tick0 - tickPhys);
+    const timing = settings.fps === 'on';
+    if (timing) stats.gpuBegin();
     gfx.render(dt);
-    if (settings.fps === 'on' && (fpsT -= dt) <= 0) {
+    if (timing) stats.gpuEnd();
+    stats.add('render', performance.now() - r0);
+    if (timing && (fpsT -= dt) <= 0) {
       fpsT = 0.5;
-      $('fps').textContent = `${Math.round(gfx.fps)} fps · ${PRESETS[gfx.key].name} · ${gfx.resolution}${gfx.dynamic && gfx.dynScale < 1 ? ` (${Math.round(gfx.dynScale * 100)}%)` : ''}`;
+      const s = stats.last;
+      $('fps').innerHTML = stats.html(`${Math.round(s ? s.fps : gfx.fps)} fps · ${PRESETS[gfx.key].name} · ${gfx.resolution}${gfx.dynamic && gfx.dynScale < 1 ? ` (${Math.round(gfx.dynScale * 100)}%)` : ''}`);
     }
   }
 }
