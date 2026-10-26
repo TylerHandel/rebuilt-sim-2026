@@ -740,7 +740,7 @@ function rod(parent, a, b, r, mat, segs = 8) {
 // hopper can carry its front edge out: the part past xFixed stretches to follow it.
 //   x0..x1: back and (stowed) front edge; x1Out: the front edge with the hopper out; hw: half width;
 //   y: height of the pinned edges (yFront: the front edge's, for a net stretched diagonally down
-//   to an intake). drape(load, ex, at): ex is how far the front has moved out; at { y, yFront }
+//   to an intake). drape(load, ex, at): ex is how far the front has moved out; at { y, yFront, xBack }
 //   moves the pinned heights (a lid that lifts).
 // (inside(x, z): the hopper's outline, for one that isn't a rectangle: the net stops at it; hole.y:
 // the height it's tied on at round the hole, if not the edge's)
@@ -782,8 +782,11 @@ function hopperNet(parent, { x0, x1, x1Out = x1, xFixed = x1, hw, y, yFront = y,
   const drape = (load, ex = 0, at = null) => {
     const kx = x1Out > xFixed ? (x1 + ex - xFixed) / (x1Out - xFixed) : 1;
     const yb = at?.y ?? y, yf = at?.yFront ?? yFront, xf = x1 + ex;
+    // (at.xBack: its back edge held there instead, the cover gathered up toward the front)
+    const xb = at?.xBack !== undefined && at.xBack > x0 ? Math.min(at.xBack, xf - 0.02) : x0;
     for (let k = 0; k < nv; k++) {
-      const x = base[k] <= xFixed ? base[k] : xFixed + (base[k] - xFixed) * kx;
+      let x = base[k] <= xFixed ? base[k] : xFixed + (base[k] - xFixed) * kx;
+      if (xb > x0) x = xb + ((x - x0) * (xf - xb)) / (xf - x0);
       pos[k * 3] = x;
       hPin[k] = yb + (yf - yb) * Math.min(1, Math.max(0, (x - x0) / Math.max(0.01, xf - x0)));
       if (hole && hole.y !== undefined && inHole(x, pos[k * 3 + 2], 0.01)) hPin[k] = hole.y;
@@ -2387,6 +2390,7 @@ const S1114 = {
   kicker: [0.4513, 0.196], kickerLen: 0.168, kickerMax: Math.PI / 2,
   hood: [-0.0176, 0.5715], hoodTravel: 30 * Math.PI / 180,
 };
+const BLANKET_X0 = -0.02; // the blanket's back edge (box out), just in front of the hood
 function build1114(cfg, alliance) {
   const root = new THREE.Group();
   const L = cfg.frame.length, bay = cfg.bay, sh = cfg.shooter;
@@ -2424,7 +2428,7 @@ function build1114(cfg, alliance) {
   // the "magic blanket" over the box's top (their reveal; after 1124's 2008 claw): red plush, tied
   // round the edges, sagging over the load and riding up on it
   const plush = new THREE.MeshStandardMaterial({ color: 0xb3171d, roughness: 1, side: THREE.DoubleSide });
-  const blanket = hopperNet(slide, { x0: -0.02, x1: 0.606, hw: 0.372, y: 0.704, NX: 26, NZ: 22, material: plush });
+  const blanket = hopperNet(slide, { x0: BLANKET_X0, x1: 0.606, hw: 0.372, y: 0.704, NX: 26, NZ: 22, material: plush });
   blanket.mesh.castShadow = true;
   const xb = L / 2 + BUMPER_T, zc = BUMPER_Y1 + 0.006;
   const shifted = [];
@@ -2445,7 +2449,9 @@ function build1114(cfg, alliance) {
       e.p.set(load[i].p.x - slide.position.x, load[i].p.y - slide.position.y, load[i].p.z);
     }
     shifted.length = load.length;
-    blanket.drape(shifted, 0);
+    // its back edge stays in front of the hood: coming in, the box doesn't pull it back over the
+    // shooter, it gathers up toward the front
+    blanket.drape(shifted, 0, { xBack: BLANKET_X0 - slide.position.x });
   };
   return { root, anim, stored: [], modules, extLen };
 }
