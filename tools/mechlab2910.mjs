@@ -4,7 +4,8 @@
 // Tests: rollers (each roller's free speed), shooter (FUEL fed up the lift at their table's motor
 // speeds and hood angles: how fast and how steep they leave, and whether that reaches the HUB from
 // the table's distance), path (FUEL on a treadmill carpet, the robot driving into them at 1 m/s:
-// intake, floor, lift, drum; how many and how fast), hold (how many it holds, the floor off).
+// intake, floor, lift, drum; how many and how fast), hold (how many it holds: filled a layer at a
+// time, the lift staged as their PRELOADING does), dump (a full one fired, staged first).
 // Env: SEEDS (6), DRUM (the drum's turns per motor turn, to try others than the CAD's ~24:42)
 import { RAPIER } from '../js/physics.js';
 import { FUEL, GROUP, groups, HUB } from '../js/constants.js';
@@ -12,7 +13,7 @@ import { Mechanism } from '../js/mech/mechanism.js';
 import { sim2D } from '../js/ballistics.js';
 import {
   build2910, wheels2910, pathSurfaces2910, placeIntake, placeHood, hoodElevation, shotFor, SHOT_TABLE, PASS_TABLE, passFor,
-  INTAKE, SHOOTER, FLOOR, DRUM, PIVOT,
+  INTAKE, SHOOTER, FLOOR, DRUM, PIVOT, RANGES,
 } from '../js/mech/r2910.js';
 import PATH from '../js/mech/path2910.js';
 import { profile, PIVOT_MM } from '../js/mech/phys2910.js';
@@ -59,6 +60,21 @@ function flywheel(t, rpm) {
 function landing(o) {
   const hit = sim2D(o.y, o.v, (o.el * Math.PI) / 180, HUB.rimFront);
   return hit ? hit.d : NaN;
+}
+
+// their PRELOADING (js/mech/phys2910.js): the floor at 7% while the hopper's CANrange has seen FUEL
+// for 0.25 s and the feeder's sees none, staging FUEL up the lift; for up to sec, until it stops.
+// Returns how many FUEL are up the lift (at the feeder's beam or above)
+const beam = ({ at: [x0, y0], z }, balls) => balls.some((b) => { const p = b.translation(); return Math.hypot(p.x - x0, p.y - y0) < R * 0.8 && Math.abs(p.z - z) < RANGES.reach + R; });
+function stage(t, balls, step, sec = 4) {
+  let fullT = 0;
+  for (let i = 0; i < sec / DT; i++) {
+    fullT = beam(RANGES.hopper, balls) ? fullT + DT : 0;
+    t.floor.cmd = fullT > 0.25 && !beam(RANGES.feeder, balls) ? 0.07 : 0;
+    step(1);
+  }
+  t.floor.cmd = 0;
+  return balls.filter((b) => { const p = b.translation(); return p.x < -0.15 && p.y > RANGES.feeder.at[1] - R && p.y < 0.6; }).length;
 }
 
 const tests = {
@@ -120,26 +136,34 @@ const tests = {
   // how many it holds: the hopper filled a layer at a time (FUEL set into the space over the
   // ones already in, let settle), the floor off, until no more fit
   hold() {
-    const { path } = rig();
+    const held = rig(), { path } = held;
     const w = world();
     const balls = [];
     const step = (n) => { for (let i = 0; i < n; i++) { path.step(DT, balls, balls); w.step(); } };
     const inside = () => balls.filter((b) => { const p = b.translation(); return p.x > -0.36 && p.x < 0.66 && Math.abs(p.z) < 0.35 && p.y > 0.1 && p.y < 0.6; });
-    for (let layer = 0; layer < 8; layer++) {
-      for (let i = 0; i < 5; i++) for (let k = 0; k < 4; k++) {
-        const x = -0.1 + 0.155 * i, z = -0.233 + 0.155 * k, y = 0.47;
-        // (only where there's room: nothing within a FUEL's width already)
-        if (balls.some((b) => { const p = b.translation(); return Math.hypot(p.x - x, p.y - y, p.z - z) < 2 * R; })) continue;
-        balls.push(ball(w, x, y, z));
+    const fill = (layers) => {
+      for (let layer = 0; layer < layers; layer++) {
+        for (let i = 0; i < 5; i++) for (let k = 0; k < 4; k++) {
+          const x = -0.1 + 0.155 * i, z = -0.233 + 0.155 * k, y = 0.47;
+          // (only where there's room: nothing within a FUEL's width already)
+          if (balls.some((b) => { const p = b.translation(); return Math.hypot(p.x - x, p.y - y, p.z - z) < 2 * R; })) continue;
+          balls.push(ball(w, x, y, z));
+        }
+        step(1.5 / DT);
       }
-      step(1.5 / DT);
-    }
-    step(2 / DT);
+      step(2 / DT);
+    };
+    fill(8);
+    const before = inside().length;
+    // their PRELOADING stages FUEL up the lift, and intaking fills the room that leaves
+    const lifted = stage(held.t, balls, step);
+    fill(3);
+    console.log(`  (${before} in the hopper alone; ${lifted} staged up the lift, the floor stopped once the feeder's CANrange saw one, and the hopper topped up again)`);
     const t0 = performance.now();
     step(1 / DT);
     const ms = (performance.now() - t0) / (1 / DT);
     console.log(`  (its mechanisms with them all in: ${ms.toFixed(2)} ms a step)`);
-    console.log(`2910 holds ${inside().length} with the floor stopped and the intake down (a layer at a time; the team: 50-58)`);
+    console.log(`2910 holds ${inside().length} with the intake down, filled a layer at a time and the lift staged as their PRELOADING does (the team: 50-58, the ones staged in the shooter included)`);
   },
   // a full hopper dumped: filled as hold does, then the floor and the shooter at their 3 m shot
   dump() {
@@ -170,6 +194,8 @@ const tests = {
       }
       step(1.5 / DT, () => flywheel(t, 2400));
     }
+    // (staged up the lift first, as it would be between shots: NOSTAGE=1 skips it)
+    if (!process.env.NOSTAGE) console.log(`  (${stage(t, balls, (n) => step(n, () => flywheel(t, 2400)))} staged up the lift before it fires)`);
     const n0 = balls.length, touched = new Set(), shots = [];
     t.floor.cmd = 1; t.intake.cmd = 0.15;
     for (let k = 0; k < 6 / DT; k++) {
