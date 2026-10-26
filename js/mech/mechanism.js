@@ -78,18 +78,55 @@ export class Motor {
 }
 
 export class Shaft {
-  // motor: a Motor, or null for an idler; inertia: what turns with the shaft (kg·m²: its wheels,
-  // pulleys, hex shaft), the motor's rotors are added; drag: bearing and belt friction (N·m·s)
+  // motor: a Motor, or null for an idler (or a shaft of a Train); inertia: what turns with the
+  // shaft (kg·m²: its wheels, pulleys, hex shaft), the motor's rotors are added; drag: bearing
+  // and belt friction (N·m·s)
   constructor({ name = '', motor = null, inertia = 5e-5, drag = 2e-4 } = {}) {
     Object.assign(this, { name, motor, inertia, drag });
-    this.omega = 0;
+    this._omega = 0;
     this.cmd = 0;
+    this.train = null; // on a Train: it turns at k x the train's speed
+    this.k = 1;
   }
-  get J() { return this.inertia + (this.motor ? this.motor.J : 0); }
+  get omega() { return this.train ? this.train.omega * this.k : this._omega; }
+  set omega(v) { if (this.train) this.train.omega = v / this.k; else this._omega = v; }
+  // the inertia felt turning this shaft (on a train: the whole train's, seen through its ratio)
+  get J() { return this.train ? this.train.J / (this.k * this.k) : this.inertia + (this.motor ? this.motor.J : 0); }
+  // an angular impulse about its axis (N·m·s)
+  impulse(L) {
+    if (this.train) this.train.omega += (L * this.k) / this.train.J;
+    else this._omega += L / this.J;
+  }
   // the motor's step, with back-EMF taken implicitly
   integrate(dt, V = 12) {
+    if (this.train) return;
     const J = this.J;
-    if (!this.motor) { this.omega /= 1 + (dt * this.drag) / J; return; }
+    if (!this.motor) { this._omega /= 1 + (dt * this.drag) / J; return; }
+    const { tau, limited } = this.motor.torque(this._omega, this.cmd, V);
+    const kd = limited ? 0 : this.motor.slope;
+    this._omega = (J * this._omega + dt * (tau + kd * this._omega)) / (J + dt * (kd + this.drag));
+  }
+}
+
+// A gear train: one motor turning several shafts through belts, chain and gears at fixed ratios
+// (8793's conveyor and intake rollers all run off one Kraken X60). It has one speed, the motor's
+// output: each shaft turns at its k times that, the rotor's and every shaft's inertia move
+// together, and a FUEL dragging on any one roller slows them all.
+export class Train {
+  // motor: a Motor (its own ratio: a gearbox on it); shafts: [[Shaft, k], ...], k: the shaft's
+  // turns per turn of the motor's output (the belt/gear ratios along the way multiplied)
+  constructor({ name = '', motor, shafts = [] } = {}) {
+    Object.assign(this, { name, motor });
+    this.omega = 0;
+    this.cmd = 0;
+    this.shafts = [];
+    for (const [s, k] of shafts) this.add(s, k);
+  }
+  add(s, k) { s.train = this; s.k = k; this.shafts.push(s); return s; }
+  get J() { return this.motor.J + this.shafts.reduce((a, s) => a + s.inertia * s.k * s.k, 0); }
+  get drag() { return this.shafts.reduce((a, s) => a + s.drag * s.k * s.k, 0); }
+  integrate(dt, V = 12) {
+    const J = this.J;
     const { tau, limited } = this.motor.torque(this.omega, this.cmd, V);
     const kd = limited ? 0 : this.motor.slope;
     this.omega = (J * this.omega + dt * (tau + kd * this.omega)) / (J + dt * (kd + this.drag));
@@ -147,6 +184,7 @@ export class Mechanism {
   // balls: the FUEL rigid bodies that might touch it this step
   step(dt, balls) {
     for (const s of this.shafts) s.integrate(dt, this.V);
+    for (const t of new Set(this.shafts.map((s) => s.train).filter(Boolean))) t.integrate(dt, this.V);
     const fr = this._frame();
     const frameVel = (x) => add(fr.v, cross(fr.w, sub(x, fr.com)));
     // wheels in the world
@@ -227,7 +265,7 @@ export class Mechanism {
       const { st, W1, rb, rw, x } = ct;
       st.v = add(st.v, mul(u, lam / MB));
       st.w = add(st.w, mul(cross(rb, u), lam / IB));
-      W1.wh.shaft.omega -= (lam * dot(cross(rw, u), W1.a)) / W1.wh.shaft.J;
+      W1.wh.shaft.impulse(-lam * dot(cross(rw, u), W1.a));
       reaction.push([x, mul(u, -lam)]);
     };
     const h = dt;

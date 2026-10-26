@@ -8,6 +8,7 @@
 import { RAPIER } from '../js/physics.js';
 import { FUEL, IN } from '../js/constants.js';
 import { Mechanism, Shaft, Wheel, Motor, foam } from '../js/mech/mechanism.js';
+import { build8793 } from '../js/mech/r8793.js';
 
 await RAPIER.init();
 const R = FUEL.radius, DT = 1 / 120;
@@ -30,6 +31,18 @@ const run = (w, mech, balls, sec, each) => {
 };
 
 const tests = {
+  // 8793's drive chains (js/mech/r8793.js): each roller's speed with the motors at full, free
+  r8793() {
+    const { horizontal, rollers, vertical, vshaft } = build8793();
+    horizontal.cmd = 1; vertical.cmd = 1;
+    for (let i = 0; i < 240; i++) { horizontal.integrate(DT); vertical.integrate(DT); }
+    const row = (s) => `  ${s.name.padEnd(20)} ${(s.omega * 60 / (2 * Math.PI)).toFixed(0).padStart(5)} rpm  ${(s.omega * s.diameter / 2).toFixed(2).padStart(5)} m/s at the surface (${(s.diameter / IN).toFixed(2)}in)  ${s.what || ''}`;
+    console.log('8793, motors at full, nothing in the rollers:');
+    console.log(`  Kraken X60 ${(horizontal.omega * 60 / (2 * Math.PI)).toFixed(0)} rpm`);
+    for (const s of rollers) console.log(row(s));
+    console.log(`  Kraken X44 ${(vertical.omega * 60 / (2 * Math.PI)).toFixed(0)} rpm`);
+    console.log(row(vshaft));
+  },
   // a FUEL lying on a fixed 2in roller: its weight squashes it by x where F(x) = m g
   foam() {
     const w = world();
