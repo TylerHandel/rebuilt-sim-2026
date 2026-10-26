@@ -35,6 +35,7 @@ const ROLLER_Y = 0.1;
 const STALL_T = 0.35;
 const FULL_T = 0.75; // s stalled: full
 const FEED_SPEED = 7;     // m/s up the feed path into the shooter
+const D_LANE = 2 * R;    // a lane's indexer takes the next FUEL once the last one is this far along
 const CLIMB_LIFT = [0, 0.16, 0.74, 1.2]; // body lift to satisfy LEVEL 1/2/3 criteria
 
 let robotCount = 0;
@@ -1090,6 +1091,14 @@ export class Robot {
           this.feeding = 1;
         }
       });
+    } else if (sh.feedPaced) {
+      // no set rate: each lane's indexer takes the next FUEL the floor rollers bring within its
+      // reach as soon as the one before has cleared its wheels. How fast that comes out is the
+      // rollers' doing (bay.driveSpeed, bay.feed.speed and reach); sh.bps is what it measures.
+      if (wantShoot && ready && has && this.shot) {
+        for (let i = 0; i < sh.lanes.length; i++) this._startFeed(-1, i);
+        this.feeding = 1;
+      }
     } else {
       const period = 1 / sh.bps;
       // a fixed shooter's lanes each go when their FUEL gets there: the gaps vary (random, 0.5-1.5x
@@ -1214,7 +1223,7 @@ export class Robot {
   // The FUEL nearest the feed point starts up the feed path (indexer, ramp, turret) and leaves
   // the shooter when it gets there.
   // (twin turrets: for turret `turret`, which has to be on target)
-  _startFeed(turret = -1) {
+  _startFeed(turret = -1, lane = -1) {
     const sh = this.cfg.shooter, f = this.cfg.bay.feed;
     let laneZ = f.z ?? 0;
     let ti = 0;
@@ -1225,7 +1234,13 @@ export class Robot {
     }
     // a fixed shooter's lanes don't take turns in a perfect order: whichever lane's FUEL gets to
     // its wheels first goes (random, never the same lane twice running)
-    if (sh.type === 'fixed') {
+    if (sh.type === 'fixed' && lane >= 0) {
+      // (a given lane: free once the FUEL it took last is a ball's width up its path)
+      const last = (this.laneLast ||= [])[lane];
+      if (last && last.tr && this.hopper.traveled(last.tr) < D_LANE) return false;
+      this.lane = lane;
+      laneZ = sh.lanes[lane];
+    } else if (sh.type === 'fixed') {
       const n = sh.lanes.length, prev = this.lane % n;
       this.lane = n > 1 ? (prev + 1 + Math.floor(Math.random() * (n - 1))) % n : 0;
       laneZ = sh.lanes[this.lane];
@@ -1251,9 +1266,11 @@ export class Robot {
     // turret is on target); otherwise it waits at their entry (the end of the feed path, inside
     // the shooter), the ones behind it queued up a ball apart. Once in the wheels it's launched.
     const gate = () => this.ready && (this.turrets.length < 2 || this.tws[ti].ok) && !!this.shot && this.enabled && (this.cmd.shoot || this.cmd.pass);
-    this.hopper.startTransit(best, via, end, FEED_SPEED, (e) => this._fire(e, this.shot ? this.shot.mode : this.lastMode || 'hub'), { gate, queue: `${ti}:${laneZ}` });
+    // (f.speed: the indexer's own speed up the path, however long that takes)
+    this.hopper.startTransit(best, via, end, f.speed ?? FEED_SPEED, (e) => this._fire(e, this.shot ? this.shot.mode : this.lastMode || 'hub'), { gate, queue: `${ti}:${laneZ}`, maxT: f.speed ? Infinity : 0.2 });
     best.tr.feed = true;
     best.tr.turret = ti;
+    if (lane >= 0) this.laneLast[lane] = best;
     return true;
   }
 

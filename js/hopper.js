@@ -344,15 +344,19 @@ export class Hopper {
   // A FUEL leaves the load along a path (via points, then end(), which may move) and onDone runs
   // when it gets there. opts.gate: while it returns false, the FUEL stops at the last via point
   // (the shooter wheels' entry) and waits; the ones behind it on the same opts.queue stop a ball
-  // apart. A FUEL already past that point carries on.
+  // apart. A FUEL already past that point carries on. opts.maxT: the longest it may take (it
+  // speeds up to make it), Infinity to go at speed however long that is.
   startTransit(e, via, end, speed, onDone, opts = {}) {
     const pts = [e.p.clone(), ...via];
     let len = 0;
     let prev = pts[0];
     for (const q of [...pts.slice(1), end()]) { len += prev.distanceTo(q); prev = q; }
-    e.tr = { pts, end, t: 0, T: clamp(len / speed, 0.04, 0.2), onDone, gate: opts.gate || null, queue: opts.queue ?? null, held: false };
+    e.tr = { pts, end, t: 0, T: clamp(len / speed, 0.04, opts.maxT ?? 0.2), onDone, gate: opts.gate || null, queue: opts.queue ?? null, held: false };
     this.quiet = 0;
   }
+
+  // how far along its path a FUEL in transit has got
+  traveled(tr) { return this._transitLen(tr).len * Hopper._easeS(Math.min(1, tr.t / tr.T)); }
 
   // the path's length now, and how far it is from its last via point to its end
   _transitLen(tr) {

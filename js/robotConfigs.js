@@ -153,10 +153,15 @@ export const ROBOTS = {
       // front edge bevels down to 0.41 m over the last 0.16 m (their CAD)
       x0: -0.143, x1: 0.335, hw: 0.345, top: 0.54, bevel: { dx: 0.16, y: 0.41 },
       floor: { a: 0.1, b: 0.266, lo: 0.09, hi: 0.17 },
-      drive: 'floor', driveSpeed: 1.8,
+      // The shot rate is these rollers' (shooter.feedPaced): the floor carries FUEL back at
+      // driveSpeed, and each lane's indexer wheels take the next one that's within reach as soon
+      // as the last has cleared them, lifting it at feed.speed. Tuned to what the team reports: a
+      // full hopper dumps at 23-25 a second (the sim: ~24), short volleys at about 30 (~34 in the
+      // first second, from the FUEL already sitting at the indexer).
+      drive: 'floor', driveSpeed: 3.0,
       // up the roller ramp at the back of the hopper, over the indexer wheels, into the pinch
       // between the drum and the lower hood roller (where their CAD has a FUEL waiting)
-      feed: { x: -0.09, via: [[-0.1, 0.25], [-0.12, 0.38], [-0.166, 0.418]] },
+      feed: { x: -0.09, via: [[-0.1, 0.25], [-0.12, 0.38], [-0.166, 0.418]], reach: 0.12, speed: 1.65 },
     },
     shooter: {
       type: 'fixed',
@@ -169,7 +174,10 @@ export const ROBOTS = {
       // and back with it. cadDeg: the shot the CAD has it set for. Out of a shot it folds back
       // down to hoodMax, where its rollers are level with the top of the robot. See fixedExit.
       hood: { x: -0.283, y: 0.47, r: 0.1165, cadDeg: 79 },
-      bps: 25, // 23-25 typical with the intakes saturated (the team)
+      // 23-25 typical with the intakes saturated (the team). Not a limit here: the rollers set
+      // the rate (bay.feed); this is what they measure to, for the robot card and the AI
+      bps: 25,
+      feedPaced: true,
       hoodMin: 42, hoodMax: 74,
       speedMax: 17,
       spinTau: 0.33,
