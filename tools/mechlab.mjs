@@ -9,7 +9,7 @@
 // stopped), shooter, calibrate (the shooter's grip) and robot (carpet to shot).
 // Env: HZ (steps/s, 120), SUB (contact sub-steps for the quick contacts, 8), SEEDS (12), TRACE
 // (a FUEL's index to follow), STUCK (where the ones left over ended up), BUMPER_MU, IDX_RATIO
-// (the turret indexer's gearbox, 9:1 in their CAD).
+// (the turret indexer's gearing: direct drive).
 import { RAPIER } from '../js/physics.js';
 import { FUEL, IN } from '../js/constants.js';
 import { Mechanism, Shaft, Wheel, Motor, foam } from '../js/mech/mechanism.js';

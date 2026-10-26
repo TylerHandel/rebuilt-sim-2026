@@ -367,7 +367,7 @@ The plan: robots built around the physics instead of physics bolted onto robots.
 8793 (`js/mech/r8793.js`), from their CAD and their code ([Pumpkin-Bots/2026_Robot](https://github.com/Pumpkin-Bots/2026_Robot)), at their code's duty cycles and current limits:
 
 - **Intake and conveyor.** One X60 (95%, 70 A stator, 40 A supply) turns seven rollers through 18:33 > 25:24 > 24:43 > 23:20 > 20:20 > 20:20 > 20:28: the conveyor's two shafts and the intake's pivot shaft (2in mecanums pushing to the middle, a compliant wheel on the first), and the arm's four 2in aluminum rollers (grip tape on the tip). The tip roller rolls FUEL up the bumper's face (two pool noodles under fabric), and the arm carries it over. Two X44s (87.8%, 50 A) on 5:1 > 28:18 > 90-degree gearboxes turn the vertical rollers at the conveyor's sides, a 4in omni on the left and 4in 45A compliant wheels on the right. Each is belted to a vertical-axis omni wheel at the neck, where the floor ramps down to single file: a 5in on the left (18t:18t) and a 3in on the right (18t:28t). Their faces run at very different speeds, so a pair of FUEL arriving abreast gets turned instead of wedged.
-- **Turret indexer.** A shaft of three 2in flex wheels under the turntable, an X60 (65%, 60 A) through a 3:1 x 3:1 MAXPlanetary and a 90-degree gearbox (their CAD). It pushes FUEL along the roller rails and up their ramp; momentum carries them on up through the turntable to the shooter.
+- **Turret indexer.** A shaft of three 2in flex wheels under the turntable, an X60 (65%, 60 A) driving it direct. It pushes FUEL along the roller rails and up their ramp; momentum carries them on up through the turntable to the shooter.
 - **Shooter.** A 4in 45A roller wheel with a flywheel half an SDS 4in flywheel's (inertia 0.00097 kg·m² with the roller: Onshape's mass properties). Three 2in 80A Stealth wheels 0.203 m away are geared to turn the other way at 18/28 the speed. One X60 (160 A stator, 60 A supply) runs 28:18 to the 4in wheel, under their velocity loop (kV 0.125, kP 0.4 V per rotation/s). The rack swings the 2in wheels around the 4in one for 52..72 degrees of elevation. The wheels' grip on FUEL (1.7) is set from the ~0.205 m/s per motor rotation/s their code says they measured on their old gearing.
 - **Surfaces.** Everything else FUEL touch on the way is their CAD itself (`tools/path-mesh.py` -> `cad/robots/8793-path.json`, 1 cm detail, the moving wheels cut out): the polycarbonate floor (0.183 m up, about 0.8in under the conveyor's rollers) and its ramp to the rails, the rails, the frame, the swerve shields, the arm's side plates, the turntable and the shooter's frame.
 
@@ -382,11 +382,10 @@ Bench (`node --import ./tools/node-env.mjs tools/mechlab.mjs [test ...]`):
 | `conveyor` | 12 FUEL on a treadmill carpet through intake and conveyor to the indexer's rails, 12 seeds. With the vertical rollers (and neck omnis) running, a median 9 of 12 get through at 8.3 FUEL/s; with them stopped, 7 at 4.3 FUEL/s. The rest come to rest in dead spots (below). |
 | `shooter` | The hood sets the launch angle to within a degree. FUEL leave at 70-84% of the exit speed their aim solver assumes (6.83 m/s at 60 rps, 8.55 m/s at 90 rps), with backspin, and each shot sags the flywheel 16%. |
 | `calibrate` | The shooter grip sweep behind 1.7. |
-| `robot` | Carpet to shot, 12 seeds. At the CAD's 9:1 the indexer is too slow to send FUEL up to the shooter: only the first two or three, flung down the ramp by the conveyor, make it (`IDX_RATIO=1` or `3` to try faster gearing: 1:1 shoots about half, at ~8 FUEL/s, every one caught). |
+| `robot` | Carpet to shot, 12 seeds: a median 8 of 12 shot at 7.3 FUEL/s, every one that reaches the shooter caught (`IDX_RATIO=9` tries the CAD's 9:1 gearbox: too slow to send FUEL up, only the first two or three make it). |
 
 Open questions, to check against the robot:
 
-- the turret indexer's real gearing;
 - whether the neck's 3in and 5in omni wheels are on the robot and how they're driven;
 - dead spots where a FUEL comes to rest:
   - on the bumper's top between the arm's second and third rollers;

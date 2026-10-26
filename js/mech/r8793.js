@@ -166,8 +166,8 @@ export function armWheels({ rollers }) {
 
 // ------------------------------------------------------------------ the turret indexer
 // Under the turntable (their CAD, Turret assembly): a shaft of three 2in 30A flex wheels, 1in
-// wide, at x -0.039, 0.226 up. A Kraken X60 (CAN 28, 60 A stator, 40 A supply) turns it through a
-// MAXPlanetary 3:1 x 3:1 and a MAX 90-degree gearbox; their code runs it at 65% duty while
+// wide, at x -0.039, 0.226 up. A Kraken X60 (CAN 28, 60 A stator, 40 A supply) turns it direct
+// (the team; the CAD shows a 9:1 MAXPlanetary); their code runs it at 65% duty while
 // shooting (TurretConstants.TURRET_INDEXER_SPEED). (The CAD's second shaft of flex wheels behind
 // the turret's axis was a concept, never built.) Single file off the conveyor, FUEL ride a pair of
 // roller rails (two plates 0.108 m apart, a FUEL's width less a bit, so a FUEL sits in them
@@ -175,7 +175,7 @@ export function armWheels({ rollers }) {
 // FUEL back along the rails and up the ramp, and nothing but their own momentum carries them on
 // up through the turntable until the shooter's wheels catch them. (The rails are CAD surfaces.)
 export const INDEXER = {
-  ratio: 9,
+  ratio: 1,
   shafts: [[-0.039, 0.226]],
   wheelZ: [-0.025, 0.001, 0.026],
 };
