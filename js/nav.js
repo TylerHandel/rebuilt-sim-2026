@@ -72,7 +72,7 @@ class Heap {
 }
 
 // the TRENCH openings, for a robot too tall to fit under the arm
-const TRENCH_OPENINGS = (() => {
+export const TRENCH_OPENINGS = (() => {
   const out = [];
   for (const a of [BLUE, RED]) {
     const hx = Field.hubCenter(a).x, zOpen = HALF_W - TRENCH.clearWidth;

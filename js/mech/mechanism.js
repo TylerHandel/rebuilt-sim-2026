@@ -114,7 +114,8 @@ export class Shaft {
   integrate(dt, V = 12) {
     if (this.train) return;
     const J = this.J;
-    if (!this.motor) { this._omega /= 1 + (dt * this.drag) / J; return; }
+    // (no motor, or one in coast: its windings open, it only drags)
+    if (!this.motor || this.cmd === null) { this._omega /= 1 + (dt * this.drag) / J; if (this.motor) this.motor.current = 0; return; }
     const { tau, limited } = this.motor.torque(this._omega, this.cmd, V);
     const kd = limited ? 0 : this.motor.slope;
     this._omega = (J * this._omega + dt * (tau + kd * this._omega)) / (J + dt * (kd + this.drag));
@@ -140,6 +141,7 @@ export class Train {
   get drag() { return this.shafts.reduce((a, s) => a + s.drag * s.k * s.k, 0); }
   integrate(dt, V = 12) {
     const J = this.J;
+    if (this.cmd === null) { this.omega /= 1 + (dt * this.drag) / J; this.motor.current = 0; return; }
     const { tau, limited } = this.motor.torque(this.omega, this.cmd, V);
     const kd = limited ? 0 : this.motor.slope;
     this.omega = (J * this.omega + dt * (tau + kd * this.omega)) / (J + dt * (kd + this.drag));
@@ -448,9 +450,13 @@ export class Mechanism {
       }
       for (const W1 of W) {
         const { wh, c, a } = W1, hw = wh.width / 2;
-        const d = sub(bc, c), s = dot(d, a);
+        const dx = bc[0] - c[0], dy = bc[1] - c[1], dz = bc[2] - c[2];
+        const s = dx * a[0] + dy * a[1] + dz * a[2];
         if (Math.abs(s) > hw + R) continue;
-        const rad = sub(d, mul(a, s)), rl = len(rad);
+        // (too far out from its axis to touch)
+        const reach = wh.radius + R;
+        if (dx * dx + dy * dy + dz * dz - s * s >= reach * reach) continue;
+        const d = [dx, dy, dz], rad = sub(d, mul(a, s)), rl = len(rad);
         let n, depth, rim, side = false;
         if (Math.abs(s) <= hw) {
           // on the tread
@@ -508,7 +514,9 @@ export class Mechanism {
       const T = at.filter(([b]) => this.together.has(b));
       for (let i = 0; i < T.length; i++) for (let j = i + 1; j < T.length; j++) {
         const [b1, c1] = T[i], [b2, c2] = T[j];
-        const d = sub(c1, c2), dl = len(d), depth = 2 * R - dl;
+        const ex = c1[0] - c2[0], ey = c1[1] - c2[1], ez = c1[2] - c2[2];
+        if (ex * ex + ey * ey + ez * ez >= 4 * R * R) continue;
+        const d = [ex, ey, ez], dl = len(d), depth = 2 * R - dl;
         if (depth <= 0 || dl < 1e-6) continue;
         const st = state(b1), st2 = state(b2), n = mul(d, 1 / dl);
         const x = sub(c1, mul(n, dl / 2)), rb = sub(x, c1), rb2 = sub(x, c2);

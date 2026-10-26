@@ -397,6 +397,9 @@ export const ROBOTS = {
     robotName: 'Limestone',
     archetype: 'Drum + lift',
     blurb: 'Milstein Division champion. A full-width drum with three hood rollers fires out the back, fed by a roller floor and ball tunnel. The hopper grows out with the intake and up with the climber, with a net stretched diagonally over the extension. Climbs Level 1.',
+    // built of its physical mechanisms (js/mech/r1678.js, phys1678.js): its FUEL go through its
+    // CAD's ball path, moved by its rollers under its code's controls
+    physical: '1678',
     frame: { length: 27.0 * IN, width: 27.0 * IN },
     height: 21.6 * IN,
     mass: 65, // robot (up to 115 lb) + bumpers + battery

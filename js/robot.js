@@ -12,7 +12,8 @@ import { TRENCH_ARMS, underTrench } from './nav.js';
 import { Drivetrain, SwerveDrive } from './drivetrain.js';
 import { Physical8793 } from './mech/phys8793.js';
 import { Physical2910 } from './mech/phys2910.js';
-const PHYSICAL = { 8793: Physical8793, 2910: Physical2910 };
+import { Physical1678 } from './mech/phys1678.js';
+const PHYSICAL = { 8793: Physical8793, 2910: Physical2910, 1678: Physical1678 };
 import { clamp, wrapAngle, approach, approachAngle, gauss, DEG, rand } from './util.js';
 
 const WHEEL_R = 0.05;
@@ -691,6 +692,8 @@ export class Robot {
     const bay = this.cfg.bay, lift = bay.lift;
     let loadTop = 0;
     for (const e of this.hopper.list) if (!e.tr) loadTop = Math.max(loadTop, e.p.y + R);
+    // (a physical robot's load is its FUEL bodies: js/mech/phys1678.js)
+    if (this.phys?.loadTop) loadTop = Math.max(loadTop, this.phys.loadTop());
     // (the lid rides up with the intake, 1678's: its climber lifts it while the intake is down)
     if (lift) this.hopper.liftScale = Math.max(this.intakeDeploy, clamp((loadTop - 0.01 - bay.top) / lift.h, 0, 1));
     // topLoad: the top with the intake down; topY: the true top, with a folded intake as it is now
