@@ -11,7 +11,10 @@ import { GRAVITY, IN } from './constants.js';
 
 export const MOTORS = {
   // FOC commutation: 5800 rpm free, 9.37 N·m / 483 A stall at 12 V
-  krakenX60: { free: (5800 / 60) * 2 * Math.PI, stallTorque: 9.37, stallCurrent: 483, freeCurrent: 2, V: 12 },
+  krakenX60: { free: (5800 / 60) * 2 * Math.PI, stallTorque: 9.37, stallCurrent: 483, freeCurrent: 2, V: 12, rotorInertia: 6.5e-5 },
+  // the small Kraken (WCP), FOC: ~7530 rpm free, ~4.1 N·m / ~280 A stall at 12 V (WCP's published
+  // curve, approximate); rotor inertias estimated from the motors' size
+  krakenX44: { free: (7530 / 60) * 2 * Math.PI, stallTorque: 4.1, stallCurrent: 280, freeCurrent: 1.5, V: 12, rotorInertia: 2.5e-5 },
 };
 const V_REST = 12.6;     // a charged battery, resting (V)
 const R_BATTERY = 0.02;  // battery internal resistance plus main breaker and wiring (ohm)
