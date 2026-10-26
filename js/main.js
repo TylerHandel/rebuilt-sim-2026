@@ -14,14 +14,16 @@ import { TuningScreen } from './tuning.js';
 import { loadCadModels } from './cadModels.js';
 import { Input } from './input.js';
 import { CameraRig, CAMERA_NAMES } from './cameras.js';
-import { UI, loadSettings } from './ui.js';
+import { UI, loadSettings, setGraphicsInfo } from './ui.js';
+import { Graphics, PRESETS, detectGPU, storedPreset } from './graphics.js';
 import { BLUE, RED, PHYSICS_DT, other } from './constants.js';
 
 const $ = (id) => document.getElementById(id);
 
 // ------------------------------------------------------------------ renderer / scene
 const canvas = $('view');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+// (the canvas's own multisampling is decided once, here: off for the presets that don't use it)
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: !['potato', 'low'].includes(storedPreset()), powerPreference: 'high-performance' });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
@@ -48,8 +50,9 @@ const fill = new THREE.DirectionalLight(0xb9c8ff, 0.5);
 fill.position.set(6, 10, -8);
 scene.add(fill);
 
+let gfx = null; // the graphics presets (below, once the FUEL exists)
 window.addEventListener('resize', () => {
-  renderer.setSize(window.innerWidth, window.innerHeight);
+  if (gfx) gfx.resize(); else renderer.setSize(window.innerWidth, window.innerHeight);
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
 });
@@ -59,7 +62,14 @@ const physics = await Physics.create();
 const field = new Field(scene, physics);
 field.build();
 const fuel = new FuelManager(physics, scene, field);
-loadCadModels(scene, field).then((l) => { if (l.length) console.info('CAD loaded:', l.join(', ')); });
+// graphics presets (js/graphics.js); the Lowest one leaves the field CAD out
+gfx = new Graphics({ renderer, scene, camera, sun, fuel, field });
+{
+  const k = storedPreset();
+  if (PRESETS[k === 'auto' ? detectGPU(renderer).preset : k]?.cad !== false) {
+    loadCadModels(scene, field).then((l) => { if (l.length) console.info('CAD loaded:', l.join(', ')); gfx.refresh(); });
+  }
+}
 fuel.stage(8);
 const input = new Input();
 
@@ -79,6 +89,12 @@ async function loadNN() {
 }
 const rig = new CameraRig(camera);
 const settings = loadSettings();
+const applyGraphics = () => {
+  gfx.apply(settings.graphics, { dynamic: settings.dynRes === 'on' });
+  $('fps').classList.toggle('hidden', settings.fps !== 'on');
+};
+setGraphicsInfo((k) => gfx.describe(k));
+applyGraphics();
 loadNN().then(() => { if (ui.screen === 'menu') ui.renderMenu(); });
 const sound = new Sound();
 sound.setLevel(settings.sound);
@@ -105,7 +121,7 @@ const ui = new UI(settings, {
   onRestart: () => startMatch(),
   onMenu: () => ui.show('menu'),
   onNNChange: () => loadNN(),
-  onSettings: () => sound.setLevel(settings.sound),
+  onSettings: () => { sound.setLevel(settings.sound); applyGraphics(); },
   loadSounds: () => {
     const inp = document.createElement('input');
     inp.type = 'file';
@@ -407,13 +423,23 @@ function tick(dt, render) {
   } else {
     rig.update(dt, game ? game.robot : null);
   }
-  if (render) renderer.render(scene, camera);
+  if (render) {
+    // (materials that appeared since: a new match's robots, CAD parts that just loaded)
+    gfxRefreshT -= dt;
+    if (gfxRefreshT <= 0) { gfxRefreshT = 2; gfx.refresh(); }
+    gfx.render(dt);
+    if (settings.fps === 'on' && (fpsT -= dt) <= 0) {
+      fpsT = 0.5;
+      $('fps').textContent = `${Math.round(gfx.fps)} fps · ${PRESETS[gfx.key].name} · ${gfx.resolution}${gfx.dynamic && gfx.dynScale < 1 ? ` (${Math.round(gfx.dynScale * 100)}%)` : ''}`;
+    }
+  }
 }
+let gfxRefreshT = 0, fpsT = 0;
 requestAnimationFrame(frame);
 
 // debugging / test handle: __sim.advance(seconds) steps the game without animation frames
 window.__sim = {
-  get game() { return game; }, learner, fuel, field, physics, settings, THREE, renderer, scene, camera, ui, rig, startMatch, sound,
+  get game() { return game; }, learner, fuel, field, physics, settings, THREE, renderer, scene, camera, gfx, ui, rig, startMatch, sound,
   setInput(v) { debugInput = v; },
   // test hook: let an AI drive the player's robot (same as the "Your robot" menu option)
   autopilot(strategy = 'scorer', skill = 'champs') {

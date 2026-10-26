@@ -10,6 +10,11 @@ import { fmtValue } from './tuning.js';
 import { modelCapacity } from './hopper.js';
 import { DEFAULT_SLOTS, SLOT_DRIVERS, slotAlliance } from './game.js';
 import { nnLibrary } from './nn/library.js';
+import { PRESETS, PRESET_ORDER } from './graphics.js';
+
+// what a graphics choice does, from the running Graphics (main.js)
+let graphicsInfo = (k) => (PRESETS[k] ? PRESETS[k].desc : '');
+export function setGraphicsInfo(f) { graphicsInfo = f; }
 
 const $ = (id) => document.getElementById(id);
 
@@ -19,6 +24,7 @@ export const DEFAULT_SETTINGS = {
   hp: 'manual', climber: 'none', camera: 'driver', preview: 'on',
   opponent: 'scorer', oppRobot: '4414', oppSkill: 'regional', customSide: 'drawn',
   driver: 'human', driverSkill: 'trained', mode: 'normal', role: 'score', nnNet: 'auto', sound: 'medium',
+  graphics: 'auto', dynRes: 'off', fps: 'off',
 };
 
 export function loadSettings() {
@@ -92,6 +98,9 @@ const OPT = {
       : 'No networks yet: train one (nn-train-gpu.bat) or share one (nn-share.bat).';
   }),
   sound: opt('sound', 'Sound', [['off', 'Off'], ['low', 'Low'], ['medium', 'Medium'], ['high', 'High']], 'Robots, FUEL, the field\'s match cues and the crowd (it cheers when a volley of FUEL scores).'),
+  graphics: opt('graphics', 'Graphics', () => [['auto', 'Auto'], ...PRESET_ORDER.map((k) => [k, PRESETS[k].name])], (s) => graphicsInfo(s.graphics)),
+  dynRes: opt('dynRes', 'Dynamic resolution', [['off', 'Off'], ['on', 'On']], 'Drops the render resolution (down to half) while the game can\'t keep up 60 fps, and brings it back when it can: DLSS\'s idea, render fewer pixels when the GPU is behind (the browser scales the frame up; DLSS itself needs a native app).'),
+  fps: opt('fps', 'Show FPS', [['off', 'Off'], ['on', 'On']], 'Frame rate, preset and render resolution in the corner.'),
   preview: opt('preview', 'Shot preview line', [['on', 'On'], ['off', 'Off']], 'While you hold shoot, a line shows where the shot goes (green once it will score).'),
 };
 
@@ -177,6 +186,7 @@ const PAGES = {
   settings: () => [
     sec('Your robot'), o('hp'), o('climber'),
     sec('View'), o('camera'), o('preview'),
+    sec('Graphics'), o('graphics'), o('dynRes'), o('fps'),
     sec('Sound'), o('sound'),
     btn('LOAD REAL MATCH SOUNDS…', 'loadSounds', { half: true, secondary: true, desc: 'Pick your own recordings of the field\'s match cues, like the official ones installed with the FRC Game Tools / Driver Station (search its install folder for .wav files), or the static/audio folder of Team 254\'s Cheesy Arena. They\'re matched by file name (start / teleop or resume / shift / endgame or warning; there\'s no end-of-match sound) and stay in this browser only.' }),
     btn('USE BUILT-IN SOUNDS', 'clearSounds', { half: true, secondary: true, desc: 'Go back to the built-in match cues.' }),

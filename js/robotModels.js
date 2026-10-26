@@ -313,7 +313,7 @@ const STOWED = 1.4;
 // Parts exported from a team's own CAD (cad/robots/*.glb, see cad/README.md), loaded in the
 // browser only; the drawn part stays until (and unless) the CAD arrives.
 function cadPart(parent, file, onLoad) {
-  if (typeof window === 'undefined') return;
+  if (typeof window === 'undefined' || window.__gfxNoCad) return; // (the Lowest graphics: drawn models only)
   import('three/addons/loaders/GLTFLoader.js')
     .then(({ GLTFLoader }) => new GLTFLoader().loadAsync('cad/' + file))
     .then((gltf) => {

@@ -466,6 +466,7 @@ export class Field {
         const bar = new THREE.Mesh(new THREE.BoxGeometry(len, 0.025, 0.025), lightMat);
         bar.position.copy(a).add(b).multiplyScalar(0.5);
         bar.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), b.clone().sub(a).normalize());
+        bar.userData.glow = true; // (it glows with bloom on: js/graphics.js)
         hub.add(bar);
       }
 

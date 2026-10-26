@@ -343,6 +343,21 @@ Robots push each other with realistic traction (mass × acceleration limit), so 
 - The hopper walls, floors and tops were checked against each robot's CAD (sliced at several heights with the hopper drawn over it): 2910's walls are 0.69 m apart and the front of its top panel bevels down (`bay.bevel`), 971's hopper is the frame's full width and its roller floor climbs over the front swerve modules (`floor.pts`), 1678's ceiling is the lid itself (0.545 m), and 1706 has its upper back wall. The rest were within 2 cm.
 - **Shooter:** FUEL travels the feed path to the flywheel and leaves from the exit at the same rate (BPS) and with the same shot model as before. 2910's rate isn't set at all (`shooter.feedPaced`): its floor rollers carry FUEL back to the indexer, and each of its four lanes' indexer wheels takes the next FUEL within reach as soon as the last one has cleared them, so the rate comes from the roller speeds (`bay.driveSpeed`, `bay.feed.speed`), tuned so a full hopper dumps at about 24 a second, as the team reports, with a faster first second from the FUEL already at the indexer. The other multi-lane dumpers (1678, 4930) don't fire their lanes in a fixed order: each FUEL goes to a random other lane, after a random gap (half to one and a half times the average), so the stream comes out ragged like a real one at the same average rate. While the shot isn't on (trigger let go, aim, hood or flywheel not there yet), FUEL on its way up the feed path waits at the entry to the wheels, inside the shooter, the ones behind it queued a ball apart; once a FUEL is in the wheels it's launched.
 
+## Graphics
+
+Settings → Graphics picks a preset; **Auto** reads your GPU's name and chooses (GeForce RTX: Ultra, RTX 4080/4090 and 50-series: Max, other gaming GPUs: High, integrated graphics: Medium or Low, software rendering: Lowest). Only how the game is drawn changes, never the physics.
+
+| Preset | Resolution | Edges | Shadows | Extras |
+|---|---|---|---|---|
+| Lowest | half | none | none | simple FUEL, drawn robots and field instead of the CAD (after a reload) |
+| Low | 75% | FXAA | 1K | |
+| Medium | full (up to 1.5× on high-DPI) | 4× MSAA | 2K | |
+| High | full (up to 2×) | 4× MSAA | 4K soft | HUB lights glow (bloom), reflections on the metal |
+| Ultra | full (up to 2×) | 4× MSAA | 4K PCSS | ambient occlusion (GTAO) |
+| Max | full (up to 2×) | 4× supersampling | 8K PCSS | full-quality ambient occlusion, rounder FUEL |
+
+The NVIDIA parts: a browser game can't use DLSS, Reflex or hardware ray tracing (they need a native app and NVIDIA's driver SDKs; WebGL doesn't expose them), so the game runs NVIDIA's real-time techniques in its own shaders instead: **FXAA** (NVIDIA's fast anti-aliasing) on Low, **PCSS** (NVIDIA's Percentage-Closer Soft Shadows: sharp where a robot meets the carpet, softer further off) on Ultra and Max, and **horizon-based ambient occlusion** (the idea behind HBAO+, as GTAO) darkening creases, hoppers and the carpet under bumpers. **Dynamic resolution** (Settings) is DLSS's idea without the AI upscaler: the game drops its render resolution, down to half, while it can't hold 60 fps and brings it back when it can. **Show FPS** puts the frame rate, preset and render resolution in the corner. The glow is selective: only lights (HUB lights, robot LEDs) bloom, and whatever stands in front of a light hides its glow. The code is `js/graphics.js`.
+
 ## Auto routines
 
 **Best for this robot** runs the highest-scoring AUTO found for the selected robot, with its own starting position (see BEST_AUTOS in `js/auto.js`). `tools/auto-search.mjs` finds these plans: it plays candidate plans headless against the other robots' best AUTOs on both alliances and keeps whichever scores the most AUTO FUEL. BUMPERS may reach past the CENTER LINE but never fully cross it, since G403 is only a foul for contact made fully across it. The AI runs this AUTO too.
