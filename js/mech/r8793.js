@@ -24,14 +24,17 @@ import { Motor, Shaft, Surface, Train, Wheel } from './mechanism.js';
 // diameter (m), friction against FUEL, what's on it]. Conveyor 3 is the intake's pivot shaft (it's
 // in the intake assembly); the intake's rollers are the four on the arm, pivot outward.
 // (Aluminum on foam grips far less than a compliant wheel or grip tape: estimates to tune.)
+// what each grips FUEL with (estimates; the order is the team's: compliant wheels grip far more
+// than mecanums' rollers or bare aluminum, and it's what carries a centered FUEL all the way through)
+export const MU = { compliant: 1.6, gripTape: 1.3, omni: 1.0, mecanum: 0.8, aluminum: 0.45 };
 export const HORIZONTAL = [
-  ['conveyor 1', [18, 33], 2 * IN, 1.0, '2in compliant wheel in the middle, two 2in mecanums each side, all pushing to the middle'],
-  ['conveyor 2', [25, 24], 2 * IN, 1.0, 'eight 2in mecanums, four each side, pushing to the middle'],
-  ['conveyor 3 (pivot)', [24, 43], 2 * IN, 1.0, 'twelve 2in mecanums: four on one side, eight on the other, pushing toward each other'],
-  ['intake 1', [23, 20], 2 * IN, 0.45, '2in aluminum roller'],
-  ['intake 2', [20, 20], 2 * IN, 0.45, '2in aluminum roller'],
-  ['intake 3', [20, 20], 2 * IN, 0.45, '2in aluminum roller'],
-  ['intake 4 (tip)', [20, 28], 2 * IN, 1.3, '2in aluminum roller in cat-tongue grip tape'],
+  ['conveyor 1', [18, 33], 2 * IN, MU.mecanum, '2in compliant wheel in the middle, two 2in mecanums each side, all pushing to the middle'],
+  ['conveyor 2', [25, 24], 2 * IN, MU.mecanum, 'eight 2in mecanums, four each side, pushing to the middle'],
+  ['conveyor 3 (pivot)', [24, 43], 2 * IN, MU.mecanum, 'twelve 2in mecanums: four on one side, eight on the other, pushing toward each other'],
+  ['intake 1', [23, 20], 2 * IN, MU.aluminum, '2in aluminum roller'],
+  ['intake 2', [20, 20], 2 * IN, MU.aluminum, '2in aluminum roller'],
+  ['intake 3', [20, 20], 2 * IN, MU.aluminum, '2in aluminum roller'],
+  ['intake 4 (tip)', [20, 28], 2 * IN, MU.gripTape, '2in aluminum roller in cat-tongue grip tape'],
 ];
 // beside conveyor 2, at the side walls: one 4in omni wheel, and 4in 45A compliant wheels
 export const VERTICAL = { ratio: [[1, 5], [28, 18], [1, 1]], diameter: 4 * IN };
@@ -125,7 +128,7 @@ export function conveyorWheels({ rollers, vshafts }) {
     if (ri === 0) {
       // compliant in the middle, two mecanums each side, all pushing to the middle
       spread(5, hw).forEach((z, i) => wheels.push(i === 2
-        ? new Wheel({ ...base, ...flex, name: 'conveyor 1 compliant', center: at(z) })
+        ? new Wheel({ ...base, ...flex, name: 'conveyor 1 compliant', center: at(z), mu: MU.compliant })
         : new Wheel({ ...base, ...mec, name: 'conveyor 1 mecanum', kind: 'mecanum', mecanum: hand(-Math.sign(z)), center: at(z) })));
     } else if (ri === 1) {
       spread(8, hw).forEach((z) => wheels.push(new Wheel({ ...base, ...mec, name: 'conveyor 2 mecanum', kind: 'mecanum', mecanum: hand(-Math.sign(z)), center: at(z) })));
@@ -137,12 +140,12 @@ export function conveyorWheels({ rollers, vshafts }) {
   const v = CONVEYOR.vertical, [vl, vr] = vshafts, r = vl.diameter / 2;
   // two 1in-wide wheels stacked on each, 1in apart, around the FUEL's center height
   for (const dy of [-0.6 * IN, 0.6 * IN]) {
-    wheels.push(new Wheel({ shaft: vl, name: 'vertical omni', kind: 'omni', center: [v.x, v.y + dy, -v.z], axis: [0, -1, 0], radius: r, width: w, mu: 1.0 }));
-    wheels.push(new Wheel({ shaft: vr, name: 'vertical compliant 45A', center: [v.x, v.y + dy, v.z], axis: [0, 1, 0], radius: r, width: w, mu: 1.1, tread: 12000 }));
+    wheels.push(new Wheel({ shaft: vl, name: 'vertical omni', kind: 'omni', center: [v.x, v.y + dy, -v.z], axis: [0, -1, 0], radius: r, width: w, mu: MU.omni }));
+    wheels.push(new Wheel({ shaft: vr, name: 'vertical compliant 45A', center: [v.x, v.y + dy, v.z], axis: [0, 1, 0], radius: r, width: w, mu: MU.compliant, tread: 12000 }));
   }
   for (const [i, side] of [[0, 'left'], [1, 'right']]) {
     const nk = NECK[side], sh = vshafts[i].neck;
-    wheels.push(new Wheel({ shaft: sh, name: sh.name, kind: 'omni', center: [NECK.x, NECK.y, nk.z], axis: [0, side === 'left' ? -1 : 1, 0], radius: nk.d / 2, width: w, mu: 1.0 }));
+    wheels.push(new Wheel({ shaft: sh, name: sh.name, kind: 'omni', center: [NECK.x, NECK.y, nk.z], axis: [0, side === 'left' ? -1 : 1, 0], radius: nk.d / 2, width: w, mu: MU.omni }));
   }
   return wheels;
 }
@@ -194,7 +197,7 @@ export function indexerWheels({ ishafts }) {
   const wheels = [];
   INDEXER.shafts.forEach(([x, y], i) => {
     for (const z of INDEXER.wheelZ) {
-      wheels.push(new Wheel({ name: ishafts[i].name, shaft: ishafts[i], center: [x, y, z], axis: [0, 0, 1], radius: 1 * IN, width: 1 * IN, mu: 1.1, tread: 5000 }));
+      wheels.push(new Wheel({ name: ishafts[i].name, shaft: ishafts[i], center: [x, y, z], axis: [0, 0, 1], radius: 1 * IN, width: 1 * IN, mu: MU.compliant, tread: 5000 }));
     }
     // its bare 1/2in hex shaft, out to the bearings (z -0.19 to 0.09), turning with them
     wheels.push(new Wheel({ name: `${ishafts[i].name} shaft`, shaft: ishafts[i], center: [x, y, -0.05], axis: [0, 0, 1], radius: 0.29 * IN, width: 0.28, mu: 0.3 }));
@@ -292,27 +295,14 @@ export function pathSurfaces(mesh, { yaw = 0, turretX = -0.127, armPivot = ARM.p
   out.bumper = bumperSurface();
   return out;
 }
-// The front bumper, which FUEL climb over on the way in: its backing board and two 2.5in pool
-// noodles across its face under fabric (mu: fabric on foam, an estimate). 8793's frame: 27.5in.
+// The front bumper, which FUEL climb over on the way in: square foam under fabric (the team; mu:
+// fabric on foam, an estimate), its face and top. 8793's frame: 27.5in.
 export function bumperSurface({ halfL = 13.75 * IN, halfW = 13.75 * IN + BUMPER_T, mu = 0.6 } = {}) {
-  const V = [], I = [];
-  const nr = (BUMPER_Y1 - BUMPER_Y0) / 4, x1 = halfL + BUMPER_T, xn = x1 - nr, n = 16;
-  // the noodles: n-sided tubes along z
-  for (const yc of [BUMPER_Y0 + nr, BUMPER_Y1 - nr]) {
-    const o = V.length / 3;
-    for (let k = 0; k < n; k++) {
-      const a = (2 * Math.PI * k) / n;
-      V.push(xn + nr * Math.cos(a), yc + nr * Math.sin(a), -halfW, xn + nr * Math.cos(a), yc + nr * Math.sin(a), halfW);
-    }
-    for (let k = 0; k < n; k++) {
-      const a = o + 2 * k, b = o + 2 * ((k + 1) % n);
-      I.push(a, b, a + 1, b, b + 1, a + 1);
-    }
-  }
-  // the backing board, behind the noodles: its top and front
-  const o = V.length / 3;
-  V.push(halfL, BUMPER_Y1, -halfW, xn, BUMPER_Y1, -halfW, xn, BUMPER_Y1, halfW, halfL, BUMPER_Y1, halfW);
-  V.push(xn, BUMPER_Y0, -halfW, xn, BUMPER_Y0, halfW);
-  I.push(o, o + 1, o + 2, o, o + 2, o + 3, o + 1, o + 4, o + 5, o + 1, o + 5, o + 2);
+  const x1 = halfL + BUMPER_T;
+  const V = [
+    x1, BUMPER_Y0, -halfW, x1, BUMPER_Y0, halfW, x1, BUMPER_Y1, halfW, x1, BUMPER_Y1, -halfW, // face
+    halfL, BUMPER_Y1, -halfW, halfL, BUMPER_Y1, halfW,                                         // top, back edge
+  ];
+  const I = [0, 1, 2, 0, 2, 3, 3, 2, 5, 3, 5, 4];
   return new Surface({ name: 'bumper', vertices: V, indices: I, mu });
 }

@@ -8,7 +8,7 @@
 // (the rollers' speeds), conveyor (intake and conveyor, with the vertical rollers on and
 // stopped), shooter, calibrate (the shooter's grip) and robot (carpet to shot).
 // Env: HZ (steps/s, 120), SUB (contact sub-steps for the quick contacts, 8), SEEDS (12), TRACE
-// (a FUEL's index to follow), STUCK (where the ones left over ended up), BUMPER_MU, IDX_RATIO
+// (a FUEL's index to follow), STUCK (where the ones left over ended up), IDX_RATIO
 // (the turret indexer's gearing: direct drive), TOGETHER=0 (FUEL on FUEL rigid, the world's,
 // instead of foam in the mechanism).
 import { RAPIER } from '../js/physics.js';
@@ -17,7 +17,7 @@ import { Mechanism, Shaft, Wheel, Motor, foam } from '../js/mech/mechanism.js';
 import { build8793, intake8793, conveyorWheels, armWheels, shooterWheels, shooterSmallAt, flywheelDuty, codeExitSpeed, SHOOTER, INDEXER, DUTY_INDEXER, indexerWheels, pathSurfaces } from '../js/mech/r8793.js';
 if (process.env.IDX_RATIO) INDEXER.ratio = Number(process.env.IDX_RATIO); // (to try other indexer gearing)
 import PATH_MESH from '../js/mech/path8793.js';
-import { BUMPER_T, BUMPER_Y0, BUMPER_Y1 } from '../js/robotConfigs.js';
+import { BUMPER_T } from '../js/robotConfigs.js';
 
 await RAPIER.init();
 const R = FUEL.radius, DT = 1 / Number(process.env.HZ ?? 120), SUB = Number(process.env.SUB ?? 8), SEEDS = Number(process.env.SEEDS ?? 12);
@@ -278,17 +278,9 @@ function pathRun(seed, { vertical = true, turret = false, e = 60, target = 60, n
   const rnd = () => ((sd = (sd * 16807) % 2147483647) / 2147483647 - 0.5);
   const w = world();
   const fb = fixed(w);
-  // the robot's bumper and the carpet in front (8793's frame: 27.5in); the rest of the robot FUEL
-  // touch is its CAD (pathSurfaces)
+  // the carpet in front of the robot (8793's frame: 27.5in); its bumper (square foam) and the rest
+  // of the robot FUEL touch are pathSurfaces, as in the game
   const halfL = 0.349, front = halfL + BUMPER_T;
-  // the bumper: its backing board, and two 2.5in pool noodles across its face under fabric
-  // (BUMPER_MU: fabric on foam, an estimate)
-  const nr = (BUMPER_Y1 - BUMPER_Y0) / 4, mu = Number(process.env.BUMPER_MU ?? 0.6);
-  const zq = { x: 0, y: 0, z: 0, w: 1 }, cylZ = { x: Math.SQRT1_2, y: 0, z: 0, w: Math.SQRT1_2 };
-  w.createCollider(RAPIER.ColliderDesc.cuboid((BUMPER_T - 2 * nr) / 2, (BUMPER_Y1 - BUMPER_Y0) / 2, 0.4).setTranslation(halfL + (BUMPER_T - 2 * nr) / 2, (BUMPER_Y0 + BUMPER_Y1) / 2, 0).setRotation(zq).setFriction(mu).setFrictionCombineRule(RAPIER.CoefficientCombineRule.Max).setRestitution(0.2), fb);
-  for (const y of [BUMPER_Y0 + nr, BUMPER_Y1 - nr]) {
-    w.createCollider(RAPIER.ColliderDesc.cylinder(0.4, nr).setTranslation(front - nr, y, 0).setRotation(cylZ).setFriction(mu).setFrictionCombineRule(RAPIER.CoefficientCombineRule.Max).setRestitution(0.2), fb);
-  }
   // the carpet, running under the robot at 1 m/s (the robot driving into the FUEL on it)
   const carpet = w.createRigidBody(RAPIER.RigidBodyDesc.kinematicVelocityBased().setLinvel(-1, 0, 0));
   w.createCollider(RAPIER.ColliderDesc.cuboid(15, 0.01, 1).setTranslation(front + 15, -0.01, 0).setFriction(0.3).setRestitution(0.2), carpet);
