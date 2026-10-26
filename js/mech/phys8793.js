@@ -100,7 +100,9 @@ export class Physical8793 {
         this.shot.delete(b);
       }
       const [x, y, z] = this._local(p);
-      const inside = Math.abs(x) < HALF && Math.abs(z) < HALF && y > 0.04 && y < 0.7;
+      // (in its ball path: up off the carpet, where its floor and rails carry them, 0.13 m up and
+      // more; one that's got under the frame on the carpet is the chassis's to push out)
+      const inside = Math.abs(x) < HALF && Math.abs(z) < HALF && y > 0.105 && y < 0.7;
       const onArm = deployed && x >= HALF && x < HALF + 0.33 && Math.abs(z) < ARM.halfWidth && y < 0.45;
       if (inside || onArm) {
         r.fuel.own(b, t);

@@ -293,7 +293,24 @@ export function pathSurfaces(mesh, { yaw = 0, turretX = -0.127, armPivot = ARM.p
     out[k] = new Surface({ name: `${k} (CAD)`, vertices: v.map((x) => x / 1000), indices: i, mu, pos: pos[k], yaw: k === 'turret' ? yaw : 0 });
   }
   out.bumper = bumperSurface();
+  out.guides = guideSurface();
   return out;
+}
+// What keeps FUEL where the team says they always are, where the CAD leaves it open: no FUEL ever
+// gets between the indexer's rails and the turret structure's side plates (guides along the rails,
+// 0.085 m out, from the neck to the back of the turret, up to the turntable's plate), or down
+// beside the conveyor's floor into the front corners, where the swerve modules are (they aren't
+// in the CAD): a cover there level with the floor.
+export function guideSurface() {
+  const V = [], I = [];
+  const quad = (a, b, c, d) => { const o = V.length / 3; V.push(...a, ...b, ...c, ...d); I.push(o, o + 1, o + 2, o, o + 2, o + 3); };
+  for (const zs of [1, -1]) {
+    const z = 0.085 * zs;
+    quad([0.0, 0.05, z], [-0.33, 0.05, z], [-0.33, 0.27, z], [0.0, 0.27, z]);
+    // (the floor is 0.18 up out to 0.165 each side: the cover's just outside it, a hair lower)
+    quad([0.15, 0.178, 0.165 * zs], [0.335, 0.178, 0.165 * zs], [0.335, 0.178, 0.335 * zs], [0.15, 0.178, 0.335 * zs]);
+  }
+  return new Surface({ name: 'guides', vertices: V, indices: I, mu: 0.3 });
 }
 // The front bumper, which FUEL climb over on the way in: square foam under fabric (the team; mu:
 // fabric on foam, an estimate), its face and top. 8793's frame: 27.5in.

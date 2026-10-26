@@ -1013,8 +1013,9 @@ export class Robot {
 
   _shooter(dt, t, on) {
     const sh = this.cfg.shooter;
-    // (8793 plays its code's ShooterMode: out of its zone it shuttles whatever it picks up, all
-    // the time, except under a TRENCH, where it goes to its storage outputs)
+    // (8793, as its code's ShooterMode: out of its zone it shuttles whatever it picks up, all the
+    // time, except under a TRENCH, where it goes to its storage outputs; in its zone it scores as
+    // the AI decides, like the others)
     const autoShuttle = !!this.phys && !this.inAllianceZone() && !underTrench(this.pos.x, this.pos.z, this.halfL);
     const wantShoot = on && (this.cmd.shoot || this.cmd.pass || autoShuttle);
     this.wantShoot = wantShoot;
