@@ -2388,7 +2388,7 @@ function build581(cfg, alliance) {
 const S1114 = {
   slide: [-0.2945, 0.0453], // full retract, from out (as exported): back along the racks and up
   kicker: [0.4513, 0.196], kickerLen: 0.168, kickerMax: Math.PI / 2,
-  hood: [-0.0176, 0.5715], hoodTravel: 30 * Math.PI / 180,
+  hood: [-0.0176, 0.5715], hoodTravel: 30, // (deg)
 };
 const BLANKET_X0 = -0.02; // the blanket's back edge (box out), just in front of the hood
 function build1114(cfg, alliance) {
@@ -2440,8 +2440,9 @@ function build1114(cfg, alliance) {
     let th = 0;
     if (px < xb) th = Math.min(Math.asin(clamp01((xb - px) / K, 0, 1)), Math.acos(clamp01((py - zc) / K, -1, 1)));
     kicker.rotation.z = Math.min(th, S1114.kickerMax);
-    // the hood: at its stop for the steepest shot, opening up for flatter ones
-    hood.rotation.z = -clamp01((sh.hoodMax - st.hoodDeg) / (sh.hoodMax - sh.hoodMin), 0, 1) * S1114.hoodTravel;
+    // the hood: drawn set for a flat shot (sh.hood.cadDeg), swinging up and back over the
+    // flywheel for steeper ones
+    hood.rotation.z = clamp01(st.hoodDeg - sh.hood.cadDeg, -5, S1114.hoodTravel) * Math.PI / 180;
     // the blanket rides with the box: the load in the box's frame
     const load = st.load || [];
     for (let i = 0; i < load.length; i++) {

@@ -262,7 +262,7 @@ export class Robot {
     this.hopperDeploy = 0;
     this.intakeSpeed = 0;
     this.flywheel = 0;
-    this.hoodDeg = this.cfg.shooter.hood ? this.cfg.shooter.hoodMax : this.cfg.shooter.hoodMin;
+    this.hoodDeg = this.cfg.shooter.hood ? this.cfg.shooter.hood.stowDeg : this.cfg.shooter.hoodMin;
     this.turretYaw = 0;
     // each turret starts at the middle of its travel (971's point back and out to their sides)
     this.turretYaws = this.turrets.map((t) => (t.center ?? 0) * DEG);
@@ -1071,10 +1071,10 @@ export class Robot {
       status = 'Outside ALLIANCE ZONE';
     }
     if (!this.shot) this._lastPsi = undefined;
-    // a hood that swings out over the drum (2910's) folds back down when it isn't aiming a shot,
-    // and to go under a TRENCH (out, it stands taller than the robot)
+    // a hood that swings round the flywheel (2910's, 1114's) goes back to rest when it isn't
+    // aiming a shot, and to go under a TRENCH (out, 2910's stands taller than the robot)
     if (sh.hood && (!((wantShoot || prespin) && has) || underTrench(this.pos.x, this.pos.z, this.halfL + 0.3))) {
-      this.hoodDeg = approach(this.hoodDeg, sh.hoodMax, 260 * dt);
+      this.hoodDeg = approach(this.hoodDeg, sh.hood.stowDeg, 260 * dt);
     }
     if (!on) status = this.enabled ? status : 'Disabled';
     if (!twin) this._flywheelStep(dt, t, on, setpoint);

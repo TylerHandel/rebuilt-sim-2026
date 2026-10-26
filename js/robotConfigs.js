@@ -172,8 +172,8 @@ export const ROBOTS = {
       // leaves past the top one, halfway across the gap: r from the drum axis (x, y), square to
       // the shot. Tilting the hood back over the drum flattens the shot and carries that point up
       // and back with it. cadDeg: the shot the CAD has it set for. Out of a shot it folds back
-      // down to hoodMax, where its rollers are level with the top of the robot. See fixedExit.
-      hood: { x: -0.283, y: 0.47, r: 0.1165, cadDeg: 79 },
+      // down (stowDeg), where its rollers are level with the top of the robot. See fixedExit.
+      hood: { x: -0.283, y: 0.47, r: 0.1165, cadDeg: 79, stowDeg: 74 },
       // 23-25 typical with the intakes saturated (the team). Not a limit here: the rollers set
       // the rate (bay.feed); this is what they measure to, for the robot card and the AI
       bps: 25,
@@ -883,7 +883,14 @@ export const ROBOTS = {
       type: 'fixed',
       facing: 'front', // their code turns the intake end at the HUB: over the top of the flywheel, forward
       lanes: [-0.16, 0, 0.16],
-      exit: { x: 0.04, y: 0.64 }, // over the flywheel at the top of the tower (their CAD)
+      // the hood (their CAD): three 1.5in rollers on an arc 0.1893 m round the 3in flywheel's
+      // axis, on arms that pivot on its shaft, behind and over it. FUEL comes up the elevator
+      // behind the flywheel, wraps up over it under the rollers and leaves past the last one,
+      // halfway across the gap (0.104 m from the axis), square to the shot; swinging the hood up
+      // and back steepens the shot and carries that point down and back with it. The CAD has it
+      // set for 45.6 degrees, its flat end (their code: 42-74), where it rests out of a shot.
+      // See fixedExit.
+      hood: { x: -0.0176, y: 0.5715, r: 0.1039, cadDeg: 45.6, stowDeg: 45.6 },
       // not published: they scored 288-320 FUEL a match at the Ontario championship and Champs
       // (Statbotics), against 1678's 283 and 2910's 304 at Champs: on the same scale, about 26/s
       bps: 26,
