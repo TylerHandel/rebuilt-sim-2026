@@ -19,7 +19,7 @@ function initMaterials() {
   mats.diamond = new THREE.MeshStandardMaterial({ color: 0x9aa0a8, roughness: 0.3, metalness: 0.9 });
   mats.white = new THREE.MeshStandardMaterial({ color: 0xeeeeee, roughness: 0.5 });
   mats.poly = new THREE.MeshPhysicalMaterial({
-    color: 0xaec7de, transparent: true, opacity: 0.24, roughness: 0.05, metalness: 0, depthWrite: false, side: THREE.DoubleSide, // lightly tinted
+    color: 0xc4d6e8, transparent: true, opacity: 0.09, roughness: 0.05, metalness: 0, depthWrite: false, side: THREE.DoubleSide, // faint, like real polycarbonate
   });
   mats.funnel = new THREE.MeshStandardMaterial({
     color: 0xf2f4f7, transparent: true, opacity: 0.72, roughness: 0.4, side: THREE.DoubleSide,

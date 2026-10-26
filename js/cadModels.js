@@ -56,8 +56,10 @@ function hideDrawnField(group) {
 }
 
 // clear CAD parts (polycarbonate) get a light tint so they read as panels, not holes
+// (real polycarbonate lets ~90% of the light through: faint, so the field reads clearly
+// through the alliance wall from the Driver Station)
 function tintClear(m) {
-  m.color.lerp(new THREE.Color(0x9fbbd6), 0.5);
-  m.opacity = Math.max(m.opacity, 0.22);
+  m.color.lerp(new THREE.Color(0xc4d6e8), 0.35);
+  m.opacity = Math.min(Math.max(m.opacity, 0.07), 0.1);
   m.depthWrite = false;
 }
