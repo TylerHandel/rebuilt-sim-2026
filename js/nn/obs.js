@@ -158,7 +158,7 @@ export function buildObs(robot, others, match, fuel, out = new Float32Array(OBS_
   const line = s * Field.allianceLineX(a);
   const half = (EGO_N * EGO_CELL) / 2;
   for (const b of fuel.balls) {
-    if (b.state !== 'field' || b.pos.y > 0.5) continue;
+    if (b.state !== 'field' || b.held || b.pos.y > 0.5) continue;
     const bx = s * b.pos.x, bz = s * b.pos.z;
     if (bx < line) zOwn++; else if (bx > -line) zOpp++; else zMid++;
     const gx = Math.floor(((bx + HALF_L) / (2 * HALF_L)) * GX), gz = Math.floor(((bz + HALF_W) / (2 * HALF_W)) * GZ);

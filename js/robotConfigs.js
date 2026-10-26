@@ -122,6 +122,9 @@ export const ROBOTS = {
     teamName: 'Jack in the Bot',
     robotName: 'Re•Blitz',
     archetype: 'Dumper',
+    // built of its physical mechanisms (js/mech/r2910.js, phys2910.js): its FUEL go through its
+    // CAD's ball path as bodies, moved by its rollers, under its own code's controls
+    physical: '2910',
     blurb: 'Huge hopper and a 4-wide drum shooter fixed to the chassis — the whole robot rotates to aim. Unloads about 25 FUEL per second (30 in short volleys).',
     frame: { length: 27.0 * IN, width: 27.5 * IN },
     height: 21.5 * IN,
@@ -295,7 +298,7 @@ export const ROBOTS = {
     },
     // built of its physical mechanisms (js/mech/r8793.js, phys8793.js): its FUEL go through its
     // real rollers, wheels and CAD surfaces, and out of its shooter, instead of the bay above
-    physical: true,
+    physical: '8793',
     shooter: {
       type: 'turret',
       // 200T turntable (their CAD); its travel is their soft limits, -200 to 270 deg

@@ -231,6 +231,10 @@ export class Surface {
     this.mark = 0;
     this.q = new Float64Array(3);
   }
+  // a surface that swings on a shaft (an intake arm on its pivot): FUEL it touches feel it moving,
+  // and push back on that shaft's motor. pivot, axis: a point on the shaft's axis and its
+  // direction, in the frame's coordinates.
+  onShaft(shaft, pivot, axis = [0, 0, 1]) { Object.assign(this, { shaft, pivot, pivotAxis: axis }); return this; }
   setPose(pos, yaw = 0, roll = 0) {
     this.pos = pos;
     // the surface's axes in the frame: Ry(yaw) Rz(roll), columns
@@ -426,13 +430,20 @@ export class Mechanism {
         const hits = sf.touches(sf.toLocal(qrotInv(fr.q, sub(bc, fr.p))));
         for (const { depth, n: nl } of hits) {
           const st = state(b), n = qrot(fr.q, sf.dirToFrame(nl));
-          const x = sub(bc, mul(n, R - depth / 2)), rb = sub(x, bc), rw = [0, 0, 0];
+          const x = sub(bc, mul(n, R - depth / 2)), rb = sub(x, bc);
+          // (on a shaft: the contact's arm about its axis, which moves the surface there)
+          let a = [0, 0, 1], rw = [0, 0, 0];
+          if (sf.shaft !== FIXED) {
+            a = qrot(fr.q, sf.pivotAxis);
+            const d = sub(x, add(fr.p, qrot(fr.q, sf.pivot)));
+            rw = sub(d, mul(a, dot(d, a)));
+          }
           let t1 = cross(n, Math.abs(n[1]) < 0.9 ? [0, 1, 0] : [1, 0, 0]);
           t1 = norm(t1);
           const t2 = cross(n, t1);
           const { F, k } = foam(depth);
           const fric = [t1, t2].map((u) => { const ru = cross(rb, u); return { u, mu: sf.mu, m: 1 / (1 / MB + dot(ru, ru) / IB), lam: 0, wu: 0 }; });
-          C.push({ st, W1: { wh: sf, a: [0, 0, 1] }, n, depth, x, rb, rw, F, k, c: 2 * ZETA * Math.sqrt(k * MB), lamN: 0, fric, plain: true });
+          C.push({ st, W1: { wh: sf, a }, n, depth, x, rb, rw, F, k, c: 2 * ZETA * Math.sqrt(k * MB), lamN: 0, fric, plain: true });
         }
       }
       for (const W1 of W) {

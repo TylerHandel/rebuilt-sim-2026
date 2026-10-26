@@ -339,7 +339,7 @@ export class OpponentAI {
     if (this._zoneFuelT === this.t) return this._zoneFuelN;
     let n = 0;
     for (const b of this.fuel.balls) {
-      if (b.state === 'field' && !b.inFlight && b.pos.y < 0.32 && Field.inAllianceZone(this.own, b.pos.x) && Math.abs(b.pos.x) < HALF_L - 0.2) n++;
+      if (b.state === 'field' && !b.inFlight && !b.held && b.pos.y < 0.32 && Field.inAllianceZone(this.own, b.pos.x) && Math.abs(b.pos.x) < HALF_L - 0.2) n++;
     }
     this._zoneFuelT = this.t;
     this._zoneFuelN = n;
@@ -466,7 +466,7 @@ export class OpponentAI {
     const r = this.robot, B = this.brain;
     const target = this._dropPoint();
     r.passTarget = target;
-    if (!this.ball || this.ball.state !== 'field' || this.rethink) {
+    if (!this.ball || this.ball.state !== 'field' || this.ball.held || this.rethink) {
       const b = this._pickBall({ feed: true });
       if (b !== this.ball) { this.ball = b; this.ballBest = 1e9; this.ballProgressT = 0; }
     }
@@ -547,7 +547,8 @@ export class OpponentAI {
     const CELL = 0.5;
     const tall = !r.fitsTrenchLowered();
     for (const b of this.fuel.balls) {
-      if (b.state !== 'field' || b.inFlight || b.hubFresh || b.inCorral) continue;
+      // (held: inside a robot built of its mechanisms, still a body on the FIELD, but taken)
+      if (b.state !== 'field' || b.inFlight || b.hubFresh || b.inCorral || b.held) continue;
       const p = b.pos;
       if (p.y > 0.32 || Math.abs(p.x) > HALF_L - 0.2 || Math.abs(p.z) > HALF_W - 0.2) continue;
       if (obstacleAt(p.x, p.z, 0.12)) continue;
@@ -620,7 +621,7 @@ export class OpponentAI {
 
   _collect(dt) {
     const r = this.robot, B = this.brain;
-    if (!this.ball || this.ball.state !== 'field' || this.rethink) {
+    if (!this.ball || this.ball.state !== 'field' || this.ball.held || this.rethink) {
       const b = this._pickBall();
       if (b !== this.ball) { this.ball = b; this.ballBest = 1e9; this.ballProgressT = 0; }
     }

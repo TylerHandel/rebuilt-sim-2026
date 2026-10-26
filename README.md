@@ -360,7 +360,7 @@ Settings → Graphics picks a preset; **Auto** reads your GPU's name and chooses
 
 The NVIDIA parts: a browser game can't use DLSS, Reflex or hardware ray tracing (they need a native app and NVIDIA's driver SDKs; WebGL doesn't expose them), so the game runs NVIDIA's real-time techniques in its own shaders instead: **FXAA** (NVIDIA's fast anti-aliasing) on Low, **PCSS** (NVIDIA's Percentage-Closer Soft Shadows: sharp where a robot meets the carpet, softer further off) on Ultra and Max, and **horizon-based ambient occlusion** (the idea behind HBAO+, as GTAO) darkening creases, hoppers and the carpet under bumpers. **Dynamic resolution** (Settings) is DLSS's idea without the AI upscaler: the game drops its render resolution, down to half, while it can't hold 60 fps and brings it back when it can. **Show FPS** puts the frame rate, preset and render resolution in the corner, with where each frame's time goes, in milliseconds and as a share of the frame: physics (the Rapier steps, and how many a second), game logic (robots, AI, FUEL, rules, HUD), rendering on the CPU, and what's left (idle, or waiting on the GPU). Where the browser can time the GPU (Chrome on most desktops), the GPU's own time per frame gets a bar of its own: it works alongside the CPU, so a frame is as slow as the busier of the two (`js/perf.js`). The glow is selective: only lights (HUB lights, robot LEDs) bloom, and whatever stands in front of a light hides its glow. The code is `js/graphics.js`.
 
-## Physical mechanisms (in progress, 8793 first)
+## Physical mechanisms (8793 and 2910 so far)
 
 The plan: robots built around the physics instead of physics bolted onto robots. A mechanism is shafts turned by real motor models (Kraken X60/X44: voltage, back-EMF, stator and supply current limits) through the gearing in the team's CAD and code, carrying wheels and rollers that move FUEL only by touching it, among fixed surfaces taken from the team's CAD. Every contact goes through the foam's measured spring curve (AndyMark's 2026 testing: their plate test squeezes both sides, so a contact denting one side by d pushes what the plates did at 2d) and friction where the surfaces slide. The reaction goes back into the shaft (slowing the motor) and the robot. Fixed surfaces push through the foam too, so a FUEL squeezes past a tight spot as a foam ball does instead of jamming like a rigid one. FUEL held in the mechanism touch each other the same way, solved together with the wheels: foam on foam (each dents half the squeeze) with friction (0.6, an estimate), so FUEL pressed together roll and spin each other along instead of sliding. The world doesn't also collide them as rigid balls. No paths, target speeds or forces from nowhere: grip, speed, stalls and jams come out of the contacts. Omni and mecanum wheels use a heuristic for their little rollers (they grip along one direction and roll freely across it). Contacts too quick for one 120 Hz step (a shooter's nip) are sub-stepped: 8 contact steps per step match a 960 Hz run. Code: `js/mech/mechanism.js`.
 
@@ -401,7 +401,7 @@ The next FUEL in usually pushes it on.
 
 ### In matches
 
-8793 plays with these mechanisms (`physical: true` in its config; `js/mech/phys8793.js`). The FUEL it picks up stay bodies on the FIELD the whole way. They're moved only by its rollers, wheels and CAD surfaces, which are mounted on its body, so every push on them pushes back on the robot. Then the shooter flings them, and a shot is counted as it leaves the wheels. Its controls follow their code (ShooterMode):
+8793 plays with these mechanisms (`physical: '8793'` in its config; `js/mech/phys8793.js`, on `js/mech/physical.js`, what every physical robot shares). The FUEL it picks up stay bodies on the FIELD the whole way. They're moved only by its rollers, wheels and CAD surfaces, which are mounted on its body, so every push on them pushes back on the robot. Then the shooter flings them, and a shot is counted as it leaves the wheels. Its controls follow their code (ShooterMode):
 
 - The rollers and vertical rollers always run inward, with their automatic jam recovery (`runIntakeWithAutoUnjam`). When the roller motor stalls (over 55 A, under 10 rotations/s) for 0.125 s, the whole path reverses at full for 0.125 s, the turret indexer too. The detector then needs a fresh 0.125 s of stall to fire again.
 - The turret indexer feeds whenever there's a shot or pass to make. Like their code (`HOLD_FEED_UNTIL_AT_SPEED` off), it doesn't wait for the flywheel. It only stops while the turret is swinging round to its target, more than 10 degrees off (`TURRET_RESET_TOLERANCE_DEG`).
@@ -414,14 +414,36 @@ What the aim asks for is turned into a flywheel speed with the exit speeds its s
 In AI matches:
 
 - **Accuracy:** 75-86% of its HUB shots go in.
-- **Volume:** it fires about 240-320 FUEL a match, a lot of them shuttled into its own zone.
+- **Volume:** it fires about 320-350 FUEL a match, a lot of them shuttled into its own zone (160-200 points against 4414 and 2910).
 - **Intake:** the arm takes in 84-91% of the FUEL it touches; the rest are ones its edge clips.
 - **Shot rate:** loads empty at 3-6 FUEL/s. While FUEL flow they go 0.1 s apart, the ideal 8/s; unjams and waits for the next FUEL make up the rest.
 - **Unjams:** about 10-40 a match, nearly all with 9 or more aboard. The rollers bring FUEL to the throat faster than the turret indexer takes them, the queue packs, and the rollers pressing on FUEL that can't move stall the X60. That happens in auto, passing, waiting for the HUB and shooting alike.
-- **Collecting:** the AI slows down and turns toward one FUEL at a time; it was written for intakes that catch anything at their mouth.
+- **Collecting:** FUEL a physical robot holds are still bodies on the FIELD (marked held); the AI's FUEL picking skips them, so it doesn't chase what's already in it.
 - **Cost:** the mechanisms take about 1 ms per physics step.
 
 Still to check against the robot: how often it really unjams, and whether its rollers slip on FUEL that can't move rather than stalling.
+
+### 2910
+
+2910's Re•Blitz (`js/mech/r2910.js`, `js/mech/phys2910.js`) is built the same way, from their CAD (the "12 - 2026 ReBlitz Top Level Assembly" their CAD and tech binder release links) and their code ([FRCTeam2910/2026CompetitionRobot-Public](https://github.com/FRCTeam2910/2026CompetitionRobot-Public)). The robot frame is the CAD's turned so the intake faces forward.
+
+- **Intake.** A slap-down arm on a pivot (an X60 through 40:1, 75 A stator, 30 A supply) carries a 2in roller in grip (each of two X60s belts it 11t:30t, 120 A stator, 100 A supply) over two 1in rollers, the lower one 4 cm off the carpet (the left X60 drives them 24t:48t). Its CAD surfaces (0.6in billet plates, the bash bar) ride on the pivot's shaft, so FUEL pushing on the arm load its motor. The arm is 8 kg (the CAD's volumes), its center 0.24 m out.
+- **Hopper.** A floor of ten powered rollers (1.25in silicone, then thin aluminum) slopes down to the back and climbs the back wall. Four X60s (80 A stator, 40 A supply) drive one roller 40t:40t, the rest chained 12t:12t to it, so it runs at motor speed (their code's ratio is 1.0). It holds 44 set in a layer at a time (the team: 50-58).
+- **Lift and shooter.** At the back, nine 2.25in 35A compliant wheels (16t:28t off the floor's chain) pinch FUEL against the back wall's rollers and lift them into the pinch between the drum (4in, grip tape) and the hood's two 1.5in rollers (grip tape), which flings them up and back over the drum. Four X60s (60 A stator, 35 A supply) drive the drum 24t to ~38t. The drum's 67t pulley spins a 6in brass flywheel's 10t pulley (a 410 mm belt, 6.7 times the drum's speed), and a double-sided belt turns the hood rollers the other way. The hood (an X44) tilts the rollers back over the drum, 0-37 degrees: 79 degrees up at 0, 42 at 37 (the CAD's geometry, which the shots match within 1-3 degrees).
+- **Controls (their SuperStructure).** The intake is down, rollers off, by default, and runs them full to intake. The hopper floor runs full only while a shot is fed, or at 7% when its hopper CANrange sees it full and its feeder CANrange sees nothing waiting. A shot is fed when the hood is within 3 degrees and the chassis is aimed (4 degrees for the HUB, 15 for a pass); for the HUB it must also be stopped (0.15 m/s) and at least 1.5 m from the HUB's center. While it feeds, the intake retracts to 10 degrees with its rollers at 15% (unless it's intaking), pushing the load back to the lift. The drum runs their velocity loop at their table's RPM for the distance to the HUB's center (1.3 m 2100 RPM hood 0 to 5 m 2900 RPM hood 28), and it keeps that speed between shots (their shooter stays at RUN). Passes go to their two points to pass to (4 m out from the ALLIANCE WALL, 2.5 m in from a side wall), at their passing table's RPM, with the hood at 37.
+- **Not in their CAD or code.** The drum's pulley is about 38t: that's its size in the CAD, and with it their own shot table puts every shot from 1.3 to 5 m into the HUB on the bench (1.3 m lands 0.3 m short of the center, 5 m 0.35 m long). The hood rollers' and the flywheel's pulleys are read from the CAD's bounding boxes. The masses are the CAD's volumes at aluminum's or brass's density. Their CAD has a FUEL sitting in the lift; it's left out.
+
+Bench (`node --import ./tools/node-env.mjs tools/mechlab2910.mjs [test ...]`; `tools/path-mesh-2910.py` makes `js/mech/path2910.js` from their CAD, see its header for downloading it):
+
+| Test | What it shows |
+|---|---|
+| `rollers` | Free speeds: the 2in intake roller 6.0 m/s at its surface, the floor 10.3 m/s, the compliant wheels 9.6 m/s. From rest to their 3 m shot's 2400 RPM takes 2.7 s (the brass flywheel). |
+| `shooter` | FUEL leave at 0.85 of the drum's surface speed, within 1-3 degrees of the angle the CAD's geometry gives, and their table's shots come down in the HUB. |
+| `path` | 16 FUEL on a treadmill carpet at 1 m/s: a median 14 shot, 16.6 FUEL/s once they're coming. |
+| `hold` | 44 in the hopper, the floor stopped. |
+| `dump` | A full hopper dumped as their code does, the intake retracting on the load: 35 in the first second, 29 FUEL/s over the dump (the team: 23-25 typical, 30+ in short volleys, "34bps"). |
+
+In AI matches it scores 140-250 points: 240-430 shots, 94-100% of its HUB shots in, a G405 now and then from a long pass. It costs about 0.5-3 ms per physics step (2 with its hopper full).
 
 ## Auto routines
 

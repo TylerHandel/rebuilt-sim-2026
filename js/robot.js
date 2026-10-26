@@ -11,6 +11,8 @@ import { Field } from './field.js';
 import { TRENCH_ARMS, underTrench } from './nav.js';
 import { Drivetrain, SwerveDrive } from './drivetrain.js';
 import { Physical8793 } from './mech/phys8793.js';
+import { Physical2910 } from './mech/phys2910.js';
+const PHYSICAL = { 8793: Physical8793, 2910: Physical2910 };
 import { clamp, wrapAngle, approach, approachAngle, gauss, DEG, rand } from './util.js';
 
 const WHEEL_R = 0.05;
@@ -108,7 +110,7 @@ export class Robot {
     this._createBody();
     // a robot built of its physical mechanisms (8793's, js/mech/phys8793.js): its FUEL stay bodies
     // moved by its rollers and wheels, instead of the Hopper's held FUEL
-    this.phys = cfg.physical ? new Physical8793(this) : null;
+    this.phys = cfg.physical ? new PHYSICAL[cfg.physical](this) : null;
     this.reset();
   }
 
@@ -615,6 +617,9 @@ export class Robot {
   // rollers do (js/mech/phys8793.js). It stays down while FUEL is up on it.
   _intakePhys(dt, on) {
     const ic = this.cfg.intake;
+    // (2910's: its pivot is a motor in its mechanisms, js/mech/phys2910.js; its hopper still
+    // slides out with the first deploy)
+    if (this.phys.ownsIntake) { this._hopper(dt, on); return; }
     let want = on && (this.cmd.intake || this.cmd.lower || this.cmd.outtake);
     if (ic.latched && this.intakeDeploy >= 1) want = true;
     if (this.forceDeploy) want = true;
@@ -962,6 +967,9 @@ export class Robot {
       const c = Field.hubCenter(this.alliance);
       return { mode: 'hub', x: c.x, z: c.z, table: this.hubTable, inZone };
     }
+    // a physical robot passes where its code does (2910's: FieldConstants' points to pass to)
+    const own = this.phys?.passTarget?.();
+    if (own) return { mode: 'pass', x: own.x, z: own.z, table: this.passTable, inZone };
     // an AI can pick where its passes land (feeding its own zone); otherwise the nearest
     // corner of our ALLIANCE ZONE (away from the HUB)
     if (this.passTarget) return { mode: 'pass', x: this.passTarget.x, z: this.passTarget.z, table: this.passTable, inZone };
@@ -1016,7 +1024,7 @@ export class Robot {
     // (8793, as its code's ShooterMode: out of its zone it shuttles whatever it picks up, all the
     // time, except under a TRENCH, where it goes to its storage outputs; in its zone it scores as
     // the AI decides, like the others)
-    const autoShuttle = !!this.phys && !this.inAllianceZone() && !underTrench(this.pos.x, this.pos.z, this.halfL);
+    const autoShuttle = !!this.phys?.autoShuttle && !this.inAllianceZone() && !underTrench(this.pos.x, this.pos.z, this.halfL);
     const wantShoot = on && (this.cmd.shoot || this.cmd.pass || autoShuttle);
     this.wantShoot = wantShoot;
     const has = this.stored.length > 0;
@@ -1072,7 +1080,7 @@ export class Robot {
       if (sol) {
         this.shot = { ...sol, mode: tgt.mode, target: tgt, exit, lv };
         setpoint = sol.v;
-        this.hoodDeg = approach(this.hoodDeg, sol.theta / DEG, 260 * dt);
+        if (!this.phys?.ownsHood) this.hoodDeg = approach(this.hoodDeg, sol.theta / DEG, 260 * dt);
         let aimErr;
         if (sh.type === 'fixed') {
           aimErr = wrapAngle(sol.psi - this.yaw - this.aimOffset);
