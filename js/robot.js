@@ -9,11 +9,12 @@ import { Hopper, measureCapacity, intakePush, fuelForce } from './hopper.js';
 import { ShotTable, solveMovingShot, trajectoryPoints } from './ballistics.js';
 import { Field } from './field.js';
 import { TRENCH_ARMS, underTrench } from './nav.js';
-import { Drivetrain } from './drivetrain.js';
+import { Drivetrain, SwerveDrive } from './drivetrain.js';
 import { clamp, wrapAngle, approach, approachAngle, gauss, DEG, rand } from './util.js';
 
 const WHEEL_R = 0.05;
 const TIP_RATE = 2.5; // rad/s: the most a robot pitches or rolls (see preStep)
+const TIP_DAMP = 4;   // 1/s: how fast pitching and rolling die down (tires, frame flex)
 const FLOOR_QUERY = groups(GROUP.WHEEL, GROUP.STATIC | GROUP.TERRAIN); // what the wheels drive on
 const R = FUEL.radius;
 // FUEL the intake has grabbed is held by the rollers: it still hits field structures, but not
@@ -83,6 +84,8 @@ export class Robot {
     // the drivetrain: force vs speed from its motors, gearing, battery and tires
     const [mx, mz] = modulePoints(cfg)[0];
     this.drivetrain = new Drivetrain(cfg.drive, cfg.mass, cfg.frame.length, cfg.frame.width, Math.hypot(mx, mz));
+    // the four modules that actually drive it (drivetrain.js): steering, motors, tires
+    this.swerve = new SwerveDrive(this.drivetrain, modulePoints(cfg));
     const ext = cfg.storage.extLen || 0;
     // retracted: hopper in and any lid (1678's, on the climber) down
     this.intakePush = intakePush(cfg); // N: how hard the intake shoves FUEL into the hopper
@@ -114,7 +117,7 @@ export class Robot {
       .setCcdEnabled(true)
       .setCanSleep(false)
       .setLinearDamping(0)
-      .setAngularDamping(4);
+      .setAngularDamping(0); // (pitch and roll are damped in preStep: the yaw is the drive's)
     this.body = world.createRigidBody(desc);
     const robotGroups = groups(GROUP.ROBOT, GROUP.STATIC | GROUP.TERRAIN | GROUP.BALL | GROUP.ROBOT_BARRIER | GROUP.ROBOT | GROUP.INTAKE);
     const y0 = BUMPER_Y0, y1 = BUMPER_Y1;
@@ -306,6 +309,7 @@ export class Robot {
     this.pos = new THREE.Vector3(x, 0, z);
     this.vel = new THREE.Vector3();
     this.omega = 0;
+    this.swerve.reset();
     this._syncVisual(0);
   }
 
@@ -419,6 +423,9 @@ export class Robot {
 
   // ------------------------------------------------------------------ fixed-step control (before world.step)
   preStep(dt) {
+    // (the drive's push is a force on the body until this step's replaces it)
+    this.body.resetForces(true);
+    this.body.resetTorques(true);
     if (this.climbState === 'climbing' || this.climbState === 'hanging' || this.climbState === 'descending') {
       this._climbStep(dt);
       return;
@@ -446,43 +453,41 @@ export class Robot {
     // the wheels only push on what they're touching: the drive has as much grip as the share of
     // wheels on the floor (carpet, BUMPS, DEPOT barriers). Up on FUEL or another robot, it
     // coasts instead of climbing further.
-    const grip = this.traction = this._wheelsDown() / this.wheelPts.length;
+    const down = this._wheelsDown();
+    const grip = this.traction = down.filter(Boolean).length / this.wheelPts.length;
     // Tires and frame flex soak up the kick from a sharp edge (a DEPOT barrier at full speed, a
     // bumper hit), which rigid wheels in the physics don't: pitching and rolling are capped at
     // TIP_RATE, and the angular damping bleeds them off, so a hit rocks a robot but doesn't flip it.
     {
       const av = this.body.angvel();
-      const h = Math.hypot(av.x, av.z);
-      if (h > TIP_RATE) this.body.setAngvel({ x: (av.x * TIP_RATE) / h, y: av.y, z: (av.z * TIP_RATE) / h }, true);
+      const k = 1 / (1 + TIP_DAMP * dt);
+      let ax = av.x * k, az = av.z * k;
+      const h = Math.hypot(ax, az);
+      if (h > TIP_RATE) { ax *= TIP_RATE / h; az *= TIP_RATE / h; }
+      this.body.setAngvel({ x: ax, y: av.y, z: az }, true);
     }
-    if (grip > 0) {
-      const lv = this.body.linvel();
-      // how much the velocity can change this step (drivetrain.js): speeding up, the motors' force
-      // falls off with speed (back-EMF, battery sag, current limits); slowing down, they brake;
-      // changing direction at speed, the modules steer and only the tires' grip limits it
-      const dv = this.drivetrain.limitDv(lv.x, lv.z, tvx - lv.x, tvz - lv.z, dt, grip);
-      this.body.setLinvel({ x: lv.x + dv.x, y: lv.y, z: lv.z + dv.z }, true);
-      const av = this.body.angvel();
-      const w = approach(av.y, tw, d.maxAlpha * dt * grip);
-      this.body.setAngvel({ x: av.x, y: w, z: av.z }, true); // pitch and roll are the physics'
-    }
+    // the swerve modules steer, drive and push on the carpet through their tires (drivetrain.js):
+    // speeding up, the motors' torque falls off with speed (back-EMF, battery sag, current
+    // limits); slowing down, they brake; changing direction, the modules turn first; pushing a
+    // robot, the motors and the tires' grip hold or give
+    const q = this.body.rotation();
+    const yaw = Math.atan2(2 * (q.w * q.y + q.x * q.z), 1 - 2 * (q.y * q.y + q.z * q.z));
+    this.swerve.step(this.body, yaw, tvx, tvz, tw, down, dt);
     this._guideCaptured(dt);
   }
 
-  // How many wheels touch the floor: a short ray down from each wheel's center finds the carpet,
+  // Which wheels touch the floor: a short ray down from each wheel's center finds the carpet,
   // a BUMP or a DEPOT barrier (not FUEL, not robots) within its radius (plus a little give)
   _wheelsDown() {
     const world = this.physics.world;
     const q = this.body.rotation(), p = this.body.translation();
     const qv = new THREE.Quaternion(q.x, q.y, q.z, q.w);
     const v = new THREE.Vector3();
-    let n = 0;
-    for (const w of this.wheelPts) {
+    return this.wheelPts.map((w) => {
       v.set(w.x, WHEEL_R, w.z).applyQuaternion(qv);
       const ray = new RAPIER.Ray({ x: p.x + v.x, y: p.y + v.y, z: p.z + v.z }, { x: 0, y: -1, z: 0 });
-      if (world.castRay(ray, WHEEL_R + 0.02, true, undefined, FLOOR_QUERY, undefined, this.body)) n++;
-    }
-    return n;
+      return !!world.castRay(ray, WHEEL_R + 0.02, true, undefined, FLOOR_QUERY, undefined, this.body);
+    });
   }
 
   // Where FUEL crosses into the hopper: over the bumper, then in at the front of the hopper
