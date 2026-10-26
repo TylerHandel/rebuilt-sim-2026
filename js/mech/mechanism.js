@@ -9,8 +9,9 @@
 // nowhere. Grip, speed, stalls and jams come out of that.
 //
 //   - Foam (FUEL): the measured spring curve (AndyMark's 2026 Scoring Element Testing Report,
-//     constants.js): F = k0 xc (e^(x/xc) - 1), in series with the wheel's own tread (a 30A flex
-//     wheel gives too), with damping set for FUEL's bounce.
+//     constants.js): F = k0 xc (e^(x/xc) - 1) for a FUEL squeezed x between two plates, so a
+//     contact that dents one side of it by d pushes F(2d); in series with the wheel's own tread
+//     (a 30A flex wheel gives too), with damping set for FUEL's bounce.
 //   - Contact solve: soft constraints (the spring and damper integrated implicitly, so stiff
 //     foam stays stable at the game's 120 Hz) with Coulomb friction, iterated over every contact
 //     at once (projected Gauss-Seidel), each impulse applied to the FUEL (moving and spinning it),
@@ -30,11 +31,11 @@ const ZETA = 0.25;                    // foam damping ratio (a free FUEL bounces
 const MU_FREE = 0.04;                 // an omni/mecanum wheel's rollers across their free direction
 
 // ------------------------------------------------------------------ foam
-// squeeze x (m) -> force (N) and its slope (N/m)
-export function foam(x) {
+// one contact's dent d (m) -> force (N) and its slope (N/m): the plate test's curve at 2d
+export function foam(d) {
   const k0 = FUEL.springRate0, xc = FUEL.stiffen;
-  const e = Math.exp(Math.min(Math.max(0, x), 3.5 * xc) / xc);
-  return { F: k0 * xc * (e - 1), k: k0 * e };
+  const e = Math.exp(Math.min(Math.max(0, 2 * d), 3.5 * xc) / xc);
+  return { F: k0 * xc * (e - 1), k: 2 * k0 * e };
 }
 // the foam in series with a tread of stiffness kt (N/m): the total squeeze d splits between them
 function squeeze(d, kt) {
@@ -51,11 +52,13 @@ function squeeze(d, kt) {
 // ------------------------------------------------------------------ motors
 export class Motor {
   // type: a MOTORS key; count: motors on the shaft; ratio: motor turns per output turn;
-  // eff: the drive's efficiency on torque; statorLimit (A, per motor)
-  constructor(type, { count = 1, ratio = 1, eff = 0.9, statorLimit = 60 } = {}) {
+  // eff: the drive's efficiency on torque; statorLimit, supplyLimit (A, per motor; the supply
+  // current is the stator current times the fraction of the battery's voltage applied, the
+  // back-EMF plus the winding's drop: it binds near full speed, not at a stall)
+  constructor(type, { count = 1, ratio = 1, eff = 0.9, statorLimit = 60, supplyLimit = Infinity } = {}) {
     const m = MOTORS[type];
     if (!m) throw new Error('no motor ' + type);
-    Object.assign(this, { type, count, ratio, eff, statorLimit, m });
+    Object.assign(this, { type, count, ratio, eff, statorLimit, supplyLimit, m });
     this.Rm = m.V / m.stallCurrent;
     this.kT = m.stallTorque / m.stallCurrent;
     this.kV = m.free / (m.V - m.freeCurrent * this.Rm);
@@ -65,9 +68,12 @@ export class Motor {
   // output torque at output speed w (rad/s), duty cmd (-1..1), battery V; and whether it's at
   // the current limit (then the torque doesn't fall with speed)
   torque(w, cmd, V = 12) {
-    const I = (cmd * V - (w * this.ratio) / this.kV) / this.Rm;
-    const lim = Math.abs(I) > this.statorLimit;
-    const Ic = lim ? Math.sign(I) * this.statorLimit : I;
+    const Eb = (w * this.ratio) / this.kV, I = (cmd * V - Eb) / this.Rm;
+    // the supply limit: I (Eb + I Rm) / V <= supplyLimit (in the direction it's driving)
+    const e = Math.sign(I) * Eb, Isup = this.supplyLimit * V;
+    const cap = Math.min(this.statorLimit, Isup < Infinity ? (-e + Math.sqrt(e * e + 4 * this.Rm * Isup)) / (2 * this.Rm) : Infinity);
+    const lim = Math.abs(I) > cap;
+    const Ic = lim ? Math.sign(I) * cap : I;
     this.current = Ic * this.count;
     return { tau: this.count * this.kT * Ic * this.ratio * this.eff, limited: lim };
   }
@@ -165,9 +171,10 @@ export class Mechanism {
   // solver passes per step; gravity: the world's, and substeps: its solver's substeps per step
   // (world.integrationParameters.numSolverIterations). The step's gravity is counted in the solve
   // as the world will apply it (spread over its substeps a body moves by (n+1)/2n of a full
-  // step's worth), so a FUEL resting on a wheel settles where the foam holds its weight.
-  constructor({ body = null, shafts = [], wheels = [], iterations = 6, gravity = [0, -9.81, 0], substeps = 4 } = {}) {
-    Object.assign(this, { body, shafts, wheels, iterations, gravity });
+  // step's worth), so a FUEL resting on a wheel settles where the foam holds its weight. sub:
+  // contact steps per step, for contacts over in a step or two at the game's rate (a shooter).
+  constructor({ body = null, shafts = [], wheels = [], iterations = 6, gravity = [0, -9.81, 0], substeps = 4, sub = 1 } = {}) {
+    Object.assign(this, { body, shafts, wheels, iterations, gravity, sub });
     this.gShare = (substeps + 1) / (2 * substeps);
     this.contacts = [];  // last step's, for drawing and tests
     this.V = 12;
@@ -189,21 +196,71 @@ export class Mechanism {
     const frameVel = (x) => add(fr.v, cross(fr.w, sub(x, fr.com)));
     // wheels in the world
     const W = this.wheels.map((wh) => ({ wh, c: add(fr.p, qrot(fr.q, wh.center)), a: qrot(fr.q, wh.axis) }));
-    // ball states we work on
+    const g = this.gravity, n = this.sub, h = dt / n;
+    // ball states we work on. In one step (n = 1) a FUEL touching a wheel gets its new velocity
+    // and the world moves it. Sub-stepped (n > 1, for contacts too quick for one step: a shooter's
+    // nip), every FUEL that could reach a wheel this step is carried through it here in n steps,
+    // touching the wheels as it goes, then handed back to the world placed so that its step lands
+    // it where it got to.
     const S = new Map();
     const state = (b) => {
-      let s = S.get(b);
-      if (!s) {
-        const t = b.translation(), v = b.linvel(), w = b.angvel(), g = this.gravity, f = this.gShare * dt;
-        s = { b, c: [t.x, t.y, t.z], v: [v.x + g[0] * f, v.y + g[1] * f, v.z + g[2] * f], w: [w.x, w.y, w.z] };
-        S.set(b, s);
+      let st = S.get(b);
+      if (!st) {
+        const t = b.translation(), v = b.linvel(), w = b.angvel(), f = n === 1 ? this.gShare * dt : 0;
+        st = { b, c: [t.x, t.y, t.z], v: [v.x + g[0] * f, v.y + g[1] * f, v.z + g[2] * f], w: [w.x, w.y, w.z] };
+        S.set(b, st);
       }
-      return s;
+      return st;
     };
-    // contacts
+    if (n > 1) {
+      for (const b of balls) {
+        const t = b.translation(), v = b.linvel(), bc = [t.x, t.y, t.z], reach = Math.hypot(v.x, v.y, v.z) * dt + 0.01;
+        if (W.some(({ wh, c, a }) => {
+          const d = sub(bc, c), s = dot(d, a);
+          return Math.abs(s) < wh.width / 2 + R + reach && len(sub(d, mul(a, s))) < wh.radius + R + reach;
+        })) state(b);
+      }
+    }
+    const reaction = [];
+    const seen = new Map(); // the step's contacts (the firmest of each wheel and FUEL), for drawing and tests
+    for (let k = 0; k < n; k++) {
+      if (n > 1) for (const st of S.values()) st.v = add(st.v, mul(g, h));
+      const C = this._contacts(W, n > 1 ? [...S.values()].map((st) => [st.b, st.c]) : balls.map((b) => { const t = b.translation(); return [b, [t.x, t.y, t.z]]; }), state);
+      this._solve(C, h, frameVel, reaction);
+      if (n > 1) for (const st of S.values()) st.c = add(st.c, mul(st.v, h));
+      for (const ct of C) {
+        const key = ct.W1.wh, m = seen.get(key) || new Map();
+        seen.set(key, m);
+        const was = m.get(ct.st.b);
+        if (!was || ct.lamN / h > was.force) m.set(ct.st.b, { wheel: ct.W1.wh, ball: ct.st.b, depth: ct.depth, force: ct.lamN / h, x: ct.x, n: ct.n });
+      }
+    }
+    // results
+    if (n === 1) {
+      const f = this.gShare * dt;
+      for (const st of S.values()) {
+        st.b.setLinvel({ x: st.v[0] - g[0] * f, y: st.v[1] - g[1] * f, z: st.v[2] - g[2] * f }, true);
+        st.b.setAngvel({ x: st.w[0], y: st.w[1], z: st.w[2] }, true);
+      }
+    } else {
+      // the world's step adds g dt to the velocity and moves it by (v + gShare g dt) dt
+      for (const st of S.values()) {
+        const v = sub(st.v, mul(g, dt)), p = sub(st.c, mul(add(v, mul(g, this.gShare * dt)), dt));
+        st.b.setTranslation({ x: p[0], y: p[1], z: p[2] }, true);
+        st.b.setLinvel({ x: v[0], y: v[1], z: v[2] }, true);
+        st.b.setAngvel({ x: st.w[0], y: st.w[1], z: st.w[2] }, true);
+      }
+    }
+    if (this.body && this.body.isDynamic()) {
+      for (const [x, J] of reaction) this.body.applyImpulseAtPoint({ x: J[0], y: J[1], z: J[2] }, { x: x[0], y: x[1], z: x[2] }, true);
+    }
+    this.contacts = [...seen.values()].flatMap((m) => [...m.values()]);
+  }
+
+  // the wheels' contacts with FUEL at the given centers ([body, center] pairs)
+  _contacts(W, at, state) {
     const C = [];
-    for (const b of balls) {
-      const t = b.translation(), bc = [t.x, t.y, t.z];
+    for (const [b, bc] of at) {
       for (const W1 of W) {
         const { wh, c, a } = W1, hw = wh.width / 2;
         const d = sub(bc, c), s = dot(d, a);
@@ -253,6 +310,11 @@ export class Mechanism {
         C.push({ st, W1, n, depth, x, rb, rw, F, k, c: cdamp, lamN: 0, fric, plain: wh.kind === 'plain' });
       }
     }
+    return C;
+  }
+
+  // the contacts' impulses over a step of h (projected Gauss-Seidel)
+  _solve(C, h, frameVel, reaction) {
     // relative velocity of the ball's surface over the wheel's at the contact
     const relVel = (ct) => {
       const { st, W1, x, rb, rw } = ct;
@@ -260,7 +322,6 @@ export class Mechanism {
       const vw = add(frameVel(x), mul(cross(W1.a, rw), W1.wh.shaft.omega));
       return sub(vb, vw);
     };
-    const reaction = [];
     const apply = (ct, u, lam) => {
       const { st, W1, rb, rw, x } = ct;
       st.v = add(st.v, mul(u, lam / MB));
@@ -268,7 +329,6 @@ export class Mechanism {
       W1.wh.shaft.impulse(-lam * dot(cross(rw, u), W1.a));
       reaction.push([x, mul(u, -lam)]);
     };
-    const h = dt;
     for (let it = 0; it < this.iterations; it++) {
       for (const ct of C) {
         // normal: the foam spring and damper, implicit over the step, never pulling
@@ -298,15 +358,5 @@ export class Mechanism {
         }
       }
     }
-    // results
-    const g = this.gravity, f = this.gShare * dt;
-    for (const st of S.values()) {
-      st.b.setLinvel({ x: st.v[0] - g[0] * f, y: st.v[1] - g[1] * f, z: st.v[2] - g[2] * f }, true);
-      st.b.setAngvel({ x: st.w[0], y: st.w[1], z: st.w[2] }, true);
-    }
-    if (this.body && this.body.isDynamic()) {
-      for (const [x, J] of reaction) this.body.applyImpulseAtPoint({ x: J[0], y: J[1], z: J[2] }, { x: x[0], y: x[1], z: x[2] }, true);
-    }
-    this.contacts = C.map((ct) => ({ wheel: ct.W1.wh, ball: ct.st.b, depth: ct.depth, force: ct.lamN / dt, x: ct.x, n: ct.n }));
   }
 }
