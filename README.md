@@ -402,12 +402,20 @@ The next FUEL in usually pushes it on.
 
 - The rollers and vertical rollers always run inward, with their automatic jam recovery (`runIntakeWithAutoUnjam`). When the roller motor stalls (over 55 A, under 10 rotations/s) for 0.125 s, the whole path reverses at full for 0.125 s, the turret indexer too. The detector then needs a fresh 0.125 s of stall to fire again.
 - The turret indexer feeds whenever there's a shot or pass to make. Like their code (`HOLD_FEED_UNTIL_AT_SPEED` off), it doesn't wait for the flywheel. It only stops while the turret is swinging round to its target, more than 10 degrees off (`TURRET_RESET_TOLERANCE_DEG`).
+- Out of its zone it shuttles everything it picks up, all the time (ShooterMode's shuttle). The exception is under a TRENCH, where it switches to its storage outputs. A pass goes whether or not it'll get there: flat out at its flattest when the target's out of reach. The only check is that it won't come down into a HUB (G407).
 - The flywheel runs on their velocity loop.
-- The turret's travel is their soft limits: -200 to 270 degrees.
+- The turret goes endpoint to endpoint over their soft limits, -200 to 270 degrees, with no continuous rotation. Past a limit it swings back the long way round, and the feeder waits. It starts straight ahead.
 
 What the aim asks for is turned into a flywheel speed with the exit speeds its shots were measured leaving at in AI matches (`SHOT_TABLE`). That's the role their FlywheelDroopCompensator plays on the robot. Fed by the indexer, a FUEL comes into the shooter faster than on the bench and leaves faster, up to 9.2 m/s at 80 rotations/s.
 
-In AI matches it shoots 75-86% into the HUB. It takes in about 100-150 FUEL a match, against the ~390 the old stand-in hopper managed. The arm takes in about two of every three FUEL it touches, and misses the ones at its edges. The AI's collecting (slowing down and turning toward one FUEL at a time) was written for intakes that catch anything at their mouth, so it touches only about one FUEL a second. That's the next thing to work on. The mechanisms cost about 1 ms per physics step.
+In AI matches:
+
+- **Accuracy:** 75-86% of its HUB shots go in.
+- **Volume:** it fires about 100-300 FUEL a match, a lot of them shuttled into its own zone.
+- **Shot rate:** loads empty at 3-6 FUEL/s. While FUEL flow they go 0.1 s apart, the ideal 8/s; unjams and waits for the next FUEL make up the rest.
+- **Unjams:** about 1-7 a match, nearly all with the ball path packed full.
+- **Intake:** the arm takes in about two of every three FUEL it touches, and misses the ones at its edges. The AI's collecting (slowing down and turning toward one FUEL at a time) was written for intakes that catch anything at their mouth, so it touches only about one FUEL a second. That's the next thing to work on.
+- **Cost:** the mechanisms take about 1 ms per physics step.
 
 ## Auto routines
 

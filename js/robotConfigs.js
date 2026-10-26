@@ -299,13 +299,18 @@ export const ROBOTS = {
     shooter: {
       type: 'turret',
       // 200T turntable (their CAD); its travel is their soft limits, -200 to 270 deg
-      // (TURRET_ROTATOR_MIN/MAX_ANGLE, counterclockwise from straight ahead): 35 +- 235
-      turretPos: { x: -0.127, z: 0.0, center: 35 },
+      // (TURRET_ROTATOR_MIN/MAX_ANGLE, counterclockwise from straight ahead): 35 +- 235, endpoint
+      // to endpoint (no continuous rotation: past a limit it swings back the long way round). It
+      // starts straight ahead.
+      turretPos: { x: -0.127, z: 0.0, center: 35, start: 0 },
       // where FUEL leaves its wheels (tools/mechlab.mjs): 0.09 m out from the turret's axis, 0.57 up
       exitRadius: 0.09,
       exitY: 0.57,
       turretRange: 235, turretRate: 600,
-      bps: 7, // (what tools/mechlab.mjs robot measures; the mechanisms set the real rate)
+      // what the AI plans a dump with: what its loads empty at in matches (3-6 FUEL/s: 0.1 s apart
+      // when they flow, its ideal 8/s, less the unjams and the gaps waiting on the next FUEL).
+      // The mechanisms set the real rate.
+      bps: 5,
       hoodMin: 52, hoodMax: 72, // their rack's 18..38 deg (elevation = 90 - rack)
       speedMax: 9.2, // the fastest its shots were measured leaving (SHOT_TABLE, js/mech/r8793.js)
       spinTau: 0.28,
@@ -313,7 +318,7 @@ export const ROBOTS = {
       speedSigma: 0.017, angleSigma: 0.9, yawSigma: 0.9,
     },
     climber: null,
-    stats: { 'Shot rate': '7 BPS', Aiming: 'Turret', 'Top speed': '14.8 ft/s', Trench: 'Intake down' },
+    stats: { 'Shot rate': '8 BPS (ideal)', Aiming: 'Turret', 'Top speed': '14.8 ft/s', Trench: 'Intake down' },
     colors: { frame: 0x1f2126, accent: 0xf07a1a, trim: 0xf07a1a },
   },
   971: {

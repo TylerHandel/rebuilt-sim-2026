@@ -273,7 +273,7 @@ export class Robot {
     this.hoodDeg = this.cfg.shooter.hood ? this.cfg.shooter.hood.stowDeg : this.cfg.shooter.hoodMin;
     this.turretYaw = 0;
     // each turret starts at the middle of its travel (971's point back and out to their sides)
-    this.turretYaws = this.turrets.map((t) => (t.center ?? 0) * DEG);
+    this.turretYaws = this.turrets.map((t) => (t.start ?? t.center ?? 0) * DEG);
     this.turretYaw = this.turretYaws[0] ?? 0;
     // more than one turret: each has its own flywheel and hood (and knows whether it's on target)
     this.tws = this.turrets.length > 1 ? this.turrets.map(() => ({ fly: 0, hood: this.cfg.shooter.hoodMin, holdV: 0, holdT: 0, ok: false, sol: null })) : [];
@@ -604,7 +604,7 @@ export class Robot {
     this._stepHopper(dt);
     if (this.phys) {
       this.phys.postStep(dt, t, {
-        on, feeding: on && (this.cmd.shoot || this.cmd.pass),
+        on, feeding: this.wantShoot,
         outtake: on && this.cmd.outtake, setpoint: this.shotSetpoint, mode: this.shot ? this.shot.mode : this.lastMode,
       });
       this.full = this.stored.length >= this.capacity();
@@ -974,8 +974,9 @@ export class Robot {
   }
 
   // where a FUEL launched now would come down is on our half of the FIELD, clear of the walls,
-  // and it doesn't drop into a HUB on the way (that would be a G407 from outside the zone)
-  _passLands(ti = 0) {
+  // and it doesn't drop into a HUB on the way (that would be a G407 from outside the zone);
+  // anywhere: only that it doesn't drop into a HUB
+  _passLands(ti = 0, anywhere = false) {
     const sh = this.cfg.shooter;
     const psi = sh.type === 'fixed' ? this.yaw + this.aimOffset : this.yaw + this.turretYaws[ti];
     // from where it really leaves, moving with the (maybe turning) robot
@@ -987,7 +988,7 @@ export class Robot {
     const th = (w ? w.hood : this.hoodDeg) * DEG, v = w ? w.fly : this.flywheel;
     const pts = trajectoryPoints(exit, { x: Math.cos(psi) * Math.cos(th) * v + lv.x, y: Math.sin(th) * v, z: -Math.sin(psi) * Math.cos(th) * v + lv.z });
     const x = pts[pts.length - 3], z = pts[pts.length - 1], s = this.alliance === BLUE ? 1 : -1;
-    if (!(Math.abs(x) < HALF_L - 1.2 && Math.abs(z) < HALF_W - 1.2 && s * x < -0.5)) return false;
+    if (!anywhere && !(Math.abs(x) < HALF_L - 1.2 && Math.abs(z) < HALF_W - 1.2 && s * x < -0.5)) return false;
     for (const a of [BLUE, RED]) {
       const c = Field.hubCenter(a);
       for (let i = 0; i < pts.length; i += 3) {
@@ -1012,7 +1013,11 @@ export class Robot {
 
   _shooter(dt, t, on) {
     const sh = this.cfg.shooter;
-    const wantShoot = on && (this.cmd.shoot || this.cmd.pass);
+    // (8793 plays its code's ShooterMode: out of its zone it shuttles whatever it picks up, all
+    // the time, except under a TRENCH, where it goes to its storage outputs)
+    const autoShuttle = !!this.phys && !this.inAllianceZone() && !underTrench(this.pos.x, this.pos.z, this.halfL);
+    const wantShoot = on && (this.cmd.shoot || this.cmd.pass || autoShuttle);
+    this.wantShoot = wantShoot;
     const has = this.stored.length > 0;
     this.aimOverride = null;
     this.feeding = 0;
@@ -1057,6 +1062,12 @@ export class Robot {
         const e2 = exitAt(sol.theta / DEG), s2 = solveMovingShot(tgt.table, e2, lv, tgt);
         if (s2) { sol = s2; exit = e2; }
       }
+      // out of reach, a physical robot's pass goes anyway (8793's code shuttles whatever its
+      // flywheel is doing): as far as it'll go, flat out at its flattest, toward the target
+      if (!sol && this.phys && tgt.mode === 'pass') {
+        const dx = tgt.x - exit.x, dz = tgt.z - exit.z;
+        sol = { psi: Math.atan2(-dz, dx), theta: sh.hoodMin * DEG, v: sh.speedMax, tof: 0, dist: Math.hypot(dx, dz), aim: { x: tgt.x, z: tgt.z }, reach: false };
+      }
       if (sol) {
         this.shot = { ...sol, mode: tgt.mode, target: tgt, exit, lv };
         setpoint = sol.v;
@@ -1095,6 +1106,7 @@ export class Robot {
         const hoodOk = Math.abs(this.hoodDeg - sol.theta / DEG) < 1.5;
         const aimOk = Math.abs(aimErr) < tol;
         ready = pass ? spinOk && this._passLands() : spinOk && hoodOk && aimOk;
+        this.passClear = !pass || this._passLands(0, true);
         status = !spinOk ? 'Spinning up' : !aimOk ? 'Aiming' : !hoodOk ? 'Hood' : 'READY';
         if (tgt.mode === 'pass') status = ready ? 'PASS READY' : 'Pass: ' + status.toLowerCase();
         this.preview = { exit, lv, sol };

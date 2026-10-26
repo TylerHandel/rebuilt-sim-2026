@@ -170,7 +170,9 @@ export class Physical8793 {
     // their ShooterMode doesn't hold it for the flywheel or hood (HOLD_FEED_UNTIL_AT_SPEED is off),
     // so what's still coming up to speed goes as it is; only while the turret is swinging round
     // to its target (more than TURRET_RESET_TOLERANCE_DEG, 10 deg, off) is the feeder off
-    this.feed = on && feeding && setpoint > 0 && Math.abs(r.aimErr ?? 0) < 10 * DEG;
+    // A pass goes whether it'll get there or not (their ShuttleMode doesn't wait either), as long
+    // as it won't drop into a HUB (G407)
+    this.feed = on && feeding && setpoint > 0 && Math.abs(r.aimErr ?? 0) < 10 * DEG && r.passClear !== false;
     this.t.indexer.cmd = this.feed ? (unjam ? -DUTY_INDEXER : DUTY_INDEXER) : on && outtake ? -DUTY_INDEXER : 0;
     // the flywheel: toward the speed the shot wants while there's one to make (it holds that
     // speed a moment after); coasting otherwise (their code)
