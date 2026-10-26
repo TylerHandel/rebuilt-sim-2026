@@ -9,8 +9,9 @@ import { Field } from './field.js';
 import { rand, clamp } from './util.js';
 
 const R = FUEL.radius;
-const NORMAL_GROUPS = groups(GROUP.BALL, GROUP.STATIC | GROUP.TERRAIN | GROUP.BALL | GROUP.ROBOT | GROUP.INTAKE | GROUP.WHEEL);
-const NO_ROBOT_GROUPS = groups(GROUP.BALL, GROUP.STATIC | GROUP.TERRAIN | GROUP.BALL);
+const NORMAL_GROUPS = groups(GROUP.BALL, GROUP.STATIC | GROUP.TERRAIN | GROUP.BALL | GROUP.HELD | GROUP.ROBOT | GROUP.INTAKE | GROUP.WHEEL);
+const NO_ROBOT_GROUPS = groups(GROUP.BALL, GROUP.STATIC | GROUP.TERRAIN | GROUP.BALL | GROUP.HELD);
+const HELD_GROUPS = groups(GROUP.HELD, GROUP.STATIC | GROUP.TERRAIN | GROUP.BALL);
 const IN_ROBOT_QUERY = groups(GROUP.BALL, GROUP.ROBOT);
 const HIDDEN = new THREE.Matrix4().makeScale(0, 0, 0);
 
@@ -55,7 +56,7 @@ export class FuelManager {
         id: i, body, col, state: 'off',
         pos: new THREE.Vector3(0, -10, 0), quat: new THREE.Quaternion(),
         prevVel: { x: 0, y: 0, z: 0 },
-        inFlight: false, launch: null, hubFresh: false, ignoreUntil: 0, ignoring: false, inCorral: null, inHub: null, hubT: 0,
+        inFlight: false, launch: null, hubFresh: false, ignoreUntil: 0, ignoring: false, held: false, inCorral: null, inHub: null, hubT: 0,
       });
     }
   }
@@ -104,6 +105,7 @@ export class FuelManager {
     b.body.setAngvel({ x: 0, y: 0, z: 0 }, false);
     b.body.setRotation({ x: 0, y: 0, z: 0, w: 1 }, false);
     b.col.setCollisionGroups(NORMAL_GROUPS);
+    b.held = false;
     b.ignoring = false;
     b.body.sleep();
     b.pos.set(x, y, z);
@@ -144,12 +146,42 @@ export class FuelManager {
     b.fromOutside = info.fromOutside ? (info.t ?? 0) : null;
     if (info.ignoreRobot) {
       b.col.setCollisionGroups(NO_ROBOT_GROUPS);
+      b.held = false;
       b.ignoring = true;
       b.ignoreUntil = (info.t ?? 0) + info.ignoreRobot;
     } else {
       b.col.setCollisionGroups(NORMAL_GROUPS);
+      b.held = false;
       b.ignoring = false;
     }
+  }
+
+  // A FUEL a robot's physical ball path (js/mech/phys8793.js) has hold of: it stays a body on the
+  // FIELD, moved by that robot's wheels and surfaces, and doesn't hit the robot's own colliders,
+  // nor (the mechanism working that out) the other FUEL it holds (re-asked every step; once it
+  // isn't, unown(): it's solid to FUEL again, and to robots as soon as it's clear of them)
+  own(b, t) {
+    if (!b.held) b.col.setCollisionGroups(HELD_GROUPS);
+    b.held = true;
+    b.ignoring = true;
+    b.ignoreUntil = t + 0.05;
+    b.inFlight = false;
+    b.launch = null;
+    b.hubFresh = false;
+  }
+  unown(b) {
+    if (!b.held) return;
+    b.held = false;
+    b.col.setCollisionGroups(NO_ROBOT_GROUPS);
+  }
+  // ...and one it has just shot out: in flight from where it is, as a launch
+  release(b, info) {
+    this.unown(b);
+    const v = b.body.linvel();
+    b.prevVel = { x: v.x, y: v.y, z: v.z };
+    b.inFlight = true;
+    b.launch = { by: info.by, alliance: info.alliance, legal: info.legal, t: info.t };
+    b.ignoreUntil = (info.t ?? 0) + (info.ignoreRobot ?? 0.35);
   }
 
   // ------------------------------------------------------------------ per physics step
@@ -208,6 +240,7 @@ export class FuelManager {
         if (this._inRobot(p)) b.ignoreUntil = t + 0.1;
         else {
           b.col.setCollisionGroups(NORMAL_GROUPS);
+          b.held = false;
           b.ignoring = false;
         }
       }

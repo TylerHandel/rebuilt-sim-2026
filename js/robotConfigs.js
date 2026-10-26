@@ -293,21 +293,27 @@ export const ROBOTS = {
       drive: 'belt', driveSpeed: 2.2, grip: 80, // compliant wheels grab FUEL hard: single file keeps up with the shooter
       feed: { x: -0.2, reach: 0.1, via: [[-0.19, 0.34], [-0.14, 0.42]] },
     },
+    // built of its physical mechanisms (js/mech/r8793.js, phys8793.js): its FUEL go through its
+    // real rollers, wheels and CAD surfaces, and out of its shooter, instead of the bay above
+    physical: true,
     shooter: {
       type: 'turret',
-      turretPos: { x: -0.127, z: 0.0 }, // 200T turntable (their CAD)
-      exitRadius: 0.14, // over the flywheel, which sits 0.127 m out from the turret axis
-      exitY: 0.49,
-      turretRange: 185, turretRate: 600,
-      bps: 8,
-      hoodMin: 45, hoodMax: 80,
-      speedMax: 15,
+      // 200T turntable (their CAD); its travel is their soft limits, -200 to 270 deg
+      // (TURRET_ROTATOR_MIN/MAX_ANGLE, counterclockwise from straight ahead): 35 +- 235
+      turretPos: { x: -0.127, z: 0.0, center: 35 },
+      // where FUEL leaves its wheels (tools/mechlab.mjs): 0.09 m out from the turret's axis, 0.57 up
+      exitRadius: 0.09,
+      exitY: 0.57,
+      turretRange: 235, turretRate: 600,
+      bps: 7, // (what tools/mechlab.mjs robot measures; the mechanisms set the real rate)
+      hoodMin: 52, hoodMax: 72, // their rack's 18..38 deg (elevation = 90 - rack)
+      speedMax: 9.2, // the fastest its shots were measured leaving (SHOT_TABLE, js/mech/r8793.js)
       spinTau: 0.28,
       shotDrop: 0.007,
       speedSigma: 0.017, angleSigma: 0.9, yawSigma: 0.9,
     },
     climber: null,
-    stats: { 'Shot rate': '8 BPS', Aiming: 'Turret', 'Top speed': '14.8 ft/s', Trench: 'Intake down' },
+    stats: { 'Shot rate': '7 BPS', Aiming: 'Turret', 'Top speed': '14.8 ft/s', Trench: 'Intake down' },
     colors: { frame: 0x1f2126, accent: 0xf07a1a, trim: 0xf07a1a },
   },
   971: {

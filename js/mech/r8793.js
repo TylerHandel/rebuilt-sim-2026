@@ -17,6 +17,7 @@
 // mirrored, with 50 A limits (and 40 A from the supply). Then the turret indexer and the shooter,
 // further down.
 import { IN } from '../constants.js';
+import { BUMPER_T, BUMPER_Y0, BUMPER_Y1 } from '../robotConfigs.js';
 import { Motor, Shaft, Surface, Train, Wheel } from './mechanism.js';
 
 // the gear chains: [name, belt/gear ratio from the shaft before (driver:driven teeth), roller
@@ -163,6 +164,15 @@ export function armWheels({ rollers }) {
     return new Wheel({ name: s.name, shaft: s, center: [px + dx, py + dy, 0], axis: [0, 0, 1], radius: s.diameter / 2, width: 2 * ARM.halfWidth, mu: s.mu });
   });
 }
+// swing armWheels' rollers up by roll (rad) about the pivot: folding up to stow
+export function placeArm(wheels, roll) {
+  const [px, py] = ARM.pivot, c = Math.cos(roll), s = Math.sin(roll);
+  wheels.forEach((w, i) => { const [dx, dy] = ARM.rollers[i]; w.center = [px + dx * c - dy * s, py + dx * s + dy * c, 0]; });
+}
+// Where 8793 holds a preload with its arm stowed (they settle there, tools/mechlab.mjs): two on
+// the indexer's rails, one on the ramp down to them, two on the floor behind the pivot's rollers
+// (in front of those, the rollers' mecanums let a FUEL roll out over the bumper)
+export const PRELOAD = [[-0.06, 0.135, 0], [-0.14, 0.26, 0], [0.066, 0.21, 0], [0.21, 0.255, -0.085], [0.21, 0.255, 0.085]];
 
 // ------------------------------------------------------------------ the turret indexer
 // Under the turntable (their CAD, Turret assembly): a shaft of three 2in 30A flex wheels, 1in
@@ -186,6 +196,8 @@ export function indexerWheels({ ishafts }) {
     for (const z of INDEXER.wheelZ) {
       wheels.push(new Wheel({ name: ishafts[i].name, shaft: ishafts[i], center: [x, y, z], axis: [0, 0, 1], radius: 1 * IN, width: 1 * IN, mu: 1.1, tread: 5000 }));
     }
+    // its bare 1/2in hex shaft, out to the bearings (z -0.19 to 0.09), turning with them
+    wheels.push(new Wheel({ name: `${ishafts[i].name} shaft`, shaft: ishafts[i], center: [x, y, -0.05], axis: [0, 0, 1], radius: 0.29 * IN, width: 0.28, mu: 0.3 }));
   });
   return wheels;
 }
@@ -222,15 +234,37 @@ export function shooterSmallAt(e) {
 }
 // the wheels, in the robot's frame with the turret (axis at turretX) facing yaw (rad, 0 forward)
 export function shooterWheels({ large, small }, e, { turretX = -0.127, yaw = 0, mu = SHOOTER.mu } = {}) {
+  const L = SHOOTER.large;
+  const w = [
+    new Wheel({ name: 'shooter 4in 45A roller', shaft: large, center: [0, 0, 0], axis: [0, 0, 1], radius: L.r, width: 1.5 * IN, mu: mu.roller, tread: 20000 }),
+    new Wheel({ name: 'shooter 2in 80A Stealth', shaft: small, center: [0, 0, 0], axis: [0, 0, 1], radius: SHOOTER.small.r, width: 3 * IN, mu: mu.stealth, tread: 40000 }),
+  ];
+  placeShooter(w, e, yaw, turretX);
+  return w;
+}
+// move shooterWheels' wheels to the turret's yaw and the hood's elevation e (deg)
+export function placeShooter([lw, sw], e, yaw = 0, turretX = -0.127) {
   const c = Math.cos(yaw), s = Math.sin(yaw);
   const at = (x, y, z) => [turretX + x * c + z * s, y, -x * s + z * c];
-  const axis = [s, 0, c];
-  const [sx, sy] = shooterSmallAt(e), L = SHOOTER.large;
-  return [
-    new Wheel({ name: 'shooter 4in 45A roller', shaft: large, center: at(L.x, L.y, 0), axis, radius: L.r, width: 1.5 * IN, mu: mu.roller, tread: 20000 }),
-    new Wheel({ name: 'shooter 2in 80A Stealth', shaft: small, center: at(sx, sy, 0), axis, radius: SHOOTER.small.r, width: 3 * IN, mu: mu.stealth, tread: 40000 }),
-  ];
+  const [sx, sy] = shooterSmallAt(Math.max(SHOOTER.elevation[0], Math.min(SHOOTER.elevation[1], e))), L = SHOOTER.large;
+  lw.center = at(L.x, L.y, 0); sw.center = at(sx, sy, 0);
+  lw.axis = sw.axis = [s, 0, c];
 }
+// What leaves the shooter for a motor speed (rotations/s -> m/s; tools/mechlab.mjs shooter, the
+// average over its elevations), a FUEL fed in slowly (1.5 m/s): the grip runs out past ~80
+// rotations/s
+export const EXIT_TABLE = [[0, 0], [15, 2.07], [20, 2.71], [30, 4.05], [40, 5.16], [50, 6.11], [60, 7.14], [70, 8.04], [80, 8.39], [90, 8.52]];
+const interp = (t, x, i, j) => {
+  for (let k = 1; k < t.length; k++) if (x <= t[k][i]) return t[k - 1][j] + ((t[k][j] - t[k - 1][j]) * (x - t[k - 1][i])) / (t[k][i] - t[k - 1][i]);
+  return t[t.length - 1][j];
+};
+// ...and in play, fed by the direct-drive turret indexer up its ramp, a FUEL comes in faster and
+// leaves faster: the median exit speed (relative to the robot) of 8793's shots in AI matches, at
+// the flywheel speed it was commanded to (so the droop of a stream of shots is in it, as their
+// FlywheelDroopCompensator learns it). Past 80 rotations/s, unmeasured: it stops there.
+export const SHOT_TABLE = [[0, 0], [15, 2.07], [20, 2.71], [30, 4.15], [40, 5.4], [50, 6.29], [60, 7.21], [70, 8.26], [80, 9.21]];
+export const exitSpeed = (rps) => interp(SHOT_TABLE, Math.max(0, rps), 0, 1);
+export const rpsFor = (v) => interp(SHOT_TABLE, Math.max(0, v), 1, 0);
 // their velocity loop (VelocityVoltage: kV x target + kP x error, in volts) toward targetRps,
 // motor rotations per second; returns the duty cycle at battery V
 export function flywheelDuty({ shooter }, targetRps, V = 12) {
@@ -244,7 +278,7 @@ export const codeExitSpeed = (rps) => Math.PI * ((4 * IN + 2 * IN * SHOOTER.smal
 
 // ------------------------------------------------------------------ the ball path's surfaces
 // Everything FUEL can touch between the intake and the shooter, from their CAD itself
-// (tools/path-mesh.py -> cad/robots/8793-path.json: the polycarbonate floor and its ramp down to
+// (tools/path-mesh.py -> js/mech/path8793.js: the polycarbonate floor and its ramp down to
 // the indexer's rails, the rails, the tower's plates, the swerve shields, the arm's side plates,
 // the turntable and the shooter's frame), the wheels the mechanism turns cut out: mechanism
 // Surfaces (soft, through the foam), the turret's turned to yaw (rad; set surfaces.turret.yaw to
@@ -255,5 +289,30 @@ export function pathSurfaces(mesh, { yaw = 0, turretX = -0.127, armPivot = ARM.p
   for (const [k, { v, i }] of Object.entries(mesh)) {
     out[k] = new Surface({ name: `${k} (CAD)`, vertices: v.map((x) => x / 1000), indices: i, mu, pos: pos[k], yaw: k === 'turret' ? yaw : 0 });
   }
+  out.bumper = bumperSurface();
   return out;
+}
+// The front bumper, which FUEL climb over on the way in: its backing board and two 2.5in pool
+// noodles across its face under fabric (mu: fabric on foam, an estimate). 8793's frame: 27.5in.
+export function bumperSurface({ halfL = 13.75 * IN, halfW = 13.75 * IN + BUMPER_T, mu = 0.6 } = {}) {
+  const V = [], I = [];
+  const nr = (BUMPER_Y1 - BUMPER_Y0) / 4, x1 = halfL + BUMPER_T, xn = x1 - nr, n = 16;
+  // the noodles: n-sided tubes along z
+  for (const yc of [BUMPER_Y0 + nr, BUMPER_Y1 - nr]) {
+    const o = V.length / 3;
+    for (let k = 0; k < n; k++) {
+      const a = (2 * Math.PI * k) / n;
+      V.push(xn + nr * Math.cos(a), yc + nr * Math.sin(a), -halfW, xn + nr * Math.cos(a), yc + nr * Math.sin(a), halfW);
+    }
+    for (let k = 0; k < n; k++) {
+      const a = o + 2 * k, b = o + 2 * ((k + 1) % n);
+      I.push(a, b, a + 1, b, b + 1, a + 1);
+    }
+  }
+  // the backing board, behind the noodles: its top and front
+  const o = V.length / 3;
+  V.push(halfL, BUMPER_Y1, -halfW, xn, BUMPER_Y1, -halfW, xn, BUMPER_Y1, halfW, halfL, BUMPER_Y1, halfW);
+  V.push(xn, BUMPER_Y0, -halfW, xn, BUMPER_Y0, halfW);
+  I.push(o, o + 1, o + 2, o, o + 2, o + 3, o + 1, o + 4, o + 5, o + 1, o + 5, o + 2);
+  return new Surface({ name: 'bumper', vertices: V, indices: I, mu });
 }

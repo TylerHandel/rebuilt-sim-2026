@@ -9,14 +9,14 @@
 // stopped), shooter, calibrate (the shooter's grip) and robot (carpet to shot).
 // Env: HZ (steps/s, 120), SUB (contact sub-steps for the quick contacts, 8), SEEDS (12), TRACE
 // (a FUEL's index to follow), STUCK (where the ones left over ended up), BUMPER_MU, IDX_RATIO
-// (the turret indexer's gearing: direct drive).
+// (the turret indexer's gearing: direct drive), TOGETHER=0 (FUEL on FUEL rigid, the world's,
+// instead of foam in the mechanism).
 import { RAPIER } from '../js/physics.js';
-import { FUEL, IN } from '../js/constants.js';
+import { FUEL, IN, GROUP, groups } from '../js/constants.js';
 import { Mechanism, Shaft, Wheel, Motor, foam } from '../js/mech/mechanism.js';
 import { build8793, intake8793, conveyorWheels, armWheels, shooterWheels, shooterSmallAt, flywheelDuty, codeExitSpeed, SHOOTER, INDEXER, DUTY_INDEXER, indexerWheels, pathSurfaces } from '../js/mech/r8793.js';
-import { readFileSync } from 'node:fs';
 if (process.env.IDX_RATIO) INDEXER.ratio = Number(process.env.IDX_RATIO); // (to try other indexer gearing)
-const PATH_MESH = JSON.parse(readFileSync(new URL('../cad/robots/8793-path.json', import.meta.url)));
+import PATH_MESH from '../js/mech/path8793.js';
 import { BUMPER_T, BUMPER_Y0, BUMPER_Y1 } from '../js/robotConfigs.js';
 
 await RAPIER.init();
@@ -28,9 +28,13 @@ function world(g = -9.81) {
   w.integrationParameters.numSolverIterations = 6;
   return w;
 }
+// FUEL on FUEL: the mechanism's to work out (foam, with friction), as in the game; TOGETHER=0: the
+// world's (rigid)
+const TOGETHER = process.env.TOGETHER !== '0';
 function ball(w, x, y, z, v = [0, 0, 0]) {
   const b = w.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setTranslation(x, y, z).setLinvel(...v).setCcdEnabled(true).setAngularDamping(FUEL.angularDamping));
-  w.createCollider(RAPIER.ColliderDesc.ball(R).setMass(FUEL.mass).setFriction(FUEL.friction).setRestitution(FUEL.restitution), b);
+  const c = RAPIER.ColliderDesc.ball(R).setMass(FUEL.mass).setFriction(FUEL.friction).setRestitution(FUEL.restitution);
+  w.createCollider(c, b);
   return b;
 }
 const fixed = (w) => w.createRigidBody(RAPIER.RigidBodyDesc.fixed());
@@ -89,6 +93,13 @@ const tests = {
     const avg = (a) => a.reduce((p, q) => p + q, 0) / (a.length || 1);
     console.log(`8793 carpet to shot (indexer ${INDEXER.ratio}:1): a median ${med(runs.map((r) => r.shots.length))} of ${runs[0].n} shot (${Math.min(...runs.map((r) => r.shots.length))}..${Math.max(...runs.map((r) => r.shots.length))}, ${SEEDS} runs), ` +
       `${med(runs.map((r) => r.shotRate)).toFixed(1)} FUEL/s; out at ${avg(all.map((x) => x.v)).toFixed(2)} m/s, ${avg(all.map((x) => x.el)).toFixed(1)} deg (${all.filter((x) => x.el < 30).length} knocked off instead); the flywheel sagged to ${med(runs.map((r) => r.minRps)).toFixed(0)} rps`);
+  },
+  // where 8793 holds FUEL: intake 12 with the indexer stopped, then stop the rollers too and let
+  // them settle (its preload goes where they end up)
+  slots() {
+    const r = pathRun(1, { turret: true, hold: true, sec: 6 });
+    const pts = r.held.sort((a, b) => a[0] - b[0]);
+    console.log(`8793 holds ${pts.length} with the indexer stopped: [${pts.map((p) => `[${p.map((v) => v.toFixed(3)).join(', ')}]`).join(', ')}]`);
   },
   // 8793's drive chains (js/mech/r8793.js): each roller's speed with the motors at full, free
   r8793() {
@@ -262,7 +273,7 @@ function funnelRun(variant, rnd) {
 // the intake takes them over the bumper, the conveyor down to single file; with the turret, the
 // indexer's rails and wheels carry them up the turret's axis to the shooter (at elevation e, the
 // flywheel held at target motor rotations/s, the indexer on throughout)
-function pathRun(seed, { vertical = true, turret = false, e = 60, target = 60, nBalls = 12, sec = 5, yaw = 0 } = {}) {
+function pathRun(seed, { vertical = true, turret = false, e = 60, target = 60, nBalls = 12, sec = 5, yaw = 0, hold = false } = {}) {
   let sd = seed;
   const rnd = () => ((sd = (sd * 16807) % 2147483647) / 2147483647 - 0.5);
   const w = world();
@@ -294,15 +305,16 @@ function pathRun(seed, { vertical = true, turret = false, e = 60, target = 60, n
   }
   const control = () => {
     intake8793(trains, true, { verticalRollers: vertical });
-    if (turret) { trains.indexer.cmd = DUTY_INDEXER; trains.shooter.cmd = flywheelDuty(trains, target); }
+    if (turret) { trains.indexer.cmd = hold ? 0 : DUTY_INDEXER; trains.shooter.cmd = hold ? 0 : flywheelDuty(trains, target); }
   };
-  const step = (balls) => { control(); for (const m of mechs) m.step(DT, balls); w.step(); };
+  const step = (balls) => { control(); for (const m of mechs) m.step(DT, balls, m === mech && TOGETHER ? balls : null); w.step(); };
   for (let i = 0; i < 1 / DT; i++) step([]); // spin up
   const free = Math.abs(trains.horizontal.omega);
   const balls = [];
   for (let i = 0; i < nBalls; i++) {
     const x = 0.68 + 0.17 * Math.floor(i / 3) + 0.02 * rnd(), z = (i % 3 - 1) * 0.17 + 0.02 * rnd();
     balls.push(ball(w, x, R + 0.003, z, [-1, 0, 0]));
+    if (TOGETHER) balls.at(-1).collider(0).setCollisionGroups(groups(GROUP.HELD, 0xffff & ~GROUP.HELD));
   }
   const past = new Map(), shots = [], touched = new Set(), gone = new Set();
   let peakI = 0, minW = free, minRps = target;
@@ -337,7 +349,8 @@ function pathRun(seed, { vertical = true, turret = false, e = 60, target = 60, n
   const res = { n: balls.length, through: past.size, first: times[0] ?? NaN, last: times[times.length - 1] ?? NaN,
     rate: times.length > 1 ? (times.length - 1) / (times[times.length - 1] - times[0]) : 0, peakI, minSpeed: (100 * minW) / free,
     stuck: xs.length ? `${xs.length} at ${Math.min(...xs).toFixed(2)}..${Math.max(...xs).toFixed(2)}` : '',
-    shots, shotRate: shots.length > 1 ? (shots.length - 1) / (shots[shots.length - 1].t - shots[0].t) : 0, minRps };
+    shots, shotRate: shots.length > 1 ? (shots.length - 1) / (shots[shots.length - 1].t - shots[0].t) : 0, minRps,
+    held: balls.map((b) => b.translation()).filter((p) => p.x < 0.35 && p.y > 0.05 && p.y < 0.7).map((p) => [p.x, p.y, p.z]) };
   w.free();
   return res;
 }

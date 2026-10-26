@@ -10,6 +10,7 @@ import { ShotTable, solveMovingShot, trajectoryPoints } from './ballistics.js';
 import { Field } from './field.js';
 import { TRENCH_ARMS, underTrench } from './nav.js';
 import { Drivetrain, SwerveDrive } from './drivetrain.js';
+import { Physical8793 } from './mech/phys8793.js';
 import { clamp, wrapAngle, approach, approachAngle, gauss, DEG, rand } from './util.js';
 
 const WHEEL_R = 0.05;
@@ -105,6 +106,9 @@ export class Robot {
       g.extended = real;
     }
     this._createBody();
+    // a robot built of its physical mechanisms (8793's, js/mech/phys8793.js): its FUEL stay bodies
+    // moved by its rollers and wheels, instead of the Hopper's held FUEL
+    this.phys = cfg.physical ? new Physical8793(this) : null;
     this.reset();
   }
 
@@ -254,6 +258,7 @@ export class Robot {
 
   reset() {
     this.stored = [];
+    if (this.phys) this.phys.reset();
     this.hopper.clear();
     this.captured = [];
     this.lastT = 0;
@@ -350,11 +355,12 @@ export class Robot {
   // how much FUEL fits right now: what the modeled hopper holds (measured from its geometry),
   // up to the team's own number where it's known, more once an extending hopper is out
   capacity() {
+    if (this.phys) return this.phys.capacity();
     const g = this.geoCap;
     return Math.floor(g.retracted + (g.extended - g.retracted) * this.hopperDeploy + 1e-6);
   }
 
-  maxCapacity() { return this.geoCap.extended; }
+  maxCapacity() { return this.phys ? this.phys.capacity() : this.geoCap.extended; }
 
   // how far forward the retracting intake arm reaches into the hopper (its roller), at a deploy
   // fraction; a compacting intake only sweeps FUEL back as far as intake.compactMin. While the
@@ -384,6 +390,7 @@ export class Robot {
 
   // preloaded FUEL, dropped loosely into the hopper
   loadFuel(balls) {
+    if (this.phys) { this.phys.load(balls); return; }
     this.hopper.front = this.bayFront();
     for (const b of balls) { this.fuel.toRobot(b); this.stored.push(b); }
     this.hopper.fill(balls);
@@ -473,6 +480,7 @@ export class Robot {
     const q = this.body.rotation();
     const yaw = Math.atan2(2 * (q.w * q.y + q.x * q.z), 1 - 2 * (q.y * q.y + q.z * q.z));
     this.swerve.step(this.body, yaw, tvx, tvz, tw, down, dt);
+    if (this.phys) this.phys.preStep(dt, this.lastT);
     this._guideCaptured(dt);
   }
 
@@ -591,9 +599,29 @@ export class Robot {
 
     const on = this.enabled && this.climbState === 'none';
     this.lastT = t;
-    this._intake(dt, t, on);
+    if (this.phys) this._intakePhys(dt, on); else this._intake(dt, t, on);
     this._shooter(dt, t, on);
     this._stepHopper(dt);
+    if (this.phys) {
+      this.phys.postStep(dt, t, {
+        on, feeding: on && (this.cmd.shoot || this.cmd.pass),
+        outtake: on && this.cmd.outtake, setpoint: this.shotSetpoint, mode: this.shot ? this.shot.mode : this.lastMode,
+      });
+      this.full = this.stored.length >= this.capacity();
+    }
+  }
+
+  // A physical robot's intake (8793's): only the arm going down and up. What it takes in, its
+  // rollers do (js/mech/phys8793.js). It stays down while FUEL is up on it.
+  _intakePhys(dt, on) {
+    const ic = this.cfg.intake;
+    let want = on && (this.cmd.intake || this.cmd.lower || this.cmd.outtake);
+    if (ic.latched && this.intakeDeploy >= 1) want = true;
+    if (this.forceDeploy) want = true;
+    if (this.stored.some((b) => this.worldToLocal(b.pos.x, b.pos.z).x > this.cfg.frame.length / 2)) want = true;
+    this.intakeDeploy = approach(this.intakeDeploy, want ? 1 : 0, dt / (want ? ic.deployTime : ic.retractTime ?? ic.deployTime));
+    this.pivotLoad = 0;
+    this.pivotMoving = false;
   }
 
   // TRENCH arms near the robot, as oriented boxes in its frame, for the FUEL it holds
@@ -1057,6 +1085,7 @@ export class Robot {
           aimErr = wrapAngle(sol.psi - (this.yaw + this.turretYaw));
         }
         this._lastPsi = sol.psi;
+        this.aimErr = aimErr;
         // a pass (shuttling FUEL back) doesn't have to be perfect: instead of waiting for a clean
         // shot at the aim point, it goes as soon as, with the flywheel, hood and heading as they
         // are right now, the FUEL would come down on our half of the FIELD (clear of the walls)
@@ -1082,10 +1111,13 @@ export class Robot {
       this.hoodDeg = approach(this.hoodDeg, sh.hood.stowDeg, 260 * dt);
     }
     if (!on) status = this.enabled ? status : 'Disabled';
-    if (!twin) this._flywheelStep(dt, t, on, setpoint);
+    this.shotSetpoint = setpoint;
+    if (!twin && !this.phys) this._flywheelStep(dt, t, on, setpoint);
 
-    // feed
-    if (twin) {
+    // feed (a physical robot's indexer feeds itself: js/mech/phys8793.js)
+    if (this.phys) {
+      // nothing here
+    } else if (twin) {
       // twin turrets: each has its own feed and fires at its share of the robot's rate (bps is
       // both together), and only while it's on target: one turret alone fires at half the rate
       const per = this.tws.length / sh.bps;

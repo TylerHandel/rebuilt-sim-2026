@@ -218,6 +218,8 @@ export const GROUP = {
   ROBOT_BARRIER: 0x0010, // invisible, blocks robots only
   INTAKE: 0x0020,        // deployed intake bar: hits FUEL and walls, rides over TERRAIN
   TERRAIN: 0x0040,       // low floor features (BUMPS, DEPOT barriers, TOWER BASE)
+  HELD: 0x0080,          // FUEL in a physical robot's ball path: their touching each other is its
+                         // mechanism's to work out (foam on foam), not the world's
 };
 export const groups = (member, filter) => ((member & 0xffff) << 16) | (filter & 0xffff);
 

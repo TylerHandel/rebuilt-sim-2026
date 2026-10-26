@@ -14,8 +14,8 @@ export class Physics {
     this.world.timestep = PHYSICS_DT;
     this.world.integrationParameters.numSolverIterations = 6;
     this.fixedBody = this.world.createRigidBody(RAPIER.RigidBodyDesc.fixed());
-    this.staticGroups = groups(GROUP.STATIC, GROUP.BALL | GROUP.ROBOT | GROUP.WHEEL | GROUP.INTAKE);
-    this.terrainGroups = groups(GROUP.TERRAIN, GROUP.BALL | GROUP.ROBOT | GROUP.WHEEL);
+    this.staticGroups = groups(GROUP.STATIC, GROUP.BALL | GROUP.HELD | GROUP.ROBOT | GROUP.WHEEL | GROUP.INTAKE);
+    this.terrainGroups = groups(GROUP.TERRAIN, GROUP.BALL | GROUP.HELD | GROUP.ROBOT | GROUP.WHEEL);
   }
 
   step() {
