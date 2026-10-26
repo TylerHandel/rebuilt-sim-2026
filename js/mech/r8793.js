@@ -17,7 +17,7 @@
 // mirrored, with 50 A limits (and 40 A from the supply). Then the turret indexer and the shooter,
 // further down.
 import { IN } from '../constants.js';
-import { Motor, Shaft, Train, Wheel } from './mechanism.js';
+import { Motor, Shaft, Surface, Train, Wheel } from './mechanism.js';
 
 // the gear chains: [name, belt/gear ratio from the shaft before (driver:driven teeth), roller
 // diameter (m), friction against FUEL, what's on it]. Conveyor 3 is the intake's pivot shaft (it's
@@ -34,6 +34,16 @@ export const HORIZONTAL = [
 ];
 // beside conveyor 2, at the side walls: one 4in omni wheel, and 4in 45A compliant wheels
 export const VERTICAL = { ratio: [[1, 5], [28, 18], [1, 1]], diameter: 4 * IN };
+// At the neck, where the conveyor's floor ramps down to the turret indexer's rails and FUEL
+// go single file (their CAD, Conveyor V2): a vertical-axis omni wheel each side, a 5in on the left
+// and a 3in on the right, their faces 0.08 m from the middle, each belted from the vertical
+// roller on its side (18t:18t on the left, 18t:28t on the right), so the two faces run at very
+// different speeds and turn a pair of FUEL arriving abreast instead of wedging them.
+export const NECK = {
+  x: 0.065, y: 0.237,
+  left: { z: -0.122, d: 5 * IN, belt: [18, 18] },
+  right: { z: 0.119, d: 3 * IN, belt: [18, 28] },
+};
 // what their code commands while intaking (duty cycle)
 export const DUTY = { rollers: 0.95, vertical: 0.95 * 0.9244 };
 
@@ -54,12 +64,15 @@ export function build8793() {
     const t = new Train({ name: `vertical roller, ${side}`, motor: new Motor('krakenX44', { statorLimit: 50, supplyLimit: 40 }) });
     const s = t.add(new Shaft({ name: `vertical roller, ${side}`, inertia: 1e-4 }), vk);
     s.diameter = VERTICAL.diameter;
+    // and belted to it, the omni wheel at the neck on that side
+    const nk = NECK[side];
+    s.neck = t.add(new Shaft({ name: `neck ${nk.d / IN}in omni, ${side}`, inertia: 6e-5 }), vk * nk.belt[0] / nk.belt[1]);
+    s.neck.diameter = nk.d;
     return [t, s];
   });
-  // the turret indexer: the front shaft off the gearbox, the rear one belted to it turning the
-  // other way (a positive command: the front wheels' bottoms run rearward)
+  // the turret indexer (a positive command: the wheels' bottoms run rearward)
   const indexer = new Train({ name: 'turret indexer', motor: new Motor('krakenX60', { ratio: INDEXER.ratio, statorLimit: 60, supplyLimit: 40 }) });
-  const ishafts = INDEXER.shafts.map(([x], i) => indexer.add(new Shaft({ name: `turret indexer, ${i ? 'rear' : 'front'}`, inertia: 4e-5 }), i ? 1 : -1));
+  const ishafts = [indexer.add(new Shaft({ name: 'turret indexer', inertia: 4e-5 }), -1)];
   // the shooter: the 4in wheels and, geared to them, the 2in wheels over them turning the other way
   // (a positive command turns the 4in wheels so FUEL leave over them)
   const shooter = new Train({ name: 'shooter', motor: new Motor('krakenX60', { statorLimit: 160, supplyLimit: 60 }) });
@@ -76,39 +89,23 @@ export function intake8793({ horizontal, vertical }, on = true, { verticalRoller
 
 // ------------------------------------------------------------------ the conveyor's layout
 // Robot frame (x forward, y up, z to the robot's right). From their CAD: the shafts' x and
-// height (conveyor 1 x 0.122 y 0.315, conveyor 2 x 0.217 y 0.34, the pivot x 0.292 y 0.336), the
-// vertical rollers at x 0.217, 0.24 m each side, centered 0.241 up, and the channel from the
-// hopper model (bay.taper): full width (±0.31) at the pivot, narrowing from x 0.23 to ±0.165 at
-// x 0.17 and to one FUEL (±0.087) at x 0.03. FUEL go under the rollers, which press them onto a
-// floor; the floor is set so each roller squeezes a FUEL about SQUEEZE (to check against the
-// robot). The mecanums are spread evenly across each shaft's width of the channel, each
-// handed so it pushes the way the team says: conveyor 1 a compliant wheel between two mecanums
-// each side, all pushing to the middle; conveyor 2 four and four pushing to the middle; the
-// pivot twelve, the four on the robot's right pushing left and the eight on its left pushing
-// right. Vertical rollers: the omni wheel on the robot's left, the compliant (45A) on its right,
-// their inner faces running rearward.
-export const SQUEEZE = 0.3 * IN;
+// height (conveyor 1 x 0.122 y 0.315, conveyor 2 x 0.217 y 0.34, the pivot x 0.292 y 0.336) over
+// the polycarbonate floor (0.183 up, ramping down at x 0.153 to the indexer's rails: it's one of
+// the CAD surfaces, pathSurfaces below), and the vertical rollers at x 0.217, 0.24 m each side,
+// centered 0.241 up. The mecanums sit as the team says: conveyor 1's five wheels where the CAD has
+// them (a compliant wheel in the middle, two mecanums each side, all pushing to the middle),
+// conveyor 2's eight and the pivot's twelve spread evenly across the shaft's width (estimates):
+// conveyor 2 four and four pushing to the middle, the pivot the four on the robot's right pushing
+// left and the eight on its left pushing right. Vertical rollers: the omni wheel on the robot's
+// left, the compliant (45A) on its right, their inner faces running rearward.
 export const CONVEYOR = {
-  shafts: [ // [roller index in HORIZONTAL, x, y, half width of the channel there]
-    [0, 0.122, 0.315, 0.138],
+  shafts: [ // [roller index in HORIZONTAL, x, y, the wheels' z (or the half width they spread over)]
+    [0, 0.122, 0.315, [-0.077, -0.039, -0.001, 0.037, 0.075]],
     [1, 0.217, 0.34, 0.28],
     [2, 0.292, 0.336, 0.31],
   ],
-  taper: [[0.45, 0.31], [0.23, 0.31], [0.17, 0.165], [0.03, 0.087], [-0.15, 0.087]],
   vertical: { x: 0.217, y: 0.241, z: 0.24 },
 };
-const R_FUEL = (5.91 * IN) / 2;
-// the floor's height at x: SQUEEZE under each roller, straight between, dropping after conveyor 1
-// to the turret's pickup (the hopper model's floor)
-export function conveyorFloor(x) {
-  const pts = CONVEYOR.shafts.map(([, sx, sy]) => [sx, sy - IN - 2 * R_FUEL + SQUEEZE]).sort((a, b) => a[0] - b[0]);
-  const all = [[-0.15, 0.045], [0.03, 0.06], ...pts, [0.45, pts[pts.length - 1][1]]];
-  for (let i = 0; i + 1 < all.length; i++) {
-    const [x0, y0] = all[i], [x1, y1] = all[i + 1];
-    if (x <= x1) return y0 + ((y1 - y0) * Math.max(0, x - x0)) / (x1 - x0);
-  }
-  return all[all.length - 1][1];
-}
 
 // the wheels, on the trains from build8793() (the horizontal train turning so the rollers' bottoms
 // run rearward: its speed is negative)
@@ -118,12 +115,12 @@ export function conveyorWheels({ rollers, vshafts }) {
   // a mecanum's hand: a FUEL under it is pushed toward dz (+1: the robot's right) while the shaft
   // turns at sign s (contact below the axle: grip direction c t1 + s t2, t1 = rearward/forward)
   const hand = (dz, s = -1) => 45 * Math.sign(dz * s);
-  const spread = (n, hw) => Array.from({ length: n }, (_, i) => -hw + w / 2 + ((2 * hw - w) * i) / (n - 1));
+  const spread = (n, hw) => (Array.isArray(hw) ? hw : Array.from({ length: n }, (_, i) => -hw + w / 2 + ((2 * hw - w) * i) / (n - 1)));
   for (const [ri, x, y, hw] of CONVEYOR.shafts) {
     const s = rollers[ri], base = { shaft: s, axis: [0, 0, 1], radius: s.diameter / 2, width: w, mu: s.mu };
     const at = (z) => [x, y, z];
     // the bare 1/2in hex shaft between the wheels (FUEL can't pass up through it)
-    wheels.push(new Wheel({ shaft: s, name: `${s.name} shaft`, center: at(0), axis: [0, 0, 1], radius: 0.29 * IN, width: 2 * hw, mu: 0.3 }));
+    wheels.push(new Wheel({ shaft: s, name: `${s.name} shaft`, center: at(0), axis: [0, 0, 1], radius: 0.29 * IN, width: 0.62, mu: 0.3 }));
     if (ri === 0) {
       // compliant in the middle, two mecanums each side, all pushing to the middle
       spread(5, hw).forEach((z, i) => wheels.push(i === 2
@@ -141,6 +138,10 @@ export function conveyorWheels({ rollers, vshafts }) {
   for (const dy of [-0.6 * IN, 0.6 * IN]) {
     wheels.push(new Wheel({ shaft: vl, name: 'vertical omni', kind: 'omni', center: [v.x, v.y + dy, -v.z], axis: [0, -1, 0], radius: r, width: w, mu: 1.0 }));
     wheels.push(new Wheel({ shaft: vr, name: 'vertical compliant 45A', center: [v.x, v.y + dy, v.z], axis: [0, 1, 0], radius: r, width: w, mu: 1.1, tread: 12000 }));
+  }
+  for (const [i, side] of [[0, 'left'], [1, 'right']]) {
+    const nk = NECK[side], sh = vshafts[i].neck;
+    wheels.push(new Wheel({ shaft: sh, name: sh.name, kind: 'omni', center: [NECK.x, NECK.y, nk.z], axis: [0, side === 'left' ? -1 : 1, 0], radius: nk.d / 2, width: w, mu: 1.0 }));
   }
   return wheels;
 }
@@ -164,24 +165,19 @@ export function armWheels({ rollers }) {
 }
 
 // ------------------------------------------------------------------ the turret indexer
-// Under the turntable (their CAD, Turret assembly): two shafts of three 2in 30A flex wheels,
-// 1in wide, at x -0.039 and -0.215, 0.226 up, straddling the turret's axis (x -0.127). A Kraken
-// X60 (CAN 28, 60 A stator, 40 A supply) drives the front one through a MAXPlanetary 3:1 x 3:1
-// and a MAX 90-degree gearbox; an 18t:18t belt takes it to the rear one. Their code runs it at
-// 65% duty while shooting (TurretConstants.TURRET_INDEXER_SPEED). Single file off the conveyor,
-// FUEL ride a pair of roller rails (two plates 0.108 m apart, a FUEL's width less a bit, so a
-// FUEL sits in them 0.055 m over their edges), flat under the front wheels, then up a ramp to
-// the rear shaft (the rails hang from it). The front wheels push FUEL back along the rails and up
-// the ramp into the gap between the two shafts, 2.5 cm narrower than a FUEL, where both wheels'
-// faces run up (so the shafts must turn opposite ways: the belt is routed to reverse it) and
-// squeeze it straight up the turret's axis into the shooter.
+// Under the turntable (their CAD, Turret assembly): a shaft of three 2in 30A flex wheels, 1in
+// wide, at x -0.039, 0.226 up. A Kraken X60 (CAN 28, 60 A stator, 40 A supply) turns it through a
+// MAXPlanetary 3:1 x 3:1 and a MAX 90-degree gearbox; their code runs it at 65% duty while
+// shooting (TurretConstants.TURRET_INDEXER_SPEED). (The CAD's second shaft of flex wheels behind
+// the turret's axis was a concept, never built.) Single file off the conveyor, FUEL ride a pair of
+// roller rails (two plates 0.108 m apart, a FUEL's width less a bit, so a FUEL sits in them
+// 0.055 m over their edges), flat under the wheels, then up a ramp behind them: the wheels push
+// FUEL back along the rails and up the ramp, and nothing but their own momentum carries them on
+// up through the turntable until the shooter's wheels catch them. (The rails are CAD surfaces.)
 export const INDEXER = {
   ratio: 9,
-  shafts: [[-0.039, 0.226], [-0.215, 0.226]],
+  shafts: [[-0.039, 0.226]],
   wheelZ: [-0.025, 0.001, 0.026],
-  // the rails' top edge (x, y), from the conveyor's end back up the ramp to the rear shaft
-  rail: [[0.03, 0.083], [-0.06, 0.083], [-0.08, 0.087], [-0.1, 0.095], [-0.12, 0.106], [-0.14, 0.121], [-0.16, 0.139], [-0.17, 0.159], [-0.18, 0.18], [-0.19, 0.2]],
-  railZ: 0.054, railT: 0.006,
 };
 export const DUTY_INDEXER = 0.65;
 export function indexerWheels({ ishafts }) {
@@ -196,25 +192,28 @@ export function indexerWheels({ ishafts }) {
 
 // ------------------------------------------------------------------ the shooter
 // On the turret (their CAD, Shooter assembly; turret frame: x along the shot, from the turret's
-// axis): a 4in 45A solid roller wheel between two SDS 4in flywheels on one shaft, 0.127 m out from
-// the axis and 0.411 m up, and three 2in 80A Stealth wheels on a shaft 0.203 m from it, geared
-// to it through 28t:28t spur gears so they turn the other way. A FUEL coming up the turret's axis
-// is caught between them (0.9in narrower than a FUEL) and leaves square to the line between their
-// centers: the rack (the "hood") swings the 2in wheels around the 4in ones to set the launch
+// axis): a 4in 45A solid roller wheel on a shaft 0.127 m out from the axis and 0.411 m up, with a
+// flywheel half an SDS 4in flywheel's (the team; the CAD shows two whole ones), and three 2in 80A
+// Stealth wheels on a shaft 0.203 m from it, geared to it through 28t:28t spur gears so they turn
+// the other way. A FUEL coming up through the turntable is caught by the 4in wheel, carried
+// between them (0.9in narrower than a FUEL) and leaves square to the line between their centers: the rack (the "hood") swings the 2in wheels around the 4in ones to set the launch
 // elevation (their code: rack 18..38 deg, elevation = 90 - rack). From their code
 // (ShooterConstants): one Kraken X60 (CAN 27; 160 A stator, 60 A supply), 28:18 to the 4in
-// wheels, the 2in wheels at 18/28 of the 4in wheels' speed (so FUEL leave with backspin), the
-// 4in shaft's inertia 0.0013 kg·m² (their placeholder); velocity control in volts, kV 0.125 and
-// kP 0.4 per motor rotation/s, up to 90 rotations/s.
+// wheels, the 2in wheels at 18/28 of the 4in wheels' speed (so FUEL leave with backspin);
+// velocity control in volts, kV 0.125 and kP 0.4 per motor rotation/s, up to 90 rotations/s. The
+// 4in shaft's inertia: half the SDS flywheel's 0.00117 kg·m² (Onshape's mass properties: 0.70 kg),
+// the 4in solid roller wheel (~0.3 kg, ~0.00035) and the shaft and pulleys.
 export const SHOOTER = {
-  ratio: 28 / 18, smallPerLarge: 18 / 28, moi: 0.0013,
+  ratio: 28 / 18, smallPerLarge: 18 / 28, moi: 0.00097,
   large: { x: 0.127, y: 0.411, r: 2 * IN }, small: { r: 1 * IN, d: 0.203 },
   elevation: [52, 72],
   kV: 0.125, kP: 0.4, maxRps: 90,
   // friction against FUEL, set so that their old gearing (both shafts at the motor's speed)
-  // shoots the ~0.205 m/s per motor rotation/s their code says they measured with it
-  // (tools/mechlab.mjs shooter)
-  mu: { roller: 1.4, flywheel: 1.4, stealth: 1.4 },
+  // comes near the ~0.205 m/s per motor rotation/s their code says they measured with it (it
+  // can't be the 28:18 gearing's: that'd be half again the wheels' mean surface speed). Past 1.7
+  // the FUEL no longer slips and it levels off at ~0.19, the flywheel's sag taking the rest
+  // (tools/mechlab.mjs calibrate)
+  mu: { roller: 1.7, stealth: 1.7 },
 };
 // the 2in shaft's center, turret frame, at launch elevation e (deg)
 export function shooterSmallAt(e) {
@@ -229,7 +228,6 @@ export function shooterWheels({ large, small }, e, { turretX = -0.127, yaw = 0, 
   const [sx, sy] = shooterSmallAt(e), L = SHOOTER.large;
   return [
     new Wheel({ name: 'shooter 4in 45A roller', shaft: large, center: at(L.x, L.y, 0), axis, radius: L.r, width: 1.5 * IN, mu: mu.roller, tread: 20000 }),
-    ...[-1, 1].map((sg) => new Wheel({ name: 'shooter SDS 4in flywheel', shaft: large, center: at(L.x, L.y, sg * 0.038), axis, radius: L.r, width: 0.75 * IN, mu: mu.flywheel })),
     new Wheel({ name: 'shooter 2in 80A Stealth', shaft: small, center: at(sx, sy, 0), axis, radius: SHOOTER.small.r, width: 3 * IN, mu: mu.stealth, tread: 40000 }),
   ];
 }
@@ -243,3 +241,19 @@ export function flywheelDuty({ shooter }, targetRps, V = 12) {
 // the exit speed their aim solver assumes for a motor speed (m/s): the two wheels' surface
 // speeds averaged (FLYWHEEL_EFFECTIVE_DIAMETER_METERS)
 export const codeExitSpeed = (rps) => Math.PI * ((4 * IN + 2 * IN * SHOOTER.smallPerLarge) / 2 / SHOOTER.ratio) * rps;
+
+// ------------------------------------------------------------------ the ball path's surfaces
+// Everything FUEL can touch between the intake and the shooter, from their CAD itself
+// (tools/path-mesh.py -> cad/robots/8793-path.json: the polycarbonate floor and its ramp down to
+// the indexer's rails, the rails, the tower's plates, the swerve shields, the arm's side plates,
+// the turntable and the shooter's frame), the wheels the mechanism turns cut out: mechanism
+// Surfaces (soft, through the foam), the turret's turned to yaw (rad; set surfaces.turret.yaw to
+// turn it later).
+export function pathSurfaces(mesh, { yaw = 0, turretX = -0.127, armPivot = ARM.pivot, mu = 0.3 } = {}) {
+  const pos = { body: [0, 0, 0], arm: [armPivot[0], armPivot[1], 0], turret: [turretX, 0, 0] };
+  const out = {};
+  for (const [k, { v, i }] of Object.entries(mesh)) {
+    out[k] = new Surface({ name: `${k} (CAD)`, vertices: v.map((x) => x / 1000), indices: i, mu, pos: pos[k], yaw: k === 'turret' ? yaw : 0 });
+  }
+  return out;
+}

@@ -22,6 +22,9 @@
 //   - Omni and mecanum wheels (a heuristic for their little rollers): they grip only along one
 //     direction in the contact plane (an omni wheel along its rim, a mecanum wheel at its rollers'
 //     45 degrees) and roll freely across it (a little rolling friction).
+//   - Surfaces: the fixed parts FUEL touch (floors, rails, plates, from the team's CAD as triangle
+//     meshes) push through the same foam and friction, so a FUEL squeezes past a tight spot the
+//     way a foam ball does instead of jamming like a rigid one.
 import { FUEL } from '../constants.js';
 import { MOTORS } from '../drivetrain.js';
 
@@ -158,11 +161,97 @@ const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
 const len = (a) => Math.hypot(a[0], a[1], a[2]);
 const norm = (a) => { const l = len(a) || 1; return [a[0] / l, a[1] / l, a[2] / l]; };
+// rotate v by the inverse of unit quaternion q
+const qrotInv = (q, v) => qrot({ x: -q.x, y: -q.y, z: -q.z, w: q.w }, v);
 // rotate v by unit quaternion q
 function qrot(q, v) {
   const u = [q.x, q.y, q.z], s = q.w;
   const t = mul(cross(u, v), 2);
   return add(add(v, mul(t, s)), cross(u, t));
+}
+
+// a fixed surface's stand-in for a shaft: it doesn't turn and takes any impulse
+const FIXED = { omega: 0, J: Infinity, impulse() {} };
+
+// A fixed surface FUEL can touch: a triangle mesh (vertices: flat [x, y, z, ...] in m, indices:
+// flat triangles), placed on the frame at pos turned yaw (rad) about the vertical (both can
+// change: a turret's), with friction mu against FUEL. Hard: the foam does all the giving.
+export class Surface {
+  constructor({ name = '', vertices, indices, mu = 0.3, pos = [0, 0, 0], yaw = 0, cell = 0.04 }) {
+    Object.assign(this, { name, mu, pos, yaw, cell, kind: 'plain', tread: Infinity, shaft: FIXED });
+    const n = indices.length / 3;
+    this.tri = new Float64Array(n * 9);
+    for (let t = 0; t < n; t++) for (let k = 0; k < 3; k++) for (let j = 0; j < 3; j++) this.tri[t * 9 + k * 3 + j] = vertices[indices[t * 3 + k] * 3 + j];
+    // a grid of cells, each listing the triangles whose bounds reach into it
+    this.grid = new Map();
+    const T = this.tri, key = (i, j, k) => ((i + 512) * 1024 + (j + 512)) * 1024 + (k + 512);
+    for (let t = 0; t < n; t++) {
+      const lo = [0, 1, 2].map((j) => Math.floor(Math.min(T[t * 9 + j], T[t * 9 + 3 + j], T[t * 9 + 6 + j]) / cell));
+      const hi = [0, 1, 2].map((j) => Math.floor(Math.max(T[t * 9 + j], T[t * 9 + 3 + j], T[t * 9 + 6 + j]) / cell));
+      for (let i = lo[0]; i <= hi[0]; i++) for (let j = lo[1]; j <= hi[1]; j++) for (let k = lo[2]; k <= hi[2]; k++) {
+        const c = key(i, j, k);
+        let l = this.grid.get(c);
+        if (!l) this.grid.set(c, (l = []));
+        l.push(t);
+      }
+    }
+    this.key = key;
+    this.stamp = new Uint32Array(n);
+    this.mark = 0;
+  }
+  // a point in the frame -> the surface's own coordinates, and back for a direction
+  toLocal(p) {
+    const d = sub(p, this.pos), c = Math.cos(this.yaw), s = Math.sin(this.yaw);
+    return [d[0] * c - d[2] * s, d[1], d[0] * s + d[2] * c];
+  }
+  dirToFrame(v) {
+    const c = Math.cos(this.yaw), s = Math.sin(this.yaw);
+    return [v[0] * c + v[2] * s, v[1], -v[0] * s + v[2] * c];
+  }
+  // where a FUEL at p (the surface's coordinates) touches it: [{ depth, n (out of the surface,
+  // toward the FUEL) }], one per face it's against (neighboring triangles of one face, and a thin
+  // plate's far side, merged into the deepest)
+  touches(p) {
+    const r = R, cell = this.cell, T = this.tri;
+    const lo = p.map((v) => Math.floor((v - r) / cell)), hi = p.map((v) => Math.floor((v + r) / cell));
+    if (++this.mark === 0xffffffff) { this.stamp.fill(0); this.mark = 1; }
+    const found = [];
+    for (let i = lo[0]; i <= hi[0]; i++) for (let j = lo[1]; j <= hi[1]; j++) for (let k = lo[2]; k <= hi[2]; k++) {
+      const l = this.grid.get(this.key(i, j, k));
+      if (!l) continue;
+      for (const t of l) {
+        if (this.stamp[t] === this.mark) continue;
+        this.stamp[t] = this.mark;
+        const q = closestOnTri(p, T, t * 9);
+        const d = sub(p, q), dl = len(d);
+        if (dl >= r || dl < 1e-9) continue;
+        found.push({ depth: r - dl, n: mul(d, 1 / dl) });
+      }
+    }
+    found.sort((a, b) => b.depth - a.depth);
+    const out = [];
+    for (const f of found) if (!out.some((o) => dot(o.n, f.n) > 0.9)) out.push(f);
+    return out;
+  }
+}
+// the point of triangle t (at T[o..o+8]) nearest p (Ericson, Real-Time Collision Detection 5.1.5)
+function closestOnTri(p, T, o) {
+  const a = [T[o], T[o + 1], T[o + 2]], b = [T[o + 3], T[o + 4], T[o + 5]], c = [T[o + 6], T[o + 7], T[o + 8]];
+  const ab = sub(b, a), ac = sub(c, a), ap = sub(p, a);
+  const d1 = dot(ab, ap), d2 = dot(ac, ap);
+  if (d1 <= 0 && d2 <= 0) return a;
+  const bp = sub(p, b), d3 = dot(ab, bp), d4 = dot(ac, bp);
+  if (d3 >= 0 && d4 <= d3) return b;
+  const vc = d1 * d4 - d3 * d2;
+  if (vc <= 0 && d1 >= 0 && d3 <= 0) return add(a, mul(ab, d1 / (d1 - d3)));
+  const cp = sub(p, c), d5 = dot(ab, cp), d6 = dot(ac, cp);
+  if (d6 >= 0 && d5 <= d6) return c;
+  const vb = d5 * d2 - d1 * d6;
+  if (vb <= 0 && d2 >= 0 && d6 <= 0) return add(a, mul(ac, d2 / (d2 - d6)));
+  const va = d3 * d6 - d5 * d4;
+  if (va <= 0 && d4 - d3 >= 0 && d5 - d6 >= 0) return add(b, mul(sub(c, b), (d4 - d3) / ((d4 - d3) + (d5 - d6))));
+  const den = 1 / (va + vb + vc);
+  return add(a, add(mul(ab, vb * den), mul(ac, vc * den)));
 }
 
 // ------------------------------------------------------------------ the mechanism
@@ -173,8 +262,8 @@ export class Mechanism {
   // as the world will apply it (spread over its substeps a body moves by (n+1)/2n of a full
   // step's worth), so a FUEL resting on a wheel settles where the foam holds its weight. sub:
   // contact steps per step, for contacts over in a step or two at the game's rate (a shooter).
-  constructor({ body = null, shafts = [], wheels = [], iterations = 6, gravity = [0, -9.81, 0], substeps = 4, sub = 1 } = {}) {
-    Object.assign(this, { body, shafts, wheels, iterations, gravity, sub });
+  constructor({ body = null, shafts = [], wheels = [], surfaces = [], iterations = 6, gravity = [0, -9.81, 0], substeps = 4, sub = 1 } = {}) {
+    Object.assign(this, { body, shafts, wheels, surfaces, iterations, gravity, sub });
     this.gShare = (substeps + 1) / (2 * substeps);
     this.contacts = [];  // last step's, for drawing and tests
     this.V = 12;
@@ -218,14 +307,14 @@ export class Mechanism {
         if (W.some(({ wh, c, a }) => {
           const d = sub(bc, c), s = dot(d, a);
           return Math.abs(s) < wh.width / 2 + R + reach && len(sub(d, mul(a, s))) < wh.radius + R + reach;
-        })) state(b);
+        }) || (this.surfaces.length && this.surfaces.some((sf) => sf.touches(sf.toLocal(qrotInv(fr.q, sub(bc, fr.p)))).length))) state(b);
       }
     }
     const reaction = [];
     const seen = new Map(); // the step's contacts (the firmest of each wheel and FUEL), for drawing and tests
     for (let k = 0; k < n; k++) {
       if (n > 1) for (const st of S.values()) st.v = add(st.v, mul(g, h));
-      const C = this._contacts(W, n > 1 ? [...S.values()].map((st) => [st.b, st.c]) : balls.map((b) => { const t = b.translation(); return [b, [t.x, t.y, t.z]]; }), state);
+      const C = this._contacts(W, fr, n > 1 ? [...S.values()].map((st) => [st.b, st.c]) : balls.map((b) => { const t = b.translation(); return [b, [t.x, t.y, t.z]]; }), state);
       this._solve(C, h, frameVel, reaction);
       if (n > 1) for (const st of S.values()) st.c = add(st.c, mul(st.v, h));
       for (const ct of C) {
@@ -257,10 +346,23 @@ export class Mechanism {
     this.contacts = [...seen.values()].flatMap((m) => [...m.values()]);
   }
 
-  // the wheels' contacts with FUEL at the given centers ([body, center] pairs)
-  _contacts(W, at, state) {
+  // the wheels' and surfaces' contacts with FUEL at the given centers ([body, center] pairs)
+  _contacts(W, fr, at, state) {
     const C = [];
     for (const [b, bc] of at) {
+      for (const sf of this.surfaces) {
+        const hits = sf.touches(sf.toLocal(qrotInv(fr.q, sub(bc, fr.p))));
+        for (const { depth, n: nl } of hits) {
+          const st = state(b), n = qrot(fr.q, sf.dirToFrame(nl));
+          const x = sub(bc, mul(n, R - depth / 2)), rb = sub(x, bc), rw = [0, 0, 0];
+          let t1 = cross(n, Math.abs(n[1]) < 0.9 ? [0, 1, 0] : [1, 0, 0]);
+          t1 = norm(t1);
+          const t2 = cross(n, t1);
+          const { F, k } = foam(depth);
+          const fric = [t1, t2].map((u) => { const ru = cross(rb, u); return { u, mu: sf.mu, m: 1 / (1 / MB + dot(ru, ru) / IB), lam: 0, wu: 0 }; });
+          C.push({ st, W1: { wh: sf, a: [0, 0, 1] }, n, depth, x, rb, rw, F, k, c: 2 * ZETA * Math.sqrt(k * MB), lamN: 0, fric, plain: true });
+        }
+      }
       for (const W1 of W) {
         const { wh, c, a } = W1, hw = wh.width / 2;
         const d = sub(bc, c), s = dot(d, a);

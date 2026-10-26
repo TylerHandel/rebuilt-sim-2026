@@ -360,13 +360,14 @@ The NVIDIA parts: a browser game can't use DLSS, Reflex or hardware ray tracing 
 
 ## Physical mechanisms (in progress, 8793 first)
 
-The plan: robots built around the physics instead of physics bolted onto robots. A mechanism is shafts turned by real motor models (Kraken X60/X44: voltage, back-EMF, stator and supply current limits) through the gearing in the team's CAD and code, carrying wheels and rollers that move FUEL only by touching it: the foam's measured spring curve (AndyMark's 2026 testing; their plate test squeezes both sides, so a wheel denting one side by d pushes what the plates did at 2d) and friction where the surfaces slide, with the reaction going back into the shaft (slowing the motor) and the robot. No paths, target speeds or forces from nowhere: grip, speed, stalls and jams come out of the contacts. Omni and mecanum wheels use a heuristic for their little rollers (they grip along one direction and roll freely across it). Contacts too quick for one 120 Hz step (a shooter's nip) are sub-stepped: 8 contact steps per step match a 960 Hz run. Code: `js/mech/mechanism.js`.
+The plan: robots built around the physics instead of physics bolted onto robots. A mechanism is shafts turned by real motor models (Kraken X60/X44: voltage, back-EMF, stator and supply current limits) through the gearing in the team's CAD and code, carrying wheels and rollers that move FUEL only by touching it, among fixed surfaces taken from the team's CAD. Every contact goes through the foam's measured spring curve (AndyMark's 2026 testing: their plate test squeezes both sides, so a contact denting one side by d pushes what the plates did at 2d) and friction where the surfaces slide. The reaction goes back into the shaft (slowing the motor) and the robot. Fixed surfaces push through the foam too, so a FUEL squeezes past a tight spot as a foam ball does instead of jamming like a rigid one. No paths, target speeds or forces from nowhere: grip, speed, stalls and jams come out of the contacts. Omni and mecanum wheels use a heuristic for their little rollers (they grip along one direction and roll freely across it). Contacts too quick for one 120 Hz step (a shooter's nip) are sub-stepped: 8 contact steps per step match a 960 Hz run. Code: `js/mech/mechanism.js`.
 
 8793 (`js/mech/r8793.js`), from their CAD and their code ([Pumpkin-Bots/2026_Robot](https://github.com/Pumpkin-Bots/2026_Robot)), at their code's duty cycles and current limits:
 
-- **Intake and conveyor.** One X60 (95%, 70 A stator, 40 A supply) turns seven rollers through 18:33 > 25:24 > 24:43 > 23:20 > 20:20 > 20:20 > 20:28: the conveyor's two shafts and the intake's pivot shaft (2in mecanums pushing to the middle, a compliant wheel on the first), and the arm's four 2in aluminum rollers (grip tape on the tip). The tip roller rolls FUEL up the bumper's face (two pool noodles under fabric), the arm carries it over, the mecanums funnel it to one file. Two X44s (87.8%, 50 A) on 5:1 > 28:18 > 90-degree gearboxes turn the vertical rollers at the conveyor's sides, a 4in omni on the left and 4in 45A compliant wheels on the right.
-- **Turret indexer.** Under the turntable, two shafts of three 2in flex wheels straddle the turret's axis. An X60 (65%, 60 A) through a 3:1 x 3:1 MAXPlanetary and a 90-degree gearbox (their CAD) turns them opposite ways. FUEL ride two roller rails (the rail's shape fetched from their CAD) under the front wheels and up a ramp into the gap between the shafts, which squeezes them straight up the turret's axis, each pushing the one above into the shooter.
-- **Shooter.** A 4in 45A roller between two SDS 4in flywheels, and three 2in 80A Stealth wheels 0.203 m away geared to turn the other way at 18/28 the speed. One X60 (160 A stator, 60 A supply) runs 28:18 to the 4in wheels, under their velocity loop (kV 0.125, kP 0.4 V per rotation/s). The rack swings the 2in wheels around the 4in ones for 52..72 degrees of elevation. The wheels' grip on FUEL (1.4) is set so their old gearing shoots the ~0.205 m/s per motor rotation/s their code says they measured.
+- **Intake and conveyor.** One X60 (95%, 70 A stator, 40 A supply) turns seven rollers through 18:33 > 25:24 > 24:43 > 23:20 > 20:20 > 20:20 > 20:28: the conveyor's two shafts and the intake's pivot shaft (2in mecanums pushing to the middle, a compliant wheel on the first), and the arm's four 2in aluminum rollers (grip tape on the tip). The tip roller rolls FUEL up the bumper's face (two pool noodles under fabric), and the arm carries it over. Two X44s (87.8%, 50 A) on 5:1 > 28:18 > 90-degree gearboxes turn the vertical rollers at the conveyor's sides, a 4in omni on the left and 4in 45A compliant wheels on the right. Each is belted to a vertical-axis omni wheel at the neck, where the floor ramps down to single file: a 5in on the left (18t:18t) and a 3in on the right (18t:28t). Their faces run at very different speeds, so a pair of FUEL arriving abreast gets turned instead of wedged.
+- **Turret indexer.** A shaft of three 2in flex wheels under the turntable, an X60 (65%, 60 A) through a 3:1 x 3:1 MAXPlanetary and a 90-degree gearbox (their CAD). It pushes FUEL along the roller rails and up their ramp; momentum carries them on up through the turntable to the shooter.
+- **Shooter.** A 4in 45A roller wheel with a flywheel half an SDS 4in flywheel's (inertia 0.00097 kg·m² with the roller: Onshape's mass properties). Three 2in 80A Stealth wheels 0.203 m away are geared to turn the other way at 18/28 the speed. One X60 (160 A stator, 60 A supply) runs 28:18 to the 4in wheel, under their velocity loop (kV 0.125, kP 0.4 V per rotation/s). The rack swings the 2in wheels around the 4in one for 52..72 degrees of elevation. The wheels' grip on FUEL (1.7) is set from the ~0.205 m/s per motor rotation/s their code says they measured on their old gearing.
+- **Surfaces.** Everything else FUEL touch on the way is their CAD itself (`tools/path-mesh.py` -> `cad/robots/8793-path.json`, 1 cm detail, the moving wheels cut out): the polycarbonate floor (0.183 m up, about 0.8in under the conveyor's rollers) and its ramp to the rails, the rails, the frame, the swerve shields, the arm's side plates, the turntable and the shooter's frame.
 
 Bench (`node --import ./tools/node-env.mjs tools/mechlab.mjs [test ...]`):
 
@@ -376,21 +377,22 @@ Bench (`node --import ./tools/node-env.mjs tools/mechlab.mjs [test ...]`):
 | `pinch` | Two motor-driven flex wheels with a 1/2in squeeze fling a FUEL at 57% of their surface speed. |
 | `funnel` | FUEL rolling two abreast into a one-wide neck jam every time without vertical-axis rollers, a third of the time with equal 4in omni wheels at the walls, and never with 8793's 3in + 5in pair. |
 | `r8793` | Each roller's free speed. |
-| `conveyor` | 12 FUEL on a treadmill carpet through intake and conveyor, 12 seeds. All 12 got through in 9 of 12 runs with the vertical rollers on; with them stopped, in 3 of 12. |
-| `shooter` | The hood sets the launch angle to within a degree. FUEL leave at 71-86% of the exit speed their aim solver assumes (6.97 m/s at 60 rps, 8.68 m/s at 90 rps), with backspin, and each shot sags the flywheel 13-14%. |
-| `calibrate` | The shooter grip sweep behind 1.4. |
-| `robot` | Carpet to shot, 12 seeds: a median 10 of 12 shot, at 2.0-2.5 FUEL/s, limited by the indexer's 9:1 at 65%. The last FUEL always stays in the turret: nothing behind it pushes it up. A few seeds jam two abreast in the taper under the first conveyor shaft. |
-| `turret` | The indexer and shooter fed single file down a slope. |
+| `conveyor` | 12 FUEL on a treadmill carpet through intake and conveyor to the indexer's rails, 12 seeds. With the vertical rollers (and neck omnis) running, a median 9 of 12 get through at 8.3 FUEL/s; with them stopped, 7 at 4.3 FUEL/s. The rest come to rest in dead spots (below). |
+| `shooter` | The hood sets the launch angle to within a degree. FUEL leave at 70-84% of the exit speed their aim solver assumes (6.83 m/s at 60 rps, 8.55 m/s at 90 rps), with backspin, and each shot sags the flywheel 16%. |
+| `calibrate` | The shooter grip sweep behind 1.7. |
+| `robot` | Carpet to shot, 12 seeds. At the CAD's 9:1 the indexer is too slow to send FUEL up to the shooter: only the first two or three, flung down the ramp by the conveyor, make it (`IDX_RATIO=1` or `3` to try faster gearing: 1:1 shoots about half, at ~8 FUEL/s, every one caught). |
 
-Assumed or unknown, to check against the robot:
+Open questions, to check against the robot:
 
-- the conveyor floor's squeeze (0.3in);
-- the mecanums' width;
-- what's between the bumper's top and the arm's rollers;
-- how the indexer's belt reverses the rear shaft;
-- the guide up the turret's axis (modeled as a square tube a FUEL wide);
-- the shooter's real flywheel inertia (their code's 0.0013 kg·m² is a placeholder);
-- whether the SDS flywheels touch FUEL.
+- the turret indexer's real gearing;
+- whether the neck's 3in and 5in omni wheels are on the robot and how they're driven;
+- dead spots where a FUEL comes to rest:
+  - on the bumper's top between the arm's second and third rollers;
+  - in the gap beside the floor's edge behind the vertical rollers;
+  - under the 5in neck omni;
+  - in the rails' dip just behind the indexer's wheels.
+
+The next FUEL in usually pushes it on.
 
 Next: these mechanisms in matches.
 

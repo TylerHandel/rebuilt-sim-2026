@@ -6,14 +6,17 @@
 // the motors slow), funnel (FUEL rolling two abreast into a one-wide neck, with and without
 // vertical-axis omni wheels at the neck: do they jam?), and 8793's (js/mech/r8793.js): r8793
 // (the rollers' speeds), conveyor (intake and conveyor, with the vertical rollers on and
-// stopped), shooter, calibrate (the shooter's grip), turret (the indexer fed down a slope)
-// and robot (carpet to shot).
+// stopped), shooter, calibrate (the shooter's grip) and robot (carpet to shot).
 // Env: HZ (steps/s, 120), SUB (contact sub-steps for the quick contacts, 8), SEEDS (12), TRACE
-// (a FUEL's index to follow), STUCK (where the ones left over ended up), BUMPER_MU.
+// (a FUEL's index to follow), STUCK (where the ones left over ended up), BUMPER_MU, IDX_RATIO
+// (the turret indexer's gearbox, 9:1 in their CAD).
 import { RAPIER } from '../js/physics.js';
 import { FUEL, IN } from '../js/constants.js';
 import { Mechanism, Shaft, Wheel, Motor, foam } from '../js/mech/mechanism.js';
-import { build8793, intake8793, conveyorWheels, conveyorFloor, armWheels, CONVEYOR, shooterWheels, shooterSmallAt, flywheelDuty, codeExitSpeed, SHOOTER, INDEXER, DUTY_INDEXER, indexerWheels } from '../js/mech/r8793.js';
+import { build8793, intake8793, conveyorWheels, armWheels, shooterWheels, shooterSmallAt, flywheelDuty, codeExitSpeed, SHOOTER, INDEXER, DUTY_INDEXER, indexerWheels, pathSurfaces } from '../js/mech/r8793.js';
+import { readFileSync } from 'node:fs';
+if (process.env.IDX_RATIO) INDEXER.ratio = Number(process.env.IDX_RATIO); // (to try other indexer gearing)
+const PATH_MESH = JSON.parse(readFileSync(new URL('../cad/robots/8793-path.json', import.meta.url)));
 import { BUMPER_T, BUMPER_Y0, BUMPER_Y1 } from '../js/robotConfigs.js';
 
 await RAPIER.init();
@@ -44,12 +47,9 @@ const tests = {
     for (const vertical of [false, true]) {
       const runs = [];
       for (let seed = 1; seed <= SEEDS; seed++) runs.push(pathRun(seed, { vertical }));
-      const ok = runs.filter((r) => r.through === r.n);
       const med = (a) => { const b = [...a].sort((p, q) => p - q); return b[b.length >> 1]; };
-      console.log(`8793 conveyor, vertical rollers ${vertical ? 'on      ' : 'stopped'}: all ${runs[0].n} through in ${ok.length}/${SEEDS} runs` +
-        (ok.length ? `; the first at ${med(ok.map((r) => r.first)).toFixed(2)} s, the last at ${med(ok.map((r) => r.last)).toFixed(2)} s (median), ${med(ok.map((r) => r.rate)).toFixed(1)} FUEL/s` : '') +
-        `; X60 up to ${Math.max(...runs.map((r) => r.peakI)).toFixed(0)} A, rollers slowed to ${Math.min(...runs.map((r) => r.minSpeed)).toFixed(0)}%` +
-        (ok.length < SEEDS ? `; stuck at x ≈ ${runs.filter((r) => r.through < r.n).map((r) => r.stuck).join(' / ')}` : ''));
+      console.log(`8793 conveyor, vertical rollers ${vertical ? 'on      ' : 'stopped'}: a median ${med(runs.map((r) => r.through))} of ${runs[0].n} through (${Math.min(...runs.map((r) => r.through))}..${Math.max(...runs.map((r) => r.through))}, ${SEEDS} runs), ` +
+        `${med(runs.map((r) => r.rate)).toFixed(1)} FUEL/s; X60 up to ${Math.max(...runs.map((r) => r.peakI)).toFixed(0)} A, rollers slowed to ${med(runs.map((r) => r.minSpeed)).toFixed(0)}% (median)`);
     }
   },
   // the shooter's grip: with their old gearing (both shafts at the motor's speed) their code says
@@ -57,12 +57,12 @@ const tests = {
   calibrate() {
     const keep = { ...SHOOTER };
     Object.assign(SHOOTER, { ratio: 1, smallPerLarge: 1 });
-    for (const mu of [1, 1.2, 1.4, 1.6, 2]) {
+    for (const mu of [1.2, 1.4, 1.7, 2, 2.5]) {
       const out = [];
       for (const [e, target] of [[65, 35], [60, 40], [55, 47]]) {
         const w = world();
         const t = build8793();
-        const mech = new Mechanism({ substeps: 6, sub: SUB, shafts: [t.large, t.small], wheels: shooterWheels(t, e, { mu: { roller: mu, flywheel: mu, stealth: mu } }) });
+        const mech = new Mechanism({ substeps: 6, sub: SUB, shafts: [t.large, t.small], wheels: shooterWheels(t, e, { mu: { roller: mu, stealth: mu } }) });
         for (let i = 0; i < 3 / DT; i++) { t.shooter.cmd = flywheelDuty(t, target); mech.step(DT, []); }
         const [sx, sy] = shooterSmallAt(e);
         const b = ball(w, -0.127, sy - Math.sqrt((SHOOTER.small.r + R) ** 2 - sx * sx) - 0.01, 0, [0, 1, 0]);
@@ -84,11 +84,11 @@ const tests = {
   robot() {
     const runs = [];
     for (let seed = Number(process.env.SEED0 ?? 1); seed < Number(process.env.SEED0 ?? 1) + SEEDS; seed++) runs.push(pathRun(seed, { turret: true, e: 60, target: 60, sec: 6 }));
-    for (const [i, r] of runs.entries()) {
-      const v = r.shots.map((x) => x.v), el = r.shots.map((x) => x.el);
-      const avg = (a) => a.reduce((p, q) => p + q, 0) / (a.length || 1);
-      console.log(`8793, seed ${i + 1}: ${r.shots.length}/${r.n} shot, the first at ${r.shots[0]?.t.toFixed(2) ?? '-'} s, the last at ${r.shots.at(-1)?.t.toFixed(2) ?? '-'} s, ${r.shotRate.toFixed(1)} FUEL/s; out at ${avg(v).toFixed(2)} m/s (${Math.min(...v).toFixed(2)}..${Math.max(...v).toFixed(2)}), ${avg(el).toFixed(1)} deg; the flywheel sagged to ${r.minRps.toFixed(0)} rps; rollers slowed to ${r.minSpeed.toFixed(0)}%${r.stuck ? '; left ' + r.stuck : ''}`);
-    }
+    const med = (a) => { const b = [...a].sort((p, q) => p - q); return b[b.length >> 1]; };
+    const all = runs.flatMap((r) => r.shots);
+    const avg = (a) => a.reduce((p, q) => p + q, 0) / (a.length || 1);
+    console.log(`8793 carpet to shot (indexer ${INDEXER.ratio}:1): a median ${med(runs.map((r) => r.shots.length))} of ${runs[0].n} shot (${Math.min(...runs.map((r) => r.shots.length))}..${Math.max(...runs.map((r) => r.shots.length))}, ${SEEDS} runs), ` +
+      `${med(runs.map((r) => r.shotRate)).toFixed(1)} FUEL/s; out at ${avg(all.map((x) => x.v)).toFixed(2)} m/s, ${avg(all.map((x) => x.el)).toFixed(1)} deg (${all.filter((x) => x.el < 30).length} knocked off instead); the flywheel sagged to ${med(runs.map((r) => r.minRps)).toFixed(0)} rps`);
   },
   // 8793's drive chains (js/mech/r8793.js): each roller's speed with the motors at full, free
   r8793() {
@@ -148,68 +148,6 @@ const tests = {
       console.log(`shooter, elevation ${e} deg, ${target} rps (their exit speed ${codeExitSpeed(target).toFixed(2)} m/s), fed ${bps}/s: up to speed in ${upAt?.toFixed(2)} s, motor up to ${I.toFixed(0)} A; ${shots.length} out:`);
       for (const x of shots) console.log(`  caught at ${x.at.toFixed(1)} rps: out at ${x.v.toFixed(2)} m/s (${((100 * x.v) / x.want).toFixed(0)}% of their ${x.want.toFixed(2)}), ${x.el.toFixed(1)} deg up, spin ${x.spin.toFixed(0)} rad/s`);
       console.log(`  mean ${avg((x) => x.v).toFixed(2)} m/s at ${avg((x) => x.el).toFixed(1)} deg; the wheel sagged to ${minRps.toFixed(1)} rps (${((100 * minRps) / target).toFixed(0)}%)`);
-      w.free();
-    }
-  },
-  // 8793's turret indexer feeding its shooter: FUEL single file roll down a gentle slope onto
-  // the roller rails (a stand-in for the conveyor pushing them), the indexer's wheels take them
-  // up the ramp and between its two shafts, up the turret's axis into the shooter
-  turret() {
-    for (const [e, target] of [[60, 60], [52, 80]]) {
-      const w = world();
-      const fb = fixed(w);
-      const t = build8793();
-      const box = (x0, y0, x1, y1, z, hz, hy = 0.005, mu = 0.1) => {
-        // a bar whose top edge runs (x0, y0)-(x1, y1), at z
-        const dx = x1 - x0, dy = y1 - y0, L = Math.hypot(dx, dy), a = Math.atan2(dy, dx);
-        w.createCollider(RAPIER.ColliderDesc.cuboid(L / 2, hy, hz).setTranslation((x0 + x1) / 2 + Math.sin(a) * hy, (y0 + y1) / 2 - Math.cos(a) * hy, z)
-          .setRotation({ x: 0, y: 0, z: Math.sin(a / 2), w: Math.cos(a / 2) }).setFriction(mu).setRestitution(0.1), fb);
-      };
-      // the rails, and ahead of them a sloped feed
-      const rail = [[1.8, 0.083 + 1.77 * Math.tan(0.1)], ...INDEXER.rail];
-      for (const sg of [1, -1]) for (let i = 0; i + 1 < rail.length; i++) box(...rail[i], ...rail[i + 1], sg * INDEXER.railZ, INDEXER.railT / 2);
-      // the single-file channel's walls, a back wall, and a guide up the turret's axis
-      for (const sg of [1, -1]) w.createCollider(RAPIER.ColliderDesc.cuboid(1.05, 0.15, 0.005).setTranslation(0.75, 0.15, sg * 0.092).setFriction(0.2), fb);
-      w.createCollider(RAPIER.ColliderDesc.cuboid(0.005, 0.2, 0.1).setTranslation(-0.3, 0.2, 0).setFriction(0.2), fb);
-      const G = 0.083, ax = -0.127;
-      for (const sg of [1, -1]) {
-        w.createCollider(RAPIER.ColliderDesc.cuboid(0.005, 0.04, G).setTranslation(ax + sg * (G + 0.005), 0.34, 0).setFriction(0.2), fb);
-        w.createCollider(RAPIER.ColliderDesc.cuboid(G, 0.04, 0.005).setTranslation(ax, 0.34, sg * (G + 0.005)).setFriction(0.2), fb);
-      }
-      const imech = new Mechanism({ substeps: 6, shafts: t.ishafts, wheels: indexerWheels(t) });
-      const smech = new Mechanism({ substeps: 6, sub: 8, shafts: [t.large, t.small], wheels: shooterWheels(t, e) });
-      const n = 10, balls = [];
-      for (let i = 0; i < n; i++) { const x = 0.12 + i * 0.16; balls.push(ball(w, x, 0.083 + 0.055 + (x - 0.03) * Math.tan(0.1) + 0.003, 0)); }
-      let T = 0, I = 0, minRps = target;
-      const shots = [];
-      const out = new Set();
-      const rps = () => t.shooter.omega / (2 * Math.PI);
-      // spin up first, the indexer off
-      for (; T < 1; T += DT) { t.shooter.cmd = flywheelDuty(t, target); smech.step(DT, []); }
-      const touched = new Set();
-      for (let k = 0; k < 6 / DT; k++, T += DT) {
-        t.shooter.cmd = flywheelDuty(t, target);
-        t.indexer.cmd = DUTY_INDEXER;
-        const live = balls.filter((b) => !out.has(b));
-        imech.step(DT, live);
-        smech.step(DT, live);
-        w.step();
-        I = Math.max(I, Math.abs(t.indexer.motor.current));
-        minRps = Math.min(minRps, rps());
-        for (const b of live) {
-          if (smech.contacts.some((c) => c.ball === b)) touched.add(b);
-          else if (touched.has(b)) {
-            const v = b.linvel();
-            shots.push({ t: T, v: Math.hypot(v.x, v.y, v.z), el: (Math.atan2(v.y, Math.hypot(v.x, v.z)) * 180) / Math.PI });
-            out.add(b); touched.delete(b);
-            b.setTranslation({ x: 50 + shots.length, y: 5, z: 0 }, true);
-          }
-        }
-        if (process.env.TRACE && k % 12 === 0) { const b = live[0]; if (b) { const p = b.translation(), v = b.linvel(); console.log(`t ${T.toFixed(2)} ${p.x.toFixed(3)},${p.y.toFixed(3)},${p.z.toFixed(3)} v ${v.x.toFixed(2)},${v.y.toFixed(2)} idx ${(t.indexer.omega * 60 / 2 / Math.PI).toFixed(0)}rpm I ${t.indexer.motor.current.toFixed(0)} ${[...imech.contacts, ...smech.contacts].filter((c) => c.ball === b).map((c) => c.wheel.name + ' ' + c.force.toFixed(0)).join(', ')}`); } }
-      }
-      const rate = shots.length > 1 ? (shots.length - 1) / (shots[shots.length - 1].t - shots[0].t) : 0;
-      const left = balls.filter((b) => !out.has(b)).map((b) => { const p = b.translation(); return `${p.x.toFixed(2)},${p.y.toFixed(2)}`; });
-      console.log(`turret indexer, the shooter at ${target} rps, ${e} deg: ${shots.length}/${n} shot, the first at ${shots[0]?.t.toFixed(2) ?? '-'} s, ${rate.toFixed(1)} FUEL/s; out at ${shots.map((x) => x.v.toFixed(1)).join(' ')} m/s, ${shots.map((x) => x.el.toFixed(0)).join(' ')} deg; indexer motor up to ${I.toFixed(0)} A; the shooter sagged to ${minRps.toFixed(0)} rps${left.length ? '; left at ' + left.join(' ') : ''}`);
       w.free();
     }
   },
@@ -324,23 +262,14 @@ function funnelRun(variant, rnd) {
 // the intake takes them over the bumper, the conveyor down to single file; with the turret, the
 // indexer's rails and wheels carry them up the turret's axis to the shooter (at elevation e, the
 // flywheel held at target motor rotations/s, the indexer on throughout)
-function pathRun(seed, { vertical = true, turret = false, e = 60, target = 60, nBalls = 12, sec = 5 } = {}) {
+function pathRun(seed, { vertical = true, turret = false, e = 60, target = 60, nBalls = 12, sec = 5, yaw = 0 } = {}) {
   let sd = seed;
   const rnd = () => ((sd = (sd * 16807) % 2147483647) / 2147483647 - 0.5);
   const w = world();
   const fb = fixed(w);
-  const seg = (x0, y0, x1, y1, hz, t = 0.02, ext = 0.01, z = 0, mu = 0.3) => {
-    // a slab whose top runs from (x0, y0) to (x1, y1) (and ext past each end), hz wide either
-    // side of z
-    const dx = x1 - x0, dy = y1 - y0, L = Math.hypot(dx, dy), a = Math.atan2(dy, dx);
-    const nx = -Math.sin(a), ny = Math.cos(a);
-    w.createCollider(RAPIER.ColliderDesc.cuboid(L / 2 + ext, t / 2, hz)
-      .setTranslation((x0 + x1) / 2 - (nx * t) / 2, (y0 + y1) / 2 - (ny * t) / 2, z)
-      .setRotation({ x: 0, y: 0, z: Math.sin(a / 2), w: Math.cos(a / 2) }).setFriction(mu).setRestitution(0.2), fb);
-  };
-  // the robot's floor up to its frame, its bumper, the carpet in front (8793's frame: 27.5in)
-  const halfL = 0.349, front = halfL + BUMPER_T, x0 = turret ? INDEXER.rail[0][0] : -0.15;
-  for (let x = x0; x < halfL; x += 0.02) seg(x, conveyorFloor(x), Math.min(halfL, x + 0.02), conveyorFloor(Math.min(halfL, x + 0.02)), 0.35);
+  // the robot's bumper and the carpet in front (8793's frame: 27.5in); the rest of the robot FUEL
+  // touch is its CAD (pathSurfaces)
+  const halfL = 0.349, front = halfL + BUMPER_T;
   // the bumper: its backing board, and two 2.5in pool noodles across its face under fabric
   // (BUMPER_MU: fabric on foam, an estimate)
   const nr = (BUMPER_Y1 - BUMPER_Y0) / 4, mu = Number(process.env.BUMPER_MU ?? 0.6);
@@ -349,47 +278,18 @@ function pathRun(seed, { vertical = true, turret = false, e = 60, target = 60, n
   for (const y of [BUMPER_Y0 + nr, BUMPER_Y1 - nr]) {
     w.createCollider(RAPIER.ColliderDesc.cylinder(0.4, nr).setTranslation(front - nr, y, 0).setRotation(cylZ).setFriction(mu).setFrictionCombineRule(RAPIER.CoefficientCombineRule.Max).setRestitution(0.2), fb);
   }
-  seg(halfL - 0.02, conveyorFloor(halfL), front - 0.01, BUMPER_Y1, 0.35, 0.005, 0); // (the floor's lip onto the bumper)
   // the carpet, running under the robot at 1 m/s (the robot driving into the FUEL on it)
   const carpet = w.createRigidBody(RAPIER.RigidBodyDesc.kinematicVelocityBased().setLinvel(-1, 0, 0));
   w.createCollider(RAPIER.ColliderDesc.cuboid(15, 0.01, 1).setTranslation(front + 15, -0.01, 0).setFriction(0.3).setRestitution(0.2), carpet);
-  // side walls: the taper, and the intake arm's side plates out to its tip (and with the turret,
-  // the single-file channel on back to the indexer)
-  const T = [[0.62, CONVEYOR.taper[0][1]], ...CONVEYOR.taper, ...(turret ? [[-0.3, 0.087]] : [])];
-  for (let i = 0; i + 1 < T.length; i++) {
-    const [x0, h0] = T[i], [x1, h1] = T[i + 1];
-    for (const sg of [1, -1]) {
-      const dx = x1 - x0, dz = sg * (h1 - h0), L = Math.hypot(dx, dz), a = Math.atan2(-dz, dx);
-      w.createCollider(RAPIER.ColliderDesc.cuboid(L / 2 + 0.005, 0.3, 0.006).setTranslation((x0 + x1) / 2, 0.3, sg * ((h0 + h1) / 2 + 0.006))
-        .setRotation({ x: 0, y: Math.sin(a / 2), z: 0, w: Math.cos(a / 2) }).setFriction(0.3).setRestitution(0.2), fb);
-    }
-  }
   const trains = build8793();
   const wheels = [...conveyorWheels(trains), ...armWheels(trains)];
-  const mech = new Mechanism({ substeps: 6, sub: Number(process.env.PATHSUB ?? 1), shafts: [...new Set(wheels.map((x) => x.shaft))], wheels });
+  const surfaces = Object.values(pathSurfaces(PATH_MESH, { yaw }));
+  const mech = new Mechanism({ substeps: 6, sub: Number(process.env.PATHSUB ?? 1), shafts: [...new Set(wheels.map((x) => x.shaft))], wheels, surfaces });
   const mechs = [mech];
   let smech = null;
   if (turret) {
-    // the roller rails (two plates their own thickness wide), a wall behind the indexer, and the
-    // turret's guide up its axis (assumed: a square tube a FUEL wide between the indexer and the
-    // shooter)
-    for (const sg of [1, -1]) for (let i = 0; i + 1 < INDEXER.rail.length; i++) seg(...INDEXER.rail[i], ...INDEXER.rail[i + 1], INDEXER.railT / 2, 0.01, 0.002, sg * INDEXER.railZ, 0.1);
-    w.createCollider(RAPIER.ColliderDesc.cuboid(0.005, 0.2, 0.1).setTranslation(-0.3, 0.2, 0).setFriction(0.2), fb);
-    const G = 0.083, ax = -0.127;
-    // the turntable (their CAD: 0.28..0.32 m up, out to the 200T gear's 0.127 m and the plate
-    // around it), with the hole up its middle that FUEL go through
-    const N = 16, rIn = G + 0.002, rOut = 0.2;
-    for (let i = 0; i < N; i++) {
-      const a = (2 * Math.PI * (i + 0.5)) / N, rm = (rIn + rOut) / 2;
-      w.createCollider(RAPIER.ColliderDesc.cuboid((rOut - rIn) / 2, 0.012, rOut * Math.tan(Math.PI / N)).setTranslation(ax + rm * Math.cos(a), 0.308, rm * Math.sin(a))
-        .setRotation({ x: 0, y: Math.sin(-a / 2), z: 0, w: Math.cos(-a / 2) }).setFriction(0.2), fb);
-    }
-    for (const sg of [1, -1]) {
-      w.createCollider(RAPIER.ColliderDesc.cuboid(0.005, 0.04, G).setTranslation(ax + sg * (G + 0.005), 0.34, 0).setFriction(0.2), fb);
-      w.createCollider(RAPIER.ColliderDesc.cuboid(G, 0.04, 0.005).setTranslation(ax, 0.34, sg * (G + 0.005)).setFriction(0.2), fb);
-    }
     mechs.push(new Mechanism({ substeps: 6, shafts: trains.ishafts, wheels: indexerWheels(trains) }));
-    smech = new Mechanism({ substeps: 6, sub: 8, shafts: [trains.large, trains.small], wheels: shooterWheels(trains, e) });
+    smech = new Mechanism({ substeps: 6, sub: 8, shafts: [trains.large, trains.small], wheels: shooterWheels(trains, e, { yaw }) });
     mechs.push(smech);
   }
   const control = () => {
@@ -415,7 +315,11 @@ function pathRun(seed, { vertical = true, turret = false, e = 60, target = 60, n
     minW = Math.min(minW, Math.abs(trains.horizontal.omega));
     if (turret) minRps = Math.min(minRps, trains.shooter.omega / (2 * Math.PI));
     for (const b of live) {
-      if (!past.has(b) && b.translation().x < 0.0) past.set(b, t);
+      if (!past.has(b) && b.translation().x < 0.0) {
+        past.set(b, t);
+        // (without the turret, the indexer's stand-in: FUEL onto its rails are taken away)
+        if (!turret) { gone.add(b); b.setTranslation({ x: -50 - past.size, y: 5, z: 0 }, true); }
+      }
       if (!smech) continue;
       if (smech.contacts.some((c) => c.ball === b)) touched.add(b);
       else if (touched.has(b)) {
