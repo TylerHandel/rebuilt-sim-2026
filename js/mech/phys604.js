@@ -24,6 +24,10 @@
 //   - let go: the turret back to 180 (facing back), the hood to 15, the launcher coasting.
 //   - unjam (their D-pad down; the AI's outtake): the intake down, its rollers at -30%, the
 //     serializer's rollers at -0.5 m/s.
+//   - what its driver does (emulated): their right bumper (RetractIntake) when it's feeding with
+//     FUEL still in it and none shot for 0.7 s: the last few rest on the shelves round the bucket
+//     (its rim, the Ball Bar, the corner gussets) out of the rotor's reach, and stowing slides the
+//     hopper in over them; it stays stowed until the next intake.
 import { Mechanism } from './mechanism.js';
 import { PhysicalRobot } from './physical.js';
 import {
@@ -88,6 +92,7 @@ export class Physical604 extends PhysicalRobot {
     this.phi = 0;
     this.targetRoller = 0; this.rollerBuf = []; this.targetRotor = 0;
     this.jam = 'NORMAL'; this.jamT = 0;
+    this.compress = false; this.feedingNow = false; this.shots = this.r.stats?.shots ?? 0; this.lastShotT = 0;
     this.targetRad = 0;
     this.launching = false; this.ready = false;
     this.fv = null; this.va = null;
@@ -220,8 +225,15 @@ export class Physical604 extends PhysicalRobot {
     const match = r.match;
     // ---- the intake (DeployIntake, RetractIntake, their Quikplan's flags in AUTO)
     const intaking = on && !!r.cmd.intake, unjam = on && !!outtake;
+    // (its driver's RetractIntake: firing with FUEL still in it but none shot for 0.7 s, the last
+    // ones are left on the shelves around the rotor's bucket (its rim, the Ball Bar, the corner
+    // gussets), and stowing slides the hopper in over them; it stays in until the next intake)
+    if (r.stats.shots !== this.shots) { this.shots = r.stats.shots; this.lastShotT = t; }
+    if (!this.feedingNow) this.lastShotT = Math.max(this.lastShotT, t - 0.35);
+    if (intaking || unjam) this.compress = false;
+    else if (this.feedingNow && t - this.lastShotT > 0.7 && r.stored.length > 0) this.compress = true;
     if (intaking || unjam) { this.armGoal = INTAKE.deploy; this.deployedOnce = true; }
-    else if (this.deployedOnce) this.armGoal = match?.isAuto ? INTAKE.stow : INTAKE.standby;
+    else if (this.deployedOnce) this.armGoal = match?.isAuto || this.compress ? INTAKE.stow : INTAKE.standby;
     const armReady = Math.abs(this.armDeg - this.armGoal) < INTAKE.tol;
     T.intake.cmd = !on ? 0 : unjam ? -0.3 : intaking && armReady ? 1 : 0;
 
@@ -257,6 +269,7 @@ export class Physical604 extends PhysicalRobot {
 
     // ---- the serializer: the rollers' FUEL speed, and the rotor following them
     let ballV = this.ready && inLaunchZone ? SERIALIZER.ballV : 0;
+    this.feedingNow = on && ballV > 0;
     if (unjam) ballV = SERIALIZER.unjamV;
     this._serializer(dt, on ? ballV : 0);
 

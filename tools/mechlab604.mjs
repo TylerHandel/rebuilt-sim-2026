@@ -9,7 +9,10 @@
 // serializer off, as their code does), hold (how many it holds, everything off), dump (a full one
 // fired at 3 m: the serializer's rate, their "~15 BPS").
 // Env: SEEDS (6), SPEED (1 m/s), STUCK (where the ones left over are), TRACE=i (follow FUEL i),
-// SHOT=v,angle (one shot of your own: exit speed m/s and launch angle deg)
+// SHOT=v,angle (one shot of your own: exit speed m/s and launch angle deg), SUB (the shooter's
+// contact sub-steps, 8); dump and hold: LAYERS (how many layers it's filled with: dump 7, hold 10),
+// STOW=s (dump: their RetractIntake after s seconds), INTAKE (dump: the intake's rollers running),
+// TIMELINE, COLUMN (every half second: shots and speeds; the FUEL in the rotor's column)
 import { RAPIER } from '../js/physics.js';
 import { FUEL, GROUP, groups, HUB } from '../js/constants.js';
 import { Mechanism } from '../js/mech/mechanism.js';
@@ -61,7 +64,15 @@ function rig({ arm = INTAKE.deploy, yaw = 0, hood = SHOOTER.hoodMin } = {}) {
     placeShooter(sw, r.yaw, r.hood);
   };
   // the arm held where it is (their position loop holds it; what a FUEL does to it is in play)
-  r.holdArm = () => { t.pivot._omega = 0; t.pivot.cmd = 0; };
+  // (or swung toward armTo at armV rad/s: their RetractIntake's slow Motion Magic)
+  r.holdArm = () => {
+    t.pivot.cmd = 0; t.pivot._omega = 0;
+    if (r.armTo === undefined || Math.abs(r.armTo - r.arm) < 0.01) return;
+    const w = Math.sign(r.armTo - r.arm) * (r.armV ?? INTAKE.mmSlow);
+    t.pivot._omega = w;
+    r.arm += (w * DT * 180) / Math.PI;
+    if ((w > 0 && r.arm > r.armTo) || (w < 0 && r.arm < r.armTo)) r.arm = r.armTo;
+  };
   r.step = (balls, together = balls) => {
     r.pose();
     r.holdArm();
@@ -159,7 +170,9 @@ const tests = {
       }
       return k * DT;
     };
-    console.log(`  the arms down from boot (98) to -5 in ${move(INTAKE.deploy).toFixed(2)} s (at ${r3.arm.toFixed(1)}), up to standby (10) in ${move(INTAKE.standby).toFixed(2)} s, stowed (80, slow) in ${move(INTAKE.stow, true).toFixed(2)} s`);
+    // (4 s: never within 2 degrees, held off by its weight against their kP alone)
+    const down = move(INTAKE.deploy), downAt = r3.arm, up = move(INTAKE.standby), upAt = r3.arm, stow = move(INTAKE.stow, true);
+    console.log(`  the arms down from boot (98) to -5 in ${down.toFixed(2)} s (at ${downAt.toFixed(1)}), up to standby (10) in ${up.toFixed(2)} s (at ${upAt.toFixed(1)}), stowed (80, slow) in ${stow.toFixed(2)} s (at ${r3.arm.toFixed(1)})`);
   },
   // FUEL pushed up the tube into the turret at their table's rows
   shooter() {
@@ -230,7 +243,7 @@ const tests = {
     const w = world();
     const balls = [];
     const step = (n, run) => { for (let i = 0; i < n; i++) { if (run) run(); const live = balls.filter((b) => b.translation().y < 3); r.step(live); w.step(); } };
-    fill(w, balls, (n) => step(n, () => launcher(r.t, rad)), 7);
+    fill(w, balls, (n) => step(n, () => launcher(r.t, rad)), Number(process.env.LAYERS ?? 7));
     const n0 = balls.filter(inRobot).length;
     const watch = {
       touched: new Set(), shots: [],
@@ -252,6 +265,8 @@ const tests = {
       if (watch.shots.length) minRad = Math.min(minRad, Math.abs(r.t.main.omega));
       if (Math.abs(r.t.rotor.motor.current) > 40 && r.t.rotor.omega < 2) jams++;
       if (process.env.INTAKE) r.t.intake.cmd = 1;
+      // (STOW=s: their RetractIntake after s seconds, the hopper sliding in on the arm)
+      if (process.env.STOW && k * DT >= Number(process.env.STOW)) r.armTo = INTAKE.stow;
       // (COLUMN=1: every half second, the FUEL in the rotor's column and what they touch)
       if (process.env.COLUMN && k % 60 === 30) for (const b of balls) { const p = b.translation(); if (p.y < 3 && Math.hypot(p.x - AXIS[0], p.z - AXIS[1]) < 0.16 && p.y > 0.2) console.log(`     ${p.x.toFixed(3)},${p.y.toFixed(3)},${p.z.toFixed(3)} v${b.linvel().y.toFixed(2)}: ${[...r.path.contacts, ...r.shooter.contacts].filter((c) => c.ball === b).map((c) => c.wheel.name + ' ' + c.force.toFixed(0)).join(', ')}`); }
       // (TIMELINE=1: every half second, the shots so far, the rotor's and rollers' speeds and currents)
