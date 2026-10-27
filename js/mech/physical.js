@@ -4,6 +4,7 @@
 // pushes back on it), until its shooter flings them. What every such robot shares: its frame, which
 // FUEL it has hold of, what got in, and what got shot. Each robot (js/mech/phys8793.js,
 // js/mech/phys2910.js) adds its mechanisms, where its ball path is, and its code's controls.
+import { FUEL } from '../constants.js';
 
 export class PhysicalRobot {
   // path: the Mechanism of its ball path (FUEL in it touch each other there, foam on foam);
@@ -20,6 +21,8 @@ export class PhysicalRobot {
     this.owned = new Set();   // FUEL its ball path (or intake) has hold of
     this.shot = new Map();    // FUEL it's just shot -> when (on their way out: not its to hold)
     this.counted = new Set(); // FUEL counted as intaked, until shot or gone from around it
+    for (const b of this.squashed || []) b.squash = null;
+    this.squashed = new Set(); // FUEL drawn flattened where it presses them (_squash)
   }
 
   // the robot's frame <-> the world (x forward, y up, z right, origin on the carpet at its center)
@@ -97,6 +100,26 @@ export class PhysicalRobot {
     // (FUEL it holds pressing on each other: foam on foam, worked out with its wheels)
     this.path.step(dt, near.map((b) => b.body), [...owned].map((b) => b.body));
     if (this.shooter) this.shooter.step(dt, this.shooterBalls(near).map((b) => b.body));
+    this._squash(near);
+  }
+
+  // the FUEL its mechanisms press, drawn flattened where they're pressed (fuel.js: foam, not pushed
+  // through a wall or a floor), the four deepest; the rest round again. b.squash: [nx, ny, nz, w]
+  // per patch, the normal (world) from the FUEL's center toward the contact and the patch's
+  // distance from it: the FUEL's own dent is all of the squeeze against something hard, part of it
+  // against a tread that gives (a roller's, the net's: half, about)
+  _squash(near) {
+    const byBody = new Map(near.map((b) => [b.body, b])), R = FUEL.radius, now = new Set();
+    for (const c of [...this.path.dents, ...(this.shooter ? this.shooter.dents : [])]) {
+      const b = byBody.get(c.ball);
+      if (!b || c.wheel.name === 'FUEL' || !(c.depth > 0.0005)) continue;
+      const d = Math.min(R * 0.6, c.wheel.tread < Infinity ? c.depth / 2 : c.depth);
+      if (!now.has(b)) { now.add(b); b.squash = []; }
+      b.squash.push([-c.n[0], -c.n[1], -c.n[2], R - d - 0.001]); // (a hair short of the face, so the flat doesn't flicker through it)
+    }
+    for (const b of now) if (b.squash.length > 4) b.squash = b.squash.sort((p, q) => p[3] - q[3]).slice(0, 4);
+    for (const b of this.squashed || []) if (!now.has(b)) b.squash = null;
+    this.squashed = now;
   }
 
   // after the world's step: what got in, and what got shot (mode: what the shot's for)

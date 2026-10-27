@@ -7,7 +7,7 @@ import { RAPIER } from './physics.js';
 import { FUEL, HUB, HALF_L, HALF_W, BLUE, RED, GROUP, groups, PHYSICS_DT } from './constants.js';
 import { Field } from './field.js';
 import { rand, clamp } from './util.js';
-import { fuelTexture } from './fuelSkin.js';
+import { fuelTexture, squashable } from './fuelSkin.js';
 
 const R = FUEL.radius;
 const NORMAL_GROUPS = groups(GROUP.BALL, GROUP.STATIC | GROUP.TERRAIN | GROUP.BALL | GROUP.HELD | GROUP.ROBOT | GROUP.INTAKE | GROUP.WHEEL);
@@ -28,6 +28,9 @@ export class FuelManager {
 
     const geo = new THREE.SphereGeometry(R, 16, 12);
     const mat = new THREE.MeshStandardMaterial({ map: fuelTexture(), roughness: 0.72, metalness: 0 });
+    // (FUEL a physical robot's mechanisms press are drawn flattened there: b.squash, physical.js)
+    this.touch = squashable(geo, mat, FUEL.total, R);
+    this.squashed = new Set();
     this.mesh = new THREE.InstancedMesh(geo, mat, FUEL.total);
     this.mesh.castShadow = true;
     this.mesh.receiveShadow = true;
@@ -366,6 +369,28 @@ export class FuelManager {
         mesh.setMatrixAt(b.id, HIDDEN);
       }
     }
+    // the squeezed ones flattened where they're pressed (each patch's normal into the ball's own
+    // frame, as it's drawn turned), the rest round again
+    const tc = this.touch, qi = new THREE.Quaternion(), nv = new THREE.Vector3();
+    let dirty = false;
+    for (const b of this.squashed) if (!b.squash || b.state !== 'field') {
+      for (const a of tc) a.array.set([0, 1, 0, 1], 4 * b.id);
+      this.squashed.delete(b);
+      dirty = true;
+    }
+    for (const b of this.balls) {
+      if (!b.squash || b.state !== 'field') continue;
+      qi.copy(b.quat).invert();
+      tc.forEach((a, j) => {
+        const p = b.squash[j];
+        if (!p) { a.array.set([0, 1, 0, 1], 4 * b.id); return; }
+        nv.set(p[0], p[1], p[2]).applyQuaternion(qi);
+        a.array.set([nv.x, nv.y, nv.z, p[3]], 4 * b.id);
+      });
+      this.squashed.add(b);
+      dirty = true;
+    }
+    if (dirty) for (const a of tc) a.needsUpdate = true;
     // FUEL waiting in the OUTPOST CHUTES
     for (const a of [BLUE, RED]) {
       const slots = this.field.outposts[a].chuteSlots;

@@ -435,6 +435,7 @@ export class Mechanism {
     Object.assign(this, { body, shafts, wheels, surfaces, iterations, gravity, sub });
     this.gShare = (substeps + 1) / (2 * substeps);
     this.contacts = [];  // last step's, for drawing and tests
+    this.dents = [];     // its last substep's, every one (step)
     this.V = 12;
   }
 
@@ -488,6 +489,9 @@ export class Mechanism {
     }
     const reaction = [];
     const seen = new Map(); // the step's contacts (the firmest of each wheel and FUEL), for drawing and tests
+    // (and every contact of its last substep, each FUEL's dent against a wheel or a surface: where
+    // a FUEL is drawn flattened, js/mech/physical.js)
+    this.dents = [];
     for (let k = 0; k < n; k++) {
       if (n > 1) for (const st of S.values()) st.v = add(st.v, mul(g, h));
       const C = this._contacts(W, fr, n > 1 ? [...S.values()].map((st) => [st.b, st.c]) : balls.map((b) => { const t = b.translation(); return [b, [t.x, t.y, t.z]]; }), state);
@@ -499,6 +503,7 @@ export class Mechanism {
         seen.set(key, m);
         const was = m.get(ct.st.b);
         if (!was || ct.lamN / h > was.force) m.set(ct.st.b, { wheel: ct.W1.wh, ball: ct.st.b, depth: ct.depth, force: ct.lamN / h, x: ct.x, n: ct.n });
+        if (k === n - 1) this.dents.push({ wheel: ct.W1.wh, ball: ct.st.b, depth: ct.depth, n: ct.n });
       }
     }
     // results
