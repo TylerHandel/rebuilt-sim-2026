@@ -320,7 +320,7 @@ const tests = {
   dump() {
     const res = [];
     for (let seed = 1; seed <= Number(process.env.DSEEDS ?? 1); seed++) res.push(dumpRun(seed));
-    if (res.length > 1) console.log(`  over ${res.length} fills: through the middle ${res.map((x) => x.mid.toFixed(1)).join(', ')} (median ${med(res.map((x) => x.mid)).toFixed(1)}); dumped ${res.map((x) => x.n + '/' + x.n0).join(', ')}`);
+    if (res.length > 1) console.log(`  over ${res.length} fills: through the middle ${res.map((x) => x.mid.toFixed(1)).join(', ')} (median ${med(res.map((x) => x.mid)).toFixed(1)}); its best second ${res.map((x) => x.best).join(', ')} (median ${med(res.map((x) => x.best))}); dumped ${res.map((x) => x.n + '/' + x.n0).join(', ')}`);
   },
 };
 
@@ -400,8 +400,10 @@ function dumpRun(seed = 1) {
     const span = s.length > 1 ? s[s.length - 1] - first : 0;
     // (the steady rate: the middle half of the dump)
     const mid = s.slice(Math.floor(s.length / 4), Math.ceil((3 * s.length) / 4)), midRate = mid.length > 2 ? (mid.length - 1) / (mid[mid.length - 1] - mid[0]) : 0;
-    console.log(`4414 dumps ${s.length} of ${n0}: ${in1} in the first second, ${span ? ((s.length - 1) / span).toFixed(1) : 0} FUEL/s over the whole dump, ${midRate.toFixed(1)} through its middle (their gap-free 12-14 BPS)`);
-    return { n: s.length, n0, mid: midRate };
+    // (and its best second: as many shot in any one second as it manages, the load still coming)
+    const best = s.reduce((m, x, i) => Math.max(m, s.slice(i).filter((y) => y < x + 1).length), 0);
+    console.log(`4414 dumps ${s.length} of ${n0}: ${in1} in the first second, ${best} in its best, ${span ? ((s.length - 1) / span).toFixed(1) : 0} FUEL/s over the whole dump, ${midRate.toFixed(1)} through its middle (their gap-free 12-14 BPS)`);
+    return { n: s.length, n0, mid: midRate, best };
 }
 
 function pathRun(seed, { shoot = true, n = 20, sec = 8 } = {}) {
