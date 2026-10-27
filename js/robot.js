@@ -1481,6 +1481,7 @@ export class Robot {
       intakeDeploy: this.intakeDeploy,
       // (a physical arm's own turn from its CAD pose, rad: 1678's)
       armTurn: this.phys?.armTurn?.(),
+      floorSpin: this.phys?.floorSpin?.(),
       intakeSpeed: this.intakeSpeed * (this.intakeSpeed > 0 ? this.rollerSpeed ?? 1 : 1),
       hopperDeploy: this.hopperDeploy,
       flywheel: this.flywheel,

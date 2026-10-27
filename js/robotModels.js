@@ -13,6 +13,7 @@ import { BUMPER_T, BUMPER_Y0, BUMPER_Y1, frameShape, offsetShape, modulePoints }
 import { ALLIANCE_COLOR_CSS } from './field.js';
 import { hookPath } from './hopper.js';
 import { build8793 as trains8793, conveyorWheels as conveyorWheels8793 } from './mech/r8793.js';
+import { FLOOR as FLOOR_2910 } from './mech/r2910.js';
 
 export const BUMP_Y0 = BUMPER_Y0, BUMP_Y1 = BUMPER_Y1;
 const lerp = THREE.MathUtils.lerp;
@@ -438,7 +439,8 @@ function build2910(cfg, alliance) {
   const L = cfg.frame.length, W = cfg.frame.width, H = cfg.height;
   addBumpers(root, cfg, alliance);
   const modules = addDrivebase(root, cfg);
-  addElectronics(root, 0.02, 0, 0);
+  // the battery lies flat on the bellypan at the front, under the hopper's floor (their CAD)
+  rbx(0.167, 0.076, 0.18, 0.006, M.battery, root, 0.222, 0.078, 0);
   const plate = std(0x8f949c, 0.35, 0.85);
   const purple = std(cfg.colors.accent, 0.45, 0.35);
   const green = std(cfg.colors.trim, 0.5, 0.2);
@@ -546,6 +548,11 @@ function build2910(cfg, alliance) {
   // their "Shooter & Feeder" assembly: powered floor, the roller ramp that indexes FUEL up under
   // the rollered hood, and the drum at the back; it replaces the drawn tower and floor
   cadPart(root, 'robots/2910-shooter.glb', () => { tower.visible = false; feeder.visible = false; });
+  // the hopper's floor (their CAD's, as js/mech/r2910.js has it; the exported shooter leaves its
+  // sleeves out): ten powered rollers, 1.25in silicone sleeves sloping down to the back, then bare
+  // aluminum, then two up the back wall
+  const silicone = std(0x3d4148, 0.85, 0.0);
+  const floorRollers = FLOOR_2910.map(([x, y, d, grip]) => cylZ(d / 2, 0.559, grip === 'aluminum' ? M.alu : silicone, root, x, y, 0, 14));
   // their hood (its two rollers on arms that pivot on the drum shaft): it swings back over the
   // drum for a flatter shot (cfg.shooter.hood)
   const hoodCfg = cfg.shooter.hood;
@@ -569,6 +576,7 @@ function build2910(cfg, alliance) {
     for (const r of hoodRollers) r.rotation.y += st.flywheel * dt * 8;
     indexer.rotation.z -= st.feeding * dt * 25;
     for (const r of feedRollers) r.rotation.y -= st.feeding * dt * 30;
+    for (const r of floorRollers) r.rotation.y += (st.floorSpin ?? st.feeding * 30) * dt; // (their tops run back)
     hood.rotation.z = -(st.hoodDeg - 58) * Math.PI / 180 * 0.4; // a higher shot tips the exit up
     cadHood.rotation.z = ((hoodCfg.cadDeg - st.hoodDeg) * Math.PI) / 180;
   };

@@ -182,6 +182,8 @@ export class Physical2910 extends PhysicalRobot {
   // 45 set in a layer at a time, tools/mechlab2910.mjs hold, and the intake packs it to 58-60 in
   // matches)
   capacity() { return 60; }
+  // the floor rollers' spin (rad/s; positive carries FUEL back), for drawing them
+  floorSpin() { return this.t.floor.omega; }
 }
 // a FUEL's exit speed over the drum's surface speed (tools/mechlab.mjs shooter2910 measures it)
 export const EXIT_PER_DRUM_SURFACE = 0.8;
