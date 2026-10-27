@@ -994,6 +994,8 @@ function build4414(cfg, alliance) {
   const greyAl = std(0x5c6169, 0.38, 0.7);
   const plastic = std(0x3a3e45, 0.7, 0.05);
   const carbon = new THREE.MeshStandardMaterial({ map: carbonTexture(), color: 0xffffff, roughness: 0.4, metalness: 0.3 });
+  // (the box's carbon fiber: dark, a satin weave rather than a mirror)
+  const carbonDark = new THREE.MeshStandardMaterial({ map: carbonTexture(), color: 0x5e636b, roughness: 0.5, metalness: 0.1 });
   const smoke = polyMat({ color: 0x2c3036, opacity: 0.58, roughness: 0.2 }, 0x3a4048);
   const clearSmoke = polyMat({ color: 0x59606a, opacity: 0.22, roughness: 0.15 }, 0x9aa2ac);
   const bolts = boltSet(root, std(0xc4c8ce, 0.3, 0.9));
@@ -1097,28 +1099,31 @@ function build4414(cfg, alliance) {
   const xF = L / 2 + BUMPER_T + cfg.intake.reach - extLen; // front face, stowed
   // the box's side panels and racks run outboard of the hopper walls and the pinion strips
   const sideZ = W / 2 + 0.02, rackZ = W / 2 + 0.012, boxBack = xF - 0.33, bw = sideZ + 0.002;
-  const chinY = D4.BOX.chin;
+  const chinY = D4.BOX.chin, I4 = D4.INTAKE;
   {
-    // front panel (SRPP), with a bent chin at the bottom over the roller
-    mesh(new THREE.BoxGeometry(0.004, wallTop - chinY, 2 * bw), carbon, ext, xF - 0.006, (wallTop + chinY) / 2, 0);
-    const chin = bx(0.004, 0.05, 2 * bw - 0.02, carbon, ext, xF - 0.022, chinY - 0.021, 0);
+    // front panel (carbon fiber, the renders), with a bent chin at the bottom over the roller
+    mesh(new THREE.BoxGeometry(0.004, wallTop - chinY, 2 * bw), carbonDark, ext, xF - 0.006, (wallTop + chinY) / 2, 0);
+    const chin = bx(0.004, 0.05, 2 * bw - 0.02, carbonDark, ext, xF - 0.022, chinY - 0.021, 0);
     chin.rotation.z = -0.72;
-    bx(0.006, 0.005, 2 * bw - 0.01, M.alu, ext, xF - 0.006, chinY, 0); // bend line
+    bx(0.006, 0.005, 2 * bw - 0.01, blackAl, ext, xF - 0.006, chinY, 0); // bend line
     for (let j = 0; j < 14; j++) for (const y of [wallTop - 0.012, chinY + 0.014]) bolts.add(new THREE.Vector3(xF - 0.003, y, -bw + 0.03 + j * (2 * bw - 0.06) / 13), new THREE.Vector3(1, 0, 0));
-    // side panels: tall, cut away at the bottom to clear the bumper
-    const sp = new THREE.Shape();
+    // side panels (smoked polycarbonate): full height at the front, stepping down in a curve toward
+    // the back, where the box slides in under the robot's top (the renders); cut away at the
+    // bottom to clear the bumper
+    const sp = new THREE.Shape(), low = wallTop - 0.075;
     sp.moveTo(0, 0.17); sp.lineTo(0.12, 0.17);
     sp.quadraticCurveTo(0.2, 0.17, 0.235, 0.06);
-    sp.lineTo(0.33, 0.035); sp.lineTo(0.33, wallTop); sp.lineTo(0, wallTop); sp.closePath();
+    sp.lineTo(0.33, 0.035); sp.lineTo(0.33, wallTop); sp.lineTo(0.2, wallTop);
+    sp.bezierCurveTo(0.16, wallTop, 0.165, low, 0.12, low); sp.lineTo(0, low); sp.closePath();
     const spGeo = new THREE.ExtrudeGeometry(sp, { depth: 0.004, bevelEnabled: false });
     for (const s of [-1, 1]) {
       mesh(spGeo, smoke, ext, boxBack, 0, s * sideZ - 0.002).castShadow = false;
-      // bent aluminum impact guard wrapping the front corner
-      bx(0.004, wallTop - 0.07, 0.06, greyAl, ext, xF + 0.001, (wallTop + 0.07) / 2, s * (bw - 0.03));
-      bx(0.07, wallTop - 0.07, 0.004, greyAl, ext, xF - 0.034, (wallTop + 0.07) / 2, s * (bw + 0.001));
+      // a bent black angle along the front corner, the front panel and side panel bolted to it
+      bx(0.003, wallTop - 0.07, 0.025, blackAl, ext, xF + 0.001, (wallTop + 0.07) / 2, s * (bw - 0.012));
+      bx(0.025, wallTop - 0.07, 0.003, blackAl, ext, xF - 0.012, (wallTop + 0.07) / 2, s * (bw + 0.001));
       for (let j = 0; j < 7; j++) {
-        bolts.add(new THREE.Vector3(xF + 0.003, 0.09 + j * 0.045, s * (bw - 0.03)), new THREE.Vector3(1, 0, 0));
-        bolts.add(new THREE.Vector3(xF - 0.034, 0.09 + j * 0.045, s * (bw + 0.003)), new THREE.Vector3(0, 0, s));
+        bolts.add(new THREE.Vector3(xF + 0.003, 0.09 + j * 0.045, s * (bw - 0.012)), new THREE.Vector3(1, 0, 0));
+        bolts.add(new THREE.Vector3(xF - 0.012, 0.09 + j * 0.045, s * (bw + 0.003)), new THREE.Vector3(0, 0, s));
       }
       // rack along the bottom of the box (it runs back through the pinion plate)
       bx(0.52, 0.012, 0.01, blackAl, ext, xF - 0.3, 0.182, s * rackZ);
@@ -1126,32 +1131,51 @@ function build4414(cfg, alliance) {
       const m4 = new THREE.Matrix4();
       for (let j = 0; j < 60; j++) { m4.makeTranslation(xF - 0.555 + j * 0.0085, 0.192, s * rackZ); teeth.setMatrixAt(j, m4); }
       ext.add(teeth);
-      // roller drive: Kraken X44 on the side panel, belt down to the roller
-      kraken(ext, xF - 0.07, 0.3, s * (sideZ - 0.04), true, 'z');
-      bx(0.012, 0.15, 0.006, M.polyBelt, ext, xF - 0.05, 0.23, s * (sideZ - 0.022)).rotation.z = 0.25;
+      // the primary roller's drive (the renders): a Kraken X60 inside each side panel, just behind
+      // and over the roller, its pulley and the belt down to the roller's big pulley outside the
+      // panel
+      const mx = xF - 0.12, my = I4.primary.y + 0.07, px = xF + I4.primary.dx, py = I4.primary.y, bz = s * (sideZ + 0.012);
+      kraken(ext, mx, my, s * (sideZ - 0.045), false, 'z');
+      cylZ(0.016, 0.014, blackAl, ext, mx, my, bz, 16);
+      cylZ(0.036, 0.014, blackAl, ext, px, py, bz, 28);
+      cylZ(0.012, 0.018, M.alu, ext, px, py, bz + s * 0.004, 12);
+      const bl = Math.hypot(px - mx, py - my), ba = Math.atan2(py - my, px - mx), nx = -Math.sin(ba), ny = Math.cos(ba);
+      for (const [r0, r1, k] of [[0.016, 0.036, 1], [0.016, 0.036, -1]]) {
+        const b = bx(bl, 0.004, 0.012, M.polyBelt, ext, (mx + px) / 2 + (k * nx * (r0 + r1)) / 2, (my + py) / 2 + (k * ny * (r0 + r1)) / 2, bz);
+        b.rotation.z = ba + k * Math.asin((r1 - r0) / bl);
+      }
+      // and the bottom roller's pulley (its X44 belted to it the same way)
+      cylZ(0.022, 0.012, blackAl, ext, xF + I4.bar.dx, I4.bar.y, bz, 20);
     }
   }
   // the primary 3in polycarbonate roller under the chin, on big printed flanged hubs, and the
   // bottom 1.5in roller at the lip (where the physical model has them: js/mech/r4414.js)
-  const I4 = D4.INTAKE;
   const intakeRoller = new THREE.Group();
   intakeRoller.position.set(xF + I4.primary.dx, I4.primary.y, 0);
   ext.add(intakeRoller);
-  cylZ(I4.primary.r, 2 * sideZ - 0.03, std(0xe6e8ea, 0.45, 0.05), intakeRoller, 0, 0, 0, 24);
-  for (const s of [-1, 1]) for (const zz of [0.06, 0.3]) cylZ(I4.primary.r + 0.006, 0.012, plastic, intakeRoller, 0, 0, s * (sideZ - zz), 18);
-  for (let i = 0; i < 6; i++) bx(0.004, 2 * I4.primary.r + 0.001, 2 * sideZ - 0.08, std(0xd0d3d7, 0.5, 0.05), intakeRoller, 0, 0, 0).rotation.z = (i * Math.PI) / 6; // ribs
-  const bottomBar = cylZ(I4.bar.r, 2 * sideZ - 0.03, std(0xe6e8ea, 0.45, 0.05), ext, xF + I4.bar.dx, I4.bar.y, 0, 16);
-  // hinged ramp of passive rollers from the roller up to the bumper (it swings down as the box
-  // comes out and lies on the bumper when it's out)
-  const ramp = new THREE.Group();
-  ramp.position.set(xF - 0.06, 0.02, 0);
-  ext.add(ramp);
-  const ridge = bay.ramp; // top of the ramp, just over the front bumper
-  const rampLen = Math.hypot(xF + extLen - 0.06 - ridge.x, ridge.y - 0.02);
-  for (const s of [-1, 1]) bx(rampLen, 0.02, 0.008, blackAl, ramp, -rampLen / 2, 0, s * (wallZ - 0.02));
-  const rampRollers = [];
-  for (let i = 0; i < 6; i++) rampRollers.push(cylZ(0.011, 2 * wallZ - 0.05, std(0x2e3137, 0.55, 0.1), ramp, -0.02 - i * (rampLen - 0.03) / 5, 0.006, 0, 10));
-  cylZ(0.004, 2 * wallZ - 0.02, M.alu, ramp, 0, 0, 0, 6);
+  // (both clear 1/8in-wall polycarbonate tubes, the binder: the hex shaft and the printed hubs
+  // inside them showing through)
+  const clearTube = polyMat({ color: 0xe9eef3, opacity: 0.38, roughness: 0.12 }, 0xc9d0d8);
+  cylZ(I4.primary.r, 2 * sideZ - 0.03, clearTube, intakeRoller, 0, 0, 0, 28).castShadow = false;
+  cylZ(0.0064, 2 * sideZ - 0.01, M.alu, intakeRoller, 0, 0, 0, 6); // 1/2in hex shaft
+  for (const s of [-1, 1]) for (const zz of [0.02, 0.25]) cylZ(I4.primary.r - 0.003, 0.014, plastic, intakeRoller, 0, 0, s * (sideZ - zz), 6);
+  const bottomBar = new THREE.Group();
+  bottomBar.position.set(xF + I4.bar.dx, I4.bar.y, 0);
+  ext.add(bottomBar);
+  cylZ(I4.bar.r, 2 * sideZ - 0.03, clearTube, bottomBar, 0, 0, 0, 20).castShadow = false;
+  cylZ(0.004, 2 * sideZ - 0.01, M.alu, bottomBar, 0, 0, 0, 6);
+  for (const s of [-1, 1]) cylZ(I4.bar.r - 0.002, 0.012, plastic, bottomBar, 0, 0, s * (sideZ - 0.02), 6);
+  // the box's floor: a smoked polycarbonate ramp from behind the bottom roller up onto the bumper's
+  // top (the physical model's: D4.INTAKE.ramp, its back end where it is with the box all the way
+  // out), on a black angle each side
+  {
+    const [[dx0, y0], [x1, y1]] = I4.ramp, rx0 = xF + dx0, rx1 = xF - (D4.BOX.front - x1);
+    const len = Math.hypot(rx0 - rx1, y0 - y1), a = Math.atan2(y0 - y1, rx0 - rx1);
+    const fl = mesh(new THREE.BoxGeometry(len, 0.003, 2 * sideZ - 0.01), smoke, ext, (rx0 + rx1) / 2, (y0 + y1) / 2 - 0.002, 0);
+    fl.rotation.z = a;
+    fl.castShadow = false;
+    for (const s of [-1, 1]) bx(len, 0.012, 0.012, blackAl, ext, (rx0 + rx1) / 2, (y0 + y1) / 2 - 0.008, s * (sideZ - 0.008)).rotation.z = a;
+  }
   // (a star roller over the bumper: not in their binder, so not drawn)
   const star = new THREE.Group();
   star.position.set(L / 2, 0.345, 0);
@@ -1178,7 +1202,6 @@ function build4414(cfg, alliance) {
     pin.position.set(stripX0 + 0.055, 0.206, s * (rackZ + 0.005));
     kraken(root, stripX0 + 0.055, 0.206, s * (W / 2 - 0.04), true, 'z');
   }
-  for (const s of [-1, 1]) bx(0.03, 0.04, 0.012, blackAl, root, L / 2, 0.345, s * (wallZ - 0.006)); // star roller bearing blocks
 
   // ---- Dye Rotor
   const rotor = new THREE.Group();
@@ -1441,12 +1464,8 @@ function build4414(cfg, alliance) {
     const ex = st.hopperDeploy * extLen;
     ext.position.x = ex;
     intakeRoller.rotation.z -= st.intakeSpeed * dt * 45; // pulls FUEL in up the ramp
-    bottomBar.rotation.y += st.intakeSpeed * dt * 90;
+    bottomBar.rotation.z -= st.intakeSpeed * dt * 90;
     star.rotation.z += st.intakeSpeed * dt * 35;
-    for (const r of rampRollers) r.rotation.y += st.intakeSpeed * dt * 20;
-    // the ramp hangs from the roller end and lies back on the bumper once the box is out
-    const dxr = xF - 0.06 + ex - ridge.x;
-    ramp.rotation.z = -Math.min(Math.PI / 2 - 0.06, Math.atan2(ridge.y - 0.02, Math.max(1e-3, dxr)));
     // the Dye Rotor's hook and feeder turn over the fixed floor (clockwise from above: its angle
     // from the physical model), the TTB wheels spin while it feeds
     rotorParts.rotation.y = -(st.rotorTurn ?? 0);
