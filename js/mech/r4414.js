@@ -167,13 +167,13 @@ export const INTAKE = {
   // running in, takes it over into the hopper (dx back from the box's front at its full extension;
   // the places are estimates from the renders). The black roller is in short segments in the
   // renders: compliant, gripping as rubber does (mu, tread); the kick wheel too (an estimate)
-  primary: { dx: -0.085, y: 0.14, r: 1.5 * IN },
+  primary: { dx: -0.046, y: 0.14, r: 1.5 * IN },
   bar: { dx: -0.23, y: 0.2, r: 0.75 * IN, mu: 1.0, tread: 20000 },
   kick: { gap: 0.004, y: 0.75 * IN + 0.006, r: 0.75 * IN, mu: 1.0, tread: 20000 },
   // two tubes across the box over the primary roller, each free on its bearings (the isolated
   // intake render; the team): FUEL in the box can't pile on the primary's top, which runs forward
   // and would throw them back out; ahead of the way up the bumper's face (estimates)
-  guards: [{ dx: -0.05, y: 0.245 }, { dx: -0.095, y: 0.285 }],
+  guards: [{ dx: -0.03, y: 0.235 }, { dx: -0.07, y: 0.28 }],
   guardR: 0.5 * IN,
   width: 0.8,
 };

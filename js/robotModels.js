@@ -1133,7 +1133,7 @@ function build4414(cfg, alliance) {
       ext.add(teeth);
       // the kicker's drive (the renders): a Kraken X60 inside each side panel over it, its pulley
       // and the belt down to the kicker's big pulley outside the panel
-      const mx = xF + I4.primary.dx + 0.03, my = I4.primary.y + 0.13, px = xF + I4.primary.dx, py = I4.primary.y, bz = s * (sideZ + 0.012);
+      const mx = xF + I4.primary.dx - 0.04, my = I4.primary.y + 0.13, px = xF + I4.primary.dx, py = I4.primary.y, bz = s * (sideZ + 0.012);
       kraken(ext, mx, my, s * (sideZ - 0.045), false, 'z');
       cylZ(0.016, 0.014, blackAl, ext, mx, my, bz, 16);
       cylZ(0.036, 0.014, blackAl, ext, px, py, bz, 28);
