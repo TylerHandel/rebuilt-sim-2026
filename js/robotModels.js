@@ -1290,7 +1290,8 @@ function build4414(cfg, alliance) {
     leg.scale.set(1, 1, 0.5);
   }
   // the Dye Rotor's moving part (js/mech/r4414.js, the physical model's own geometry): its hook,
-  // its face a row of fixed standoffs, backed by the Dolphin Fin, curving in to the hub's side; across
+  // its face a row of little rollers on bearings, backed by the Dolphin Fin, curving in to the hub's
+  // side; across
   // the way in from its end the stack (the TTB wheels, the 3in omni over them), the 1.25in omnis
   // across the entrance, the channel in through the hub's side, all turning together over the fixed
   // floor
@@ -1302,11 +1303,7 @@ function build4414(cfg, alliance) {
   for (let i = 0; i <= 24; i++) { const { r, a } = D4.hookCurve(i / 24); hookPts.push([r * Math.cos(a), r * Math.sin(a)]); }
   for (const y of [H4.y0, H4.y1]) flatRibbon(hookPts, 0.02, y, blackAl, rotorParts);
   const rollerMat = std(0x3b3f45, 0.5, 0.1);
-  for (let i = 1; i < hookPts.length - 1; i++) {
-    const [x, z] = hookPts[i], r = Math.hypot(x, z);
-    // (just in front of the face)
-    cylY(0.011, H4.y1 - H4.y0 - 0.006, rollerMat, rotorParts, x * (1 - 0.012 / r), (H4.y0 + H4.y1) / 2, z * (1 - 0.012 / r), 10);
-  }
+  const hookRollers = D4.hookRollerAt().map(([x, y, z]) => cylY(H4.rollers.r, H4.y1 - H4.y0 - 0.006, rollerMat, rotorParts, x - D4.AXIS[0], y, z - D4.AXIS[1], 10));
   {
     // the Dolphin Fin: a ramp from the hook's top edge down behind it to the floor
     const pos = [], idx = [];
@@ -1453,6 +1450,7 @@ function build4414(cfg, alliance) {
     // the Dye Rotor's hook and feeder turn over the fixed floor (clockwise from above: its angle
     // from the physical model), the TTB wheels spin while it feeds
     rotorParts.rotation.y = -(st.rotorTurn ?? 0);
+    for (const r of hookRollers) r.rotation.y += st.feeding * dt * 25;
     bendAxle.userData.spin.rotation.z += st.feeding * dt * 144; // (2.4 times the stack's speed)
     for (const w of ttbSpin) w.rotation.y += st.feeding * dt * 60; // (the stack turns about +y: its face toward the channel runs in)
     turret.rotation.y = st.turretYaw;

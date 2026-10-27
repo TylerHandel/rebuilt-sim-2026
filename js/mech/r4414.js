@@ -35,8 +35,8 @@
 // How they're put together here (the renders, and 604's): the Dye Rotor turns (36.4:1, clockwise
 // from above) on the hopper's middle over a fixed floor sunk in a bowl: the stadium pieces funnel
 // FUEL down to a wall standing straight up round the floor's rim (the clear ring in the renders),
-// and the hook's tip runs flush against it. The hook, its face a row of fixed standoffs standing up
-// (the team: not rollers), curves gradually from the rim in to the rotor's hub, its tip leading, and sweeps the
+// and the hook's tip runs flush against it. The hook, its face a row of little rollers standing up
+// on bearings ("passive plastic rollers on hook ... coupled with bearings"), curves gradually from the rim in to the rotor's hub, its tip leading, and sweeps the
 // FUEL on the floor along its face in to the hub's side. There, on the inside of its curve across
 // the way in from the hook's end, is the one powered stack (RotorV10's render: the 3in TTB urethane
 // wheels on a shaft standing up, the 3in omni over them, driven through the hub: "rotor wheels"),
@@ -103,7 +103,9 @@ export const BORE = { r: R + 0.004, top: 0.345 };
 // the channel there (a cubic: lead m on along the wall from the tip, root m out along the channel
 // from the hub); from just off the floor to y1, over a FUEL's middle and a little over the wall; its
 // back the Dolphin Fin (finBack m behind its top edge, at the floor) (estimates: the renders)
-export const HOOK = { tipR: STADIUM.r - 0.003, tipA: 0.6, lead: 0.12, root: 0.1, y0: FLOOR + 0.006, y1: FLOOR + 0.1, finBack: 0.09 };
+// The rollers: n of them standing up along the face, each free on its bearings (r, and its
+// inertia J: a plastic tube; estimates: the renders)
+export const HOOK = { tipR: STADIUM.r - 0.003, tipA: 0.6, lead: 0.12, root: 0.1, y0: FLOOR + 0.006, y1: FLOOR + 0.1, finBack: 0.09, rollers: { n: 23, r: 0.011, J: 1e-6 } };
 // the rotor: the hook, the hub, the feeder wheels and their gears (estimate)
 export const ROTOR = { J: 0.04 };
 
@@ -201,6 +203,9 @@ export function wheels4414(t) {
   const feed = [
     ...T.ys.map((y, i) => new Wheel({ name: `TTB 3in urethane ${i + 1}`, shaft: t.ttb, center: chan(T.u, y, tw), axis: [0, 1, 0], radius: T.r, width: T.wid, mu: MU.urethane, tread: 15000 })),
     new Wheel({ name: 'TTB 3in omni', shaft: t.ttb, kind: 'omni', center: chan(T.u, T.omniY, tw), axis: [0, 1, 0], radius: T.r, width: T.wid, mu: MU.omni, tread: 30000 }),
+    // (the hook's rollers, each on its own bearings: FUEL roll along the hook almost freely, but
+    // not up or down it)
+    ...hookRollerAt().map((c, i) => new Wheel({ name: 'hook rollers', shaft: new Shaft({ name: `hook roller ${i + 1}`, inertia: HOOK.rollers.J, drag: 1e-6 }), center: c, axis: [0, 1, 0], radius: HOOK.rollers.r, width: HOOK.y1 - HOOK.y0 - 0.006, mu: MU.plate })),
     // (the entrance's omnis: their shaft across the channel, turning so their undersides run in)
     new Wheel({ name: '1.25in omnis', shaft: t.bend, kind: 'omni', center: chan(BEND.u, BEND.y, 0), axis: chanDir(0, -1), radius: F.omni.r, width: F.omni.wid, mu: MU.omni, tread: 30000 }),
   ].map((w) => w.onPivot(t.rotor, [AXIS[0], 0, AXIS[1]], [0, -1, 0]));
@@ -211,6 +216,11 @@ export function wheels4414(t) {
   ];
   placeIntake(intake, BOX.ext);
   return { feed, intake };
+}
+// the hook's rollers' centers (robot frame, the rotor at phi = 0): on its face, half proud of it
+export function hookRollerAt() {
+  const n = HOOK.rollers.n, y = (HOOK.y0 + HOOK.y1) / 2;
+  return Array.from({ length: n }, (_, i) => { const { r, a } = hookCurve((i + 1) / (n + 1)); return [AXIS[0] + r * Math.cos(a), y, AXIS[1] + r * Math.sin(a)]; });
 }
 // a point (robot frame) turned with the rotor by phi (rad, clockwise from above) about its axis
 export function rotorPoint([x, y, z], phi) {
