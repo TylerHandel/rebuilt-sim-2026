@@ -36,7 +36,13 @@ export const PIVOT = [0.305, 0.169]; // the intake's pivot tube
 export const DRUM = [-0.288, 0.477]; // the drum's axle, which the hood turns about
 export const INTAKE = {
   // as the CAD has it: folded up inside the hopper (their 130 deg; 0 is down)
-  main: { at: [0.143, 0.368], d: 0.0516 },           // 2in silicone-covered roller (the CAD's)
+  // the roller: the CAD's 2in tube, its silicone 1/4in thicker than the CAD's (2.53in over it) and
+  // softer for it (tread, N/m) and grippier (mu). As the CAD has it, a FUEL resting against the
+  // kicker bar is squeezed only 3 mm and gripped so lightly that, driving into the NEUTRAL ZONE's
+  // FUEL, they pile up against the bar faster than it lifts them (tools/intake-test.mjs at 3 m/s:
+  // 21-38 of the 52 in its path; 35-42 with this, and 45-52 of 52 at 1.5 m/s against 36-45).
+  // Thicker still and the gap to the kicker bar closes up (2.78in: 22-37 at 1.5 m/s).
+  main: { at: [0.143, 0.368], d: 0.0643, mu: 1.3, tread: 10000 },
   // the 1.25in kicker bar at the front of the bumper when it's down: locked in place, not free to
   // turn (the team); the roller rolls FUEL up over it
   kicker: { at: [0.312, 0.322], d: 0.0326 },
@@ -49,9 +55,8 @@ export const INTAKE = {
   // bumper and the roller 4 mm out of reach of a FUEL resting against the kicker bar (a dead spot)
   cad: 132,
   // down: their 0 (the CAD's pose turned 132 deg). A FUEL on the carpet against the kicker bar is
-  // then squeezed 3 mm by the roller, which rolls it up over the bar; driving into the NEUTRAL
-  // ZONE's FUEL at 3 m/s it takes in about 34 in 2 s (against 15 with the arm 2 deg higher and the
-  // bare tube, when FUEL sat on the bar out of the roller's reach)
+  // then squeezed by the roller, which rolls it up over the bar (with the arm 2 deg higher, FUEL
+  // sat on the bar out of the roller's reach)
   down: 0,
   // its arm (plates, roller, two X60s, crash bar): their sim's 0.222 kg m^2 about the pivot
   mass: 4.2, com: 0.22, comDeg: -1, J: 0.222,
@@ -165,7 +170,7 @@ export function wheels1678(t) {
     new Wheel({ name: t.feeder.name, shaft: t.feeder, center: [...FEEDER.at, 0.012], axis: Z, radius: FEEDER.d / 2, width: 0.564, mu: MU.silicone, tread: 20000 }),
   ];
   const intake = [
-    new Wheel({ name: 'intake 2in roller (silicone)', shaft: t.main, center: [...INTAKE.main.at, 0], axis: Z, radius: INTAKE.main.d / 2, width: 0.618, mu: MU.silicone, tread: 20000 }),
+    new Wheel({ name: 'intake 2in roller (silicone)', shaft: t.main, center: [...INTAKE.main.at, 0], axis: Z, radius: INTAKE.main.d / 2, width: 0.618, mu: INTAKE.main.mu, tread: INTAKE.main.tread }),
     new Wheel({ name: 'intake kicker bar (locked)', shaft: t.kicker, center: [...INTAKE.kicker.at, 0], axis: Z, radius: INTAKE.kicker.d / 2, width: 0.66, mu: MU.polycarb }),
     ...INTAKE.idlers.map((w, i) => new Wheel({ name: t.idlers[i].name, shaft: t.idlers[i], center: [...w.at, 0], axis: Z, radius: w.d / 2, width: 0.66, mu: MU.polycarb })),
   ];
