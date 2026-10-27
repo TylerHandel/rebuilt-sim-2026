@@ -123,8 +123,9 @@ export const ROTOR = { J: 0.04 };
 
 // the turret's frame: about AXIS, x along the shot; the flywheel (3in) FLY.x out from the axis,
 // the FUEL going up the column meeting its back; .9in of squeeze between it and the backing low
-// down (half each), .8in under the hood, 1in at the hood roller
-export const FLY = { r: 1.5 * IN, y: 0.4, w: 0.12 };
+// down (half each), .8in under the hood, 1in at the hood roller. The flywheel's top is flush with
+// the robot's top (the team): its axle y up, just under the top plate
+export const FLY = { r: 1.5 * IN, y: 0.49, w: 0.12 };
 const SQ = { low: 0.9 * IN, hood: 0.8 * IN, roller: 1.0 * IN, feeder: 0.5 * IN };
 export const SHOOTER = {
   // FUEL's center round the flywheel's axle: the flywheel squeezing it by half the low backing's
@@ -141,14 +142,15 @@ export const SHOOTER = {
   roller: { r: 0.5 * IN, at: 4, w: 0.1 },
   // the sushi feeder: three 1in wheels on the column's front side under the flywheel, into the
   // FUEL against the column's back wall
-  feeder: { r: 0.5 * IN, ys: [0.29, 0.315, 0.34], w: 0.06 },
+  feeder: { r: 0.5 * IN, ys: [0.38, 0.405, 0.43], w: 0.06 },
   // what turns with the flywheel: four stealth wheels with copper and mass disks between (estimate:
   // six 3in x 1/4in copper disks, 0.26 kg each, and the wheels), the rotors are added
   J: 1.25e-3,
   // the hood: where it lets FUEL go, deg round the axle from forward (90 is straight up over it):
-  // a shot leaves about 90 below that (the tangent); its travel (estimate, from the renders), its
-  // speed (an X44 through 85.3:1)
-  hoodMin: 125, hoodMax: 160, hoodStow: 125, hoodSpan: 45, hoodV: 7, hoodA: 60,
+  // a shot leaves about 90 below that (the tangent); its travel for shots (estimate, from the
+  // renders), and stowed: folded back flat, flush with the robot's top (the team: it pokes up only
+  // as it's articulated to shoot); its speed (an X44 through 85.3:1)
+  hoodMin: 125, hoodMax: 160, hoodStow: 175, hoodSpan: 45, hoodV: 7, hoodA: 60,
   // the side plates either side of the FUEL
   plateZ: R + 0.006,
 };
@@ -466,7 +468,7 @@ function turret() {
   const S = SHOOTER, B = BORE, F = FLY;
   const back = grid(3, 4, (u, v) => { const a = lerp(Math.PI / 2 + 0.6, 1.5 * Math.PI - 0.6, v); return [B.r * Math.cos(a), lerp(B.top, F.y - 0.01, u), B.r * Math.sin(a)]; });
   const fixed = grid(8, 4, (u, v) => { const a = (lerp(S.fixedA[0], S.fixedA[1], u) * Math.PI) / 180; return [S.x + S.fixedR * Math.cos(a), F.y + S.fixedR * Math.sin(a), lerp(-S.plateZ, S.plateZ, v)]; });
-  const plates = [-1, 1].map((k) => grid(8, 6, (u, v) => [lerp(-0.1, 0.32, u), lerp(B.top - 0.01, 0.64, v), k * S.plateZ]));
+  const plates = [-1, 1].map((k) => grid(8, 6, (u, v) => [lerp(-0.1, 0.32, u), lerp(B.top - 0.01, F.y + 0.24, v), k * S.plateZ]));
   return merge(back, fixed, ...plates);
 }
 // the hood's backing (it turns about the flywheel's axle): its local frame there, the end where it
