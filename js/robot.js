@@ -15,7 +15,8 @@ import { Physical2910 } from './mech/phys2910.js';
 import { Physical1678 } from './mech/phys1678.js';
 import { Physical341 } from './mech/phys341.js';
 import { Physical581 } from './mech/phys581.js';
-const PHYSICAL = { 8793: Physical8793, 2910: Physical2910, 1678: Physical1678, 341: Physical341, 581: Physical581 };
+import { Physical604 } from './mech/phys604.js';
+const PHYSICAL = { 8793: Physical8793, 2910: Physical2910, 1678: Physical1678, 341: Physical341, 581: Physical581, 604: Physical604 };
 import { clamp, wrapAngle, approach, approachAngle, gauss, DEG, rand } from './util.js';
 
 const WHEEL_R = 0.05;
@@ -1494,6 +1495,8 @@ export class Robot {
       // (a physical floor's lift and hood's turn from their CAD poses, rad: 581's)
       floorTurn: this.phys?.floorTurn?.(),
       hoodTurn: this.phys?.hoodTurn?.(),
+      // (a physical rotor's turn, rad, clockwise from above: 604's)
+      rotorTurn: this.phys?.rotorTurn?.(),
       intakeSpeed: this.intakeSpeed * (this.intakeSpeed > 0 ? this.rollerSpeed ?? 1 : 1),
       hopperDeploy: this.hopperDeploy,
       flywheel: this.flywheel,

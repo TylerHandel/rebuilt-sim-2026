@@ -2680,6 +2680,100 @@ function build1114(cfg, alliance) {
   return { root, anim, stored: [], modules, extLen };
 }
 
+// ============================================================ 604 Quixilver, Toploader
+// From 604's public Onshape CAD ("Toploader Assembly", a STEP translation), split by
+// tools/extract-parts.mjs (cad/robots/604.json) along the assembly's own mates: the body (the
+// chassis, the plywood DPC bucket and the rotor's drive, the intake's gearboxes, the superstructure
+// and its coroplast walls), its motors (flat shaded), the intake arms on their pivot (exported at
+// their 0 deg, nearly down), the sliding hopper box (exported out, 0.2921 m), the DPC rotor with its
+// hook, ramp, omni wheels and tube (origin on its axis, 1in behind the center), the turret on the
+// same axis (as exported it fires to the robot's right) and the hood on the main roller's axle.
+// The game draws the bumpers.
+const S604 = {
+  pivot: [0.3048, 0.2064], hopperOut: 0.2921, axis: [-0.0254, 0],
+  turretCad: -Math.PI / 2, // where the CAD's turret fires as exported (the robot's right)
+  hood: [-0.0007, 0.5969, 0.0744], // the hood's pivot (the main roller's axle) from the turret's axis, as exported
+  start: 98, deploy: -5, // their wrist angles (the CAD's pose is their 0)
+};
+function build604(cfg, alliance) {
+  const root = new THREE.Group();
+  const extLen = cfg.storage.extLen;
+  addBumpers(root, cfg, alliance);
+  const modules = addDrivebase(root, cfg, 0, false);
+  const gold = std(cfg.colors.accent, 0.55, 0.1), coro = std(cfg.colors.trim, 0.8, 0.05), ply = std(0xd9c08a, 0.85, 0.0);
+  // drawn stand-ins until the CAD loads
+  const drawn = new THREE.Group();
+  root.add(drawn);
+  addDrivebase(drawn, cfg, 0, true).forEach((md) => md.pivot.parent.removeFromParent());
+  cylY(0.31, 0.012, ply, drawn, S604.axis[0], 0.148, 0, 40); // the bucket's floor
+  for (const s of [-1, 1]) bx(0.49, 0.43, 0.004, coro, drawn, -0.103, 0.476, s * 0.323); // the back walls
+  bx(0.004, 0.43, 0.23, coro, drawn, -0.345, 0.476, 0);
+  // the intake arms on their pivot
+  const arm = new THREE.Group();
+  arm.position.set(...S604.pivot, 0);
+  root.add(arm);
+  const armDrawn = new THREE.Group();
+  arm.add(armDrawn);
+  for (const s of [-1, 1]) bx(0.34, 0.18, 0.006, M.polyTint, armDrawn, 0.135, 0.013, s * 0.327);
+  const rollers = [[0.278, -0.054], [0.2505, 0.0317]].map(([x, y]) => cylZ(0.027, cfg.intake.width, M.black, armDrawn, x, y, 0, 16));
+  // the hopper box, out over the intake
+  const hopper = new THREE.Group();
+  root.add(hopper);
+  const hopperDrawn = new THREE.Group();
+  hopper.add(hopperDrawn);
+  for (const s of [-1, 1]) bx(0.68, 0.43, 0.004, coro, hopperDrawn, 0.288, 0.476, s * 0.34);
+  bx(0.004, 0.43, 0.69, coro, hopperDrawn, 0.633, 0.476, 0);
+  // the DPC rotor, on its axis
+  const rotor = new THREE.Group();
+  rotor.position.set(S604.axis[0], 0, S604.axis[1]);
+  root.add(rotor);
+  const rotorDrawn = new THREE.Group();
+  rotor.add(rotorDrawn);
+  cylY(0.08, 0.17, coro, rotorDrawn, 0, 0.437, 0, 24); // the tube
+  bx(0.2, 0.056, 0.012, M.alu, rotorDrawn, -0.15, 0.228, 0.06); // the hook
+  // the turret on the same axis, and the hood on the main roller's axle
+  const turret = new THREE.Group();
+  turret.position.set(S604.axis[0], 0, S604.axis[1]);
+  root.add(turret);
+  const cadTurret = new THREE.Group();
+  cadTurret.rotation.y = -S604.turretCad;
+  turret.add(cadTurret);
+  const turretDrawn = new THREE.Group();
+  cadTurret.add(turretDrawn);
+  cylY(0.17, 0.006, M.alu, turretDrawn, 0, 0.689, 0, 40);
+  for (const s of [-1, 1]) bx(0.22, 0.16, 0.005, M.alu, turretDrawn, s * 0.107, 0.606, 0);
+  const hood = new THREE.Group();
+  hood.position.set(...S604.hood);
+  cadTurret.add(hood);
+  const hoodDrawn = new THREE.Group();
+  hood.add(hoodDrawn);
+  cylX(0.027, 0.114, gold, hoodDrawn, 0, 0, 0, 16);
+  cadPart(root, 'robots/604-body.glb', () => { drawn.visible = false; });
+  cadPart(root, 'robots/604-motors.glb', () => {});
+  cadPart(arm, 'robots/604-intake.glb', () => { armDrawn.visible = false; });
+  cadPart(hopper, 'robots/604-hopper.glb', () => { hopperDrawn.visible = false; });
+  cadPart(rotor, 'robots/604-rotor.glb', () => { rotorDrawn.visible = false; });
+  cadPart(cadTurret, 'robots/604-turret.glb', () => { turretDrawn.visible = false; });
+  cadPart(hood, 'robots/604-hood.glb', () => { hoodDrawn.visible = false; });
+  let spin = 0;
+  const anim = (st, dt) => {
+    // the arms: their wrist angle (the physical model's turn from the CAD's pose), or between boot
+    // (98) and deployed (-5)
+    arm.rotation.z = st.armTurn ?? (S604.start + (S604.deploy - S604.start) * st.intakeDeploy) * Math.PI / 180;
+    for (const r of rollers) r.rotation.z -= st.intakeSpeed * dt * 40;
+    // the hopper box: as far out as the arms push it
+    hopper.position.x = (st.hopperDeploy ?? st.intakeDeploy) * extLen - S604.hopperOut;
+    // the rotor turns clockwise seen from above; the turret and its hood
+    spin = st.rotorTurn ?? spin + st.feeding * 15 * dt;
+    rotor.rotation.y = -spin;
+    turret.rotation.y = st.turretYaw;
+    // (the hood's turn about the main roller's axle, raising the shot: about the turret's own z,
+    // which is the CAD's -x as exported)
+    hood.rotation.x = -(st.hoodTurn ?? 0);
+  };
+  return { root, anim, stored: [], modules, extLen };
+}
+
 export function buildRobotModel(cfg, alliance) {
   let m;
   if (cfg.key === '2910') m = build2910(cfg, alliance);
@@ -2694,6 +2788,7 @@ export function buildRobotModel(cfg, alliance) {
   else if (cfg.key === '1706') m = build1706(cfg, alliance);
   else if (cfg.key === '581') m = build581(cfg, alliance);
   else if (cfg.key === '1114') m = build1114(cfg, alliance);
+  else if (cfg.key === '604') m = build604(cfg, alliance);
   else m = build8793(cfg, alliance);
   // stored FUEL visual (instanced)
   const r = FUEL.radius;

@@ -27,4 +27,6 @@ export const CAPACITY_TABLE = {
   '70b2b34d': 75,
   '3dd2347': 47,
   '7fda9b46': 99,
+  '55f43cbf': 63,
+  'bb75ebba': 92,
 };
