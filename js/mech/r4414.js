@@ -89,7 +89,7 @@ export const FEED = {
   // inside of the hook's curve), u out along it, just outside the hub, and the 3in omni over them
   // ("to allow balls to fall down smoothly into the 3in TTB urethane wheels"), 0.8in into the FUEL
   // against the hook's end (estimates: the renders)
-  ttb: { u: 0.12, r: 1.5 * IN, ys: [0.16, 0.197], omniY: 0.234, wid: 0.024, squeeze: 0.028 },
+  ttb: { u: 0.105, r: 1.5 * IN, ys: [0.16, 0.197], omniY: 0.234, wid: 0.024, squeeze: 0.028 },
   // the entrance: under the 1.25in omnis on their shaft across it, round the bend up into the hub
   omni: { r: 0.625 * IN, squeeze: 0.003, wid: 0.15 },
 };
@@ -102,7 +102,7 @@ export const BORE = { r: R + 0.004, top: 0.345 };
 // the channel there (a cubic: lead m on along the wall from the tip, root m out along the channel
 // from the hub); from just off the floor to y1, over a FUEL's middle and a little over the wall; its
 // back the Dolphin Fin (finBack m behind its top edge, at the floor) (estimates: the renders)
-export const HOOK = { tipR: STADIUM.r - 0.003, tipA: 1.0, lead: 0.12, root: 0.1, y0: FLOOR + 0.006, y1: FLOOR + 0.1, finBack: 0.09 };
+export const HOOK = { tipR: STADIUM.r - 0.003, tipA: 0.6, lead: 0.12, root: 0.1, y0: FLOOR + 0.006, y1: FLOOR + 0.1, finBack: 0.09 };
 // the rotor: the hook, the hub, the feeder wheels and their gears (estimate)
 export const ROTOR = { J: 0.04 };
 
