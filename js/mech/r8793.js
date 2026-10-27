@@ -340,11 +340,14 @@ export function guideSurface() {
 // fabric on foam, an estimate), its face and top. 8793's frame: 27.5in. The bumper isn't in their
 // CAD; the team: its foam is stiff (far stiffer than pool noodles: tread, N/m, an estimate) and
 // the arm's bare aluminum rollers compress FUEL against it less than a compliant intake would. So
-// its face is where the arm's tip roller, rolling FUEL up it, compresses one by squeeze: 1-1/8in
+// its face is where the arm's tip roller, rolling FUEL up it, compresses one by squeeze: 3/4in
 // (a generic 3.25in bumper would make it 39 mm). Less and FUEL perch on the bumper's corner
 // between the arm's second and third rollers, out of their reach (tools/mechlab.mjs robot: a
-// median 9 of 12 through at 5/8in, 11 at 7/8, 12 at 1-1/8).
-export function bumperSurface({ halfL = 13.75 * IN, halfW = 13.75 * IN + BUMPER_T, mu = 0.6, tread = 20000, squeeze = (9 / 8) * IN } = {}) {
+// median 9 of 12 through at 5/8in, 11 at 3/4, 12 at 1-1/8). More and the tip grabs FUEL faster
+// than the neck passes them single file: in play they pile up behind it while it shoots and the
+// path stalls (six seeds of 8793 v 8793: 49 unjams a match at 1-1/8in, 37 at 3/4, and ~8% more
+// points at 3/4).
+export function bumperSurface({ halfL = 13.75 * IN, halfW = 13.75 * IN + BUMPER_T, mu = 0.6, tread = 20000, squeeze = (3 / 4) * IN } = {}) {
   const [tx, ty] = [ARM.pivot[0] + ARM.rollers[3][0], ARM.pivot[1] + ARM.rollers[3][1]], reach = 1 * IN + FUEL_R * 2 - squeeze;
   const x1 = Math.min(halfL + BUMPER_T, tx - Math.sqrt(reach * reach - (BUMPER_Y1 - ty) ** 2));
   const V = [
