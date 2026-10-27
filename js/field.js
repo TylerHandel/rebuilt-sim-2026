@@ -630,16 +630,13 @@ export class Field {
         const uz = towerZc + sz * half;
         box(TOWER.uprightDeep, TOWER.uprightHeight, TOWER.uprightThick, tmat, ux, TOWER.uprightHeight / 2, uz, grp);
         boxC(ux, TOWER.uprightHeight / 2, uz, TOWER.uprightDeep / 2, TOWER.uprightHeight / 2, TOWER.uprightThick / 2, { restitution: 0.3 });
-        // support structure from the upright back to the TOWER WALL
-        const sLen = ux - wallX;
-        box(sLen, 0.05, 0.04, mats.steel, wallX + sLen / 2, TOWER.supportLow, uz, grp);
-        boxC(wallX + sLen / 2, TOWER.supportLow, uz, sLen / 2, 0.025, 0.02, {});
-        const dLen = Math.hypot(sLen, TOWER.supportHigh - TOWER.supportLow);
-        const diag = new THREE.Mesh(new THREE.BoxGeometry(dLen, 0.04, 0.035), mats.steel);
-        diag.position.set(wallX + sLen / 2, (TOWER.supportLow + TOWER.supportHigh) / 2, uz);
-        diag.rotation.z = -Math.atan2(TOWER.supportHigh - TOWER.supportLow, sLen);
-        diag.castShadow = true;
-        grp.add(diag);
+        // support tube from the upright back to the TOWER WALL, and its gusset at the wall
+        const sLen = ux - TOWER.uprightDeep / 2 - wallX, st = TOWER.supportTube;
+        box(sLen, st, st, mats.steel, wallX + sLen / 2, TOWER.supportY, uz, grp);
+        boxC(wallX + sLen / 2, TOWER.supportY, uz, sLen / 2, st / 2, st / 2, {});
+        const gH = TOWER.supportY - st / 2 - TOWER.gussetLow, gD = TOWER.gussetDeep;
+        box(gD, gH, 0.006, mats.steel, wallX + gD / 2, TOWER.gussetLow + gH / 2, uz, grp);
+        boxC(wallX + gD / 2, TOWER.gussetLow + gH / 2, uz, gD / 2, gH / 2, 0.003, {});
       }
       const rungHalf = half + TOWER.uprightThick / 2 + TOWER.rungExt;
       for (const ry of TOWER.rungs) {

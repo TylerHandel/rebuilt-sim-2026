@@ -144,10 +144,14 @@ export const TOWER = {
   rungR: (1.66 * IN) / 2,
   rungExt: 5.875 * IN,
   rungs: [27.0 * IN, 45.0 * IN, 63.0 * IN], // LOW, MID, HIGH centers
-  supportLow: 28.4 * IN,
-  supportHigh: 43.38 * IN,
+  // the 2 in tube from each upright back to the TOWER WALL, 35 to 37 in up (field CAD), and the
+  // gusset under its end at the wall, down to 30.6 in within 4 in of the wall
+  supportY: 36.0 * IN,
+  supportTube: 2.0 * IN,
+  gussetLow: 30.6 * IN,
+  gussetDeep: 4.0 * IN,
 };
-TOWER.uprightFx = TOWER.baseDepth - TOWER.uprightDeep / 2 - 0.02;
+TOWER.uprightFx = 41.6 * IN; // the uprights' centers from the TOWER WALL (field CAD)
 
 // ---------------------------------------------------------------- DEPOT
 export const DEPOT = {

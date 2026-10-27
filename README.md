@@ -280,7 +280,7 @@ Sources:
 - HUBS: 47 in, with a 41.7 in hex opening at 72 in and a 58.4 in wide net 10.3 in behind them (from the GE-26300 drawing). FUEL leaves through a 35.6 in wide opening in the NEUTRAL ZONE face, 30.1 in off the carpet, and drops onto the field.
 - BUMPS: 73 × 44.4 × 6.5 in with 15° ramps.
 - TRENCHES: 22.25 in clearance.
-- TOWERS: rungs at 27, 45 and 63 in.
+- TOWERS: rungs at 27, 45 and 63 in. Behind the uprights, the support tubes back to the TOWER WALL are 35 to 37 in up, as in the field CAD, so any robot under the 30 in height limit can drive behind the TOWER.
 - DEPOTS (24 FUEL each) and OUTPOSTS, with the CHUTE (24 FUEL), CHUTE DOOR and CORRAL. The TOWER, OUTPOST and DEPOT positions match the field CAD: the blue TOWER is centered on AprilTag 31 and the blue OUTPOST on 29, and the red ones mirror them.
 - 20 in guardrails and the alliance walls.
 
