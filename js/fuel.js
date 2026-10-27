@@ -7,6 +7,7 @@ import { RAPIER } from './physics.js';
 import { FUEL, HUB, HALF_L, HALF_W, BLUE, RED, GROUP, groups, PHYSICS_DT } from './constants.js';
 import { Field } from './field.js';
 import { rand, clamp } from './util.js';
+import { fuelTexture } from './fuelSkin.js';
 
 const R = FUEL.radius;
 const NORMAL_GROUPS = groups(GROUP.BALL, GROUP.STATIC | GROUP.TERRAIN | GROUP.BALL | GROUP.HELD | GROUP.ROBOT | GROUP.INTAKE | GROUP.WHEEL);
@@ -26,7 +27,7 @@ export class FuelManager {
     this.chute = { blue: [], red: [] };
 
     const geo = new THREE.SphereGeometry(R, 16, 12);
-    const mat = new THREE.MeshStandardMaterial({ color: 0xf4d23a, roughness: 0.78, metalness: 0 });
+    const mat = new THREE.MeshStandardMaterial({ map: fuelTexture(), roughness: 0.72, metalness: 0 });
     this.mesh = new THREE.InstancedMesh(geo, mat, FUEL.total);
     this.mesh.castShadow = true;
     this.mesh.receiveShadow = true;

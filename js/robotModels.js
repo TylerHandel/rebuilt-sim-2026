@@ -14,6 +14,7 @@ import { ALLIANCE_COLOR_CSS } from './field.js';
 import { hookPath } from './hopper.js';
 import { build8793 as trains8793, conveyorWheels as conveyorWheels8793 } from './mech/r8793.js';
 import { FLOOR as FLOOR_2910 } from './mech/r2910.js';
+import { fuelTexture } from './fuelSkin.js';
 
 export const BUMP_Y0 = BUMPER_Y0, BUMP_Y1 = BUMPER_Y1;
 const lerp = THREE.MathUtils.lerp;
@@ -22,6 +23,36 @@ const lerp = THREE.MathUtils.lerp;
 function std(color, rough = 0.55, metal = 0.2, extra = {}) {
   return new THREE.MeshStandardMaterial({ color, roughness: rough, metalness: metal, ...extra });
 }
+// Polycarbonate. On the lower presets a see-through tint (alpha blended, which also fades its
+// reflections); on High and up (setPolyGlass) clear sheet: transmissive, polycarbonate's index
+// of refraction, glossy, reflecting the environment at full strength. glass: its color then
+// (what it lets through).
+const POLY_MATS = [];
+let polyGlass = null; // the environment map while clear sheet is on
+function polyMat(alpha, glass) {
+  const m = new THREE.MeshPhysicalMaterial({ ...alpha, transparent: true, depthWrite: false, side: THREE.DoubleSide });
+  m.userData.poly = { alpha, glass };
+  POLY_MATS.push(m);
+  if (polyGlass) applyPoly(m, polyGlass);
+  return m;
+}
+function applyPoly(m, env) {
+  const { alpha, glass } = m.userData.poly;
+  if (env) {
+    Object.assign(m, { color: new THREE.Color(glass), opacity: 1, transparent: false, depthWrite: true, transmission: 1, ior: 1.585, thickness: 0.003, roughness: 0.02,
+      specularIntensity: 1, clearcoat: 0, envMap: env, envMapIntensity: 0.3 });
+  } else {
+    Object.assign(m, { color: new THREE.Color(alpha.color), opacity: alpha.opacity, transparent: true, depthWrite: false, transmission: 0, roughness: alpha.roughness,
+      clearcoat: 0, envMap: null, envMapIntensity: 1 });
+  }
+  m.needsUpdate = true;
+}
+// clear sheet on (with the scene's environment map for its reflections) or off
+export function setPolyGlass(env) {
+  polyGlass = env || null;
+  for (const m of POLY_MATS) applyPoly(m, polyGlass);
+}
+
 const M = {
   alu: std(0xb4b9c1, 0.32, 0.85),
   aluDark: std(0x4a4f58, 0.4, 0.75),
@@ -31,9 +62,9 @@ const M = {
   hubGrey: std(0x6b7078, 0.4, 0.7),
   kraken: std(0x22252b, 0.35, 0.6),
   krakenRing: std(0xc9ccd2, 0.3, 0.9),
-  // polycarbonate: lightly tinted so you can tell it's there
-  poly: new THREE.MeshPhysicalMaterial({ color: 0xa9c4dd, transparent: true, opacity: 0.26, roughness: 0.05, depthWrite: false, side: THREE.DoubleSide }),
-  polyTint: new THREE.MeshPhysicalMaterial({ color: 0x8aa3bb, transparent: true, opacity: 0.32, roughness: 0.08, depthWrite: false, side: THREE.DoubleSide }),
+  // polycarbonate: lightly tinted so you can tell it's there (clear, see polyMat, on High and up)
+  poly: polyMat({ color: 0xa9c4dd, opacity: 0.26, roughness: 0.05 }, 0xf4f8fc),
+  polyTint: polyMat({ color: 0x8aa3bb, opacity: 0.32, roughness: 0.08 }, 0xe2ebf3),
   compliant: std(0x2b2b2e, 0.9, 0.0),
   green: std(0x8ccf6a, 0.6, 0.1), // 2910's drum wheels
   orangeWheel: std(0xe0782a, 0.7, 0.05),
@@ -882,8 +913,8 @@ function build4414(cfg, alliance) {
   const greyAl = std(0x5c6169, 0.38, 0.7);
   const plastic = std(0x3a3e45, 0.7, 0.05);
   const carbon = new THREE.MeshStandardMaterial({ map: carbonTexture(), color: 0xffffff, roughness: 0.4, metalness: 0.3 });
-  const smoke = new THREE.MeshPhysicalMaterial({ color: 0x2c3036, transparent: true, opacity: 0.58, roughness: 0.2, depthWrite: false, side: THREE.DoubleSide });
-  const clearSmoke = new THREE.MeshPhysicalMaterial({ color: 0x59606a, transparent: true, opacity: 0.22, roughness: 0.15, depthWrite: false, side: THREE.DoubleSide });
+  const smoke = polyMat({ color: 0x2c3036, opacity: 0.58, roughness: 0.2 }, 0x3a4048);
+  const clearSmoke = polyMat({ color: 0x59606a, opacity: 0.22, roughness: 0.15 }, 0x9aa2ac);
   const bolts = boltSet(root, std(0xc4c8ce, 0.3, 0.9));
   const up = new THREE.Vector3(0, 1, 0);
 
@@ -2567,7 +2598,7 @@ export function buildRobotModel(cfg, alliance) {
     geo.setAttribute('touch' + j, a);
     return a;
   });
-  const mat = new THREE.MeshStandardMaterial({ color: 0xf4d23a, roughness: 0.75 });
+  const mat = new THREE.MeshStandardMaterial({ map: fuelTexture(), roughness: 0.72 });
   mat.onBeforeCompile = (sh) => {
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', `#include <common>

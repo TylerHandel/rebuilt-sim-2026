@@ -27,6 +27,7 @@ import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
 import { FXAAShader } from 'three/addons/shaders/FXAAShader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { setPolyGlass } from './robotModels.js';
 
 // scale: render resolution (x the screen's, capped at maxDpr device pixels per CSS pixel)
 // aa: 'none' | 'fxaa' | 'msaa' (the canvas's own, or the composer's 4x target) | 'smaa' | 'ssaa'
@@ -41,7 +42,7 @@ export const PRESETS = {
   medium: { name: 'Medium', scale: 1, maxDpr: 1.5, aa: 'msaa', shadow: 2048, soft: 'pcf', ao: 0, bloom: false, env: 0, fuelSeg: 16, aniso: 4, cad: true,
     desc: 'Full resolution, multisampled edges, medium shadows. For integrated graphics.' },
   high: { name: 'High', scale: 1, maxDpr: 2, aa: 'msaa', shadow: 4096, soft: 'pcfsoft', ao: 0, bloom: true, env: 0.12, fuelSeg: 16, aniso: 8, cad: true,
-    desc: 'Sharp on high-DPI screens, big soft shadows, glowing HUB lights (bloom) and reflections on the metal.' },
+    desc: 'Sharp on high-DPI screens, big soft shadows, glowing HUB lights (bloom), reflections on the metal and clear, glossy polycarbonate.' },
   ultra: { name: 'Ultra', scale: 1, maxDpr: 2, aa: 'msaa', shadow: 4096, soft: 'pcss', ao: 1, bloom: true, env: 0.15, fuelSeg: 20, aniso: 16, cad: true,
     desc: 'High, plus NVIDIA PCSS contact-hardening soft shadows and HBAO+-style ambient occlusion (GTAO). For a gaming GPU (GeForce RTX).' },
   max: { name: 'Max', scale: 1, maxDpr: 2, aa: 'ssaa', shadow: 8192, soft: 'pcss', ao: 2, bloom: true, env: 0.18, fuelSeg: 28, aniso: 16, cad: true,
@@ -198,6 +199,8 @@ export class Graphics {
       this.scene.environment = this.envTex;
       this.scene.environmentIntensity = p.env;
     } else this.scene.environment = null;
+    // polycarbonate: clear, glossy sheet where there are reflections (High and up), a light tint below
+    setPolyGlass(p.env > 0 ? this.envTex : null);
     // FUEL: rounder on the higher presets
     if (this.fuel && this.fuel.mesh) {
       const R = this.fuel.mesh.geometry.parameters.radius;
