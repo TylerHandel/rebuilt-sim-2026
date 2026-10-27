@@ -76,9 +76,17 @@ export const INTAKE = {
   mass: 2.0, com: 0.2, J: 0.118,
 };
 // the hopper box slides out along x as the arm swings down (the arm's retainer plates push its
-// front; surgical tubing pulls it back against them): 0.2921 m all the way out (the CAD's slider,
-// exported out); its front retainer corner (as exported) and where the box is pushed
-export const HOPPER = { out: 0.2921, retainer: [0.608, 0.362], front: 0.608 };
+// front; surgical tubing pulls it back against the arm): 0.2921 m all the way out (the CAD's
+// slider, exported out); its front retainer corner (as exported) and where the box is pushed. As
+// the arm comes up, the retainer corner swings back faster than the rest of the arm: the box comes
+// back only until it meets the arm's furthest-forward part between its side walls (the arm's side
+// plates, deep below its line, swing forward as it folds), so the arm stays inside the box (at
+// their 80 stowed it's still 0.171 m out). ext: how far out at each degree from -5 to 98
+// (tools/hopper-604.py, from the CAD parts)
+export const HOPPER = {
+  out: 0.2921, retainer: [0.608, 0.362], front: 0.608,
+  ext: [0.292, 0.292, 0.292, 0.292, 0.292, 0.292, 0.292, 0.292, 0.292, 0.292, 0.292, 0.292, 0.292, 0.292, 0.292, 0.292, 0.292, 0.292, 0.292, 0.292, 0.292, 0.292, 0.292, 0.292, 0.292, 0.292, 0.292, 0.292, 0.292, 0.292, 0.29, 0.289, 0.288, 0.286, 0.285, 0.283, 0.282, 0.28, 0.278, 0.276, 0.274, 0.272, 0.27, 0.268, 0.266, 0.263, 0.261, 0.258, 0.256, 0.253, 0.25, 0.248, 0.245, 0.242, 0.239, 0.236, 0.233, 0.229, 0.226, 0.223, 0.219, 0.216, 0.212, 0.209, 0.205, 0.202, 0.198, 0.197, 0.196, 0.195, 0.194, 0.193, 0.192, 0.19, 0.189, 0.188, 0.186, 0.185, 0.183, 0.182, 0.18, 0.178, 0.177, 0.175, 0.173, 0.171, 0.169, 0.167, 0.165, 0.163, 0.161, 0.159, 0.156, 0.154, 0.152, 0.149, 0.147, 0.144, 0.142, 0.139, 0.137, 0.134, 0.131, 0.129],
+};
 // the DPC: the bucket floor, the rotor's capture-point wheels (as exported, rotor at 0)
 export const BUCKET = { floor: 0.154, r: 0.292 };
 export const ROTOR = {
@@ -245,10 +253,10 @@ export function placeIntake(wheels, deg) {
   for (const w of wheels) { const [x, y] = rot(w.home, PIVOT, a); w.center = [x, y, 0]; }
 }
 // the hopper box: how far out (m) with the arm at deg, and how fast it slides per radian of the
-// arm (m/rad) there: its front follows the retainer plates' front corner
+// arm (m/rad) there: as far out as the arm keeps it (HOPPER.ext)
 export function hopperExt(deg) {
-  const [x] = rot(HOPPER.retainer, PIVOT, armRot(deg));
-  return Math.max(0, Math.min(HOPPER.out, HOPPER.out + x - HOPPER.front));
+  const u = Math.max(0, Math.min(HOPPER.ext.length - 1, deg + 5)), i = Math.min(HOPPER.ext.length - 2, Math.floor(u)), f = u - i;
+  return Math.min(HOPPER.out, HOPPER.ext[i] + (HOPPER.ext[i + 1] - HOPPER.ext[i]) * f);
 }
 export function hopperRate(deg) {
   const e0 = hopperExt(deg - 0.5), e1 = hopperExt(deg + 0.5);
