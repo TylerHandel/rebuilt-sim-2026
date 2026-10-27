@@ -1520,8 +1520,9 @@ export class Robot {
   // (after it's stayed that high a moment: a FUEL tumbling in on top doesn't count)
   loadNearTrench() { return this.loadHighT > 0.3; }
   // deploying the intake raises the top (1678's lid rides up with the hopper extension), so it
-  // stays in near a TRENCH arm
-  get deployRaisesTop() { return !!this.cfg.bay.lift; }
+  // stays in near a TRENCH arm. Not a physical robot's: its own controls bring the lid down near
+  // a TRENCH whatever the intake's doing (1678's isNearingTrench, js/mech/phys1678.js)
+  get deployRaisesTop() { return !!this.cfg.bay.lift && !this.phys; }
 
   worldToLocalVec(x, z) {
     const c = Math.cos(this.yaw), s = Math.sin(this.yaw);

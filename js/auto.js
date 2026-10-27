@@ -299,20 +299,22 @@ export class AutoRunner {
   // whether the route passes under a TRENCH arm before the robot next empties (a shoot step
   // unloads it, so a TRENCH after that doesn't limit what it can carry now)
   _trenchAhead() {
-    if (this._taI === this.i) return this._ta;
+    // (what's left of the route: from where it is now, on from the waypoint it's heading for)
+    const pi = this.steps[this.i]?.type === 'drive' ? this.pi ?? 0 : 0;
+    if (this._taI === this.i && this._taP === pi) return this._ta;
     let under = false;
     for (let k = this.i; k < this.steps.length && !under; k++) {
       const s = this.steps[k];
       if (s.type === 'shoot') break;
       if (s.type !== 'drive') continue;
-      const pts = s.pts.map(([fx, fy]) => this.P(fx, fy, s.mirror !== false));
-      if (k === this.i) pts.unshift(this.robot.pos.clone()); // from where it is now
+      let pts = s.pts.map(([fx, fy]) => this.P(fx, fy, s.mirror !== false));
+      if (k === this.i) pts = [this.robot.pos.clone(), ...pts.slice(pi)];
       for (let j = 0; j + 1 < pts.length && !under; j++) {
         const a = pts[j], b = pts[j + 1], n = Math.ceil(Math.hypot(b.x - a.x, b.z - a.z) / 0.25);
         for (let q = 0; q <= n && !under; q++) under = underTrench(a.x + ((b.x - a.x) * q) / n, a.z + ((b.z - a.z) * q) / n);
       }
     }
-    this._taI = this.i; this._ta = under;
+    this._taI = this.i; this._taP = pi; this._ta = under;
     return under;
   }
 

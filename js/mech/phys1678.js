@@ -26,7 +26,7 @@ import {
 } from './r1678.js';
 import PATH from './path1678.js';
 import { Field } from '../field.js';
-import { FUEL, FIELD_L, HALF_L, fw } from '../constants.js';
+import { FUEL, FIELD_L, HALF_L, TRENCH, fw } from '../constants.js';
 import { underTrench, TRENCH_OPENINGS } from '../nav.js';
 
 const DEG = Math.PI / 180, R = FUEL.radius, FT = 0.3048;
@@ -304,15 +304,18 @@ export class Physical1678 extends PhysicalRobot {
   // how far up the lid is now (0-1 of its travel), as the climber has it
   liftNow() { const h = this.r.cfg.bay.lift?.h; return h ? clamp(this.lift / h, 0, 1) : 0; }
   // how far up the lid wants to be (0-1 of its travel): up while it intakes and while it shoots
-  // (the team) and in AUTO (their autos expand it early in the first path), down for a TRENCH;
-  // never down onto FUEL piled under it, but the climber holds it where it is: FUEL can't push
-  // it up
+  // (the team) and in AUTO (their autos expand it early in the first path); otherwise down as far
+  // as the FUEL under it allow (never onto them; the climber holds it where it is: FUEL can't
+  // push it up), and down for a TRENCH. But only if that gets it under the arm: with more in it
+  // than packs down under a TRENCH it stays up, and it goes over the BUMP instead (the team; the
+  // AI routes it that way, Robot.fitsTrenchLowered)
   liftScale() {
     const r = this.r, bay = r.cfg.bay, h = bay.lift?.h;
     if (!h) return 0;
-    const up = !(this.tucked || this.nearTrench) && (this.wasIntaking || this.wasShooting || r.match?.isAuto);
     const now = this.liftNow(), onLoad = clamp((this.loadTop() - 0.01 - bay.top) / h, 0, 1);
-    return up ? 1 : Math.min(now, onLoad);
+    const fits = bay.top + h * onLoad + 0.01 <= TRENCH.clearHeight - 0.005;
+    const up = !this.tucked && (this.wasIntaking || this.wasShooting || r.match?.isAuto) && !(this.nearTrench && fits);
+    return up ? 1 : fits ? Math.min(now, onLoad) : now;
   }
   // their isNearingTrench: under one, or within 1.5 m of one and driving toward it
   _nearingTrench() {
