@@ -50,7 +50,7 @@
 // two X60s: "the main bps regulator") pushes them up into the flywheel, which flings them round
 // under the hood and out past the hood roller.
 import { IN, FUEL } from '../constants.js';
-import { Motor, Shaft, Surface, Train, Wheel } from './mechanism.js';
+import { Block, Motor, Shaft, Surface, Train, Wheel } from './mechanism.js';
 
 const R = FUEL.radius;
 // what each grips FUEL with (estimates, as 604's and 341's): the TTB urethane wheels, the stealth
@@ -159,15 +159,21 @@ export const HOOD = SHOOTER;
 export const BOX = { ext: 0.27, front: HALF_L + 3.25 * IN + 0.2224, side: HALF_W + IN + 0.005, chin: 0.31 };
 export const INTAKE = {
   // No ramp, the box's bottom open (the renders, from above; the team): the primary 3in
-  // polycarbonate roller, the kicker, low just in front of the bumper's face, its back running up
-  // it, squeezes a FUEL against the bumper (0.8in) and rolls it up the face; the 1.5in roller
-  // sitting on top of the bumper, its top running in, takes it over into the hopper (dx back from
-  // the box's front at its full extension; their places are estimates from the renders). The small
-  // roller is dark, in short segments in the renders: compliant, gripping as rubber does (mu, tread)
+  // polycarbonate roller low in front of the bumper's face, its back running up it, squeezes a
+  // FUEL against the bumper and rolls it up the face (where it is, roughly: the team); the kick
+  // wheel, the binder's bottom 1.5in roller, in the corner where the bumper's face meets the carpet
+  // (a powered breaker bar: the team), its front running up, lifts a FUEL off the carpet into that
+  // pinch; and the black roller sitting on top of the bumper, belted to the kick wheel, its top
+  // running in, takes it over into the hopper (dx back from the box's front at its full extension;
+  // the places are estimates from the renders). The black roller is in short segments in the
+  // renders: compliant, gripping as rubber does (mu, tread); the kick wheel too (an estimate)
   primary: { dx: -0.085, y: 0.14, r: 1.5 * IN },
   bar: { dx: -0.23, y: 0.2, r: 0.75 * IN, mu: 1.0, tread: 20000 },
+  kick: { gap: 0.004, y: 0.75 * IN + 0.006, r: 0.75 * IN, mu: 1.0, tread: 20000 },
   width: 0.8,
 };
+// the kick wheel's place: just in front of the bumper's face (the box's front is 0.2224 m out from it)
+INTAKE.kick.dx = INTAKE.kick.r + INTAKE.kick.gap - 0.2224;
 // the preload: eight on the floor round the hub, clear of the hook
 export const PRELOAD = [0, 1, 2, 3, 4, 5, 6, 7].map((k) => {
   const a = CH + 0.65 + (k / 7) * (2 * Math.PI - 1.3);
@@ -176,10 +182,11 @@ export const PRELOAD = [0, 1, 2, 3, 4, 5, 6, 7].map((k) => {
 
 // ------------------------------------------------------------------ the drives
 export function build4414() {
-  // the intake: the primary roller, the kicker (positive rolls FUEL up the bumper's face), and the
-  // 1.5in roller on top of the bumper (positive takes them in over it)
+  // the intake: the primary roller (positive rolls FUEL up the bumper's face), and the kick wheel
+  // with the black roller on top of the bumper belted to it, 1:1 (positive lifts FUEL off the
+  // carpet and takes them in over the bumper)
   const primary = new Shaft({ name: 'intake primary 3in roller', motor: new Motor('krakenX60', { count: 2, ratio: 3.45, statorLimit: 60, supplyLimit: 40 }), inertia: 3e-4 });
-  const bar = new Shaft({ name: 'intake bottom 1.5in roller', motor: new Motor('krakenX44', { ratio: 1.5, statorLimit: 40, supplyLimit: 30 }), inertia: 4e-5 });
+  const bar = new Shaft({ name: 'intake kick wheel and black roller', motor: new Motor('krakenX44', { ratio: 1.5, statorLimit: 40, supplyLimit: 30 }), inertia: 8e-5 });
   // the rotor (positive turns it clockwise from above, the hook's tip leading)
   const rotor = new Shaft({ name: 'Dye Rotor', motor: new Motor('krakenX60', { ratio: 36.4, statorLimit: 80, supplyLimit: 60 }), inertia: ROTOR.J, drag: 0.02 });
   // the rollers: the TTB wheels and the omni over them (2.5:1; positive feeds FUEL in)
@@ -228,8 +235,10 @@ export function wheels4414(t) {
   ].map((w) => w.onPivot(t.rotor, [AXIS[0], 0, AXIS[1]], [0, -1, 0]));
   feed.forEach((w) => { w.home = w.center.slice(); w.homeAxis = w.axis.slice(); });
   const intake = [
-    new Wheel({ name: 'intake bottom 1.5in roller', shaft: t.bar, center: [0, 0, 0], axis: Z, radius: INTAKE.bar.r, width: INTAKE.width, mu: INTAKE.bar.mu ?? MU.polycarb, tread: INTAKE.bar.tread ?? 60000 }),
+    new Wheel({ name: 'intake black roller', shaft: t.bar, center: [0, 0, 0], axis: Z, radius: INTAKE.bar.r, width: INTAKE.width, mu: INTAKE.bar.mu, tread: INTAKE.bar.tread }),
     new Wheel({ name: 'intake primary 3in roller', shaft: t.primary, center: [0, 0, 0], axis: [0, 0, -1], radius: INTAKE.primary.r, width: INTAKE.width, mu: MU.polycarb, tread: 60000 }),
+    // (the kick wheel: a 1:1 belt, so its rim runs with the black roller's)
+    new Wheel({ name: 'intake kick wheel', shaft: t.bar, center: [0, 0, 0], axis: Z, radius: INTAKE.kick.r, width: INTAKE.width, mu: INTAKE.kick.mu, tread: INTAKE.kick.tread }),
   ];
   placeIntake(intake, BOX.ext);
   return { feed, intake };
@@ -259,10 +268,11 @@ export function placeRotor(wheels, phi) {
   }
 }
 // the intake's rollers with the box out ext (m)
-export function placeIntake([bar, primary], ext) {
+export function placeIntake([bar, primary, kick], ext) {
   const xF = BOX.front - BOX.ext + ext, I = INTAKE;
   bar.center = [xF + I.bar.dx, I.bar.y, 0];
   primary.center = [xF + I.primary.dx, I.primary.y, 0];
+  kick.center = [xF + I.kick.dx, I.kick.y, 0];
 }
 export function shooterWheels(t) {
   const S = SHOOTER;
@@ -291,11 +301,10 @@ export function placeShooter([fly, roller, ...feeders], yaw, hoodDeg) {
   // FUEL along)
   for (const w of [fly, roller, ...feeders]) { const k = w === roller ? 1 : -1; w.axis = [k * s, 0, k * c]; }
 }
-// the bumper's foam: two 2.5in noodles across the front, as 604's
+// the front bumper: solid foam (2.5in on its 3/4in backing, 1.25in to 5in up), across the front and
+// round to the side bumpers' faces; soft (20 kN/m, as 341's)
 export function bumper4414() {
-  const shaft = new Shaft({ name: 'bumper', inertia: Infinity });
-  const r = 1.25 * IN, x = HALF_L + 3.25 * IN - r;
-  return [0.032 + r, 0.16 - r].map((y) => new Wheel({ name: 'bumper', shaft, center: [x, y, 0], axis: Z, radius: r, width: 2 * HALF_W, mu: 0.6, tread: 20000 }));
+  return new Block({ name: 'bumper', x0: HALF_L + 0.75 * IN, x1: HALF_L + 3.25 * IN, y0: 0.032, y1: 0.16, hw: HALF_W + 3.25 * IN, mu: 0.6, tread: 20000 });
 }
 
 // ------------------------------------------------------------------ the surfaces (built here: no CAD)
@@ -491,7 +500,7 @@ export function pathSurfaces4414(t) {
   const boxS = s('box and intake ramp', box());
   const turretS = s('turret', turret(), { pos: [AXIS[0], 0, AXIS[1]] });
   const hoodS = s('hood backing', hood(), { pos: [AXIS[0] + SHOOTER.x, FLY.y, AXIS[1]] });
-  return { body, net: netS, hook: hookS, feed: feedS, bore: boreS, column: columnS, box: boxS, turret: turretS, hood: hoodS };
+  return { body, net: netS, hook: hookS, feed: feedS, bore: boreS, column: columnS, box: boxS, turret: turretS, hood: hoodS, bumper: bumper4414() };
 }
 // the rotor's surfaces at phi (clockwise from above: a surface's yaw is the other way)
 export function placeRotorSurfaces({ hook, feed, bore, column }, phi) { for (const sf of [hook, feed, bore, column]) sf.setPose([AXIS[0], 0, AXIS[1]], -phi, 0); }

@@ -26,7 +26,7 @@
 //   hood: an X44 through 52:12, 18:12, 146:10, about the drum's axle
 import { IN } from '../constants.js';
 import { BUMPER_T, BUMPER_Y0, BUMPER_Y1 } from '../robotConfigs.js';
-import { Motor, Shaft, Surface, Train, Wheel } from './mechanism.js';
+import { Block, Motor, Shaft, Surface, Train, Wheel } from './mechanism.js';
 
 // what each grips FUEL with (estimates, in the order 8793's team gave: compliant wheels most,
 // grip tape, silicone and rubber, bare aluminum least)
@@ -124,10 +124,10 @@ export function wheels2910(t) {
   return { floor, indexer, intake, drum, hood };
 }
 
-// The front bumper, which the intake lifts FUEL over: two pool noodles (2.5in, from 1.25in up off
-// the carpet to 5in, on a 3/4in backing: robotConfigs.js BUMPER_*) across the front, out to the
-// side bumpers' faces, as fixed solid cylinders (wheels on a shaft that never turns), so a FUEL
-// squeezed against them is pushed back out however far in it's got. The CAD has the bumper as a
+// The front bumper, which the intake lifts FUEL over: solid foam (2.5in, from 1.25in up off the
+// carpet to 5in, on a 3/4in backing: robotConfigs.js BUMPER_*) across the front, out to the side
+// bumpers' faces, as a solid block, so a FUEL squeezed against it is pushed back out however far
+// in it's got. The CAD has the bumper as a
 // hollow shell of thin plates, and a FUEL on the carpet in front is the intake's (it passes through
 // the robot's own collider) with nothing else to keep it out: the deploying arm landing its 1in
 // rollers on one against the bumper (450 N, 6 cm into it), or one coming in under the arm's side
@@ -138,9 +138,7 @@ export function wheels2910(t) {
 // there, 10-12% with none). With this and where()'s guard (js/mech/phys2910.js), none. (None ever
 // fell through the floor from the hopper.)
 export function bumper2910() {
-  const shaft = new Shaft({ name: 'bumper', inertia: Infinity });
-  const r = (BUMPER_Y1 - BUMPER_Y0) / 4, x = 13.5 * IN + BUMPER_T - r, width = 2 * (13.75 * IN + BUMPER_T);
-  return [BUMPER_Y0 + r, BUMPER_Y1 - r].map((y) => new Wheel({ name: 'bumper', shaft, center: [x, y, 0], axis: [0, 0, 1], radius: r, width, mu: 0.6 }));
+  return new Block({ name: 'bumper', x0: 13.5 * IN + 0.75 * IN, x1: 13.5 * IN + BUMPER_T, y0: BUMPER_Y0, y1: BUMPER_Y1, hw: 13.75 * IN + BUMPER_T, mu: 0.6 });
 }
 // rotate a point (x, y) about (cx, cy) by a (rad)
 const rot = ([x, y], [cx, cy], a) => { const c = Math.cos(a), s = Math.sin(a), dx = x - cx, dy = y - cy; return [cx + dx * c - dy * s, cy + dx * s + dy * c]; };
@@ -169,5 +167,5 @@ export function pathSurfaces2910(mesh, t, { mu = 0.35 } = {}) {
   const body = s('body', [0, 0, 0]);
   const intake = s('intake', [PIVOT[0], PIVOT[1], 0]).onShaft(t.pivot, [PIVOT[0], PIVOT[1], 0]);
   const hood = s('hood', [DRUM[0], DRUM[1], 0]);
-  return { body, intake, hood };
+  return { body, intake, hood, bumper: bumper2910() };
 }

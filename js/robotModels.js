@@ -1143,17 +1143,22 @@ function build4414(cfg, alliance) {
         const b = bx(bl, 0.004, 0.012, M.polyBelt, ext, (mx + px) / 2 + (k * nx * (r0 + r1)) / 2, (my + py) / 2 + (k * ny * (r0 + r1)) / 2, bz);
         b.rotation.z = ba + k * Math.asin((r1 - r0) / bl);
       }
-      // the link from the kicker back to the small roller on the bumper's top, a belt along it
-      // (the renders: a black arm with a pulley at each end), the X44 driving it
-      const tx = xF + I4.bar.dx, ty = I4.bar.y, ll = Math.hypot(tx - px, ty - py), la = Math.atan2(ty - py, tx - px);
-      bx(ll, 0.026, 0.006, blackAl, ext, (px + tx) / 2, (py + ty) / 2, s * (sideZ + 0.024)).rotation.z = la;
-      cylZ(0.016, 0.012, blackAl, ext, tx, ty, bz, 16);
-      cylZ(0.008, 0.016, M.alu, ext, tx, ty, s * (sideZ + 0.03), 10);
+      // the black roller on the bumper's top belted down to the kick wheel in the corner of the
+      // bumper and the carpet (the team), a black plate along the belt with a pulley at each end,
+      // the X44 driving them
+      const tx = xF + I4.bar.dx, ty = I4.bar.y, kx = xF + I4.kick.dx, ky = I4.kick.y;
+      const ll = Math.hypot(tx - kx, ty - ky), la = Math.atan2(ty - ky, tx - kx);
+      bx(ll, 0.022, 0.006, blackAl, ext, (kx + tx) / 2, (ky + ty) / 2, s * (sideZ + 0.024)).rotation.z = la;
+      for (const k of [1, -1]) bx(ll, 0.003, 0.01, M.polyBelt, ext, (kx + tx) / 2 - k * Math.sin(la) * 0.013, (ky + ty) / 2 + k * Math.cos(la) * 0.013, bz).rotation.z = la;
+      for (const [x, y] of [[tx, ty], [kx, ky]]) {
+        cylZ(0.013, 0.012, blackAl, ext, x, y, bz, 16);
+        cylZ(0.006, 0.016, M.alu, ext, x, y, s * (sideZ + 0.03), 10);
+      }
       kraken(ext, tx + 0.02, ty + 0.09, s * (sideZ - 0.04), true, 'z');
     }
   }
-  // the primary 3in polycarbonate roller under the chin, on big printed flanged hubs, and the
-  // bottom 1.5in roller at the lip (where the physical model has them: js/mech/r4414.js)
+  // the primary 3in polycarbonate roller under the chin, on big printed flanged hubs, the black
+  // roller on the bumper and the kick wheel (where the physical model has them: js/mech/r4414.js)
   const intakeRoller = new THREE.Group();
   intakeRoller.position.set(xF + I4.primary.dx, I4.primary.y, 0);
   ext.add(intakeRoller);
@@ -1169,6 +1174,13 @@ function build4414(cfg, alliance) {
   ext.add(bottomBar);
   cylZ(0.005, 2 * sideZ - 0.01, M.alu, bottomBar, 0, 0, 0, 6);
   for (let i = 0; i < 24; i++) cylZ(I4.bar.r, (2 * sideZ - 0.05) / 24 - 0.004, std(0x2a2d33, 0.7, 0.05), bottomBar, 0, 0, -sideZ + 0.025 + (i + 0.5) * (2 * sideZ - 0.05) / 24, 14);
+  // the kick wheel, a powered breaker bar in the corner of the bumper's face and the carpet (dark
+  // compliant segments, as the black roller's)
+  const kickBar = new THREE.Group();
+  kickBar.position.set(xF + I4.kick.dx, I4.kick.y, 0);
+  ext.add(kickBar);
+  cylZ(0.005, 2 * sideZ - 0.01, M.alu, kickBar, 0, 0, 0, 6);
+  for (let i = 0; i < 24; i++) cylZ(I4.kick.r, (2 * sideZ - 0.05) / 24 - 0.004, std(0x2a2d33, 0.7, 0.05), kickBar, 0, 0, -sideZ + 0.025 + (i + 0.5) * (2 * sideZ - 0.05) / 24, 14);
   // (no floor: the box's bottom is open, the renders)
   // (a star roller over the bumper: not in their binder, so not drawn)
   const star = new THREE.Group();
@@ -1491,6 +1503,7 @@ function build4414(cfg, alliance) {
     ext.position.x = ex;
     intakeRoller.rotation.z -= st.intakeSpeed * dt * 45; // pulls FUEL in up the ramp
     bottomBar.rotation.z -= st.intakeSpeed * dt * 90;
+    kickBar.rotation.z -= st.intakeSpeed * dt * 90;
     star.rotation.z += st.intakeSpeed * dt * 35;
     // the Dye Rotor's hook and feeder turn over the fixed floor (clockwise from above: its angle
     // from the physical model), the TTB wheels spin while it feeds

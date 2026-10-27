@@ -21,7 +21,7 @@ import { FUEL, GROUP, groups, HUB } from '../js/constants.js';
 import { Mechanism } from '../js/mech/mechanism.js';
 import { sim2D } from '../js/ballistics.js';
 import {
-  build4414, wheels4414, shooterWheels, bumper4414, pathSurfaces4414, placeIntake, placeRotor, placeRotorSurfaces, placeBox, placeShooter, placeTurretSurfaces,
+  build4414, wheels4414, shooterWheels, pathSurfaces4414, placeIntake, placeRotor, placeRotorSurfaces, placeBox, placeShooter, placeTurretSurfaces,
   hoodElevation, chan, rotorPoint, stadiumY, netY, AXIS, HOOK, YB, FLY, SHOOTER, FEED, BORE, BOX, HALF_L, HALF_W, BAY, INTAKE,
 } from '../js/mech/r4414.js';
 import { velocityDuty } from '../js/mech/phys604.js';
@@ -53,7 +53,7 @@ const names = (r, b) => [...r.path.contacts, ...r.shooter.contacts].filter((c) =
 // forward), the hood at its angle (deg)
 function rig({ yaw = 0, hood = 140, ext = BOX.ext } = {}) {
   const t = build4414(), wh = wheels4414(t), s = pathSurfaces4414(t), sw = shooterWheels(t);
-  const pathW = [...wh.feed, ...wh.intake, ...bumper4414()];
+  const pathW = [...wh.feed, ...wh.intake];
   const path = new Mechanism({ substeps: 6, shafts: [...new Set(pathW.map((x) => x.shaft)), t.rotor], wheels: pathW, surfaces: Object.values(s).filter((x) => x !== s.turret && x !== s.hood) });
   const shooter = new Mechanism({ substeps: 6, sub: Number(process.env.SUB ?? 8), shafts: [t.fly, t.hoodRoller, t.feeder], wheels: sw, surfaces: [s.turret, s.hood] });
   for (const tr of [t.rollers, t.launcher]) tr.cmd = null;

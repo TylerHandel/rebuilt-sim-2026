@@ -18,7 +18,7 @@ import { FUEL, GROUP, groups, HUB } from '../js/constants.js';
 import { Mechanism } from '../js/mech/mechanism.js';
 import { sim2D } from '../js/ballistics.js';
 import {
-  build604, wheels604, shooterWheels, bumper604, pathSurfaces604, placeIntake, placeHopper, placeRotor, placeRotorSurface, placeShooter, placeTurretSurfaces,
+  build604, wheels604, shooterWheels, pathSurfaces604, placeIntake, placeHopper, placeRotor, placeRotorSurface, placeShooter, placeTurretSurfaces,
   hoodElevation, launchFor, radFor, velocityAt, rollerRad, VELOCITY_MULTIPLIER, LAUNCH, INTAKE, ROTOR, SHOOTER, SERIALIZER, AXIS,
 } from '../js/mech/r604.js';
 import PATH from '../js/mech/path604.js';
@@ -48,7 +48,7 @@ const RPM = (w) => (w * 60) / TAU;
 // facing forward), the hood at their angle
 function rig({ arm = INTAKE.deploy, yaw = 0, hood = SHOOTER.hoodMin } = {}) {
   const t = build604(), wh = wheels604(t), s = pathSurfaces604(PATH, t, process.env.MU ? { mu: Number(process.env.MU) } : undefined), sw = shooterWheels(t);
-  const pathW = [...wh.intake, ...wh.rotor, ...bumper604()];
+  const pathW = [...wh.intake, ...wh.rotor];
   const path = new Mechanism({ substeps: 6, shafts: [...new Set(pathW.map((x) => x.shaft)), t.pivot, t.rotor], wheels: pathW, surfaces: Object.values(s) });
   const shooter = new Mechanism({ substeps: 6, sub: Number(process.env.SUB ?? 8), shafts: [t.main, t.hoodRoller], wheels: sw });
   for (const tr of [t.intake, t.roller, t.launcher]) tr.cmd = null;

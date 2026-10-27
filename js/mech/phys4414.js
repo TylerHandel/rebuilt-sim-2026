@@ -19,7 +19,7 @@
 import { Mechanism } from './mechanism.js';
 import { PhysicalRobot } from './physical.js';
 import {
-  build4414, wheels4414, shooterWheels, bumper4414, pathSurfaces4414, placeIntake, placeRotor, placeRotorSurfaces, placeBox, placeShooter, placeTurretSurfaces,
+  build4414, wheels4414, shooterWheels, pathSurfaces4414, placeIntake, placeRotor, placeRotorSurfaces, placeBox, placeShooter, placeTurretSurfaces,
   hoodElevation, AXIS, HALF_L, BAY, BOX, SHOOTER, PRELOAD,
 } from './r4414.js';
 import { FIT, LAUNCH } from './shot4414.js';
@@ -61,7 +61,7 @@ export function launchFor(d) {
 export class Physical4414 extends PhysicalRobot {
   constructor(robot) {
     const t = build4414(), w = wheels4414(t), s = pathSurfaces4414(t), sw = shooterWheels(t);
-    const pathWheels = [...w.feed, ...w.intake, ...bumper4414()];
+    const pathWheels = [...w.feed, ...w.intake];
     super(robot, {
       path: new Mechanism({ body: robot.body, substeps: 6, shafts: [...new Set(pathWheels.map((x) => x.shaft)), t.rotor], wheels: pathWheels, surfaces: Object.values(s).filter((x) => x !== s.turret && x !== s.hood) }),
       // (the turret's and the hood's surfaces with its wheels: a FUEL goes round under the hood at up

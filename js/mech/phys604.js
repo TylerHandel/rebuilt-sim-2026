@@ -31,7 +31,7 @@
 import { Mechanism } from './mechanism.js';
 import { PhysicalRobot } from './physical.js';
 import {
-  build604, wheels604, shooterWheels, bumper604, pathSurfaces604, placeIntake, placeHopper, placeRotor, placeRotorSurface, placeShooter, placeTurretSurfaces,
+  build604, wheels604, shooterWheels, pathSurfaces604, placeIntake, placeHopper, placeRotor, placeRotorSurface, placeShooter, placeTurretSurfaces,
   armRot, hopperExt, hoodRot, hoodElevation, launchFor, feedSpeed, radFor, velocityAt, rollerRad, rotorPoint,
   HALF, AXIS, PIVOT, INTAKE, ROTOR, SHOOTER, SERIALIZER, FEED, MAX_RAD, PRELOAD, HOPPER,
 } from './r604.js';
@@ -71,7 +71,7 @@ export function velocityDuty(motor, w, target, kV, kP) {
 export class Physical604 extends PhysicalRobot {
   constructor(robot) {
     const t = build604(), w = wheels604(t), s = pathSurfaces604(PATH, t), sw = shooterWheels(t);
-    const pathWheels = [...w.intake, ...w.rotor, ...bumper604()];
+    const pathWheels = [...w.intake, ...w.rotor];
     super(robot, {
       path: new Mechanism({ body: robot.body, substeps: 6, shafts: [...new Set(pathWheels.map((x) => x.shaft)), t.pivot, t.rotor], wheels: pathWheels, surfaces: Object.values(s) }),
       shooter: new Mechanism({ body: robot.body, substeps: 6, sub: 8, shafts: [t.main, t.hoodRoller], wheels: sw }),

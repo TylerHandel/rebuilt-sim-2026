@@ -16,7 +16,7 @@
 import { Mechanism } from './mechanism.js';
 import { PhysicalRobot } from './physical.js';
 import {
-  build2910, wheels2910, bumper2910, pathSurfaces2910, placeIntake, placeHood, intakeRot, hoodElevation, shotFor, passFor,
+  build2910, wheels2910, pathSurfaces2910, placeIntake, placeHood, intakeRot, hoodElevation, shotFor, passFor,
   INTAKE, SHOOTER, RANGES, PRELOAD, PIVOT, DRUM,
 } from './r2910.js';
 import PATH from './path2910.js';
@@ -51,7 +51,7 @@ export function profile(p, v, goal, vmax, amax, dt) {
 export class Physical2910 extends PhysicalRobot {
   constructor(robot) {
     const t = build2910(), w = wheels2910(t), s = pathSurfaces2910(PATH, t);
-    const pathWheels = [...w.floor, ...w.indexer, ...w.intake, ...bumper2910()];
+    const pathWheels = [...w.floor, ...w.indexer, ...w.intake];
     super(robot, {
       path: new Mechanism({ body: robot.body, substeps: 6, shafts: [...new Set(pathWheels.map((x) => x.shaft)), t.pivot], wheels: pathWheels, surfaces: Object.values(s) }),
       shooter: new Mechanism({ body: robot.body, substeps: 6, sub: 8, shafts: [t.drum, t.hood], wheels: [w.drum, ...w.hood] }),

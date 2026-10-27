@@ -45,7 +45,7 @@
 //     Motion Magic (10 rad/s, 50 rad/s^2), 50 to 310 deg (0 is straight ahead: it can't point
 //     within 50 deg of the intake)
 import { IN } from '../constants.js';
-import { Motor, Shaft, Surface, Train, Wheel } from './mechanism.js';
+import { Block, Motor, Shaft, Surface, Train, Wheel } from './mechanism.js';
 
 // what each grips FUEL with (estimates, as 341's and 8793's): the rollers' silicone tubing ("high
 // grip with fuel", their release thread); the up-feed's 60A flex wheel, compliant; the infeed's 80A
@@ -228,14 +228,12 @@ export function shooterWheels(t) {
   placeShooter(w, 0, SHOOTER.hoodCad);
   return w;
 }
-// The front bumper FUEL climb on the way in: the CAD's two 2.5in foam noodles (0.370 to 0.433 m out,
-// 0.038 to 0.165 m up, 0.87 m across with its corners) on its 3/4in wood, as solid foam cylinders
-// (the CAD's are boxes whose backs FUEL never reach: a face alone, pressed hard by the rollers, lets
-// a FUEL through into the frame, as 2910's did); soft (2.5in of foam: 20 kN/m, as 341's estimate)
+// The front bumper FUEL climb on the way in: the CAD's 2.5in of foam (0.370 to 0.433 m out, 0.038
+// to 0.165 m up, 0.87 m across with its corners) on its 3/4in wood, as a solid block (a face alone,
+// pressed hard by the rollers, lets a FUEL through into the frame, as 2910's did); soft (2.5in of
+// foam: 20 kN/m, as 341's estimate)
 export function bumper604() {
-  const shaft = new Shaft({ name: 'bumper', inertia: Infinity });
-  const r = (0.4334 - 0.3699) / 2, x = 0.3699 + r;
-  return [0.0381 + r, 0.1651 - r].map((y) => new Wheel({ name: 'bumper', shaft, center: [x, y, 0], axis: Z, radius: r, width: 0.87, mu: 0.6, tread: 20000 }));
+  return new Block({ name: 'bumper', x0: 0.3699, x1: 0.4334, y0: 0.0381, y1: 0.1651, hw: 0.87 / 2, mu: 0.6, tread: 20000 });
 }
 
 const rot = ([x, y], [cx, cy], a) => { const c = Math.cos(a), s = Math.sin(a), dx = x - cx, dy = y - cy; return [cx + dx * c - dy * s, cy + dx * s + dy * c]; };
@@ -306,7 +304,7 @@ export function pathSurfaces604(mesh, t, { mu = 0.25, muShooter = 0.35 } = {}) {
   const rotor = s('rotor', [AXIS[0], 0, AXIS[1]]).onShaft(t.rotor, [AXIS[0], 0, AXIS[1]], [0, -1, 0]);
   const turret = s('turret', [AXIS[0], 0, AXIS[1]], muShooter);
   const hood = s('hood', [AXIS[0] + SHOOTER.main.at[0], SHOOTER.main.at[1], AXIS[1]], muShooter);
-  return { body, intake, hopper, rotor, turret, hood };
+  return { body, intake, hopper, rotor, turret, hood, bumper: bumper604() };
 }
 export function placeHopper(sf, deg) {
   sf.setPose([hopperExt(deg) - HOPPER.out, 0, 0]);

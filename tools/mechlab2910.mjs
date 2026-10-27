@@ -12,7 +12,7 @@ import { FUEL, GROUP, groups, HUB } from '../js/constants.js';
 import { Mechanism } from '../js/mech/mechanism.js';
 import { sim2D } from '../js/ballistics.js';
 import {
-  build2910, wheels2910, bumper2910, pathSurfaces2910, placeIntake, placeHood, hoodElevation, shotFor, SHOT_TABLE, PASS_TABLE, passFor,
+  build2910, wheels2910, pathSurfaces2910, placeIntake, placeHood, hoodElevation, shotFor, SHOT_TABLE, PASS_TABLE, passFor,
   INTAKE, SHOOTER, FLOOR, DRUM, PIVOT, RANGES,
 } from '../js/mech/r2910.js';
 import PATH from '../js/mech/path2910.js';
@@ -45,7 +45,7 @@ function rig({ deg = INTAKE.deploy, hood = 0 } = {}) {
   s.intake.setPose([PIVOT[0], PIVOT[1], 0], 0, ((INTAKE.deploy - deg) * Math.PI) / 180);
   placeHood(wh.hood, hood);
   s.hood.setPose([DRUM[0], DRUM[1], 0], 0, (hood * Math.PI) / 180);
-  const pathW = [...wh.floor, ...wh.indexer, ...wh.intake, ...bumper2910()];
+  const pathW = [...wh.floor, ...wh.indexer, ...wh.intake];
   const path = new Mechanism({ substeps: 6, shafts: [...new Set(pathW.map((x) => x.shaft)), t.pivot], wheels: pathW, surfaces: Object.values(s) });
   const shooter = new Mechanism({ substeps: 6, sub: 8, shafts: [t.drum, t.hood], wheels: [wh.drum, ...wh.hood] });
   return { t, wh, s, path, shooter };

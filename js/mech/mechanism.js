@@ -377,6 +377,40 @@ function closestOnTri(px, py, pz, T, o, q) {
   return set(ax + abx * v + acx * w, ay + aby * v + acy * w, az + abz * v + acz * w);
 }
 
+// A solid block of foam FUEL can touch, fixed to the frame: a bumper (solid, uniform foam under
+// fabric, as teams build them now). Its section is a rectangle in x and y (x0 to x1, y0 to y1),
+// edges rounded r, across z from -hw to hw (the ends rounded too). Solid: a FUEL pressed into it,
+// however far, is pushed back out the nearest way, where a mesh's face alone would let one
+// through. (Its triangles are only for drawing it.)
+export class Block extends Surface {
+  constructor({ name = '', x0, x1, y0, y1, hw, r = 0.02, mu = 0.6, tread = Infinity }) {
+    const V = [], I = [];
+    for (const z of [-hw, hw]) for (const [x, y] of [[x0, y0], [x1, y0], [x1, y1], [x0, y1]]) V.push(x, y, z);
+    for (const [a, b, c, d] of [[1, 2, 6, 5], [2, 3, 7, 6], [0, 1, 5, 4], [0, 4, 7, 3], [0, 3, 2, 1], [4, 5, 6, 7]]) I.push(a, b, c, a, c, d);
+    super({ name, vertices: V, indices: I, mu, tread });
+    this.c = [(x0 + x1) / 2, (y0 + y1) / 2, 0];
+    this.h = [(x1 - x0) / 2 - r, (y1 - y0) / 2 - r, hw - r];
+    this.r = r;
+  }
+  touches(p) {
+    const d = [0, 1, 2].map((k) => p[k] - this.c[k]), q = d.map((v, k) => Math.abs(v) - this.h[k]);
+    const out = q.map((v) => Math.max(v, 0)), ol = Math.hypot(...out);
+    let dist, n;
+    if (ol > 0) {
+      dist = ol - this.r;
+      n = out.map((v, k) => (v / ol) * Math.sign(d[k]));
+    } else {
+      // (inside its core: out the nearest face)
+      const k = q.indexOf(Math.max(...q));
+      dist = q[k] - this.r;
+      n = [0, 0, 0]; n[k] = Math.sign(d[k]) || 1;
+    }
+    const depth = R - dist;
+    return depth > 0 ? [{ depth, n }] : NONE;
+  }
+}
+
+
 // ------------------------------------------------------------------ the mechanism
 export class Mechanism {
   // body: the Rapier rigid body it's mounted on (null: fixed in the world); iterations: contact
