@@ -2479,11 +2479,12 @@ function build581(cfg, alliance) {
     }
     kicker.rotation.z = th;
     kickerCad.rotation.z = S581.kickerRest;
-    // pushing the deploy in raises the floor's front (mechanically, their spec slides): it lifts the
-    // load toward the shooter over the last part of the stroke, which they use while shooting
-    floor.rotation.z = clamp01((0.35 - s) / 0.35, 0, 1) * S581.floorUp;
+    // pushing the deploy in raises the floor's front: 2in followers on its front corners ride ramps
+    // on the intake's side plates (js/mech/r581.js FLOOR.cam), which lifts the load toward the
+    // shooter, their compaction while shooting
+    floor.rotation.z = st.floorTurn ?? clamp01((0.35 - s) / 0.35, 0, 1) * S581.floorUp;
     // the hood opens up (flatter shots) from its stop at the steepest one
-    hood.rotation.z = clamp01((sh.hoodMax - st.hoodDeg) / (sh.hoodMax - sh.hoodMin), 0, 1) * S581.hoodTravel;
+    hood.rotation.z = st.hoodTurn ?? clamp01((sh.hoodMax - st.hoodDeg) / (sh.hoodMax - sh.hoodMin), 0, 1) * S581.hoodTravel;
     net.drape(st.load, s * extLen);
   };
   return { root, anim, stored: [], modules, extLen };
