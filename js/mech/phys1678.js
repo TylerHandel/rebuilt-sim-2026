@@ -303,14 +303,14 @@ export class Physical1678 extends PhysicalRobot {
   extNow() { return slotExt(this.armDeg); }
   // how far up the lid is now (0-1 of its travel), as the climber has it
   liftNow() { const h = this.r.cfg.bay.lift?.h; return h ? clamp(this.lift / h, 0, 1) : 0; }
-  // how far up the lid wants to be (0-1 of its travel): up while it shoots (the driver's
-  // expandHopper; the team: the lid's down otherwise) and in AUTO (their autos expand it early
-  // in the first path), down for a TRENCH; never down onto FUEL piled under it, but the climber
-  // holds it where it is: FUEL can't push it up
+  // how far up the lid wants to be (0-1 of its travel): up while it intakes and while it shoots
+  // (the team) and in AUTO (their autos expand it early in the first path), down for a TRENCH;
+  // never down onto FUEL piled under it, but the climber holds it where it is: FUEL can't push
+  // it up
   liftScale() {
     const r = this.r, bay = r.cfg.bay, h = bay.lift?.h;
     if (!h) return 0;
-    const up = !(this.tucked || this.nearTrench) && (this.wasShooting || r.match?.isAuto);
+    const up = !(this.tucked || this.nearTrench) && (this.wasIntaking || this.wasShooting || r.match?.isAuto);
     const now = this.liftNow(), onLoad = clamp((this.loadTop() - 0.01 - bay.top) / h, 0, 1);
     return up ? 1 : Math.min(now, onLoad);
   }
