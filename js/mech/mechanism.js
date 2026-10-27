@@ -98,8 +98,11 @@ export class Shaft {
   // motor: a Motor, or null for an idler (or a shaft of a Train); inertia: what turns with the
   // shaft (kg·m²: its wheels, pulleys, hex shaft), the motor's rotors are added; drag: bearing
   // and belt friction (N·m·s)
-  constructor({ name = '', motor = null, inertia = 5e-5, drag = 2e-4 } = {}) {
-    Object.assign(this, { name, motor, inertia, drag });
+  // friction: its bearings' running torque (N·m, Coulomb: the same at any speed, and holding it
+  // still against anything less; 0, the default, for none)
+  constructor({ name = '', motor = null, inertia = 5e-5, drag = 2e-4, friction = 0 } = {}) {
+    Object.assign(this, { name, motor, inertia, drag, friction });
+    this._p0 = 0; this._acc = 0; this._B = 0; // (the bearings' friction over the step: integrate)
     this._omega = 0;
     this.cmd = 0;
     this.train = null; // on a Train: it turns at k x the train's speed
@@ -121,6 +124,7 @@ export class Shaft {
   // an angular impulse about its axis (N·m·s)
   impulse(L) {
     if (this.train) this.train.omega += (L * this.k) / this.train.J;
+    else if (this._B > 0) this._fric(this._acc += L);
     else if (this.lo === -Infinity && this.hi === Infinity) this._omega += L / this.J;
     else { this._free += L / this.J; this._omega = Math.min(this.hi, Math.max(this.lo, this._free)); }
   }
@@ -139,7 +143,15 @@ export class Shaft {
     }
     // (against a stop: it takes what would drive the shaft on into it)
     if (this.lo !== -Infinity || this.hi !== Infinity) { this._free = this._omega; this._omega = Math.min(this.hi, Math.max(this.lo, this._omega)); }
+    // (its bearings' friction: up to friction x dt of angular impulse against whichever way the
+    // step's momentum, its own and what the contacts give it, would turn it; it stays still if
+    // that's all there is, so a FUEL pressed on it meets a fixed face until it's pushed past it)
+    if (this.friction > 0 && this.lo === -Infinity && this.hi === Infinity) {
+      this._p0 = this._omega * J; this._acc = 0; this._B = this.friction * dt;
+      this._fric(0);
+    } else this._B = 0;
   }
+  _fric(acc) { const p = this._p0 + acc; this._omega = (Math.sign(p) * Math.max(0, Math.abs(p) - this._B)) / this.J; }
 }
 
 // A gear train: one motor turning several shafts through belts, chain and gears at fixed ratios

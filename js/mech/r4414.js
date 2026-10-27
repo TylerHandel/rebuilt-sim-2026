@@ -136,18 +136,23 @@ export const BORE = { r: R + 0.004, top: 0.345 };
 // lying across it, each free on its bearings (r, J: estimates, the renders), the plate behind them.
 // A FUEL riding it is BEND.u from the omnis' axle, so they squeeze it FEED.omni.squeeze all the way
 // round and up to the bore's middle (4mm more, as the bore's clearance, and they'd miss it by 1mm:
-// a FUEL left on the bend with nothing behind it sat at the stack's last reach, u 0.03)
-export const RAMP = { RO: BEND.u + R, rollers: { n: 9, r: 0.0125, J: 2e-6 } };
+// a FUEL left on the bend with nothing behind it sat at the stack's last reach, u 0.03).
+// The rollers here and on the hook turn on a pair of small sealed bearings each: friction, their
+// running torque (N·m: an estimate, a few mN·m for a pair of 2RS miniature bearings; about 0.25 N
+// at the rim). It doesn't get a lone FUEL any further (0.5, 3 and 10 mN·m all leave it at the
+// bore's foot, as free rollers do); a stream goes through a little faster at 3 and 10 (column
+// 11.3 and 11.6 FUEL/s against 11.0; dump 11.7-12.8 FUEL/s through the middle against 8.6-12.1)
+export const RAMP = { RO: BEND.u + R, rollers: { n: 9, r: 0.0125, J: 2e-6, friction: 0.003 } };
 // the hook: its face curves gradually from its tip, flush with the bowl's wall (tipA rad round from
 // the channel, ahead), back and in to the hub's side on the channel's trailing side, coming in along
 // the channel there (a cubic: lead m on along the wall from the tip, root m out along the channel
 // from the hub); from just off the floor to y1, over a FUEL's middle and a little over the wall; its
 // back the Dolphin Fin (finBack m behind its top edge, at the floor) (estimates: the renders)
 // The rollers: n of them standing up along the face out to s = end (from the tip), each free on its
-// bearings (r, and its inertia J: a plastic tube; estimates: the renders), their fronts on the
+// bearings (r, and its inertia J: a plastic tube; estimates: the renders; friction as the ramp's), their fronts on the
 // curve FUEL ride along (hookCurve) and the plate behind them; past them, where it comes in to the
 // hub, no rollers (the team), the plate itself the face
-export const HOOK = { tipR: STADIUM.r - 0.003, tipA: 0.45, lead: 0.12, root: 0.1, y0: FLOOR + 0.006, y1: FLOOR + 0.1, finBack: 0.09, rollers: { n: 17, end: 0.75, r: 0.011, J: 1e-6 } };
+export const HOOK = { tipR: STADIUM.r - 0.003, tipA: 0.45, lead: 0.12, root: 0.1, y0: FLOOR + 0.006, y1: FLOOR + 0.1, finBack: 0.09, rollers: { n: 17, end: 0.75, r: 0.011, J: 1e-6, friction: 0.003 } };
 // the rotor: the hook, the hub, the feeder wheels and their gears (estimate)
 export const ROTOR = { J: 0.04 };
 
@@ -273,9 +278,9 @@ export function wheels4414(t) {
     new Wheel({ name: 'TTB 3in omni', shaft: t.ttb, kind: 'omni', center: chan(T.u, T.omniY, tw), axis: [0, 1, 0], radius: T.r, width: T.wid, mu: MU.omni, tread: 30000 }),
     // (the hook's rollers, each on its own bearings: FUEL roll along the hook almost freely, but
     // not up or down it)
-    ...hookRollerAt().map((c, i) => new Wheel({ name: 'hook rollers', shaft: new Shaft({ name: `hook roller ${i + 1}`, inertia: HOOK.rollers.J, drag: 1e-6 }), center: c, axis: [0, 1, 0], radius: HOOK.rollers.r, width: HOOK.y1 - HOOK.y0 - 0.006, mu: MU.plate })),
+    ...hookRollerAt().map((c, i) => new Wheel({ name: 'hook rollers', shaft: new Shaft({ name: `hook roller ${i + 1}`, inertia: HOOK.rollers.J, drag: 1e-6, friction: HOOK.rollers.friction }), center: c, axis: [0, 1, 0], radius: HOOK.rollers.r, width: HOOK.y1 - HOOK.y0 - 0.006, mu: MU.plate })),
     // (the ramp's rollers, each on its own bearings, lying across the channel)
-    ...rampRollerAt().map((c, i) => new Wheel({ name: 'ramp rollers', shaft: new Shaft({ name: `ramp roller ${i + 1}`, inertia: RAMP.rollers.J, drag: 1e-6 }), center: c, axis: chanDir(0, 1), radius: RAMP.rollers.r, width: 2 * F.w - 0.01, mu: MU.plate })),
+    ...rampRollerAt().map((c, i) => new Wheel({ name: 'ramp rollers', shaft: new Shaft({ name: `ramp roller ${i + 1}`, inertia: RAMP.rollers.J, drag: 1e-6, friction: RAMP.rollers.friction }), center: c, axis: chanDir(0, 1), radius: RAMP.rollers.r, width: 2 * F.w - 0.01, mu: MU.plate })),
     // (the entrance's omnis: their shaft across the channel, turning so their undersides run in)
     new Wheel({ name: '1.25in omnis', shaft: t.bend, kind: 'omni', center: chan(BEND.u, BEND.y, 0), axis: chanDir(0, -1), radius: F.omni.r, width: F.omni.wid, mu: MU.omni, tread: 30000 }),
   ].map((w) => w.onPivot(t.rotor, [AXIS[0], 0, AXIS[1]], [0, -1, 0]));
