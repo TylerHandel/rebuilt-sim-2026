@@ -212,8 +212,10 @@ export const ROBOTS = {
     frame: { length: 25.0 * IN, width: 32.0 * IN, chamfer: (4 / (2 * (2 - Math.SQRT2))) * IN },
     height: 21.75 * IN,
     mass: 64, // robot (up to 115 lb) + bumpers + battery
-    // 7.67:1 on 4in wheels (tech binder), Kraken X60s
-    drive: { ratio: 7.67 },
+    // 7.67:1 on 4in wheels (tech binder), Kraken X60s; custom modules made like WCP's X2i, inverted
+    // (the motors hang under the module's plate beside the wheel, nothing up into the hopper), the
+    // back two cut to fit the chamfered corners (the binder's "2 custom swerve modules")
+    drive: { ratio: 7.67, inverted: true },
     // the intake is a box that slides out on racks (extLen) with its roller at the lip
     // rate: fast enough that driving through FUEL is the only limit; pull: roller surface speed
     // lip: FUEL rides up the box's ramp to the ridge over the front bumper here, then drops in
@@ -229,8 +231,9 @@ export const ROBOTS = {
     // plate carries the turret; a net covers the rest of the top, and it stretches: past the
     // stated 88 the load bulges it up (dome: its height at the middle; pinned at the edges, the
     // top plate from x0 back, and round the turret), as far as there's room over the robot.
+    // (the walls are the bumper backing: their faces on the frame perimeter, js/mech/r4414.js BAY)
     bay: {
-      x0: -0.305, x1: 0.317, hw: 0.376, top: 0.53, chamfer: (4 / (2 * (2 - Math.SQRT2))) * IN, wallTop: 0.53,
+      x0: -12.5 * IN, x1: 0.317, hw: 16 * IN, top: 0.53, chamfer: (4 / (2 * (2 - Math.SQRT2))) * IN, wallTop: 0.53,
       dome: { h: 0.27, x0: -0.165, cx: -0.02, cz: 0, rHole: 0.2 },
       floor: { a: 0.105, b: 0, lo: 0.105, hi: 0.105 },
       // the intake box's ramp: up from the main floor to a ridge over the front bumper, then down

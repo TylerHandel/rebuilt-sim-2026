@@ -90,14 +90,19 @@ export const FLOOR = 0.105;      // the hopper's floor under the rotor (the rend
 export const BUCKET = { r: 0.285 }; // the floor's round middle the rotor sweeps
 // the hopper: the bumper backing as walls, chamfered at the back corners, open at the front into
 // the box; the top plate over the back (to the turret's bearing) and the net over the rest
-// (the bumper backing is the hopper's wall: "~1in extra hopper space per side", the binder)
-// (the frame's back corners cut 3.41in each way, as little as keeps its perimeter within 110in; the
-// bumper backing 1in out from it, its cut (2 - sqrt2) in longer each way)
+// (the bumper backing is the hopper's wall: "~1in extra hopper space per side", the binder, against
+// walls inside the frame's 1in tubes. So the walls' faces are the frame perimeter, where the
+// bumpers' backing sits (the renders: the walls stand right on the bumpers' inner edge), its back
+// corners cut 3.41in each way, as little as keeps it within 110in; robotModels draws them here)
 // The net stretches: pinned along the walls, the top plate's front edge, the box's front and round
 // the turret's ring, the load can push it up into a dome as far as dome m over the hopper's top at
 // its middle (robotConfigs' bay.dome: as far as there's room over the robot), and nothing presses
-// the load back down (the binder: "holds 85+ balls under the trench, 100+ with net over the bump")
-export const BAY = { x0: -(HALF_L + IN), hw: HALF_W + IN, chamfer: (4 / (2 * (2 - Math.SQRT2)) + 2 - Math.SQRT2) * IN, top: 0.535, net: 0.565, hole: 0.25, dome: 0.235 };
+// the load back down (the binder: "holds 85+ balls under the trench, 100+ with net over the bump").
+// Round the turret: the top plate's ring round its bearing (the renders: the plate comes forward
+// round it, from ring[0] out to ring[1]), the net pinned at its edge (hole), and the shooter down
+// inside the ring (a shroud, r from shroud[0] up: robotConfigs' bay.obstacles), so the load can't
+// come up round the turret and out over the top
+export const BAY = { x0: -HALF_L, hw: HALF_W, chamfer: (4 / (2 * (2 - Math.SQRT2))) * IN, top: 0.535, net: 0.565, hole: 0.2, dome: 0.235, ring: [0.155, 0.225], shroud: [0.42, 0.16] };
 // the bowl round the rotor and the printed "stadium" pieces that funnel FUEL into it: the floor
 // out to r, a wall standing straight up round its rim, the hook's tip running flush against it
 // (wall high at the back and sides, fading to wallF at the front, where the stadium has to stay
@@ -198,8 +203,10 @@ export const SHOOTER = {
   plateZ: R + 0.006,
 };
 export const HOOD = SHOOTER;
-// the intake, at the box's full extension (it slides out BOX.ext on its racks); xF its front
-export const BOX = { ext: 0.27, front: HALF_L + 3.25 * IN + 0.2224, side: HALF_W + IN + 0.005, chin: 0.31 };
+// the intake, at the box's full extension (it slides out BOX.ext on its racks); xF its front; side
+// its side panels' inner faces, outboard of the hopper's walls, the pinion strips on them and the
+// racks (robotModels draws them here)
+export const BOX = { ext: 0.27, front: HALF_L + 3.25 * IN + 0.2224, side: HALF_W + 0.018, chin: 0.31 };
 export const INTAKE = {
   // No ramp, the box's bottom open (the renders, from above; the team): the primary 3in
   // polycarbonate roller low in front of the bumper's face, its back running up it, squeezes a
@@ -509,9 +516,15 @@ function holed(m, r) {
   return { v: m.v, i: keep };
 }
 function topPlate() {
-  // the plate over the back to the turret's bearing (a hard top); the net over the rest (soft),
-  // open round the turret (its hood stands up through it and shots go out over it)
-  return grid(6, 12, (u, v) => [lerp(BAY.x0, -0.21, u), BAY.top, lerp(-BAY.hw, BAY.hw, v)]);
+  // the plate over the back to the turret's bearing (a hard top) and its ring round the bearing
+  // (out under the net's ragged edge); the net over the rest (soft); the shroud down inside the ring.
+  // Open over the turret (its hood stands up through it and shots go out over it)
+  const [r0, r1] = BAY.ring, [y0, rs] = BAY.shroud;
+  return merge(
+    grid(6, 12, (u, v) => [lerp(BAY.x0, -0.21, u), BAY.top, lerp(-BAY.hw, BAY.hw, v)]),
+    grid(48, 2, (u, v) => polar(lerp(r0, r1, v), u * 2 * Math.PI, BAY.top).map((c, k) => c + [AXIS[0], 0, AXIS[1]][k])),
+    cyl(AXIS[0], AXIS[1], rs, y0, BAY.top),
+  );
 }
 // the net's height at (x, z), stretched all the way: pinned at its edges and round the turret's
 // ring, up between

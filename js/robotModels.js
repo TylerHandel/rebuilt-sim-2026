@@ -14,7 +14,7 @@ import { ALLIANCE_COLOR_CSS } from './field.js';
 import { build8793 as trains8793, conveyorWheels as conveyorWheels8793 } from './mech/r8793.js';
 import { FLOOR as FLOOR_2910 } from './mech/r2910.js';
 import * as D4 from './mech/r4414.js';
-import { fuelTexture } from './fuelSkin.js';
+import { fuelTexture, squashable } from './fuelSkin.js';
 import { ALUMINUM_COLORS } from './aluminumColors.js';
 
 export const BUMP_Y0 = BUMPER_Y0, BUMP_Y1 = BUMPER_Y1;
@@ -258,10 +258,15 @@ function swerveModule(parent, x, z) {
   kraken(g, -0.028, 0.2, 0.028);
   kraken(g, 0.028, 0.2, -0.028);
   bx(0.028, 0.012, 0.028, M.red, g, 0.035, 0.168, 0.035); // CANcoder
+  return moduleWheel(g);
+}
+
+// a module's steering pivot (the fork, forkH tall round forkY) and its 4in wheel
+function moduleWheel(g, forkY = 0.09, forkH = 0.075) {
   const pivot = new THREE.Group();
   g.add(pivot);
   // fork
-  for (const s of [-1, 1]) bx(0.05, 0.075, 0.008, M.aluDark, pivot, 0, 0.09, s * 0.03);
+  for (const s of [-1, 1]) bx(0.05, forkH, 0.008, M.aluDark, pivot, 0, forkY, s * 0.03);
   const wheel = new THREE.Group();
   wheel.position.set(0, 0.0508, 0);
   pivot.add(wheel);
@@ -281,6 +286,62 @@ function swerveModule(parent, x, z) {
   }
   wheel.add(spin);
   return { pivot, wheel: spin };
+}
+
+// the convex hull of [u, v] points (counterclockwise), and a polygon cut back to u + v <= k
+function hull2(pts) {
+  const p = [...pts].sort((a, b) => a[0] - b[0] || a[1] - b[1]), cr = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+  const half = (q) => { const h = []; for (const x of q) { while (h.length > 1 && cr(h[h.length - 2], h[h.length - 1], x) <= 0) h.pop(); h.push(x); } h.pop(); return h; };
+  return [...half(p), ...half([...p].reverse())];
+}
+function cutDiag(pts, k) {
+  const out = [], f = (q) => q[0] + q[1] - k;
+  pts.forEach((a, i) => {
+    const b = pts[(i + 1) % pts.length], fa = f(a), fb = f(b);
+    if (fa <= 0) out.push(a);
+    if (fa * fb < 0) { const t = fa / (fa - fb); out.push([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]); }
+  });
+  return out;
+}
+
+// An inverted swerve module, made like WCP's X2i (4414's custom ones): its plate over the wheel,
+// out to the frame's edges (ex, ez from the steering axis) and bolted on the frame there, the drive
+// and steering motors (Kraken X60s) hanging under it beside the wheel, inboard (their bottoms 1.6in
+// off the carpet), the gears between it and a top plate over them. Nothing of it is over 0.15 m, so
+// none of it comes up through a hopper's floor. (sx, sz): its corner; at a chamfered corner (cut: the
+// chamfer's line, u + v = cut, u and v out toward the corner along x and z) its plates are cut along
+// the diagonal, so the corner's bumper runs straight across it.
+function invertedModule(parent, x, z, sx, sz, ex, ez, cut = Infinity) {
+  const g = new THREE.Group();
+  g.position.set(x, 0, z);
+  parent.add(g);
+  const at = ([u, v]) => [sx * u, sz * v];
+  // the drive motor inboard along x, the steering motor inboard along z, clear of the wheel's swing
+  const mot = [[-0.088, 0], [0, -0.088]], rm = 0.04;
+  let pts = [[ex - 0.002, ez - 0.002], [ex - 0.002, -0.05], [-0.05, ez - 0.002]];
+  for (const [mu, mv] of mot) for (let i = 0; i < 20; i++) { const a = (i / 20) * Math.PI * 2; pts.push([mu + rm * Math.cos(a), mv + rm * Math.sin(a)]); }
+  pts = hull2(pts);
+  if (cut < Infinity) pts = cutDiag(pts, cut - 0.002);
+  const outline = pts.map(at);
+  // pockets: a triangle between the motors, and a round one in the top plate over the gears
+  const tri = [[-0.05, -0.012], [-0.012, -0.05], [-0.06, -0.06]].map(at);
+  const pocket = arcPts(...at([-0.03, -0.03]), 0.012, 0, Math.PI * 2, 16);
+  flatPart(outline, [tri], 0.006, M.anodBlack, g, 0.118); // the plate, 0.112..0.118
+  flatPart(outline, [tri, pocket], 0.004, M.anodBlack, g, 0.146); // the top plate
+  // standoffs between them, round the outline
+  for (let i = 0; i < pts.length; i += Math.max(1, Math.floor(pts.length / 6))) {
+    const [u, v] = pts[i], l = Math.hypot(u, v) || 1, [px, pz] = at([u - (0.008 * u) / l, v - (0.008 * v) / l]);
+    cylY(0.004, 0.024, M.alu, g, px, 0.13, pz, 8);
+  }
+  // the gears: the steering's big one round the axis, the motors' pinions
+  spurGear(0.05, 60, 0.008, M.aluDark, g, 6).position.y = 0.13;
+  for (const m of mot) { const [px, pz] = at(m); spurGear(0.022, 18, 0.008, M.aluDark, g).position.set(px, 0.13, pz); }
+  bx(0.026, 0.008, 0.026, M.red, g, 0, 0.15, 0); // CANcoder, on the top plate over the axis
+  cylY(0.048, 0.008, M.aluDark, g, 0, 0.108, 0, 28); // the steering bearing, under the plate
+  // the motors, upside down under the plate (output up into the gears)
+  for (const m of mot) { const [px, pz] = at(m); kraken(g, px, 0.112 - 0.036, pz); }
+  // the fork from the bearing down to the axle, the wheel under the plate
+  return moduleWheel(g, 0.078, 0.05);
 }
 
 function bumperTexture(number, alliance) {
@@ -354,8 +415,8 @@ function addBumpers(root, cfg, alliance, chamferBack = 0) {
   ] : [
     { x: L / 2 + T + 0.002, z: 0, ry: Math.PI / 2, len: W },
     { x: -L / 2 - T - 0.002, z: 0, ry: -Math.PI / 2, len: W - 2 * ch },
-    { x: -ch / 2, z: W / 2 + T + 0.002, ry: 0, len: L - ch },
-    { x: -ch / 2, z: -W / 2 - T - 0.002, ry: Math.PI, len: L - ch },
+    { x: ch / 2, z: W / 2 + T + 0.002, ry: 0, len: L - ch }, // (the straight run, L / 2 back to the cut)
+    { x: ch / 2, z: -W / 2 - T - 0.002, ry: Math.PI, len: L - ch },
   ];
   for (const sd of sides) {
     const w = Math.min(0.42, sd.len * 0.8), hh = w / 4;
@@ -368,21 +429,40 @@ function addBumpers(root, cfg, alliance, chamferBack = 0) {
 }
 
 // frame tubes, bellypan and swerve modules (frame: false when the team's CAD brings its own frame)
+// (inverted modules, cfg.drive.inverted: made like WCP's X2i, the motors under their plates; the
+// bellypan and the cross tubes clear of them, and at a chamfered corner the module's plate is the
+// corner: no tube along the cut)
 function addDrivebase(root, cfg, chamferBack = 0, frame = true) {
-  const L = cfg.frame.length, W = cfg.frame.width;
-  const modules = modulePoints(cfg).map(([x, z]) => swerveModule(root, x, z));
+  const L = cfg.frame.length, W = cfg.frame.width, ch = cfg.frame.chamfer || 0, inv = !!cfg.drive?.inverted;
+  const pts = modulePoints(cfg);
+  const modules = pts.map(([x, z]) => {
+    if (!inv) return swerveModule(root, x, z);
+    const sx = Math.sign(x), sz = Math.sign(z), ex = L / 2 - Math.abs(x), ez = W / 2 - Math.abs(z);
+    return invertedModule(root, x, z, sx, sz, ex, ez, sx < 0 && ch ? ex + ez - ch : Infinity);
+  });
   if (!frame) return modules;
   const frameMat = std(cfg.colors.frame, 0.4, 0.65);
   const y = 0.085;
   const outline = frameShape(cfg);
   for (let i = 0; i < outline.length; i++) {
     const [x0, z0] = outline[i], [x1, z1] = outline[(i + 1) % outline.length];
+    if (inv && x0 !== x1 && z0 !== z1) continue;
     // pull each tube 0.5in inside the perimeter
     const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2, k = 0.0127 / Math.max(1e-6, Math.hypot(cx, cz));
     tube(root, x0 - x0 * k * 0.9, z0 - z0 * k * 0.9, x1 - x1 * k * 0.9, z1 - z1 * k * 0.9, y, frameMat);
   }
-  // bellypan (the frame's own shape) and cross tubes
-  const pan = new THREE.Shape(offsetShape(outline, -0.02).map(([x, z]) => new THREE.Vector2(x, -z)));
+  // bellypan (the frame's own shape, or notched round inverted modules) and cross tubes
+  // (inverted: along the notches' inner edges, clear of the motors)
+  const notch = 0.135, at = (sx, sz) => pts.find(([x, z]) => Math.sign(x) === sx && Math.sign(z) === sz).map((v) => Math.abs(v) - notch);
+  let panPts = offsetShape(outline, -0.02);
+  if (inv) {
+    const a = L / 2 - 0.02, b = W / 2 - 0.02;
+    panPts = [[1, 1], [-1, 1], [-1, -1], [1, -1]].flatMap(([sx, sz]) => {
+      const [nx, nz] = at(sx, sz), p = [[sx * a, sz * nz], [sx * nx, sz * nz], [sx * nx, sz * b]];
+      return sx * sz > 0 ? p : p.reverse();
+    });
+  }
+  const pan = new THREE.Shape(panPts.map(([x, z]) => new THREE.Vector2(x, -z)));
   const panGeo = new THREE.ExtrudeGeometry(pan, { depth: 0.004, bevelEnabled: false, curveSegments: 4 });
   panGeo.rotateX(-Math.PI / 2);
   mesh(panGeo, M.aluDark, root, 0, 0.055, 0);
@@ -394,7 +474,8 @@ function addDrivebase(root, cfg, chamferBack = 0, frame = true) {
     }
     return hw || W / 2;
   };
-  for (const xc of [-L / 2 + 0.16, L / 2 - 0.16]) { const hw = inside(xc) - 0.03; tube(root, xc, -hw, xc, hw, y, frameMat); }
+  const xcs = inv ? [-1, 1].map((sx) => sx * (at(sx, 1)[0] - 0.0127)) : [-L / 2 + 0.16, L / 2 - 0.16];
+  for (const xc of xcs) { const hw = inside(xc) - 0.03; tube(root, xc, -hw, xc, hw, y, frameMat); }
   return modules;
 }
 
@@ -983,15 +1064,16 @@ function build4414(cfg, alliance) {
   const root = new THREE.Group();
   const L = cfg.frame.length, W = cfg.frame.width;
   const bay = cfg.bay, rs = bay.rotor, col = bay.column;
-  const chamfer = bay.chamfer;
   const extLen = cfg.storage.extLen;
   const wallTop = bay.wallTop; // top of the hopper walls and the top plate
   const hY = 0.15;             // walls start just under the bumper top
-  const wallZ = W / 2 - 0.012;
+  // the walls' faces where the physical model's are (js/mech/r4414.js BAY: the bumper backing, on the
+  // frame perimeter), so the FUEL against them are drawn against them
+  const { x0: back, hw: wallZ, chamfer } = D4.BAY;
   const R_FUEL = FUEL.radius;
   addBumpers(root, cfg, alliance, chamfer);
   const modules = addDrivebase(root, cfg, chamfer);
-  addElectronics(root, -L / 2 + 0.2, W / 2 - 0.14, Math.PI / 2); // battery out at the edge
+  addElectronics(root, -0.06, W / 2 - 0.2, Math.PI / 2); // (between the right side's modules, clear of their motors)
 
   const teal = std(cfg.colors.accent, 0.4, 0.45);
   const blackAl = std(0x2a2e35, 0.42, 0.55);
@@ -1007,7 +1089,7 @@ function build4414(cfg, alliance) {
   const up = new THREE.Vector3(0, 1, 0);
 
   // ---- hopper walls: smoked polycarbonate, chamfered back corners
-  const back = -L / 2 + 0.012, cz = W / 2 - chamfer, cx = -L / 2 + chamfer;
+  const cz = wallZ - chamfer, cx = back + chamfer;
   const wallPts = [[L / 2 - 0.005, -wallZ], [cx, -wallZ], [back, -cz], [back, cz], [cx, wallZ], [L / 2 - 0.005, wallZ]];
   const wallSegs = [];
   for (let i = 0; i < wallPts.length - 1; i++) {
@@ -1067,6 +1149,10 @@ function build4414(cfg, alliance) {
   // ---- top plate: pocketed, from the back truss forward to the turret bearing (a keyhole)
   const tx = cfg.shooter.turretPos.x, tz = cfg.shooter.turretPos.z;
   const xs = -0.165, ro = 0.2, riT = 0.158;
+  // the shroud the shooter hangs in, down inside the ring (the physical model's: the load can't come
+  // up round the turret)
+  const [shY, shR] = D4.BAY.shroud;
+  mesh(new THREE.CylinderGeometry(shR, shR, wallTop - shY, 40, 1, true), clearSmoke, root, tx, (wallTop + shY) / 2, tz).castShadow = false;
   {
     const aJ = 2.3; // where the ring meets the strip
     const outline = [
@@ -1085,7 +1171,7 @@ function build4414(cfg, alliance) {
         // the neck: pockets between the strip and the ring
         return;
       }
-      const inChamfer = (x, zz) => (x - (-L / 2)) + (W / 2 - Math.abs(zz)) < chamfer + 0.03;
+      const inChamfer = (x, zz) => (x - back) + (wallZ - Math.abs(zz)) < chamfer + 0.03;
       const tri = i % 2 ? [[px0, z], [px0, z1], [px1, (z + z1) / 2]] : [[px1, z], [px1, z1], [px0, (z + z1) / 2]];
       if (tri.some(([x, zz]) => inChamfer(x, zz))) return;
       holes.push(tri);
@@ -1103,7 +1189,7 @@ function build4414(cfg, alliance) {
   root.add(ext);
   const xF = L / 2 + BUMPER_T + cfg.intake.reach - extLen; // front face, stowed
   // the box's side panels and racks run outboard of the hopper walls and the pinion strips
-  const sideZ = W / 2 + 0.02, rackZ = W / 2 + 0.012, boxBack = xF - 0.33, bw = sideZ + 0.002;
+  const sideZ = D4.BOX.side + 0.002, rackZ = W / 2 + 0.012, boxBack = xF - 0.33, bw = sideZ + 0.002;
   const chinY = D4.BOX.chin, I4 = D4.INTAKE;
   {
     // front panel (carbon fiber, the renders), with a bent chin at the bottom over the roller
@@ -1280,8 +1366,10 @@ function build4414(cfg, alliance) {
     const a = (i / 16) * Math.PI * 2;
     cylY(0.004, 0.06, blackAl, root, rs.x + Math.cos(a) * (rs.r + 0.02), rs.y - 0.01, rs.z + Math.sin(a) * (rs.r + 0.02), 6);
   }
-  // rotor motors (Kraken X60s) standing at the back corner, belted to the gear train
-  for (const [x, z] of [[-0.235, 0.255], [-0.175, 0.305], [-0.115, 0.335]]) {
+  // rotor motors (Kraken X60s) standing round the rotor's side under the stadium, belted to the gear
+  // train (between the swerve modules' plates and motors, and clear of the battery)
+  for (const a of [-1.31, -1.52, -1.73]) {
+    const x = rs.x + 0.34 * Math.cos(a), z = rs.z + 0.34 * Math.sin(a);
     kraken(root, x, 0.13, z);
     bx(0.03, 0.006, 0.02, M.led, root, x + 0.02, 0.166, z);
   }
@@ -1289,13 +1377,13 @@ function build4414(cfg, alliance) {
   // slope (D4.stadiumY), just under it, so the FUEL drawn on them sit on what's drawn (a point
   // inside the rim takes the rim's height, so the edge meets the wall's top)
   {
-    const NX = 64, NZ = 76, x0 = bay.x0, x1 = bay.x1, z0 = -bay.hw, z1 = bay.hw;
+    const NX = 64, NZ = 76, x0 = back, x1 = bay.x1, z0 = -wallZ, z1 = wallZ;
     const hAt = (x, z) => {
       const dx = x - D4.AXIS[0], dz = z - D4.AXIS[1], d = Math.hypot(dx, dz), k = d < D4.STADIUM.r + 1e-4 ? (D4.STADIUM.r + 1e-4) / (d || 1) : 1;
       return D4.stadiumY(D4.AXIS[0] + dx * k, D4.AXIS[1] + dz * k) - 0.002;
     };
     const inBowl = (x, z) => Math.hypot(x - D4.AXIS[0], z - D4.AXIS[1]) < D4.STADIUM.r;
-    const inside = (x, z) => (x - x0) - Math.abs(z) + bay.hw - chamfer >= -0.005;
+    const inside = (x, z) => (x - x0) - Math.abs(z) + wallZ - chamfer >= -0.005;
     const pos = [], idx = [], map = new Map();
     const vid = (i, j) => {
       const key = i * 1000 + j;
@@ -2901,39 +2989,10 @@ export function buildRobotModel(cfg, alliance) {
   // stored FUEL visual (instanced)
   const r = FUEL.radius;
   const geo = new THREE.SphereGeometry(r, 32, 22);
-  // squeezed FUEL flattens where it's pressed: up to four contact patches per ball (touch0..3:
-  // the patch's normal and its distance from the center, Hopper.touchPatches). Foam gives around
-  // a contact too, not just on it, so the sphere eases into each flat patch over a band that
-  // widens the harder it's pressed (a smooth minimum of the sphere and the contact plane).
+  // squeezed FUEL flattens where it's pressed (Hopper.touchPatches; fuelSkin.js squashable)
   const MAX = 260; // room for whatever the hopper holds
-  const touch = [0, 1, 2, 3].map((j) => {
-    const a = new THREE.InstancedBufferAttribute(new Float32Array(4 * MAX), 4);
-    for (let i = 0; i < MAX; i++) { a.array[4 * i + 1] = 1; a.array[4 * i + 3] = 1; }
-    a.setUsage(THREE.DynamicDrawUsage);
-    geo.setAttribute('touch' + j, a);
-    return a;
-  });
   const mat = new THREE.MeshStandardMaterial({ map: fuelTexture(), roughness: 0.72 });
-  mat.onBeforeCompile = (sh) => {
-    sh.vertexShader = sh.vertexShader
-      .replace('#include <common>', `#include <common>
-attribute vec4 touch0; attribute vec4 touch1; attribute vec4 touch2; attribute vec4 touch3;
-void squash(vec4 c, inout vec3 p, inout vec3 nrm) {
-  float k = 0.01 + 1.2 * max(0.0, ${r.toFixed(4)} - c.w); // blend band: wider for a deeper squash
-  float h = dot(p, c.xyz);
-  float q = max(k - abs(h - c.w), 0.0) / k;
-  float hs = min(h, c.w) - q * q * k * 0.25;
-  if (hs < h) {
-    p -= c.xyz * (h - hs);
-    nrm = normalize(mix(c.xyz, nrm, clamp(0.5 + 0.5 * (c.w - h) / k, 0.0, 1.0)));
-  }
-}`)
-      .replace('#include <beginnormal_vertex>', `#include <beginnormal_vertex>
-vec3 sqP = position;
-squash(touch0, sqP, objectNormal); squash(touch1, sqP, objectNormal);
-squash(touch2, sqP, objectNormal); squash(touch3, sqP, objectNormal);`)
-      .replace('#include <begin_vertex>', 'vec3 transformed = sqP;');
-  };
+  const touch = squashable(geo, mat, MAX, r);
   const inst = new THREE.InstancedMesh(geo, mat, MAX);
   inst.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   inst.frustumCulled = false;
