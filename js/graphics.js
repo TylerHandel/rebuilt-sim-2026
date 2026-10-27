@@ -27,7 +27,7 @@ import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
 import { FXAAShader } from 'three/addons/shaders/FXAAShader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { setPolyGlass } from './robotModels.js';
+import { setPolyGlass, setMetalEnv } from './robotModels.js';
 
 // scale: render resolution (x the screen's, capped at maxDpr device pixels per CSS pixel)
 // aa: 'none' | 'fxaa' | 'msaa' (the canvas's own, or the composer's 4x target) | 'smaa' | 'ssaa'
@@ -201,6 +201,8 @@ export class Graphics {
     } else this.scene.environment = null;
     // polycarbonate: clear, glossy sheet where there are reflections (High and up), a light tint below
     setPolyGlass(p.env > 0 ? this.envTex : null);
+    // aluminum on the robots: reflecting it as aluminum does there
+    setMetalEnv(p.env > 0 ? this.envTex : null);
     // FUEL: rounder on the higher presets
     if (this.fuel && this.fuel.mesh) {
       const R = this.fuel.mesh.geometry.parameters.radius;

@@ -15,6 +15,7 @@ import { hookPath } from './hopper.js';
 import { build8793 as trains8793, conveyorWheels as conveyorWheels8793 } from './mech/r8793.js';
 import { FLOOR as FLOOR_2910 } from './mech/r2910.js';
 import { fuelTexture } from './fuelSkin.js';
+import { ALUMINUM_COLORS } from './aluminumColors.js';
 
 export const BUMP_Y0 = BUMPER_Y0, BUMP_Y1 = BUMPER_Y1;
 const lerp = THREE.MathUtils.lerp;
@@ -53,9 +54,75 @@ export function setPolyGlass(env) {
   for (const m of POLY_MATS) applyPoly(m, polyGlass);
 }
 
+// Aluminum: brushed (a fine grain drawn in the shader, across each face's longest way in its
+// plane: the CAD parts have no texture coordinates), metal, and on the presets with reflections
+// reflecting the environment as aluminum does (setMetalEnv). Raw for bare or clear-anodized
+// aluminum (silver whatever gray the CAD draws it in), dark for dark-anodized (its own color).
+const ALU_MATS = [];
+let metalEnv = null;
+function applyMetal(m) {
+  m.envMap = metalEnv;
+  m.envMapIntensity = metalEnv ? m.userData.alu.env : 1;
+  m.needsUpdate = true;
+}
+function brushed(m, env) {
+  m.userData.alu = { env };
+  m.onBeforeCompile = (sh) => {
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vAluP;\nvarying vec3 vAluN;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\n  vAluP = position; vAluN = normal;');
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', `#include <common>
+varying vec3 vAluP;
+varying vec3 vAluN;
+float aluHash(float n) { return fract(sin(n) * 43758.5453); }
+float aluNoise(float x) { float i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f); return mix(aluHash(i), aluHash(i + 1.0), f); }
+// the grain: lines ~3 mm apart (each its own shade, wandering a little), faded out where they're
+// finer than the pixels (so it doesn't shimmer far away)
+float aluGrain() {
+  vec3 n = abs(normalize(vAluN));
+  vec2 uv = (n.y > n.x && n.y > n.z) ? vAluP.xz : (n.x > n.z ? vAluP.zy : vAluP.xy);
+  float line = uv.y * 320.0 + aluNoise(uv.x * 5.0) * 4.0;
+  float g = 0.65 * aluNoise(line) + 0.35 * aluNoise(line * 2.7 + 17.0);
+  g = mix(g, aluNoise(uv.x * 30.0 + floor(line) * 7.13), 0.25);
+  float fw = fwidth(line);
+  return mix(0.5, g, clamp(1.5 - fw, 0.0, 1.0));
+}`)
+      .replace('#include <color_fragment>', '#include <color_fragment>\n  float aluG = aluGrain();\n  diffuseColor.rgb *= 0.93 + 0.14 * aluG;')
+      .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\n  roughnessFactor = clamp(roughnessFactor + (aluG - 0.5) * 0.2, 0.05, 1.0);');
+  };
+  m.customProgramCacheKey = () => 'alu';
+  ALU_MATS.push(m);
+  applyMetal(m);
+  return m;
+}
+// the environment to reflect (High and up), or none
+export function setMetalEnv(env) {
+  metalEnv = env || null;
+  for (const m of ALU_MATS) applyMetal(m);
+}
+const ALU_CACHE = new Map();
+function aluMat(hex, finish) {
+  const k = finish === 'raw' ? 'raw' : finish + hex;
+  if (!ALU_CACHE.has(k)) {
+    ALU_CACHE.set(k, finish === 'raw'
+      ? brushed(new THREE.MeshStandardMaterial({ color: 0xc3c7cc, roughness: 0.36, metalness: 0.9 }), 0.6)
+      : brushed(new THREE.MeshStandardMaterial({ color: hex, roughness: 0.42, metalness: 0.7 }), 0.35));
+  }
+  return ALU_CACHE.get(k);
+}
+// which of a team's CAD colors are aluminum (js/aluminumColors.js), for a CAD part's material
+function aluminumFor(team, m) {
+  const list = ALUMINUM_COLORS[team];
+  if (!list || !m.color) return null;
+  const c = m.color.getHex(), r = (c >> 16) & 255, g = (c >> 8) & 255, b = c & 255;
+  const hit = list.find((a) => Math.abs(a.rgb[0] - r) <= 2 && Math.abs(a.rgb[1] - g) <= 2 && Math.abs(a.rgb[2] - b) <= 2);
+  return hit && hit.finish !== 'colored' ? aluMat(c, hit.finish) : null;
+}
+
 const M = {
-  alu: std(0xb4b9c1, 0.32, 0.85),
-  aluDark: std(0x4a4f58, 0.4, 0.75),
+  alu: brushed(std(0xb4b9c1, 0.32, 0.85), 0.6),
+  aluDark: brushed(std(0x4a4f58, 0.4, 0.75), 0.35),
   anodBlack: std(0x1d1f24, 0.45, 0.55),
   black: std(0x131417, 0.7, 0.15),
   tread: std(0x0e0e10, 0.95, 0.0),
@@ -347,6 +414,7 @@ const STOWED = 1.4;
 // browser only; the drawn part stays until (and unless) the CAD arrives.
 function cadPart(parent, file, onLoad) {
   if (typeof window === 'undefined' || window.__gfxNoCad) return; // (the Lowest graphics: drawn models only)
+  const team = file.match(/(\d+)-/)?.[1];
   import('three/addons/loaders/GLTFLoader.js')
     .then(({ GLTFLoader }) => new GLTFLoader().loadAsync('cad/' + file))
     .then((gltf) => {
@@ -357,6 +425,7 @@ function cadPart(parent, file, onLoad) {
         // polycarbonate (see-through in the CAD, or marked "poly" by tools/extract-parts.mjs)
         const m = o.material;
         if (m.transparent || m.name === 'poly') { o.material = M.poly; o.castShadow = false; }
+        else o.material = aluminumFor(team, m) ?? m;
       });
       parent.add(gltf.scene);
       onLoad(gltf.scene);
