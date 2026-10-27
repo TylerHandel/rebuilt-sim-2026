@@ -48,6 +48,14 @@ function applyPoly(m, env) {
   }
   m.needsUpdate = true;
 }
+// another model's polycarbonate (the field's CAD panels) in on the same: its own tint below High,
+// clear sheet (glass, what it lets through) from High up
+export function registerPoly(m, glass = 0xf4f8fc) {
+  m.userData.poly = { alpha: { color: m.color.getHex(), opacity: m.opacity, roughness: m.roughness ?? 0.1 }, glass };
+  POLY_MATS.push(m);
+  if (polyGlass) applyPoly(m, polyGlass);
+  return m;
+}
 // clear sheet on (with the scene's environment map for its reflections) or off
 export function setPolyGlass(env) {
   polyGlass = env || null;
@@ -92,6 +100,15 @@ float aluGrain() {
       .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\n  roughnessFactor = clamp(roughnessFactor + (aluG - 0.5) * 0.2, 0.05, 1.0);');
   };
   m.customProgramCacheKey = () => 'alu';
+  ALU_MATS.push(m);
+  applyMetal(m);
+  return m;
+}
+// powder-coated aluminum (the field's HUB frames): its paint's color under a glossy coat, no
+// grain, reflecting the environment through the coat on the presets with reflections
+export function powderCoat(color) {
+  const m = new THREE.MeshPhysicalMaterial({ color, roughness: 0.5, metalness: 0, clearcoat: 0.6, clearcoatRoughness: 0.28 });
+  m.userData.alu = { env: 0.45 };
   ALU_MATS.push(m);
   applyMetal(m);
   return m;

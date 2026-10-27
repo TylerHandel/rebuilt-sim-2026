@@ -3,6 +3,7 @@
 // built from the game manual dimensions. See cad/README.md.
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { registerPoly, powderCoat } from './robotModels.js';
 
 const D = Math.PI / 180;
 
@@ -33,7 +34,13 @@ export async function loadCadModels(scene, field) {
           o.castShadow = true;
           o.receiveShadow = true;
           if (o.material && e.color) o.material = new THREE.MeshStandardMaterial({ color: e.color, roughness: 0.6, metalness: 0.2 });
-          else if (o.material && o.material.transparent && o.material.opacity < 0.7) tintClear(o.material);
+          else if (o.material && o.material.transparent && o.material.opacity < 0.7) {
+            tintClear(o.material);
+            // (polycarbonate, not the HUB's black net: clear glossy sheet on High and up)
+            if (o.material.color.getHSL({}).l > 0.4 && !POLY.has(o.material)) { POLY.add(o.material); registerPoly(o.material); }
+          } else if (o.material && e.kind === 'field' && isFieldAluminum(o.material)) {
+            o.material = FIELD_ALU.get(o.material.color.getHex()) ?? FIELD_ALU.set(o.material.color.getHex(), powderCoat(o.material.color.getHex())).get(o.material.color.getHex());
+          }
         }
       });
       scene.add(obj);
@@ -45,6 +52,15 @@ export async function loadCadModels(scene, field) {
     }
   }
   return loaded;
+}
+
+// The field's aluminum: the color (230, 230, 230) most of whose parts are aluminum in the field's
+// Onshape bill of materials (107 of 123: the HUB's frames), powder-coated
+const POLY = new Set(), FIELD_ALU = new Map();
+function isFieldAluminum(m) {
+  if (!m.color || m.transparent) return false;
+  const c = m.color.getHex(), r = (c >> 16) & 255, g = (c >> 8) & 255, b = c & 255;
+  return Math.abs(r - 230) <= 2 && Math.abs(g - 230) <= 2 && Math.abs(b - 230) <= 2;
 }
 
 function hideDrawnField(group) {
