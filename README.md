@@ -51,7 +51,7 @@ The render uses nicer lighting than the game (reflections, arena spotlights), sm
 | Human player: throw FUEL at the HUB | Y (hold) | H |
 | Climb / cancel / lower (climber add-on only) | A | C |
 | Climb level up / down | D-pad ↑ / ↓ | ↑ / ↓ |
-| Camera (Driver Station: your eyes at the glass of your driver station, turning to follow your robot; Follow, Chase, Overhead, Broadcast. When an ALLIANCE WALL's solid part is between the camera and your robot, the wall is cut away round your robot so you can see it) | D-pad ← / → | [ / ] |
+| Camera (Driver Station: your eyes at the glass of your driver station, turning to follow your robot; Follow, Chase, Overhead, Broadcast. When an ALLIANCE WALL's solid part is about to come between the camera and your robot, that whole end wall fades out over a short ramp, so it's gone before it would hide your robot) | D-pad ← / → | [ / ] |
 | Turn the camera around 180° (the same shot from the other side of your robot; drive turns with it) | Right stick click | T |
 | Field- / robot-relative drive | B | B |
 | Slow mode (hold) | Left stick click | X |

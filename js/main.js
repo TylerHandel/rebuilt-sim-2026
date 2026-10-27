@@ -438,7 +438,7 @@ function tick(dt, render) {
   } else {
     rig.update(dt, game ? game.robot : null);
   }
-  cutaway.update(camera, ui.screen === 'menu' || ui.screen === 'editor' ? null : game?.robot);
+  cutaway.update(camera, ui.screen === 'menu' || ui.screen === 'editor' ? null : game?.robot, dt);
   if (render) {
     // (materials that appeared since: a new match's robots, CAD parts that just loaded)
     gfxRefreshT -= dt;
