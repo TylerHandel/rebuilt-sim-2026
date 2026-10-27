@@ -157,6 +157,11 @@ const sec = (label) => ({ type: 'section', label });
 const o = (id) => ({ type: 'opt', opt: OPT[id] });
 const btn = (label, act, extra = {}) => ({ type: 'btn', label, act, ...extra });
 const hideForBest = (it) => ({ ...it, hidden: (s) => !startMatters(s.auto, s.robot) });
+// a robot picker: a detail card with arrows, over a strip of every robot (compact: the strip alone)
+const pick = (key, compact = false) => ({ type: 'robot', key, compact });
+// START and BACK sit in the footer under the page, always in view
+const START = () => btn('START MATCH', 'start', { foot: true });
+const BACK = () => btn('BACK', 'home', { secondary: true, foot: true });
 const PAGES = {
   home: () => [
     { type: 'tiles' },
@@ -165,17 +170,17 @@ const PAGES = {
     btn('COVER RENDER', 'cover', { secondary: true }),
   ],
   practice: () => [
-    sec('Robot'), { type: 'cards' },
+    sec('Robot'), pick('robot'),
     sec('Match'), o('auto'), hideForBest(o('start')), o('preload'), o('alliance'), o('ds'),
-    btn('START MATCH', 'start'), btn('BACK', 'home', { secondary: true }),
+    START(), BACK(),
   ],
   '1v1': (ui) => [
-    sec('Your robot'), { type: 'cards' }, o('auto'), hideForBest(o('start')), o('preload'), o('alliance'),
-    sec('AI opponent'), o('oppRobot'), o('opponent'), o('oppSkill'),
+    sec('Your robot'), pick('robot'), o('auto'), hideForBest(o('start')), o('preload'), o('alliance'),
+    sec('AI opponent'), pick('oppRobot', true), o('opponent'), o('oppSkill'),
     { ...o('nnNet'), hidden: (s) => s.opponent !== 'nn' && s.driver !== 'nn' },
     { type: 'toggle', label: ui.adv ? 'Fewer options ▴' : 'More options ▾', desc: 'Driver station, Training mode, the defense drill and watch mode.' },
     ...(ui.adv ? [o('ds'), o('mode'), o('role'), o('driver'), o('driverSkill')] : []),
-    btn('START MATCH', 'start'), btn('BACK', 'home', { secondary: true }),
+    START(), BACK(),
   ],
   '3v3': (ui, s) => {
     const items = [];
@@ -187,7 +192,7 @@ const PAGES = {
     }
     items.push(sec('Match'), o('preloadAll'));
     if (s.slots.some((sl) => sl.driver === 'nn')) items.push(o('nnNet'));
-    items.push(btn('START MATCH', 'start'), btn('BACK', 'home', { secondary: true }));
+    items.push(START(), BACK());
     return items;
   },
   settings: () => [
@@ -197,7 +202,7 @@ const PAGES = {
     sec('Sound'), o('sound'),
     btn('LOAD REAL MATCH SOUNDS…', 'loadSounds', { half: true, secondary: true, desc: 'Pick your own recordings of the field\'s match cues, like the official ones installed with the FRC Game Tools / Driver Station (search its install folder for .wav files), or the static/audio folder of Team 254\'s Cheesy Arena. They\'re matched by file name (start / teleop or resume / shift / endgame or warning; there\'s no end-of-match sound) and stay in this browser only.' }),
     btn('USE BUILT-IN SOUNDS', 'clearSounds', { half: true, secondary: true, desc: 'Go back to the built-in match cues.' }),
-    btn('BACK', 'home', { secondary: true }),
+    BACK(),
   ],
 };
 // who drives a robot in a match, for the HUD and results
@@ -266,6 +271,7 @@ export class UI {
 
   // ------------------------------------------------------------------ main menu
   openPage(page) {
+    this._closePop();
     this.page = page;
     this.focus = 0;
     this.openSlot = null;
@@ -285,63 +291,181 @@ export class UI {
     this.focus = Math.max(0, Math.min(this.focus, fitems.length - 1));
     const cur = fitems[this.focus];
     let fi = 0;
-    const html = items.map((it) => {
+    const body = [], foot = [];
+    for (const it of items) {
       const idx = focusable(it) ? fi++ : -1;
       const f = idx === this.focus ? 'focus' : '';
       const d = `data-f="${idx}"`;
+      let h = '';
       switch (it.type) {
-        case 'section': return `<div class="msec">${it.label}</div>`;
-        case 'tiles': return `<div class="tiles ${f}" ${d}>${MODE_ORDER.map((k) => `<div class="tile ${this.tile === k ? 'sel' : ''}" data-mode="${k}"><div class="ticon">${MODES[k].icon}</div><div class="tname">${MODES[k].name}</div><div class="tline">${MODES[k].line}</div></div>`).join('')}</div>`;
-        case 'cards': return `<div class="cards ${f}" ${d}>${this._robotCards()}</div>`;
-        case 'opt': {
-          const vals = it.opt.values(s);
-          const v = vals.find((x) => x[0] === it.opt.get(s)) || vals[0];
-          return `<div class="opt ${it.sub ? 'sub' : ''} ${f}" ${d}><span class="ol">${it.opt.label}</span><span class="ov"><span class="arr">◀</span>${v[1]}<span class="arr">▶</span></span></div>`;
-        }
-        case 'slot': return this._slotRow(it.i, f, d);
-        case 'toggle': return `<div class="toggle ${f}" ${d}>${it.label}</div>`;
-        case 'btn': return `<div class="btn ${it.secondary ? 'secondary' : ''} ${it.half ? 'half' : ''} ${f}" ${d}>${it.label}</div>`;
-        default: return '';
+        case 'section': h = `<div class="msec">${it.label}</div>`; break;
+        case 'tiles': h = `<div class="tiles ${f}" ${d}>${MODE_ORDER.map((k) => `<div class="tile ${this.tile === k ? 'sel' : ''}" data-mode="${k}"><div class="ticon">${MODES[k].icon}</div><div class="tname">${MODES[k].name}</div><div class="tline">${MODES[k].line}</div></div>`).join('')}</div>`; break;
+        case 'robot': h = this._picker(it, f, d); break;
+        case 'opt': h = this._optRow(it, f, d); break;
+        case 'slot': h = this._slotRow(it.i, f, d); break;
+        case 'toggle': h = `<div class="toggle ${f}" ${d}>${it.label}</div>`; break;
+        case 'btn': h = `<div class="btn ${it.secondary ? 'secondary' : ''} ${it.half ? 'half' : ''} ${f}" ${d}>${it.label}</div>`; break;
+        default:
       }
-    }).join('');
+      (it.foot ? foot : body).push(h);
+    }
     const title = PAGE_TITLE[this.page];
     $('menuTitle').innerHTML = title ? `<span class="crumb" data-back="1">◀ Menu</span> ${title}` : '';
     $('menuTitle').classList.toggle('hidden', !title);
     $('menuBrand').classList.toggle('hidden', !!title);
-    $('options').innerHTML = html + `<div class="optdesc">${this._desc(cur)}</div>`;
-    // mouse
+    $('options').innerHTML = body.join('');
+    $('menuActions').innerHTML = `<div class="optdesc" id="menuDesc">${this._desc(cur)}</div>${foot.length ? `<div class="actRow">${foot.join('')}</div>` : ''}`;
+    // mouse: every control is its own target (no hidden halves of a row), and hovering a row
+    // focuses it, so its description shows
     const back = document.querySelector('#menuTitle [data-back]');
     if (back) back.onclick = () => this.openPage('home');
-    for (const el of document.querySelectorAll('#options [data-f]')) {
+    for (const el of document.querySelectorAll('#menu [data-f]')) {
+      const i = +el.dataset.f;
+      el.onmouseenter = () => this._hover(i);
       el.onclick = (e) => {
-        const i = +el.dataset.f;
-        if (i < 0) return;
         this.focus = i;
         const it = this._focusables()[i];
-        if (it.type === 'tiles') { const m = e.target.closest('[data-mode]'); if (m) { this.tile = m.dataset.mode; this.openPage(m.dataset.mode); } return; }
-        if (it.type === 'cards') { const c = e.target.closest('[data-robot]'); if (c) { this.s.robot = c.dataset.robot; this._changed(); } return; }
-        if (it.type === 'opt') { this._cycle(it, e.offsetX < el.clientWidth / 2 ? -1 : 1); return; }
+        const t = (sel) => e.target.closest(sel);
+        if (it.type === 'tiles') { const m = t('[data-mode]'); if (m) { this.tile = m.dataset.mode; this.openPage(m.dataset.mode); } return; }
+        if (it.type === 'robot') {
+          const c = t('[data-robot]'), st = t('[data-step]');
+          if (c) this._setRobot(it, c.dataset.robot);
+          else if (st) this._stepRobot(it, +st.dataset.step);
+          else this.renderMenu();
+          return;
+        }
+        if (it.type === 'opt') {
+          const sg = t('[data-v]'), st = t('[data-step]');
+          if (sg) this._setOpt(it, +sg.dataset.v);
+          else if (st) this._cycle(it, +st.dataset.step);
+          else if (!this._segmented(it)) this._openPop(i);
+          else this.renderMenu();
+          return;
+        }
         if (it.type === 'slot') {
-          const arr = e.target.closest('[data-arr]');
+          const arr = t('[data-arr]');
           if (arr) { this._slotRobot(it.i, +arr.dataset.arr); return; }
         }
         this._activate(it);
       };
     }
+    // the picker strips: the chosen robot in the middle
+    for (const strip of document.querySelectorAll('#options .pkStrip')) {
+      const c = strip.querySelector('.chip.sel');
+      if (c) strip.scrollLeft = c.offsetLeft - (strip.clientWidth - c.offsetWidth) / 2;
+    }
     const fe = document.querySelector('#options .focus');
     if (fe) fe.scrollIntoView({ block: 'nearest' });
+    this._renderPop();
   }
 
-  _robotCards() {
-    const s = this.s;
-    return ROBOT_ORDER.map((k) => {
-      const r = ROBOTS[k];
-      // capacity: what the modeled hopper holds (measured), not the team's stated number
-      const stats = Object.entries({ Capacity: modelCapacity(r), ...r.stats }).map(([a, b]) => `<tr><td class="muted">${a}</td><td>${b}</td></tr>`).join('');
-      return `<div class="rcard ${s.robot === k ? 'sel' : ''}" data-robot="${k}">
-        <div class="num">${r.team}</div><div class="nm">${!r.robotName ? r.teamName : r.robotName.startsWith(r.teamName) ? r.robotName : `${r.teamName} · ${r.robotName}`}</div>
-        <div class="arch">${r.archetype}</div><div class="desc">${r.blurb}</div><table>${stats}</table></div>`;
-    }).join('');
+  // the mouse moved onto a row: focus it without rebuilding the page (the description follows)
+  _hover(i) {
+    if (this.pop || i < 0 || i === this.focus) return;
+    const it = this._focusables()[i];
+    if (!it) return;
+    this.focus = i;
+    for (const el of document.querySelectorAll('#menu [data-f]')) el.classList.toggle('focus', +el.dataset.f === i);
+    const d = $('menuDesc');
+    if (d) d.innerHTML = this._desc(it);
+  }
+
+  // a robot picker: the robot's card between big arrows, and every robot in one row under it
+  // (left / right steps along that row, the same way the arrows do)
+  _picker(it, f, d) {
+    const k = this.s[it.key], r = ROBOTS[k];
+    const n = ROBOT_ORDER.indexOf(k);
+    const chips = ROBOT_ORDER.map((q) => `<div class="chip ${q === k ? 'sel' : ''}" data-robot="${q}" title="${robotName(q)}"><b>${ROBOTS[q].team}</b><span>${ROBOTS[q].archetype}</span>${ROBOTS[q].physical ? '<i class="pdot" title="Full mechanism physics"></i>' : ''}</div>`).join('');
+    const arrows = (inner) => `<div class="pkMain"><div class="pkArr" data-step="-1" title="Previous robot">‹</div>${inner}<div class="pkArr" data-step="1" title="Next robot">›</div></div>`;
+    if (it.compact) {
+      return `<div class="picker compact ${f}" ${d}><div class="pkLabel"><span>Robot</span><b>${robotName(k)}</b><span class="pkCount">${n + 1} / ${ROBOT_ORDER.length}</span></div>${arrows(`<div class="pkStrip">${chips}</div>`)}</div>`;
+    }
+    // capacity: what the modeled hopper holds (measured), not the team's stated number
+    const stats = Object.entries({ Capacity: modelCapacity(r), ...r.stats }).map(([a, b]) => `<div><span>${a}</span><b>${b}</b></div>`).join('');
+    const name = !r.robotName ? r.teamName : r.robotName.startsWith(r.teamName) ? r.robotName : `${r.teamName} · ${r.robotName}`;
+    const card = `<div class="pkCard">
+      <div class="pkHead"><div class="pkNum">${r.team}</div><div class="pkTitle"><div class="pkName">${name}</div>
+        <div class="pkTags"><span class="arch">${r.archetype}</span>${r.physical ? '<span class="arch phys" title="Its intake, hopper and shooter are simulated part by part from the team\'s CAD and code">Full physics</span>' : ''}</div></div>
+        <div class="pkCount">${n + 1} / ${ROBOT_ORDER.length}</div></div>
+      <div class="pkDesc">${r.blurb}</div><div class="pkStats">${stats}</div></div>`;
+    return `<div class="picker ${f}" ${d}>${arrows(card)}<div class="pkStrip">${chips}</div></div>`;
+  }
+
+  _setRobot(it, k) { this.s[it.key] = k; this._changed(); }
+
+  _stepRobot(it, dir) {
+    const k = ROBOT_ORDER.indexOf(this.s[it.key]);
+    this._setRobot(it, ROBOT_ORDER[(k + dir + ROBOT_ORDER.length) % ROBOT_ORDER.length]);
+  }
+
+  // a few short values show side by side, each its own button; longer lists get a stepper
+  // (‹ value ›) whose value opens the whole list
+  _segmented(it) {
+    const vals = it.opt.values(this.s);
+    return vals.length <= 4 && vals.reduce((a, v) => a + v[1].length + 3, 0) <= 30;
+  }
+
+  _optRow(it, f, d) {
+    const s = this.s, vals = it.opt.values(s);
+    const ci = Math.max(0, vals.findIndex((x) => x[0] === it.opt.get(s)));
+    const ctl = this._segmented(it)
+      ? `<span class="segs">${vals.map((v, j) => `<span class="sg ${j === ci ? 'on' : ''} ${v[0] === BLUE || v[0] === RED ? 'sg-' + v[0] : ''}" data-v="${j}">${v[1]}</span>`).join('')}</span>`
+      : `<span class="stepper"><span class="step" data-step="-1" title="Previous">‹</span><span class="val" title="${vals[ci][1].replace(/"/g, '&quot;')} · click for the list">${vals[ci][1]}<i>▾</i></span><span class="step" data-step="1" title="Next">›</span></span>`;
+    return `<div class="opt ${it.sub ? 'sub' : ''} ${f}" ${d}><span class="ol">${it.opt.label}</span>${ctl}</div>`;
+  }
+
+  _setOpt(it, j) {
+    const vals = it.opt.values(this.s);
+    if (!vals[j]) return;
+    it.opt.set(this.s, vals[j][0]);
+    this._changed();
+  }
+
+  // the list of an option's values, under it (A / click picks one, B / Esc / a click elsewhere closes)
+  _openPop(i) {
+    const it = this._focusables()[i];
+    const vals = it.opt.values(this.s);
+    this.focus = i;
+    this.pop = { f: i, sel: Math.max(0, vals.findIndex((x) => x[0] === it.opt.get(this.s))) };
+    this.renderMenu();
+  }
+
+  _closePop() {
+    this.pop = null;
+    const el = $('menuPop');
+    if (el) el.remove();
+  }
+
+  _renderPop() {
+    let el = $('menuPop');
+    const it = this.pop && this._focusables()[this.pop.f];
+    const anchor = it && document.querySelector(`#options [data-f="${this.pop.f}"] .stepper`);
+    if (!anchor) { this.pop = null; if (el) el.remove(); return; }
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'menuPop';
+      $('menu').appendChild(el);
+      // a press anywhere else closes it (without eating that click)
+      this._popAway = this._popAway || ((e) => { if (this.pop && !e.target.closest('#menuPop')) this._closePop(); });
+      document.addEventListener('pointerdown', this._popAway, true);
+    }
+    const vals = it.opt.values(this.s), cur = it.opt.get(this.s);
+    el.innerHTML = vals.map((v, j) => `<div class="pi ${j === this.pop.sel ? 'sel' : ''} ${v[0] === cur ? 'cur' : ''}" data-j="${j}">${v[1]}</div>`).join('');
+    for (const p of el.querySelectorAll('[data-j]')) {
+      p.onmouseenter = () => { this.pop.sel = +p.dataset.j; for (const q of el.children) q.classList.toggle('sel', q === p); };
+      p.onclick = () => { this._closePop(); this._setOpt(it, +p.dataset.j); };
+    }
+    // under the control, or over it when there's no room below
+    const a = anchor.getBoundingClientRect();
+    el.style.left = `${Math.max(8, Math.min(a.left, innerWidth - Math.max(a.width, 220) - 8))}px`;
+    el.style.minWidth = `${Math.max(a.width, 220)}px`;
+    const below = innerHeight - a.bottom - 12, above = a.top - 12;
+    const up = below < 220 && above > below;
+    el.style.maxHeight = `${Math.min(360, up ? above : below)}px`;
+    el.style.top = up ? '' : `${a.bottom + 4}px`;
+    el.style.bottom = up ? `${innerHeight - a.top + 4}px` : '';
+    const sel = el.children[this.pop.sel];
+    if (sel) sel.scrollIntoView({ block: 'nearest' });
   }
 
   _slotRow(i, f, d) {
@@ -350,7 +474,7 @@ export class UI {
     const auto = isCustom(sl.auto) ? '✎ ' + (getCustom(sl.auto) || {}).name : AUTO_ROUTINES[sl.auto].name;
     const tag = `<span class="stag ${sl.driver}">${SLOT_DRIVER[sl.driver]}</span>`;
     const body = empty ? '<span class="muted">No robot</span>'
-      : `<span class="arr" data-arr="-1">◀</span><b>${robotName(sl.robot)}</b><span class="arr" data-arr="1">▶</span><span class="muted">· ${auto}${sl.driver !== 'you' ? ' · ' + OPP_SKILLS[sl.skill].name : ''}</span>`;
+      : `<span class="stepper"><span class="step" data-arr="-1" title="Previous robot">‹</span><b class="val">${robotName(sl.robot)}</b><span class="step" data-arr="1" title="Next robot">›</span></span><span class="muted sinfo">${auto}${sl.driver !== 'you' ? ' · ' + OPP_SKILLS[sl.skill].name : ''}</span>`;
     return `<div class="slot ${a} ${this.openSlot === i ? 'open' : ''} ${f}" ${d}><span class="sn">${a === BLUE ? 'B' : 'R'}${(i % 3) + 1}</span>${tag}<span class="sbody">${body}</span><span class="sedit">${this.openSlot === i ? 'Done ▴' : 'Edit ▾'}</span></div>`;
   }
 
@@ -359,11 +483,11 @@ export class UI {
     if (!it) return '';
     switch (it.type) {
       case 'tiles': return `${MODES[this.tile].desc} <span class="muted">◀ ▶ choose · A open</span>`;
-      case 'cards': return 'Choose your robot with ◀ ▶.';
+      case 'robot': return `${it.key === 'oppRobot' ? 'The AI can drive any of the robots.' : 'Your robot.'} <span class="muted">◀ ▶ or the arrows step through them; click any team to jump to it. ● marks robots simulated part by part.</span>`;
       case 'opt': return it.opt.desc(s);
       case 'slot': {
         const who = s.slots.some((x) => x.driver === 'you') ? '' : ' Nobody is set to You, so you\'ll watch the AIs play.';
-        return (this.openSlot === it.i ? 'Change this slot below; A or B when done.' : '◀ ▶ change the robot · A edit its driver, auto and role.') + who;
+        return (this.openSlot === it.i ? 'Change this slot below; A or B when done.' : '◀ ▶ or ‹ › change the robot · A or Edit: its driver, auto and role.') + who;
       }
       case 'toggle': return it.desc;
       case 'btn': return it.act === 'start' ? this._summary() : it.desc || '';
@@ -407,8 +531,8 @@ export class UI {
   _activate(it) {
     switch (it.type) {
       case 'tiles': this.openPage(this.tile); return;
-      case 'cards': this.focus++; this.renderMenu(); return;
-      case 'opt': this._cycle(it, 1); return;
+      case 'robot': this.focus++; this.renderMenu(); return;
+      case 'opt': if (this._segmented(it)) this._cycle(it, 1); else this._openPop(this.focus); return;
       case 'slot': this.openSlot = this.openSlot === it.i ? null : it.i; this.renderMenu(); return;
       case 'toggle': this.adv = !this.adv; this.renderMenu(); return;
       case 'btn':
@@ -455,7 +579,7 @@ export class UI {
 
   _buildControls() {
     $('controlsBody').innerHTML = `<table class="ctable"><tr><th>Action</th><th>Xbox controller</th><th>Keyboard</th></tr>${CONTROLS.map((c) => `<tr><td>${c[0]}</td><td>${c[1]}</td><td><kbd>${c[2]}</kbd></td></tr>`).join('')}</table>
-      <p class="muted" style="font-size:13px">Menus: D-pad / left stick to move, ◀ ▶ to change, A to select, B to go back. Shooting auto-targets your HUB when your BUMPERS are in your ALLIANCE ZONE; anywhere else RT lobs FUEL back into your ALLIANCE ZONE. The Auto Editor lists its own controls at the bottom of its screen.</p>`;
+      <p class="muted" style="font-size:13px">Menus: D-pad / left stick to move, ◀ ▶ to change, A to select (on a longer option it opens the list), B to go back. With a mouse, click the ‹ › buttons, a value to see its list, or any team in the robot strip. Shooting auto-targets your HUB when your BUMPERS are in your ALLIANCE ZONE; anywhere else RT lobs FUEL back into your ALLIANCE ZONE. The Auto Editor lists its own controls at the bottom of its screen.</p>`;
   }
 
   // Returns true when a menu overlay is open (gameplay input suppressed)
@@ -471,15 +595,35 @@ export class UI {
     }
     if (this.screen === 'menu') {
       const F = this._focusables();
+      // an option's list is open: up / down through it, A picks, B closes
+      if (this.pop) {
+        const it = F[this.pop.f], N = it ? it.opt.values(this.s).length : 0;
+        if (!it) this._closePop();
+        else if (p.a) { const j = this.pop.sel; this._closePop(); this._setOpt(it, j); }
+        else if (p.b || p.start || n.left || n.right) { this._closePop(); }
+        else if (n.up || n.down) { this.pop.sel = (this.pop.sel + (n.up ? -1 : 1) + N) % N; this._renderPop(); }
+        return true;
+      }
       const it = F[Math.min(this.focus, F.length - 1)];
       if (n.up) { this.focus = (this.focus - 1 + F.length) % F.length; this.renderMenu(); }
       if (n.down) { this.focus = (this.focus + 1) % F.length; this.renderMenu(); }
       if ((n.left || n.right) && it) {
         const d = n.left ? -1 : 1;
         if (it.type === 'tiles') { const k = MODE_ORDER.indexOf(this.tile); this.tile = MODE_ORDER[(k + d + MODE_ORDER.length) % MODE_ORDER.length]; this.renderMenu(); }
-        else if (it.type === 'cards') { const k = ROBOT_ORDER.indexOf(this.s.robot); this.s.robot = ROBOT_ORDER[(k + d + ROBOT_ORDER.length) % ROBOT_ORDER.length]; this._changed(); }
-        else if (it.type === 'opt') this._cycle(it, d);
-        else if (it.type === 'slot') this._slotRobot(it.i, d);
+        else if (it.type === 'robot') this._stepRobot(it, d);
+        else if (it.type === 'opt') {
+          // side by side values stop at the ends, like the row they're in; a list wraps around
+          if (!this._segmented(it)) this._cycle(it, d);
+          else {
+            const vals = it.opt.values(this.s), j = vals.findIndex((x) => x[0] === it.opt.get(this.s)) + d;
+            if (j >= 0 && j < vals.length) this._setOpt(it, j);
+          }
+        } else if (it.type === 'slot') this._slotRobot(it.i, d);
+        else if (it.foot) {
+          // START and BACK sit side by side: left / right moves between them
+          const j = this.focus + d;
+          if (F[j] && F[j].foot) { this.focus = j; this.renderMenu(); }
+        }
       }
       if (p.a && it) this._activate(it);
       else if (p.b) this._menuBack();

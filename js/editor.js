@@ -437,7 +437,7 @@ export class AutoEditor {
         case 'sec': return `<div class="edSec">${r.label}</div>`;
         case 'sub': return `<div class="edSub">${r.label}</div>`;
         case 'note': return `<div class="edNote">${r.label}</div>`;
-        case 'opt': return `<div class="opt ${f}" data-row="${r.id}"><span class="ol">${r.label}</span><span class="ov"><span class="arr">◀</span>${r.value}<span class="arr">▶</span></span></div>`;
+        case 'opt': return `<div class="opt ${f}" data-row="${r.id}"><span class="ol">${r.label}</span><span class="stepper"><span class="step" data-step="-1">‹</span><span class="val">${r.value}</span><span class="step" data-step="1">›</span></span></div>`;
         case 'btns': return `<div class="edBtns ${f}" data-row="${r.id}">${r.btns.map(([k, t], j) => `<div class="btn small secondary ${f && j === this.btn ? 'bfocus' : ''}" data-btn="${k}" data-j="${j}">${t}</div>`).join('')}</div>`;
         case 'pt': return `<div class="edPt ${f} ${sel}" data-row="${r.id}">${r.value}</div>`;
         default: return '';
@@ -453,7 +453,7 @@ export class AutoEditor {
         this.rowId = r.id;
         const b = e.target.closest('[data-btn]');
         if (r.kind === 'btns') { if (b) { this.btn = +b.dataset.j; this._button(b.dataset.btn); } else this.render(); return; }
-        if (r.kind === 'opt') { this._change(r.id, e.offsetX < el.clientWidth / 2 ? -1 : 1); return; }
+        if (r.kind === 'opt') { const st = e.target.closest('[data-step]'); if (st) this._change(r.id, +st.dataset.step); else this.render(); return; }
         this._activateRow(r);
       };
     }
@@ -477,7 +477,7 @@ export class AutoEditor {
         : [chip('W A S D', 'Move the cursor'), chip('Enter', act), q ? chip('Delete', `Delete waypoint ${this.sel + 1}`) : '', chip('F / R', 'Prev / next waypoint'), chip('↑ ↓ ← →', 'Edit the settings →'), chip('H', 'Test in a match'), chip('Esc', 'Done')];
     }
     $('edHelp').innerHTML = `<div class="edKeys">${html.join('')}</div>`
-      + `<div class="edMouse">🖱 Click the field to add a waypoint · drag waypoints or the START box to move them · right-click deletes · click a setting's ◀ / ▶ side to change it</div>`;
+      + `<div class="edMouse">🖱 Click the field to add a waypoint · drag waypoints or the START box to move them · right-click deletes · a setting's ‹ › buttons change it</div>`;
     $('edLegend').innerHTML = [['#e8ecf3', 'Drive'], ['#37d67a', 'Intake'], ['#ffe066', 'Shoot'], ['#ff9f1a', 'Intake + shoot']].map(([c, t]) => `<span><i style="background:${c}"></i>${t}</span>`).join('')
       + '<span><i class="dash"></i>Shoots / passes anywhere</span><span><i class="thick"></i>Thicker = faster</span><span><b class="red">●</b> Past the CENTER LINE (G403 risk)</span>';
     $('edField').classList.toggle('active', this.mode === 'field');
