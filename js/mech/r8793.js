@@ -10,7 +10,8 @@
 // little.)
 // Vertical-axis rollers (one omni wheel, one compliant wheel, which still lets FUEL down past
 // it): each on its own Kraken X44 on a 5:1 MAXPlanetary > 28:18 (speeds up, to match the rpm) >
-// a 1:1 90-degree gearbox, beside the second roller from the X60.
+// a 1:1 90-degree gearbox, beside the second roller from the X60. The gearboxes lock the X44s and
+// the X60 together (the team): every roller turns in step, and the three motors share the load.
 // From their code (github.com/Pumpkin-Bots/2026_Robot, Constants.GroundIntakeConstants and
 // GroundIntakeSubsystem): the roller motor (CAN 22) runs at 95% duty cycle with a 70 A stator
 // limit, the two vertical-roller motors (CAN 23, 24) at 95% x 0.9244 (INDEXER_TO_ROLLER_RATIO),
@@ -37,7 +38,10 @@ export const HORIZONTAL = [
   ['intake 4 (tip)', [20, 28], 2 * IN, MU.gripTape, '2in aluminum roller in cat-tongue grip tape'],
 ];
 // beside conveyor 2, at the side walls: one 4in omni wheel, and 4in 45A compliant wheels
-export const VERTICAL = { ratio: [[1, 5], [28, 18], [1, 1]], diameter: 4 * IN };
+// perX60: each X44's turns per turn of the X60 they're locked to. Their code runs the X44s at
+// 0.9244 (INDEXER_TO_ROLLER_RATIO) of the X60's duty cycle, which matches the two motors' free
+// speeds when an X44 turns 1.2 times the X60 (0.9244 x 7530 / 5800 = 1.200)
+export const VERTICAL = { ratio: [[1, 5], [28, 18], [1, 1]], diameter: 4 * IN, perX60: 1.2 };
 // At the neck, where the conveyor's floor ramps down to the turret indexer's rails and FUEL
 // go single file (their CAD, Conveyor V2): a vertical-axis omni wheel each side, a 5in on the left
 // and a 3in on the right, their faces 0.08 m from the middle, each belted from the vertical
@@ -62,17 +66,19 @@ export function build8793() {
     return s;
   });
   const vk = VERTICAL.ratio.reduce((p, [a, b]) => (p * a) / b, 1);
-  // the left one (the omni) and the right one (compliant), each on its own X44; a positive
-  // command turns each one's face at the FUEL rearward
-  const [left, right] = ['left', 'right'].map((side) => {
-    const t = new Train({ name: `vertical roller, ${side}`, motor: new Motor('krakenX44', { statorLimit: 50, supplyLimit: 40 }) });
-    const s = t.add(new Shaft({ name: `vertical roller, ${side}`, inertia: 1e-4 }), vk);
+  // the two X44s are geared into the same chain through their 90-degree gearboxes, so every
+  // roller, horizontal and vertical, turns locked together and all three motors share the load:
+  // each X44 at VERTICAL.perX60 times the X60's speed; the vertical rollers on them (vk), and the
+  // neck's omni wheels belted to those. (Negative: the train turns backward while intaking; this
+  // keeps each vertical roller's face at the FUEL running rearward.)
+  const x44 = ['left', 'right'].map(() => horizontal.couple(new Motor('krakenX44', { statorLimit: 50, supplyLimit: 40 }), VERTICAL.perX60));
+  const vshafts = ['left', 'right'].map((side) => {
+    const s = horizontal.add(new Shaft({ name: `vertical roller, ${side}`, inertia: 1e-4 }), -VERTICAL.perX60 * vk);
     s.diameter = VERTICAL.diameter;
-    // and belted to it, the omni wheel at the neck on that side
     const nk = NECK[side];
-    s.neck = t.add(new Shaft({ name: `neck ${nk.d / IN}in omni, ${side}`, inertia: 6e-5 }), vk * nk.belt[0] / nk.belt[1]);
+    s.neck = horizontal.add(new Shaft({ name: `neck ${nk.d / IN}in omni, ${side}`, inertia: 6e-5 }), (-VERTICAL.perX60 * vk * nk.belt[0]) / nk.belt[1]);
     s.neck.diameter = nk.d;
-    return [t, s];
+    return s;
   });
   // the turret indexer (a positive command: the wheels' bottoms run rearward)
   const indexer = new Train({ name: 'turret indexer', motor: new Motor('krakenX60', { ratio: INDEXER.ratio, statorLimit: 60, supplyLimit: 40 }) });
@@ -82,13 +88,16 @@ export function build8793() {
   const shooter = new Train({ name: 'shooter', motor: new Motor('krakenX60', { statorLimit: 160, supplyLimit: 60 }) });
   const large = shooter.add(new Shaft({ name: 'shooter 4in wheels', inertia: SHOOTER.moi }), -1 / SHOOTER.ratio);
   const small = shooter.add(new Shaft({ name: 'shooter 2in wheels', inertia: 6e-5 }), SHOOTER.smallPerLarge / SHOOTER.ratio);
-  return { horizontal, rollers, vertical: [left[0], right[0]], vshafts: [left[1], right[1]], indexer, ishafts, shooter, large, small };
+  return { horizontal, rollers, x44, vshafts, indexer, ishafts, shooter, large, small };
 }
 
-// run the intake as their code does (on = false: everything off)
-export function intake8793({ horizontal, vertical }, on = true, { verticalRollers = true } = {}) {
-  horizontal.cmd = on ? -DUTY.rollers : 0; // the rollers' bottoms run rearward
-  for (const t of vertical) t.cmd = on && verticalRollers ? DUTY.vertical : 0;
+// run the intake as their code does (on = false: everything off; dir -1: reversed, at full, for
+// an unjam or to spit FUEL out). x44 = false leaves the X44s unpowered (coasting): the vertical
+// rollers still turn, driven through the gearboxes by the X60.
+export function intake8793({ horizontal, x44 }, on = true, { x44: powered = true, dir = 1 } = {}) {
+  // (the rollers' bottoms run rearward: the train turns backward)
+  horizontal.cmd = !on ? 0 : dir > 0 ? -DUTY.rollers : 1;
+  for (const m of x44) m.cmd = !on ? 0 : !powered ? null : dir > 0 ? -DUTY.vertical : 1;
 }
 
 // ------------------------------------------------------------------ the conveyor's layout

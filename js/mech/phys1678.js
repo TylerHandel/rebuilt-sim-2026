@@ -15,9 +15,9 @@
 //     intaking, the feeder runs back at 4 V (holding FUEL off the drum) and the arm goes limp.
 //   the hood stows (17.5 deg) whenever it isn't shooting.
 // And what a driver of it does: contractHopper when FUEL are left out over the intake while it
-// fires, and trenchContract driving toward a TRENCH (the intake back down past it).
-// The extension slides out with the first intake and stays (js/robot.js _hopper); the lid rides
-// up on the climber with the intake down and can't come down onto FUEL.
+// fires (not while it intakes), and the lid (their climber) up, but down for a TRENCH.
+// The extension slides out with the first intake and stays (js/robot.js _hopper); the lid can't
+// come down onto FUEL.
 import { Mechanism } from './mechanism.js';
 import { PhysicalRobot } from './physical.js';
 import {
@@ -72,9 +72,6 @@ export function turnArm(T, deg, dt) {
 // into the hopper (its roller at 2 V): to 80 deg, 25, 80, half a second, 50, then down; each step
 // once it's within 12 deg (their setpointCommandWithWait)
 export const CONTRACT = [80, 25, 80, 'wait', 50, null];
-// their trenchContract(): partway in, sweeping the load back, and then folded up (130), so the
-// lid can come down for a TRENCH
-export const TUCK = [50, 25, 80, 'wait', 130];
 
 export class Physical1678 extends PhysicalRobot {
   constructor(robot) {
@@ -104,7 +101,7 @@ export class Physical1678 extends PhysicalRobot {
     this.wasIntaking = false; this.wasShooting = false;
     this.prefill = 'none'; // armed (waiting for the hopper's CANrange), running, done
     this.firing = false; this.verifiedT = 0; this.firingT = 0;
-    this.seq = null; this.contractCool = 0; this.tucked = true;
+    this.seq = null; this.contractCool = 0; this.tucked = true; this.nearTrench = false;
     this.hopperT = 0; this.tunnelT = 0;
     for (const tr of [this.t.intake, this.t.floor, this.t.tunnel, this.t.feederT, this.t.shooter]) { tr.omega = 0; tr.cmd = null; }
     for (const s of this.t.idlers) s.omega = 0;
@@ -135,9 +132,9 @@ export class Physical1678 extends PhysicalRobot {
     // the hood: a profile to its goal (an X44 through 126:1; nothing pushes it hard)
     this.hoodSet = profile(...this.hoodSet, this.hoodGoal, HOOD_MM.v, HOOD_MM.a, dt);
     this.hoodDeg = this.hoodSet[0];
-    // the lid on the climber: up with the intake, down with it, but not onto FUEL
-    const want = (r.hopper?.liftScale ?? 0) * (r.cfg.bay.lift?.h ?? 0);
-    this.lift += clamp(want - this.lift, -LID_SPEED * dt, LID_SPEED * dt);
+    // the lid on the climber: up (once the intake's been down), down for a TRENCH, but never onto
+    // the FUEL under it
+    this.lift += clamp(this.liftScale() * (r.cfg.bay.lift?.h ?? 0) - this.lift, -LID_SPEED * dt, LID_SPEED * dt);
     // pose the moving parts
     const ext = (r.hopperDeploy || 0) * (r.cfg.storage.extLen || 0);
     this.s.intake.setPose([PIVOT[0], PIVOT[1], 0], 0, intakeRot(this.armDeg));
@@ -187,15 +184,15 @@ export class Physical1678 extends PhysicalRobot {
     const hopperFull = this.hopperT >= 0.75, tunnelFull = this.tunnelT >= 0.06;
     const intaking = on && !!r.cmd.intake, shooting = on && feeding && setpoint > 0 && !!r.shot;
 
-    // ---- intake (left trigger): down, roller in, feeder idle; then the prefill, once
-    // (a TRENCH ahead: the driver's trenchContract, and the intake back down past it, as if its
-    // trigger were pressed again)
-    const nearTrench = on && this._nearingTrench();
-    if (on && nearTrench && !this.tucked && this.seq?.kind !== 'tuck') { this.seq = { kind: 'tuck', steps: TUCK, i: 0, t: 0 }; this.tucked = true; }
-    // (past it, shooting too: FUEL left up on the folded intake only come down with it)
-    const redeploy = this.tucked && !this.seq && !nearTrench && (intaking || shooting);
-    if (redeploy && !intaking) { this.tucked = false; this.armGoal = INTAKE.down; this.armHold = true; }
-    if (intaking && !nearTrench && (!this.wasIntaking || redeploy)) {
+    // ---- intake (left trigger): down, roller in, feeder idle; then the prefill, once. (Folded at
+    // the start; down from the first intake on: their code leaves it there)
+    // ---- the lid on the climber (expandHopper): up, except driving toward or under a TRENCH,
+    // where it comes down (their trenchContract's climber) as far as the FUEL under it let it
+    this.nearTrench = on && this._nearingTrench();
+    // (shooting with the intake still folded, as at the start: down, so FUEL left up on it fall in)
+    if (this.tucked && !this.seq && shooting && !intaking) { this.tucked = false; this.armGoal = INTAKE.down; this.armHold = true; }
+    if (intaking && this.seq?.kind === 'contract') { this.seq = null; this.contractCool = 1; this.armGoal = INTAKE.down; S.intake = 1; }
+    if (intaking && !this.wasIntaking) {
       this.tucked = false; this.seq = null;
       this.armGoal = INTAKE.down; this.armHold = true;
       S.intake = 1; S.feeder = null;
@@ -246,10 +243,12 @@ export class Physical1678 extends PhysicalRobot {
       S.tunnel = verified ? { rpm: want.tunnel, max: far ? 5 : 12 } : null;
     }
     // contractHopper (the driver's, or their autos' while they fire): once it's been firing a
-    // second and FUEL are left out over the intake, where nothing carries them back
+    // second and FUEL are left out over the intake, where nothing carries them back, and it isn't
+    // intaking
     this.firingT = shooting && this.firing ? (this.firingT || 0) + dt : 0;
     this.contractCool = Math.max(0, (this.contractCool || 0) - dt);
-    if (!this.seq && !this.tucked && on && this.firingT > 1 && !this.contractCool && this.held.some((b) => this._local(b.pos)[0] > HALF)) this.seq = { kind: 'contract', steps: CONTRACT, i: 0, t: 0 };
+    // (never while it's intaking: folding the intake then stops it taking FUEL in)
+    if (!this.seq && !this.tucked && on && !intaking && this.firingT > 1 && !this.contractCool && this.held.some((b) => this._local(b.pos)[0] > HALF)) this.seq = { kind: 'contract', steps: CONTRACT, i: 0, t: 0 };
     if (this.seq) {
       const q = this.seq, step = q.steps[q.i];
       q.t += dt;
@@ -290,6 +289,13 @@ export class Physical1678 extends PhysicalRobot {
     r.feeding = shooting && this.firing && verified ? 1 : 0;
     r.intakeSpeed = (S.intake ?? 0) > 0.5 ? 1 : (S.intake ?? 0) < 0 ? -1 : 0;
   }
+  // how far up the lid wants to be (0-1 of its travel): see postStep
+  liftScale() {
+    const r = this.r, bay = r.cfg.bay, h = bay.lift?.h;
+    if (!h) return 0;
+    const onLoad = clamp((this.loadTop() - 0.01 - bay.top) / h, 0, 1);
+    return Math.max(this.tucked || this.nearTrench ? 0 : 1, onLoad);
+  }
   // their isNearingTrench: under one, or within 1.5 m of one and driving toward it
   _nearingTrench() {
     const r = this.r, v = r.body.linvel();
@@ -304,9 +310,10 @@ export class Physical1678 extends PhysicalRobot {
   // about how fast a FUEL leaves at the drum's speed now (m/s; tools/mechlab1678.mjs shooter)
   exitSpeed() { return EXIT_PER_DRUM_SURFACE * Math.abs(this.t.drum.omega) * SHOOTER.drum.d / 2; }
 
-  // how many it holds: its ball path with the extension out and the lid up, a layer at a time
-  // (tools/mechlab1678.mjs hold)
-  capacity() { return 59; }
+  // how many it holds: what it gets to in matches, intaking with the extension out and the lid up
+  // (a layer at a time it holds 62: tools/mechlab1678.mjs hold; the last few in from the front
+  // take far longer than the rest)
+  capacity() { return 52; }
 }
 // a FUEL's exit speed over the drum's surface speed (tools/mechlab1678.mjs shooter measures it)
 export const EXIT_PER_DRUM_SURFACE = 0.71;

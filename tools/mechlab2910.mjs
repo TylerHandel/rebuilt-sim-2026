@@ -173,7 +173,8 @@ const tests = {
     const step = (n, run) => { for (let i = 0; i < n; i++) { if (run) run(); path.step(DT, balls, balls); shooter.step(DT, balls); w.step(); } };
     // (their code retracts the intake while it shoots, its rollers at 15%: the pivot's X60 under
     // their Motion Magic, as js/mech/phys2910.js runs it, pushing on the load)
-    let deg = INTAKE.deploy, set = [deg, 0];
+    let deg = INTAKE.deploy, set = [deg, 0], armT = 0;
+    const armAt = {};
     const retract = () => {
       flywheel(t, 2400);
       set = profile(...set, INTAKE.retract, PIVOT_MM.v, PIVOT_MM.a, DT);
@@ -183,6 +184,8 @@ const tests = {
       t.pivot.impulse(-INTAKE.mass * 9.81 * INTAKE.com * Math.cos(ang) * DT);
       deg -= (t.pivot.omega * DT * 180) / Math.PI;
       deg = Math.min(INTAKE.deploy, deg);
+      armT += DT; for (const [a, k] of [[80, 'to80'], [40, 'to40'], [12, 'to12']]) if (deg <= a && armAt[k] === undefined) armAt[k] = armT;
+      if (process.env.ARMLOG && Math.round(armT / DT) % 6 === 0) console.log(`   arm ${armT.toFixed(2)} s: ${deg.toFixed(1)} deg, pivot X60 ${t.pivot.motor.current.toFixed(0)} A`);
       placeIntake(wh.intake, deg);
       surf.intake.setPose([PIVOT[0], PIVOT[1], 0], 0, ((INTAKE.deploy - deg) * Math.PI) / 180);
     };
@@ -209,7 +212,7 @@ const tests = {
     const left = balls.filter((b) => b.translation().y < 3 && b.translation().x < 40);
     const inHopper = left.filter((b) => { const p = b.translation(); return p.x > -0.36 && p.x < 0.66 && Math.abs(p.z) < 0.35 && p.y > 0.1 && p.y < 0.6; });
     if (process.env.STUCK) for (const b of inHopper) { const p = b.translation(); console.log(`   left at ${p.x.toFixed(2)},${p.y.toFixed(2)},${p.z.toFixed(2)}: ${[...path.contacts, ...shooter.contacts].filter((c) => c.ball === b).map((c) => c.wheel.name + ' ' + c.force.toFixed(0)).join(', ')}`); }
-    console.log(`  (${inHopper.length} still in it, ${left.length - inHopper.length} out of it; the arm got to ${deg.toFixed(0)} deg of its 10)`);
+    console.log(`  (${inHopper.length} still in it, ${left.length - inHopper.length} out of it; the arm got to ${deg.toFixed(0)} deg of its 10: to 80 deg in ${armAt.to80?.toFixed(2)} s, 40 in ${armAt.to40?.toFixed(2)} s, 12 in ${armAt.to12?.toFixed(2)} s)`);
     console.log(`2910 dumps ${shots.length} of ${n0}: ${in1} in the first second, ${((shots.length - 1) / (shots[shots.length - 1] - first)).toFixed(1)} FUEL/s over the whole dump (the team: 23-25 typical, 30+ in short volleys, "34bps"); the flywheel down to ${(t.shooter.omega * 9.549).toFixed(0)} RPM at the end`);
   },
 };

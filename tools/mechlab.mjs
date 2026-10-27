@@ -5,8 +5,9 @@
 // motor-driven flex wheels grab a FUEL and fling it: exit speed vs their surface speed, how far
 // the motors slow), funnel (FUEL rolling two abreast into a one-wide neck, with and without
 // vertical-axis omni wheels at the neck: do they jam?), and 8793's (js/mech/r8793.js): r8793
-// (the rollers' speeds), conveyor (intake and conveyor, with the vertical rollers on and
-// stopped), shooter, calibrate (the shooter's grip) and robot (carpet to shot).
+// (the rollers' speeds), conveyor (intake and conveyor, the X44s at the vertical rollers powered and
+// unpowered: the rollers locked to the X60 either way), shooter, calibrate (the shooter's grip) and
+// robot (carpet to shot).
 // Env: HZ (steps/s, 120), SUB (contact sub-steps for the quick contacts, 8), SEEDS (12), TRACE
 // (a FUEL's index to follow), STUCK (where the ones left over ended up), IDX_RATIO
 // (the turret indexer's gearing: direct drive), TOGETHER=0 (FUEL on FUEL rigid, the world's,
@@ -17,6 +18,7 @@ import { Mechanism, Shaft, Wheel, Motor, foam } from '../js/mech/mechanism.js';
 import { build8793, intake8793, conveyorWheels, armWheels, shooterWheels, shooterSmallAt, flywheelDuty, codeExitSpeed, SHOOTER, INDEXER, DUTY_INDEXER, indexerWheels, pathSurfaces } from '../js/mech/r8793.js';
 if (process.env.IDX_RATIO) INDEXER.ratio = Number(process.env.IDX_RATIO); // (to try other indexer gearing)
 import PATH_MESH from '../js/mech/path8793.js';
+import { JAM } from '../js/mech/phys8793.js';
 import { BUMPER_T } from '../js/robotConfigs.js';
 
 await RAPIER.init();
@@ -48,12 +50,12 @@ const tests = {
   // rollers, over the bumper, under the pivot's and the two conveyor shafts' mecanums, past the
   // vertical rollers at the taper, into one file toward the turret
   conveyor() {
-    for (const vertical of [false, true]) {
+    for (const x44 of [false, true]) {
       const runs = [];
-      for (let seed = 1; seed <= SEEDS; seed++) runs.push(pathRun(seed, { vertical }));
+      for (let seed = 1; seed <= SEEDS; seed++) runs.push(pathRun(seed, { x44 }));
       const med = (a) => { const b = [...a].sort((p, q) => p - q); return b[b.length >> 1]; };
-      console.log(`8793 conveyor, vertical rollers ${vertical ? 'on      ' : 'stopped'}: a median ${med(runs.map((r) => r.through))} of ${runs[0].n} through (${Math.min(...runs.map((r) => r.through))}..${Math.max(...runs.map((r) => r.through))}, ${SEEDS} runs), ` +
-        `${med(runs.map((r) => r.rate)).toFixed(1)} FUEL/s; X60 up to ${Math.max(...runs.map((r) => r.peakI)).toFixed(0)} A, rollers slowed to ${med(runs.map((r) => r.minSpeed)).toFixed(0)}% (median)`);
+      console.log(`8793 conveyor, X44s ${x44 ? 'powered  ' : 'unpowered'} (every roller locked to the X60): a median ${med(runs.map((r) => r.through))} of ${runs[0].n} through (${Math.min(...runs.map((r) => r.through))}..${Math.max(...runs.map((r) => r.through))}, ${SEEDS} runs), ` +
+        `${med(runs.map((r) => r.rate)).toFixed(1)} FUEL/s; X60 up to ${Math.max(...runs.map((r) => r.peakI)).toFixed(0)} A, rollers slowed to ${med(runs.map((r) => r.minSpeed)).toFixed(0)}% (median), ${med(runs.map((r) => r.unjams))} unjams`);
     }
   },
   // the shooter's grip: with their old gearing (both shafts at the motor's speed) their code says
@@ -92,7 +94,7 @@ const tests = {
     const all = runs.flatMap((r) => r.shots);
     const avg = (a) => a.reduce((p, q) => p + q, 0) / (a.length || 1);
     console.log(`8793 carpet to shot (indexer ${INDEXER.ratio}:1): a median ${med(runs.map((r) => r.shots.length))} of ${runs[0].n} shot (${Math.min(...runs.map((r) => r.shots.length))}..${Math.max(...runs.map((r) => r.shots.length))}, ${SEEDS} runs), ` +
-      `${med(runs.map((r) => r.shotRate)).toFixed(1)} FUEL/s; out at ${avg(all.map((x) => x.v)).toFixed(2)} m/s, ${avg(all.map((x) => x.el)).toFixed(1)} deg (${all.filter((x) => x.el < 30).length} knocked off instead); the flywheel sagged to ${med(runs.map((r) => r.minRps)).toFixed(0)} rps`);
+      `${med(runs.map((r) => r.shotRate)).toFixed(1)} FUEL/s; out at ${avg(all.map((x) => x.v)).toFixed(2)} m/s, ${avg(all.map((x) => x.el)).toFixed(1)} deg (${all.filter((x) => x.el < 30).length} knocked off instead); the flywheel sagged to ${med(runs.map((r) => r.minRps)).toFixed(0)} rps; ${med(runs.map((r) => r.unjams))} unjams (median)`);
   },
   // where 8793 holds FUEL: intake 12 with the indexer stopped, then stop the rollers too and let
   // them settle (its preload goes where they end up)
@@ -105,14 +107,14 @@ const tests = {
   r8793() {
     const t = build8793();
     intake8793(t);
-    const trains = [t.horizontal, ...t.vertical];
-    for (let i = 0; i < 240; i++) for (const tr of trains) tr.integrate(DT);
+    for (let i = 0; i < 240; i++) t.horizontal.integrate(DT);
     const rpm = (w) => Math.abs(w * 60 / (2 * Math.PI)).toFixed(0).padStart(5);
     const row = (s) => `  ${s.name.padEnd(22)} ${rpm(s.omega)} rpm  ${Math.abs(s.omega * s.diameter / 2).toFixed(2).padStart(5)} m/s at the surface (${(s.diameter / IN).toFixed(2)}in)  ${s.what || ''}`;
     console.log("8793 intaking (their code's duty cycles), nothing in the rollers:");
     console.log(`  Kraken X60 ${rpm(t.horizontal.omega)} rpm`);
     for (const s of t.rollers) console.log(row(s));
-    t.vertical.forEach((tr, i) => { console.log(`  Kraken X44 ${rpm(tr.omega)} rpm`); console.log(row(t.vshafts[i])); });
+    console.log(`  Kraken X44s ${rpm(t.horizontal.omega * t.x44[0].k)} rpm (locked to the X60 through the 90-degree gearboxes)`);
+    for (const s of t.vshafts) console.log(row(s));
   },
   // 8793's shooter (js/mech/r8793.js) under their velocity loop: spin up, then FUEL come up the
   // turret's axis into it one after another (each arriving at 1 m/s where the 2in wheels first
@@ -273,7 +275,7 @@ function funnelRun(variant, rnd) {
 // the intake takes them over the bumper, the conveyor down to single file; with the turret, the
 // indexer's rails and wheels carry them up the turret's axis to the shooter (at elevation e, the
 // flywheel held at target motor rotations/s, the indexer on throughout)
-function pathRun(seed, { vertical = true, turret = false, e = 60, target = 60, nBalls = 12, sec = 5, yaw = 0, hold = false } = {}) {
+function pathRun(seed, { x44 = true, turret = false, e = 60, target = 60, nBalls = 12, sec = 5, yaw = 0, hold = false } = {}) {
   let sd = seed;
   const rnd = () => ((sd = (sd * 16807) % 2147483647) / 2147483647 - 0.5);
   const w = world();
@@ -295,9 +297,18 @@ function pathRun(seed, { vertical = true, turret = false, e = 60, target = 60, n
     smech = new Mechanism({ substeps: 6, sub: 8, shafts: [trains.large, trains.small], wheels: shooterWheels(trains, e, { yaw }) });
     mechs.push(smech);
   }
+  // their auto-unjam (runIntakeWithAutoUnjam, as js/mech/phys8793.js runs it): the X60 stalled
+  // (over 55 A, under 10 rotations/s) for 0.125 s reverses the whole path for 0.125 s, the turret
+  // indexer too. NOUNJAM=1 leaves it out
+  let jamT = 0, unjamT = 0, unjams = 0;
   const control = () => {
-    intake8793(trains, true, { verticalRollers: vertical });
-    if (turret) { trains.indexer.cmd = hold ? 0 : DUTY_INDEXER; trains.shooter.cmd = hold ? 0 : flywheelDuty(trains, target); }
+    const h = trains.horizontal, stalled = Math.abs(h.motor.current) > JAM.amps && Math.abs(h.omega) / (2 * Math.PI) < JAM.rps;
+    if (unjamT > 0) { unjamT -= DT; if (unjamT <= 0) jamT = 0; } else if (!process.env.NOUNJAM) {
+      jamT = stalled ? jamT + DT : 0;
+      if (jamT > JAM.debounce) { unjamT = JAM.reverse; jamT = 0; unjams++; }
+    }
+    intake8793(trains, true, { x44, dir: unjamT > 0 ? -1 : 1 });
+    if (turret) { trains.indexer.cmd = hold ? 0 : unjamT > 0 ? -DUTY_INDEXER : DUTY_INDEXER; trains.shooter.cmd = hold ? 0 : flywheelDuty(trains, target); }
   };
   const step = (balls) => { control(); for (const m of mechs) m.step(DT, balls, m === mech && TOGETHER ? balls : null); w.step(); };
   for (let i = 0; i < 1 / DT; i++) step([]); // spin up
@@ -341,7 +352,7 @@ function pathRun(seed, { vertical = true, turret = false, e = 60, target = 60, n
   const res = { n: balls.length, through: past.size, first: times[0] ?? NaN, last: times[times.length - 1] ?? NaN,
     rate: times.length > 1 ? (times.length - 1) / (times[times.length - 1] - times[0]) : 0, peakI, minSpeed: (100 * minW) / free,
     stuck: xs.length ? `${xs.length} at ${Math.min(...xs).toFixed(2)}..${Math.max(...xs).toFixed(2)}` : '',
-    shots, shotRate: shots.length > 1 ? (shots.length - 1) / (shots[shots.length - 1].t - shots[0].t) : 0, minRps,
+    unjams, shots, shotRate: shots.length > 1 ? (shots.length - 1) / (shots[shots.length - 1].t - shots[0].t) : 0, minRps,
     held: balls.map((b) => b.translation()).filter((p) => p.x < 0.35 && p.y > 0.05 && p.y < 0.7).map((p) => [p.x, p.y, p.z]) };
   w.free();
   return res;

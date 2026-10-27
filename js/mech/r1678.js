@@ -5,8 +5,9 @@
 // y back, z up.
 //
 // The ball path: the slapdown intake's 2in silicone roller, behind its crash bar, pulls FUEL in
-// under it and rolls them up over a low bar and a free roller at the front of the bumper; the
-// arm's top, down, is the extension's floor. The roller floor (polycarbonate rollers, then three
+// under it and pinches them against its 1.25in kicker bar (locked) at the front of the bumper,
+// rolling them up over it and a free roller on the bumper's top; the arm's top, down, is the
+// extension's floor. The roller floor (polycarbonate rollers, then three
 // shafts of 2in flex wheels, then two more polycarbonate rollers) slopes down to the back, where
 // six rollers curve up the back of the ball tunnel; against them, on the front, the feeder's 2in
 // roller and two more tunnel rollers pinch FUEL three wide up to the drum (3.5in, silicone) and
@@ -36,16 +37,16 @@ export const DRUM = [-0.288, 0.477]; // the drum's axle, which the hood turns ab
 export const INTAKE = {
   // as the CAD has it: folded up inside the hopper (their 130 deg; 0 is down)
   main: { at: [0.143, 0.368], d: 0.0516 },           // 2in silicone-covered roller
-  // free polycarbonate sleeves on dead shafts, and the 1.25in bar (free too) at the front of the
-  // bumper when it's down
-  idlers: [{ at: [0.253, 0.247], d: 0.0188 }, { at: [0.131, 0.329], d: 0.0188 }, { at: [0.312, 0.322], d: 0.0326 }],
+  // the 1.25in kicker bar at the front of the bumper when it's down: locked in place, not free to
+  // turn (the team); the roller rolls FUEL up over it
+  kicker: { at: [0.312, 0.322], d: 0.0326 },
+  // free polycarbonate sleeves on dead shafts (one rides on the bumper's top when it's down)
+  idlers: [{ at: [0.253, 0.247], d: 0.0188 }, { at: [0.131, 0.329], d: 0.0188 }],
   stowed: 130, partIn: 50,
-  // down: their 0 (the CAD's pose turned 130 deg), plus 3 deg. Their code zeroes the arm against its
-  // stowed hardstop and calls 0 down; at exactly 0 the roller stops 6 mm short of a FUEL resting
-  // against the low bar at the bumper, and few get in (tools/mechlab1678.mjs intake: 8 of 24 in
-  // 6 s; 19 at -3 deg), so the arm's taken to sit that much lower (its #35 chain's slack and the
-  // arm's weight; an estimate)
-  down: -3,
+  // down: their 0 (the CAD's pose turned 130 deg). (With the kicker bar free to turn instead of
+  // locked, a FUEL resting against it sits 6 mm out of the roller's reach and few get in: 8 of 24
+  // in 6 s on tools/mechlab1678.mjs intake, against 24 locked)
+  down: 0,
   // its arm (plates, roller, two X60s, crash bar): their sim's 0.222 kg m^2 about the pivot
   mass: 4.2, com: 0.22, comDeg: -1, J: 0.222,
 };
@@ -122,6 +123,8 @@ export function build1678() {
   // its free sleeves
   const intake = new Train({ name: 'intake roller', motor: new Motor('krakenX60', { count: 2, statorLimit: 80, supplyLimit: 50 }) });
   const main = intake.add(new Shaft({ name: 'intake 2in roller', inertia: 1.6e-4 }), -16 / 30);
+  // (the kicker bar: locked, it never turns)
+  const kicker = new Shaft({ name: 'intake kicker bar (locked)', inertia: Infinity });
   const idlers = INTAKE.idlers.map((w, i) => new Shaft({ name: `intake free roller ${i + 1}`, inertia: 1.5e-5, drag: 2e-5 }));
   // the roller floor: positive carries FUEL back along it
   const floor = new Train({ name: 'roller floor', motor: new Motor('krakenX60', { statorLimit: 90, supplyLimit: 45 }) });
@@ -140,7 +143,7 @@ export function build1678() {
   const hood = shooter.add(new Shaft({ name: 'hood rollers', inertia: 3e-4 }), -S.drumPerMotor);
   // the intake's pivot (positive turns the arm up, toward stowed)
   const pivot = new Shaft({ name: 'intake pivot', motor: new Motor('krakenX60', { ratio: (62 / 8) * (68 / 18) * (15 / 9), statorLimit: 60, supplyLimit: 40 }), inertia: INTAKE.J, drag: 0.5 });
-  return { intake, main, idlers, floor, flex, rollers, tunnel, back, front, feederT, feeder, shooter, drum, hood, pivot };
+  return { intake, main, kicker, idlers, floor, flex, rollers, tunnel, back, front, feederT, feeder, shooter, drum, hood, pivot };
 }
 
 // the wheels (robot frame; the intake's and hood's posed with placeIntake / placeHood)
@@ -157,6 +160,7 @@ export function wheels1678(t) {
   ];
   const intake = [
     new Wheel({ name: 'intake 2in roller (silicone)', shaft: t.main, center: [...INTAKE.main.at, 0], axis: Z, radius: INTAKE.main.d / 2, width: 0.618, mu: MU.silicone, tread: 20000 }),
+    new Wheel({ name: 'intake kicker bar (locked)', shaft: t.kicker, center: [...INTAKE.kicker.at, 0], axis: Z, radius: INTAKE.kicker.d / 2, width: 0.66, mu: MU.polycarb }),
     ...INTAKE.idlers.map((w, i) => new Wheel({ name: t.idlers[i].name, shaft: t.idlers[i], center: [...w.at, 0], axis: Z, radius: w.d / 2, width: 0.66, mu: MU.polycarb })),
   ];
   intake.forEach((w) => { w.home = w.center.slice(); });

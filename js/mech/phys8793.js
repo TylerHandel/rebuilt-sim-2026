@@ -18,7 +18,7 @@ const HALF = 0.349;   // the frame's half length and width (27.5in)
 const TURRET_X = -0.127;
 // their jam recovery (GroundIntakeConstants): the roller motor over 55 A stator and under 10
 // rotations/s for 0.125 s reverses at full for 0.125 s
-const JAM = { amps: 55, rps: 10, debounce: 0.125, reverse: 0.125 };
+export const JAM = { amps: 55, rps: 10, debounce: 0.125, reverse: 0.125 };
 
 export class Physical8793 extends PhysicalRobot {
   constructor(robot) {
@@ -40,7 +40,7 @@ export class Physical8793 extends PhysicalRobot {
     this.jamT = 0; this.unjamT = 0;
     this.targetRps = 0;
     this.feed = false;
-    for (const tr of [this.t.horizontal, ...this.t.vertical, this.t.indexer, this.t.shooter]) { tr.omega = 0; tr.cmd = 0; }
+    for (const tr of [this.t.horizontal, this.t.indexer, this.t.shooter]) { tr.omega = 0; tr.cmd = 0; }
   }
 
   where(x, y, z) {
@@ -89,10 +89,7 @@ export class Physical8793 extends PhysicalRobot {
       if (this.jamT > JAM.debounce) { this.unjamT = JAM.reverse; this.jamT = 0; r.stats.unjams = (r.stats.unjams || 0) + 1; }
     }
     const unjam = on && this.unjamT > 0;
-    if (on && (outtake || unjam)) {
-      h.cmd = 1; // (reversed: the rollers' bottoms run forward)
-      for (const tr of this.t.vertical) tr.cmd = -1;
-    } else intake8793(this.t, on);
+    intake8793(this.t, on, { dir: outtake || unjam ? -1 : 1 });
     // the turret indexer feeds while there's a shot (or pass) to make, reversed with the unjam:
     // their ShooterMode doesn't hold it for the flywheel or hood (HOLD_FEED_UNTIL_AT_SPEED is off),
     // so what's still coming up to speed goes as it is; only while the turret is swinging round

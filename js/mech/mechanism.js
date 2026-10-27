@@ -125,7 +125,9 @@ export class Shaft {
 // A gear train: one motor turning several shafts through belts, chain and gears at fixed ratios
 // (8793's conveyor and intake rollers all run off one Kraken X60). It has one speed, the motor's
 // output: each shaft turns at its k times that, the rotor's and every shaft's inertia move
-// together, and a FUEL dragging on any one roller slows them all.
+// together, and a FUEL dragging on any one roller slows them all. More motors can be geared into
+// it (couple: 8793's two X44s, locked to its X60 through their 90-degree gearboxes), each with its
+// own command and current limits; their torques add.
 export class Train {
   // motor: a Motor (its own ratio: a gearbox on it); shafts: [[Shaft, k], ...], k: the shaft's
   // turns per turn of the motor's output (the belt/gear ratios along the way multiplied)
@@ -134,16 +136,25 @@ export class Train {
     this.omega = 0;
     this.cmd = 0;
     this.shafts = [];
+    this.coupled = [];
     for (const [s, k] of shafts) this.add(s, k);
   }
   add(s, k) { s.train = this; s.k = k; this.shafts.push(s); return s; }
-  get J() { return this.motor.J + this.shafts.reduce((a, s) => a + s.inertia * s.k * s.k, 0); }
+  // another motor geared in, turning k times the main motor's output; set its .cmd (null: coast)
+  couple(motor, k) { const m = { motor, k, cmd: 0 }; this.coupled.push(m); return m; }
+  get J() { return this.motor.J + this.coupled.reduce((a, m) => a + m.motor.J * m.k * m.k, 0) + this.shafts.reduce((a, s) => a + s.inertia * s.k * s.k, 0); }
   get drag() { return this.shafts.reduce((a, s) => a + s.drag * s.k * s.k, 0); }
   integrate(dt, V = 12) {
     const J = this.J;
-    if (this.cmd === null) { this.omega /= 1 + (dt * this.drag) / J; this.motor.current = 0; return; }
-    const { tau, limited } = this.motor.torque(this.omega, this.cmd, V);
-    const kd = limited ? 0 : this.motor.slope;
+    // each motor's torque at its own speed, seen at the main motor's output; the ones that
+    // aren't current limited fall off with speed (taken implicitly); a coasting one does nothing
+    let tau = 0, kd = 0;
+    for (const { motor, k, cmd } of [{ motor: this.motor, k: 1, cmd: this.cmd }, ...this.coupled]) {
+      if (cmd === null) { motor.current = 0; continue; }
+      const r = motor.torque(this.omega * k, cmd, V);
+      tau += k * r.tau;
+      if (!r.limited) kd += k * k * motor.slope;
+    }
     this.omega = (J * this.omega + dt * (tau + kd * this.omega)) / (J + dt * (kd + this.drag));
   }
 }

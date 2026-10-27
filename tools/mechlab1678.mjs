@@ -22,6 +22,7 @@ await RAPIER.init();
 const R = FUEL.radius, DT = 1 / 120, SEEDS = Number(process.env.SEEDS ?? 6);
 const HELD = groups(GROUP.HELD, 0xffff & ~GROUP.HELD);
 const EXT = 0.303, LIFT = 0.2, SPEED = Number(process.env.SPEED ?? 1);
+if (process.env.INTAKE_D) INTAKE.main.d = Number(process.env.INTAKE_D); // (to try other roller sizes)
 
 function world({ carpet = true } = {}) {
   const w = new RAPIER.World({ x: 0, y: -9.81, z: 0 });
@@ -160,7 +161,7 @@ const tests = {
   intake() {
     for (let seed = 1; seed <= Math.min(SEEDS, 3); seed++) {
       const r = pathRun(seed, { shoot: false, n: 24, sec: 6 });
-      console.log(`1678 intaking only (their intake(): roller 12 V, everything else idle), 24 FUEL at 1 m/s: ${r.inside} in it after 6 s; intake X60s down to ${r.minIntake.toFixed(0)}%`);
+      console.log(`1678 intaking only (their intake(): roller 12 V, everything else idle), 24 FUEL at ${SPEED} m/s: ${r.inside} in it after 6 s (in past the bumper each second: ${r.timeline.join(', ')}); intake X60s down to ${r.minIntake.toFixed(0)}%`);
       if (process.env.STUCK) console.log('   left', r.left.map((p) => p.map((v) => v.toFixed(2)).join(',')).join(' | '));
     }
   },
@@ -251,6 +252,7 @@ function pathRun(seed, { shoot = true, n = 18, sec = 7 } = {}) {
   for (let i = 0; i < n; i++) balls.push(ball(w, 0.8 + 0.17 * Math.floor(i / 3) + 0.02 * rnd(), R + 0.003, (i % 3 - 1) * 0.18 + 0.02 * rnd(), [-SPEED, 0, 0]));
   const watch = shotWatch(shooter);
   let minIntake = 1, minFloor = 1;
+  const timeline = [];
   for (let k = 0; k < sec / DT; k++) {
     const live = balls.filter((b) => b.translation().y < 3);
     run();
@@ -258,6 +260,8 @@ function pathRun(seed, { shoot = true, n = 18, sec = 7 } = {}) {
     minIntake = Math.min(minIntake, Math.abs(t.intake.omega) / free.intake);
     if (shoot) minFloor = Math.min(minFloor, Math.abs(t.floor.omega) / free.floor);
     watch.check(live, k * DT);
+    // (how many are in, each second)
+    if (k % Math.round(1 / DT) === Math.round(1 / DT) - 1) timeline.push(balls.filter((b) => { const p = b.translation(); return p.y < 3 && p.x < 0.45 && p.y > 0.15; }).length);
     // (TRACE=i follows FUEL i: where it is and what it's touching)
     if (process.env.TRACE && k % 6 === 0) {
       const b = balls[Number(process.env.TRACE)], p = b.translation(), v = b.linvel();
@@ -268,7 +272,7 @@ function pathRun(seed, { shoot = true, n = 18, sec = 7 } = {}) {
   const inside = balls.filter((b) => { const p = b.translation(); return p.y < 3 && p.x < 0.66 && p.x > -0.36 && p.y > 0.1; });
   const left = balls.filter((b) => b.translation().y < 3 && !inside.includes(b)).map((b) => { const p = b.translation(); return [p.x, p.y, p.z]; });
   w.free();
-  return { shots: s.length, rate: s.length > 2 ? (s.length - 1) / (s[s.length - 1] - s[0]) : 0, inside: inside.length, minIntake: 100 * minIntake, minFloor: 100 * minFloor, left };
+  return { timeline, shots: s.length, rate: s.length > 2 ? (s.length - 1) / (s[s.length - 1] - s[0]) : 0, inside: inside.length, minIntake: 100 * minIntake, minFloor: 100 * minFloor, left };
 }
 
 const pick = process.argv.slice(2);

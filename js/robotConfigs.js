@@ -134,20 +134,21 @@ export const ROBOTS = {
     // slap-down intake from 2910's CAD: its 2in roller reaches ~7.8in past the bumper
     // rate: fast enough that driving through FUEL is the only limit; pull: roller surface speed
     // arm: the CAD intake's pivot and its 2in roller's reach and angle, stowed (as exported) and
-    // down on the carpet. While shooting it retracts slowly and pushes the load back into the
+    // down on the bumper, its hardstop: their code's 114.3 deg of travel, which lands it on the
+    // CAD's deployed pose (js/mech/r2910.js INTAKE). While shooting it retracts slowly and pushes the load back into the
     // indexer (compacts), stalling against the FUEL until there's room.
     intake: {
       width: 25.5 * IN, reach: 7.8 * IN, rate: 200, pull: 5, deployTime: 0.35, retractTime: 1.6, side: 'front', latched: false,
-      compacts: true, arm: { x: 0.273, y: 0.17, len: 0.338, stowDeg: 112.5, deployDeg: -15.5 },
+      compacts: true, arm: { x: 0.273, y: 0.17, len: 0.338, stowDeg: 112.5, deployDeg: -1.8 },
       // retracting over the load it crams it into the indexer, far harder than its roller pushes
       // FUEL in (hopper.js intakePush): it stalls once the load pushes back this hard (N, estimate)
       compactPush: 180,
     },
     // one-piece hopper (their CAD): its panels sit over the shooter at the start and slide out
-    // along slotted rails with the first intake, then stay out for the match. capacity /
-    // retracted are the team's stated numbers; how much it really holds is measured from the
-    // hopper (bay) below (hopper.js measureCapacity)
-    storage: { capacity: 58, retracted: 40, extLen: 0.27, extend: 'latched' },
+    // 0.30 m along slotted rails with the first intake (the CAD's two poses), then stay out for
+    // the match. capacity / retracted are the team's stated numbers; how much it really holds is
+    // measured from the hopper (bay) below (hopper.js measureCapacity)
+    storage: { capacity: 58, retracted: 40, extLen: 0.30, extend: 'latched' },
     // the hopper as the FUEL sees it (robot frame: x forward, y up, z to the side; meters).
     // Powered floor rollers slope down to the back, where compliant indexer wheels lift FUEL
     // into the drum.

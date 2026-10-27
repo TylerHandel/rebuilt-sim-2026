@@ -695,7 +695,7 @@ export class Robot {
     // (a physical robot's load is its FUEL bodies: js/mech/phys1678.js)
     if (this.phys?.loadTop) loadTop = Math.max(loadTop, this.phys.loadTop());
     // (the lid rides up with the intake, 1678's: its climber lifts it while the intake is down)
-    if (lift) this.hopper.liftScale = Math.max(this.intakeDeploy, clamp((loadTop - 0.01 - bay.top) / lift.h, 0, 1));
+    if (lift) this.hopper.liftScale = this.phys?.liftScale ? this.phys.liftScale() : Math.max(this.intakeDeploy, clamp((loadTop - 0.01 - bay.top) / lift.h, 0, 1));
     // topLoad: the top with the intake down; topY: the true top, with a folded intake as it is now
     // growTop: the part that grows with the load (a net it bulges up, a lid it holds up), 0 if none
     this.growTop = lift ? bay.top + lift.h * this.hopper.liftScale + 0.01 : bay.dome ? loadTop + 0.005 : 0;
