@@ -38,9 +38,10 @@ function polyMat(alpha, glass) {
   return m;
 }
 function applyPoly(m, env) {
-  const { alpha, glass } = m.userData.poly;
+  const { alpha, glass, seen = 0 } = m.userData.poly;
   if (env) {
-    Object.assign(m, { color: new THREE.Color(glass), opacity: 1, transparent: false, depthWrite: true, transmission: 1, ior: 1.585, thickness: 0.003, roughness: 0.02,
+    // (seen: how much of its own tint shows, the rest let through)
+    Object.assign(m, { color: new THREE.Color(glass), opacity: 1, transparent: false, depthWrite: true, transmission: 1 - seen, ior: 1.585, thickness: 0.003, roughness: 0.02,
       specularIntensity: 1, clearcoat: 0, envMap: env, envMapIntensity: 0.3 });
   } else {
     Object.assign(m, { color: new THREE.Color(alpha.color), opacity: alpha.opacity, transparent: true, depthWrite: false, transmission: 0, roughness: alpha.roughness,
@@ -48,10 +49,13 @@ function applyPoly(m, env) {
   }
   m.needsUpdate = true;
 }
-// another model's polycarbonate (the field's CAD panels) in on the same: its own tint below High,
-// clear sheet (glass, what it lets through) from High up
-export function registerPoly(m, glass = 0xf4f8fc) {
-  m.userData.poly = { alpha: { color: m.color.getHex(), opacity: m.opacity, roughness: m.roughness ?? 0.1 }, glass };
+// another model's polycarbonate (the field's CAD panels) in on the same, as a new material to use
+// in its place: its own tint below High; from High up sheet tinted glass (what it lets through)
+// with seen of the tint showing, so big panels stay visible
+export function registerPoly(src, glass = 0xf4f8fc, seen = 0) {
+  const alpha = { color: src.color.getHex(), opacity: src.opacity, roughness: src.roughness ?? 0.1 };
+  const m = new THREE.MeshPhysicalMaterial({ ...alpha, transparent: true, depthWrite: false, side: src.side ?? THREE.DoubleSide });
+  m.userData.poly = { alpha, glass, seen };
   POLY_MATS.push(m);
   if (polyGlass) applyPoly(m, polyGlass);
   return m;
