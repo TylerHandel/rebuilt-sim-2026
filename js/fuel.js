@@ -306,10 +306,8 @@ export class FuelManager {
       }
       // left the FIELD
       const out = Math.abs(p.x) > HALF_L + 0.08 || Math.abs(p.z) > HALF_W + 0.08 || p.y < -0.5;
+      // (no G405 for it: referees only call FUEL launched out on purpose, which nothing here does)
       if (out) {
-        if (b.inFlight && b.launch && b.launch.by === 'robot' && m) {
-          m.addFoul(b.launch.alliance, 'minor', 'G405', 'FUEL launched out of the FIELD');
-        }
         const rx = clamp(p.x, -HALF_L + 0.35, HALF_L - 0.35);
         const rz = clamp(p.z, -HALF_W + 0.35, HALF_W - 0.35);
         this._disable(b, 'out');
