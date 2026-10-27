@@ -3,12 +3,12 @@
 (js/customAutos.js's format, plus each one's start, speeds in m/s and timed actions).
 Writes js/teamAutos.js.
 
-  python3 tools/team-autos.py [--8793 DIR] [--2910 DIR] [--1678 DIR]
+  python3 tools/team-autos.py [--8793 DIR] [--2910 DIR] [--1678 DIR] [--604 DIR]
 
 DIR: a checkout of the team's code (defaults: ../pumpkin-bots/2026_robot,
-../frcteam2910/2026competitionrobot-public, ../frc1678/C2026-Public). All three use WPILib's
-blue-origin field coordinates (x from the blue ALLIANCE WALL, y from the blue drivers' right),
-which are the sim's blue fx, fy.
+../frcteam2910/2026competitionrobot-public, ../frc1678/C2026-Public,
+../frc604/2026-public/FRC-2026). All of them use WPILib's blue-origin field coordinates (x from
+the blue ALLIANCE WALL, y from the blue drivers' right), which are the sim's blue fx, fy.
 
 - 8793 (PathPlanner): each .auto's command tree; each path's Bezier waypoints sampled, at its
   max velocity (and constraint zones). Their modes: TrenchMode (intake up, not shooting),
@@ -21,8 +21,14 @@ which are the sim's blue fx, fy.
   transcribed from their FieldConstants.java (the right side mirrors the left).
 - 1678 (Choreo): each routine's trajectories' samples, at their speed there; driveOverBump (3 m/s straight back over the
   BUMP to where the next trajectory starts) and fireCommand (3 s) between them.
+- 604 (Quikplan): every competition AUTO in their chooser (the Champs ones first, its default,
+  Double Cycle Inwards, first of all; then the ones commented out from earlier events), each a
+  sequence of FollowQuikplan partials (their time-optimal trajectories' 50 Hz samples, at their
+  speed there, with the actions along them: launch on/off, intake down and rolling, stowed),
+  waits and RetractIntake, from the right side and mirrored left as their isLeft does. A wait
+  holds the robot where it is, launching if the last action left it launching.
 """
-import argparse, json, math, os
+import argparse, json, math, os, re
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -244,13 +250,150 @@ def auto_1678(d, trajs, mirror):
     return start, pts
 
 
+# ------------------------------------------------------------------ 604: Quikplan partials
+# Their FollowQuikplan replays a time-optimal trajectory (deploy/<name>.csv, 50 Hz: t, x, y, theta,
+# vx, vy, omega, action, ...) and sets its mechanisms from the latest action so far (from nothing
+# at the start of each partial): 1 launch on, 2 off, 3 intake down and rolling, 4 rollers off, 5
+# stowed, 6 and 7 all on (6 falls through to 7), 8 and 9 all off (8 falls through), 10 off. What
+# a partial leaves set stays set through the waits after it (WaitCommand; the launch flag is a
+# static, and their intake holds its last command); RetractIntake stows the intake (its rollers off)
+# and finishes within 30 deg of it. The isLeft autos read the same file mirrored across the field
+# (y -> width - y); the left side's last leg is a file of its own (shoot_to_depot_left.csv).
+def qp_state(state, action):
+    deploy, roll, shoot = state
+    if action == 1: shoot = True
+    elif action == 2: shoot = False
+    elif action == 3: deploy = roll = True
+    elif action == 4: roll = False
+    elif action == 5: deploy = roll = False
+    elif action in (6, 7): deploy = roll = shoot = True
+    elif action in (8, 9, 10): deploy = roll = shoot = False
+    return (deploy, roll, shoot)
+
+
+def qp_partial(d, name, flip):
+    rows = [list(map(float, r.split(','))) for r in open(os.path.join(d, 'src/main/deploy', name + '.csv')).read().split('\n') if r.strip()]
+    ys = (lambda y: W - y) if flip else (lambda y: y)
+    state, out = (False, False, False), []
+    for r in rows:
+        if int(r[7]) != 0: state = qp_state(state, int(r[7]))
+        out.append((r[1], ys(r[2]), r[0], math.hypot(r[4], r[5]), state))
+    return out, rows[-1][0]
+
+
+def auto_604(d, seq):
+    """seq: ('qp', file, flip, endTimeExtension) | ('wait', s) | ('retract',). Returns start, points."""
+    pts, start, state, hold, pos = [], None, (False, False, False), 0.0, None
+
+    def flush_hold(final=False):
+        nonlocal hold
+        if hold <= 0 and not final: return
+        intake, shoot = state[0] and state[1], state[2]
+        if final and not shoot and hold <= 0: return
+        # (shooting with its intake still rolling, for the whole wait even once it's empty: their
+        # robot sits it out; launching to the end of AUTO when that's how it ends)
+        p = pt(pos[0], pos[1], intake, 'always' if shoot else 'off', 1.0, 'shoot' if shoot else 'wait', round(20.0 if final and shoot else hold, 2))
+        p['hold'] = True
+        pts.append(p)
+        hold = 0.0
+
+    for item in seq:
+        if item[0] == 'wait':
+            hold += item[1]
+            continue
+        if item[0] == 'retract':
+            state = (False, False, state[2])
+            hold += 0.5  # (the arm up to within 30 deg of stowed, slowly)
+            continue
+        _, name, flip, ext = item
+        samples, T = qp_partial(d, name, flip)
+        if start is None:
+            start = pos = samples[0][:2]
+            flush_hold()  # (a wait before it moves: where it starts, nothing running yet)
+        moved = math.dist(samples[0][:2], samples[-1][:2]) > 0.05 or any(math.dist(samples[0][:2], q[:2]) > 0.05 for q in samples)
+        if moved:
+            flush_hold()
+            last, acc = samples[0], 0.0
+            for k, q in enumerate(samples[1:], 1):
+                acc += math.dist(last[:2], q[:2])
+                last = q
+                if acc >= STEP or k == len(samples) - 1 or q[4] != samples[k - 1][4]:
+                    s = q[4]
+                    # (their speed there in the trajectory, but not crawling: the sim's runner brakes for turns)
+                    pts.append(pt(q[0], q[1], s[0] and s[1], 'always' if s[2] else 'off', max(1.0, q[3])))
+                    acc = 0.0
+            pos = samples[-1][:2]
+        else:
+            hold += T  # (turning on the spot: their turn_forward_transition)
+        state = samples[-1][4]
+        hold += ext
+    flush_hold(final=True)
+    return start, pts
+
+
+# their autos (RobotContainer's chooser at the end of Champs first, its default first of all; then
+# the ones it had commented out, from earlier events), each from the right side and mirrored left
+CD = 0.5  # Constants.Auto.centerDelay / startingDelay (their dashboard's defaults)
+DEPOT_R, DEPOT_L = ('qp', 'shoot_to_depot', False, 1.0), ('qp', 'shoot_to_depot_left', False, 1.0)
+def A604(name, cls, right, left=None, champs=True):
+    return {'name': name, 'cls': cls, 'right': right, 'left': left, 'champs': champs}
+def both(*items):  # the same partials from both sides, the left mirrored
+    return [tuple(i) for i in items], [(i[0], i[1], True, i[3]) if i[0] == 'qp' else i for i in items]
+AUTOS_604 = []
+for name, cls, items, champs in [
+        ('Double Cycle Inwards', 'AutoDoubleCycleRightOutsideIn', [('qp', 'first_cycle', False, 0), ('qp', 'turn_forward_transition', False, 0), ('retract',), ('qp', 'second_cycle_outside_in', False, 0), ('wait', 2.0), ('retract',)], True),
+        ('Double Cycle with XXXX', 'AutoDoubleCycleRightWithXXXX', [('qp', 'first_cycle_with_XXXX', False, 0), ('qp', 'turn_forward_transition', False, 0), ('retract',), ('qp', 'second_cycle_with_XXXX', False, 0), ('wait', 2.0), ('retract',)], True),
+        ('Single Cycle Center Pause', 'AutoCenterPause', [('qp', 'center_pause', False, 0), ('wait', 0.25), ('qp', 'center_pause_sweep', False, 1.0), ('wait', 2.5), ('retract',)], True),
+        ('Single Cycle Center Pause OPP', 'AutoCenterPauseOpp', [('qp', 'center_pause', False, 0), ('wait', 0.25), ('qp', 'center_pause_sweep_opp', False, 1.0), ('wait', 2.5), ('retract',)], True),
+        ('Single Cycle Center Pause HUB', 'AutoCenterPauseHub', [('qp', 'center_pause', False, 0), ('wait', 0.25), ('qp', 'center_pause_sweep_hub', False, 1.0), ('wait', 2.5), ('retract',)], True),
+        ('Fast Race no depot', 'AutoFastRaceNoDepot', [('qp', 'fast_race', False, 0), ('wait', CD), ('qp', 'fast_race_return', False, 1.0), ('wait', 3.0), ('retract',)], True),
+        ('Slow Race no depot', 'AutoSlowRaceNoDepot', [('qp', 'slow_race', False, 1.0), ('wait', 3.0), ('retract',), ('wait', 5.0), ('qp', 'shoot_to_neutral', False, 1.0)], True),
+        ('Go after partner + return same NO DEPOT', 'AutoGoAfterPartnerReturnSameSide{}NoDepot', [('wait', CD), ('qp', 'go_after_partner', False, 0), ('wait', CD), ('qp', 'after_partner_return', False, 1.0), ('wait', 3.0), ('retract',)], True),
+        ('Go after partner + feed', 'AutoGoAfterPartnerFeed', [('wait', CD), ('qp', 'go_after_partner', False, 0), ('qp', 'after_partner_feed', False, 1.0)], True),
+        ('Double Cycle', 'AutoDoubleCycleRight', [('qp', 'first_cycle', False, 0), ('wait', 3.0), ('retract',), ('qp', 'second_cycle', False, 0), ('wait', 2.0), ('retract',)], False),
+        ('Double Cycle (no opp)', 'AutoDoubleCycleNoOppRight', [('qp', 'first_cycle_no_opp', False, 0), ('wait', 3.0), ('retract',), ('qp', 'second_cycle', False, 0), ('wait', 2.0), ('retract',)], False),
+        ('Double Cycle Outwards', 'AutoDoubleCycleRightInsideOut', [('qp', 'first_cycle', False, 0), ('wait', 3.0), ('retract',), ('qp', 'second_cycle_inside_out', False, 0), ('wait', 2.0), ('retract',)], False),
+        ('Single Cycle No Citrus', 'AutoSingleCycleNoCitrusRight', [('qp', 'first_cycle', False, 0), ('wait', 3.0), ('retract',), ('qp', 'second_cycle_no_citrus', False, 0)], False),
+        ('vs XXXX', 'AutoVsXXXX', [('qp', 'first_cycle_vs_XXXX', False, 0), ('wait', 3.0), ('retract',), ('qp', 'second_cycle', False, 0)], False),
+        ('HMB Finals', 'AutoHMBFinals', [('qp', 'vs_XXXX_XXXX_first_sweep', False, 0), ('qp', 'vs_XXXX_XXXX_second_sweep', False, 0)], False),
+        ('Feed Short', 'AutoFeedShort', [('qp', 'feed_first_cycle_short', False, 0), ('wait', 3.0), ('retract',)], False),
+        ('Feed Long', 'AutoFeedLong', [('qp', 'feed_first_cycle_long', False, 0), ('wait', 3.0), ('retract',)], False)]:
+    r, l = both(*items)
+    AUTOS_604.append(A604(name, cls, r, l, champs))
+# the ones with a left and right class each, whose left side ends at the DEPOT by a file of its own
+for name, cls, first, champs in [
+        ('Center Hub + Depot', 'AutoCenterPauseSlow{}', [('qp', 'center_pause_slow', False, 0), ('wait', 2.0), ('qp', 'center_pause_slow_sweep_hub', False, 0)], True),
+        ('Center Hub + Depot XXXX', 'AutoCenterPauseSlow{}XXXX', [('qp', 'center_pause_slow_XXXX', False, 0), ('wait', 2.0), ('qp', 'center_pause_slow_sweep_hub_XXXX', False, 0)], True),
+        ('Fast Race', 'AutoFastRace{}', [('qp', 'fast_race', False, 0), ('wait', CD), ('qp', 'fast_race_return', False, 1.0)], True),
+        ('Go after partner + return same', 'AutoGoAfterPartnerReturnSameSide{}', [('wait', CD), ('qp', 'go_after_partner', False, 0), ('wait', CD), ('qp', 'after_partner_return', False, 1.0)], True),
+        ('Go after partner pause + return same', 'AutoGoAfterPartnerPauseReturnSameSide{}', [('wait', CD), ('qp', 'go_after_partner_with_pause', False, 0), ('wait', CD), ('qp', 'after_partner_return', False, 1.0)], True)]:
+    r, l = both(*first)
+    AUTOS_604.append(A604(name, cls, r + [DEPOT_R, ('wait', 1.0), ('retract',)], l + [DEPOT_L, ('wait', 1.0), ('retract',)], champs))
+# (Cleanup Feed: one partial from the right only, feed_cleanup.csv, not mirrored)
+AUTOS_604.append(A604('Cleanup Feed', 'AutoFeedCleanup', [('qp', 'feed_cleanup', False, 1.0)], None, False))
+# (the order: their Champs chooser's, its default first)
+ORDER_604 = ['Double Cycle Inwards', 'Double Cycle with XXXX', 'Single Cycle Center Pause', 'Single Cycle Center Pause OPP', 'Single Cycle Center Pause HUB',
+             'Center Hub + Depot', 'Center Hub + Depot XXXX', 'Fast Race', 'Fast Race no depot', 'Slow Race no depot', 'Go after partner + return same',
+             'Go after partner pause + return same', 'Go after partner + return same NO DEPOT', 'Go after partner + feed']
+AUTOS_604.sort(key=lambda a: ORDER_604.index(a['name']) if a['name'] in ORDER_604 else len(ORDER_604))
+
+
 # ------------------------------------------------------------------ all of it
+COMPACT = ('604',)
+def pack(p):
+    f = (1 if p['intake'] else 0) | (2 if p['shoot'] != 'off' else 0) | (4 if p.get('hold') else 0)
+    out = [p['fx'], p['fy'], p['v'], f]
+    if p['action'] != 'none': out += [p['action'], p.get('t')]
+    return out
+
+
 def main():
     ap = argparse.ArgumentParser()
     up = os.path.dirname(ROOT)
     ap.add_argument('--8793', dest='t8793', default=os.path.join(up, 'pumpkin-bots/2026_robot'))
     ap.add_argument('--2910', dest='t2910', default=os.path.join(up, 'frcteam2910/2026competitionrobot-public'))
     ap.add_argument('--1678', dest='t1678', default=os.path.join(up, 'frc1678/C2026-Public'))
+    ap.add_argument('--604', dest='t604', default=os.path.join(up, 'frc604/2026-public/FRC-2026'))
     a = ap.parse_args()
     autos = {}
     pp = os.path.join(a.t8793, 'src/main/deploy/pathplanner')
@@ -271,12 +414,36 @@ def main():
         st, pts = auto_1678(a.t1678, ['startToScore', 'scoreToSecondSweep', 'secondScoreToNeutral'], mirror)
         autos.setdefault('1678', []).append({'id': f'1678-{side}', 'name': name, 'side': side, 'source': f'autos/midline/{src}.java',
                                              'startFx': round(st[0], 3), 'startFy': round(st[1], 3), 'shootPreload': False, 'points': pts})
+    for au in AUTOS_604:
+        slug = re.sub(r'[^a-z0-9]+', '-', au['name'].lower()).strip('-')
+        for side in ('right', 'left'):
+            seq = au[side]
+            if not seq: continue
+            st, pts = auto_604(a.t604, seq)
+            cls = au['cls'].format(side.capitalize()) if '{}' in au['cls'] else au['cls'] + (' (isLeft)' if side == 'left' else '')
+            files = ' + '.join(i[1] + '.csv' for i in seq if i[0] == 'qp')
+            autos.setdefault('604', []).append({'id': f'604-{slug}-{side}', 'name': f"{au['name']} {side.upper()}", 'side': side,
+                                                'source': f'commands/autos/{cls}: {files}' + ('' if au['champs'] else ' (not in their Champs chooser)'),
+                                                'startFx': round(st[0], 3), 'startFy': round(st[1], 3), 'shootPreload': False, 'points': pts})
     out = os.path.join(ROOT, 'js', 'teamAutos.js')
     with open(out, 'w') as f:
         f.write('// The teams\' own AUTOs, from their robot code (tools/team-autos.py writes this file; see its\n')
         f.write('// header). Blue field coordinates; points as js/customAutos.js, speeds v in m/s, t: how long a\n')
         f.write('// shoot or wait lasts (s), or for until, the time into AUTO it waits for.\n')
-        f.write('export const TEAM_AUTOS = ' + json.dumps(autos, separators=(',', ':')) + ';\n')
+        plain = {k: v for k, v in autos.items() if k not in COMPACT}
+        f.write('export const TEAM_AUTOS = ' + json.dumps(plain, separators=(',', ':')) + ';\n')
+        # (a team with many autos, 604's, as compact points, [fx, fy, v, flags] and [.., action, t]
+        # (flags: 1 intake, 2 shooting, 4 hold the wait out), spelled out as above when it loads)
+        for k in COMPACT:
+            if k not in autos: continue
+            comp = [{**{q: x[q] for q in x if q != 'points'}, 'pts': [pack(p) for p in x['points']]} for x in autos[k]]
+            f.write(f"TEAM_AUTOS['{k}'] = " + json.dumps(comp, separators=(',', ':')) + '.map(({ pts, ...a }) => ({ ...a, points: pts.map(unpack) }));\n')
+        f.write('function unpack([fx, fy, v, f, action = "none", t]) {\n'
+                '  const p = { fx, fy, intake: !!(f & 1), shoot: f & 2 ? "always" : "off", v, action };\n'
+                '  if (t !== undefined) p.t = t;\n'
+                '  if (f & 4) p.hold = true;\n'
+                '  return p;\n'
+                '}\n')
     for k, v in autos.items():
         for x in v:
             print(k, x['id'], 'start', x['startFx'], x['startFy'], len(x['points']), 'points', [p['action'] + ' ' + str(p.get('t')) for p in x['points'] if p['action'] != 'none'])

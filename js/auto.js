@@ -338,7 +338,9 @@ export class AutoRunner {
       cmd.shoot = true;
       // too close to the HUB for this shooter: back away toward our ALLIANCE WALL
       if (/range/.test(r.status)) cmd.vx = (this.alliance === 'blue' ? -1 : 1) * 1.2;
-      if (r.stored.length === 0 || this.stepT > s.timeout) next();
+      // (a team auto's held shot sits out its time, intaking if it says so: 604's)
+      if (s.intake) cmd.intake = true;
+      if ((r.stored.length === 0 && !s.hold) || this.stepT > s.timeout) next();
       return;
     }
     if (s.type === 'wait') {

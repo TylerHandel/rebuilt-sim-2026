@@ -90,7 +90,9 @@ export function customSteps(a, mirror, maxSpeed) {
     cur.pts.push(p.v ? [p.fx, fy(p.fy), speed] : [p.fx, fy(p.fy)]);
     cur.timeout += (2 * Math.hypot(p.fx - prev.fx, p.fy - prev.fy)) / Math.max(0.5, maxSpeed * speed);
     prev = p;
-    if (p.action === 'shoot') { flush(); steps.push({ type: 'shoot', timeout: p.t ?? 3 }); }
+    // (a team auto's shot that holds its spot for the time it's given, its intake running or not, as
+    // 604's Quikplan waits do: hold)
+    if (p.action === 'shoot') { flush(); steps.push(p.hold ? { type: 'shoot', timeout: p.t ?? 3, hold: true, intake: !!p.intake } : { type: 'shoot', timeout: p.t ?? 3 }); }
     else if (p.action === 'until') { flush(); steps.push({ type: 'wait', until: p.t, intake: p.intake }); }
     else if (p.action !== 'none') { flush(); steps.push({ type: 'wait', t: waitTime(p.action, p.t), intake: p.intake }); }
   }
