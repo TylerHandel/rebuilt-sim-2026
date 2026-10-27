@@ -291,7 +291,10 @@ export function placeShooter([main, hood], yaw, hoodDeg) {
 // pivot; the hopper box (it slides with the arm); the rotor on its axis (it turns, and FUEL it
 // touches push back on its motor); the turret and the hood (posed each step). (The bumper: its
 // foam noodles, bumper604.)
-export function pathSurfaces604(mesh, t, { mu = 0.35 } = {}) {
+// (FUEL's foam on the ball path's plywood, printed plastic and corrugated tube: 0.25, an estimate;
+// at the 0.35 the turret and hood keep, the serializer's best second was 13 FUEL against their
+// ~15 BPS, the infeed's motor at its current limit pushing the column up the tube; at 0.25, 15)
+export function pathSurfaces604(mesh, t, { mu = 0.25, muShooter = 0.35 } = {}) {
   const s = (k, pos, m = mu) => new Surface({ name: `${k} (CAD)`, vertices: mesh[k].v.map((x) => x / 1000), indices: mesh[k].i, mu: m, pos });
   const body = s('body', [0, 0, 0]);
   const intake = s('intake', [...PIVOT, 0]).onShaft(t.pivot, [...PIVOT, 0], Z);
@@ -301,8 +304,8 @@ export function pathSurfaces604(mesh, t, { mu = 0.35 } = {}) {
   hopper.slideK = 1;
   hopper.cam = cam;
   const rotor = s('rotor', [AXIS[0], 0, AXIS[1]]).onShaft(t.rotor, [AXIS[0], 0, AXIS[1]], [0, -1, 0]);
-  const turret = s('turret', [AXIS[0], 0, AXIS[1]]);
-  const hood = s('hood', [AXIS[0] + SHOOTER.main.at[0], SHOOTER.main.at[1], AXIS[1]]);
+  const turret = s('turret', [AXIS[0], 0, AXIS[1]], muShooter);
+  const hood = s('hood', [AXIS[0] + SHOOTER.main.at[0], SHOOTER.main.at[1], AXIS[1]], muShooter);
   return { body, intake, hopper, rotor, turret, hood };
 }
 export function placeHopper(sf, deg) {

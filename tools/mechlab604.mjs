@@ -47,7 +47,7 @@ const RPM = (w) => (w * 60) / TAU;
 // the robot's mechanisms, fixed in the world: the arms at their deg, the turret at yaw (rad; 0
 // facing forward), the hood at their angle
 function rig({ arm = INTAKE.deploy, yaw = 0, hood = SHOOTER.hoodMin } = {}) {
-  const t = build604(), wh = wheels604(t), s = pathSurfaces604(PATH, t), sw = shooterWheels(t);
+  const t = build604(), wh = wheels604(t), s = pathSurfaces604(PATH, t, process.env.MU ? { mu: Number(process.env.MU) } : undefined), sw = shooterWheels(t);
   const pathW = [...wh.intake, ...wh.rotor, ...bumper604()];
   const path = new Mechanism({ substeps: 6, shafts: [...new Set(pathW.map((x) => x.shaft)), t.pivot, t.rotor], wheels: pathW, surfaces: Object.values(s) });
   const shooter = new Mechanism({ substeps: 6, sub: Number(process.env.SUB ?? 8), shafts: [t.main, t.hoodRoller], wheels: sw });
@@ -278,7 +278,9 @@ const tests = {
     const sh = watch.shots;
     if (sh.length) console.log(`  (shots leave at ${med(sh.map((o) => o.v)).toFixed(2)} m/s (${Math.min(...sh.map((o) => o.v)).toFixed(2)}..${Math.max(...sh.map((o) => o.v)).toFixed(2)}), ${med(sh.map((o) => o.el)).toFixed(1)} deg; the main roller down to ${minRad.toFixed(0)} rad/s of ${rad.toFixed(0)}; the rotor stalled ${(jams * DT).toFixed(2)} s; ${left.length} still in it)`);
     const span = s.length > 1 ? s[s.length - 1] - first : 0;
-    console.log(`604 dumps ${s.length} of ${n0}: ${in1} in the first second, ${span ? ((s.length - 1) / span).toFixed(1) : 0} FUEL/s over the whole dump`);
+    // (and its best second: as many shot in any one second, the load still coming)
+    const best = s.reduce((m, x, i) => Math.max(m, s.slice(i).filter((y) => y < x + 1).length), 0);
+    console.log(`604 dumps ${s.length} of ${n0}: ${in1} in the first second, ${best} in its best, ${span ? ((s.length - 1) / span).toFixed(1) : 0} FUEL/s over the whole dump`);
   },
 };
 
