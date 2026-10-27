@@ -75,7 +75,7 @@ export const BAY = { x0: -(HALF_L + IN), hw: HALF_W + IN, chamfer: 0.12, top: 0.
 // well under the bumper's top, BUMPER_TOP, or FUEL slosh forward over it into the box), and the
 // stadium from its top up (slope) toward the hopper's walls, to cap over the floor (estimates: the
 // renders' clear ring round the floor)
-export const STADIUM = { r: 0.292, wall: 0.07, wallF: 0, slope: 0.15, cap: 0.1 };
+export const STADIUM = { r: 0.292, wall: 0.07, wallF: 0, slope: 0.25, cap: 0.1 };
 export const BUMPER_TOP = 0.168;
 // the rotor's hub (its "Shrink Wrap" skin) round the axis, and the skirt that sheds FUEL off it
 // (estimates: the renders)
@@ -111,7 +111,7 @@ export const RAMP = { RO: BEND.u + R + 0.004, rollers: { n: 9, r: 0.0125, J: 2e-
 // bearings (r, and its inertia J: a plastic tube; estimates: the renders), their fronts on the
 // curve FUEL ride along (hookCurve) and the plate behind them; past them, where it comes in to the
 // hub, no rollers (the team), the plate itself the face
-export const HOOK = { tipR: STADIUM.r - 0.003, tipA: 0.6, lead: 0.12, root: 0.1, y0: FLOOR + 0.006, y1: FLOOR + 0.1, finBack: 0.09, rollers: { n: 17, end: 0.75, r: 0.011, J: 1e-6 } };
+export const HOOK = { tipR: STADIUM.r - 0.003, tipA: 0.45, lead: 0.12, root: 0.1, y0: FLOOR + 0.006, y1: FLOOR + 0.1, finBack: 0.09, rollers: { n: 17, end: 0.75, r: 0.011, J: 1e-6 } };
 // the rotor: the hook, the hub, the feeder wheels and their gears (estimate)
 export const ROTOR = { J: 0.04 };
 
