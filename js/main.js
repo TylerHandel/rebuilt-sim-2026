@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { Physics } from './physics.js';
 import { Field } from './field.js';
+import { WallCutaway } from './wallCutaway.js';
 import { FuelManager } from './fuel.js';
 import { OpponentAI } from './opponent.js';
 import { createGame, stepGame, frameGame } from './game.js';
@@ -69,13 +70,16 @@ let tickPhys = 0;
 }
 const field = new Field(scene, physics);
 field.build();
+// the alliance wall cut away where it hides your robot (js/wallCutaway.js)
+const cutaway = new WallCutaway(renderer, field);
+cutaway.register(field.group);
 const fuel = new FuelManager(physics, scene, field);
 // graphics presets (js/graphics.js); the Lowest one leaves the field CAD out
 gfx = new Graphics({ renderer, scene, camera, sun, fuel, field });
 {
   const k = storedPreset();
   if (PRESETS[k === 'auto' ? detectGPU(renderer).preset : k]?.cad !== false) {
-    loadCadModels(scene, field).then((l) => { if (l.length) console.info('CAD loaded:', l.join(', ')); gfx.refresh(); });
+    loadCadModels(scene, field).then((l) => { if (l.length) console.info('CAD loaded:', l.join(', ')); for (const o of scene.children) if (o.userData.cad) cutaway.register(o); gfx.refresh(); });
   }
 }
 fuel.stage(8);
@@ -434,6 +438,7 @@ function tick(dt, render) {
   } else {
     rig.update(dt, game ? game.robot : null);
   }
+  cutaway.update(camera, ui.screen === 'menu' || ui.screen === 'editor' ? null : game?.robot);
   if (render) {
     // (materials that appeared since: a new match's robots, CAD parts that just loaded)
     gfxRefreshT -= dt;

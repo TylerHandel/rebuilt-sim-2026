@@ -112,6 +112,7 @@ export class Field {
   build() {
     this._buildFloor();
     this._buildGuardrails();
+    this.wallSpans = [];
     for (const a of [BLUE, RED]) this._buildSide(a);
     this._buildArena();
   }
@@ -585,6 +586,11 @@ export class Field {
       { z0: towerZ0, z1: towerZ1, kind: 'tower' },
       { z0: towerZ1, z1: outEdge, kind: 'ds' },
     ];
+    // (where the wall can't be seen through, world frame: the Driver Stations' bases under their
+    // glass, the TOWER WALL and the OUTPOST, for the camera's cutaway, js/wallCutaway.js)
+    for (const [z0, z1, h] of [...segs.map((sg) => [sg.z0, sg.z1, sg.kind === 'ds' ? DS_BASE_H : ALLIANCE_WALL_H]), [outEdge, HALF_W, ALLIANCE_WALL_H]]) {
+      this.wallSpans.push({ x: s * wallX, z0: Math.min(s * z0, s * z1), z1: Math.max(s * z0, s * z1), h });
+    }
     for (const sg of segs) {
       const w = sg.z1 - sg.z0, zc = (sg.z0 + sg.z1) / 2;
       boxC(wx, ALLIANCE_WALL_H / 2, zc, wallT / 2, ALLIANCE_WALL_H / 2, w / 2, { restitution: 0.4 });
