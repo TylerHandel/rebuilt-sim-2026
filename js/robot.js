@@ -683,8 +683,10 @@ export class Robot {
       this.armCollider.setRotationWrtParent({ x: 0, y: 0, z: Math.sin(a / 2), w: Math.cos(a / 2) });
     } else {
       // the block slides out from inside the bumper to the roller as the intake deploys
+      // (ic.front: where its front really is, down, from the CAD)
       const b = this.intakeBlock, out = this.intakeDeploy * (ic.reach + 0.04);
-      this.armCollider.setTranslationWrtParent({ x: this.halfL - b.hx + out - 0.02, y: (b.y0 + b.y1) / 2, z: 0 });
+      const x = ic.front ? this.halfL + this.intakeDeploy * (ic.front - this.halfL) - b.hx : this.halfL - b.hx + out - 0.02;
+      this.armCollider.setTranslationWrtParent({ x, y: (b.y0 + b.y1) / 2, z: 0 });
       this.armCollider.setCollisionGroups(this.intakeDeploy > 0.05 ? groups(GROUP.INTAKE, GROUP.STATIC | GROUP.ROBOT | GROUP.INTAKE | GROUP.ROBOT_BARRIER) : 0);
     }
   }

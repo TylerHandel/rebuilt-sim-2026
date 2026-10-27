@@ -418,6 +418,7 @@ export const ROBOTS = {
       width: 25 * IN, reach: 0.29, rate: 200, pull: 5, deployTime: 0.3, retractTime: 0.35, side: 'front', latched: false, squeeze: 0.75,
       compacts: true, compactPush: 180, compactMin: 0.33,
       arm: { x: 0.309, y: 0.169, len: 0.314, stowDeg: 132.3, deployDeg: 2.3 }, // 130deg (their code), crash bar square
+      front: 0.639, // the crash bar's front, down (their CAD): where it meets a wall
     },
     // the horizontal extension (polycarbonate sides, a corrugated front) slides straight out: a pin
     // on the intake plate rides a slanted vertical slot in the side plates (their robot page and
