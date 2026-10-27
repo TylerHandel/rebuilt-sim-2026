@@ -199,6 +199,8 @@ export const ROBOTS = {
     robotName: 'RIPCURRENT',
     archetype: 'Dye Rotor',
     blurb: 'Extending hopper holds about 88 FUEL under a stretchy net. A Dye Rotor single-streams FUEL into a turret shooter (about 14 FUEL per second) with precomputed shoot-on-the-move.',
+    // its intake, Dye Rotor and shooter as physical mechanisms (js/mech/r4414.js, phys4414.js)
+    physical: '4414',
     frame: { length: 25.0 * IN, width: 32.0 * IN, chamfer: 0.12 }, // back corners cut off
     height: 21.75 * IN,
     mass: 64, // robot (up to 115 lb) + bumpers + battery

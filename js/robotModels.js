@@ -11,9 +11,9 @@ import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.j
 import { IN, FUEL } from './constants.js';
 import { BUMPER_T, BUMPER_Y0, BUMPER_Y1, frameShape, offsetShape, modulePoints } from './robotConfigs.js';
 import { ALLIANCE_COLOR_CSS } from './field.js';
-import { hookPath } from './hopper.js';
 import { build8793 as trains8793, conveyorWheels as conveyorWheels8793 } from './mech/r8793.js';
 import { FLOOR as FLOOR_2910 } from './mech/r2910.js';
+import * as D4 from './mech/r4414.js';
 import { fuelTexture } from './fuelSkin.js';
 import { ALUMINUM_COLORS } from './aluminumColors.js';
 
@@ -849,35 +849,6 @@ function spurGear(r, teeth, t, mat, parent, holes = 0) {
   return mesh(g, mat, parent);
 }
 
-// the Dolphin Fin: a wedge on the rotor's outside rim, tall at its leading face and sloping down
-// behind it (rotor frame, it leads at angle 0 and trails back to -span)
-function dolphinFinGeometry(r0, r1, span, hMax) {
-  const NU = 14, NV = 5;
-  const pos = [], idx = [];
-  const hAt = (u, v) => hMax * (0.35 + 0.65 * v) * Math.pow(1 - u, 1.4) * (1 - 0.35 * Math.pow(u, 0.3) * (1 - v));
-  const P = (u, v, top) => {
-    const a = -u * span - 0.18 * (1 - v) * (1 - v); // leading edge swept back toward the column
-    const r = r0 + v * (r1 - r0);
-    return [r * Math.cos(a), top ? hAt(u, v) : 0, -r * Math.sin(a)];
-  };
-  const quad = (a, b, c, d) => { const i = pos.length / 3; pos.push(...a, ...b, ...c, ...d); idx.push(i, i + 1, i + 2, i, i + 2, i + 3); };
-  for (let i = 0; i < NU; i++) {
-    for (let j = 0; j < NV; j++) {
-      const u0 = i / NU, u1 = (i + 1) / NU, v0 = j / NV, v1 = (j + 1) / NV;
-      quad(P(u0, v0, 1), P(u1, v0, 1), P(u1, v1, 1), P(u0, v1, 1));
-    }
-    const u0 = i / NU, u1 = (i + 1) / NU;
-    quad(P(u0, 1, 0), P(u1, 1, 0), P(u1, 1, 1), P(u0, 1, 1)); // outer side
-    quad(P(u0, 0, 1), P(u1, 0, 1), P(u1, 0, 0), P(u0, 0, 0)); // inner side
-  }
-  for (let j = 0; j < NV; j++) quad(P(0, j / NV, 0), P(0, j / NV, 1), P(0, (j + 1) / NV, 1), P(0, (j + 1) / NV, 0)); // leading face
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-  g.setIndex(idx);
-  g.computeVertexNormals();
-  return g;
-}
-
 // thin band following a curve of [x, z] points at height y0..y1 (vertical ribbon)
 function ribbon(points, y0, y1, mat, parent) {
   const pos = [], idx = [];
@@ -1126,7 +1097,7 @@ function build4414(cfg, alliance) {
   const xF = L / 2 + BUMPER_T + cfg.intake.reach - extLen; // front face, stowed
   // the box's side panels and racks run outboard of the hopper walls and the pinion strips
   const sideZ = W / 2 + 0.02, rackZ = W / 2 + 0.012, boxBack = xF - 0.33, bw = sideZ + 0.002;
-  const chinY = 0.245, rollerY = 0.165;
+  const chinY = D4.BOX.chin;
   {
     // front panel (SRPP), with a bent chin at the bottom over the roller
     mesh(new THREE.BoxGeometry(0.004, wallTop - chinY, 2 * bw), carbon, ext, xF - 0.006, (wallTop + chinY) / 2, 0);
@@ -1160,13 +1131,16 @@ function build4414(cfg, alliance) {
       bx(0.012, 0.15, 0.006, M.polyBelt, ext, xF - 0.05, 0.23, s * (sideZ - 0.022)).rotation.z = 0.25;
     }
   }
-  // under-roller at the front lip, white with big printed flanged hubs
+  // the primary 3in polycarbonate roller under the chin, on big printed flanged hubs, and the
+  // bottom 1.5in roller at the lip (where the physical model has them: js/mech/r4414.js)
+  const I4 = D4.INTAKE;
   const intakeRoller = new THREE.Group();
-  intakeRoller.position.set(xF - 0.035, rollerY, 0);
+  intakeRoller.position.set(xF + I4.primary.dx, I4.primary.y, 0);
   ext.add(intakeRoller);
-  cylZ(0.03, 2 * sideZ - 0.03, std(0xe6e8ea, 0.45, 0.05), intakeRoller, 0, 0, 0, 24);
-  for (const s of [-1, 1]) for (const zz of [0.06, 0.3]) cylZ(0.036, 0.012, plastic, intakeRoller, 0, 0, s * (sideZ - zz), 18);
-  for (let i = 0; i < 6; i++) bx(0.004, 0.061, 2 * sideZ - 0.08, std(0xd0d3d7, 0.5, 0.05), intakeRoller, 0, 0, 0).rotation.z = (i * Math.PI) / 6; // ribs
+  cylZ(I4.primary.r, 2 * sideZ - 0.03, std(0xe6e8ea, 0.45, 0.05), intakeRoller, 0, 0, 0, 24);
+  for (const s of [-1, 1]) for (const zz of [0.06, 0.3]) cylZ(I4.primary.r + 0.006, 0.012, plastic, intakeRoller, 0, 0, s * (sideZ - zz), 18);
+  for (let i = 0; i < 6; i++) bx(0.004, 2 * I4.primary.r + 0.001, 2 * sideZ - 0.08, std(0xd0d3d7, 0.5, 0.05), intakeRoller, 0, 0, 0).rotation.z = (i * Math.PI) / 6; // ribs
+  const bottomBar = cylZ(I4.bar.r, 2 * sideZ - 0.03, std(0xe6e8ea, 0.45, 0.05), ext, xF + I4.bar.dx, I4.bar.y, 0, 16);
   // hinged ramp of passive rollers from the roller up to the bumper (it swings down as the box
   // comes out and lies on the bumper when it's out)
   const ramp = new THREE.Group();
@@ -1178,9 +1152,10 @@ function build4414(cfg, alliance) {
   const rampRollers = [];
   for (let i = 0; i < 6; i++) rampRollers.push(cylZ(0.011, 2 * wallZ - 0.05, std(0x2e3137, 0.55, 0.1), ramp, -0.02 - i * (rampLen - 0.03) / 5, 0.006, 0, 10));
   cylZ(0.004, 2 * wallZ - 0.02, M.alu, ramp, 0, 0, 0, 6);
-  // star roller (hook shaft) over the bumper that drives FUEL up and over it
+  // (a star roller over the bumper: not in their binder, so not drawn)
   const star = new THREE.Group();
   star.position.set(L / 2, 0.345, 0);
+  star.visible = false;
   root.add(star);
   cylZ(0.006, 2 * wallZ - 0.01, M.alu, star, 0, 0, 0, 8);
   for (let i = 0; i < 22; i++) {
@@ -1209,7 +1184,8 @@ function build4414(cfg, alliance) {
   const rotor = new THREE.Group();
   rotor.position.set(rs.x, rs.y, rs.z);
   root.add(rotor);
-  // the platter: pocketed spokes, a center hole round the column, skinned with thin smoked poly
+  // the floor under the rotor: pocketed spokes, a center hole round the hub, skinned with thin
+  // smoked poly (fixed: the hook turns over it)
   {
     const s = new THREE.Shape();
     s.absarc(0, 0, rs.r, 0, Math.PI * 2, false);
@@ -1238,10 +1214,8 @@ function build4414(cfg, alliance) {
     for (let i = 0; i < 36; i++) { const a = (i / 36) * Math.PI * 2; rb.add(new THREE.Vector3(Math.cos(a) * (rs.r - 0.015), 0.002, Math.sin(a) * (rs.r - 0.015)), up); }
     for (let i = 0; i < 12; i++) { const a = (i / 12) * Math.PI * 2; rb.add(new THREE.Vector3(Math.cos(a) * 0.088, 0.002, Math.sin(a) * 0.088), up); }
     rb.done();
-    // big spur gear under the center (36.4:1 from the motors)
+    // the rotor's big 10DP gear under the center (36.4:1 from the motor)
     spurGear(0.12, 72, 0.008, blackAl, rotor, 8).position.y = -0.008;
-    // the Dolphin Fin, on the rim
-    mesh(dolphinFinGeometry(0.175, rs.r - 0.004, 0.95, 0.085), std(0x7a818b, 0.45, 0.3, { side: THREE.DoubleSide }), rotor, 0, 0.001, 0);
   }
   // base plate and the fixed ring wall round the rotor, on standoffs
   flatPart(arcPts(rs.x, rs.z, rs.r + 0.03, 0, Math.PI * 2, 48), [], 0.005, darkPlate, root, rs.y - 0.03);
@@ -1302,81 +1276,83 @@ function build4414(cfg, alliance) {
     const leg = rod(root, top, bot, 0.012, blackAl, 6);
     leg.scale.set(1, 1, 0.5);
   }
-  const wrap = mesh(new THREE.CylinderGeometry(col.r + 0.005, col.r + 0.075, 0.2, 40, 1, true, 0.75, Math.PI * 2 - 1.5), clearSmoke, root, col.x, rs.y + 0.105, col.z);
-  wrap.castShadow = false;
-  // the hook: a fixed curved guide of passive rollers over the rotor, from the rim in to the
-  // feeder (FUEL riding round on the rotor runs into it and slides in along it)
-  const feed = bay.feed, hk = bay.hook;
-  const hookPts = hookPath(bay, 20);
+  // the Dye Rotor's moving part (js/mech/r4414.js, the physical model's own geometry): its hook,
+  // lined with passive rollers and backed by the Dolphin Fin, and at its root the TTB wheels and
+  // the 3in omni, the channel in through the hub's side, the 1.25in omnis across the bend, all
+  // turning together over the fixed floor
+  const rotorParts = new THREE.Group();
+  rotorParts.position.set(D4.AXIS[0], 0, D4.AXIS[1]);
+  root.add(rotorParts);
+  const H4 = D4.HOOK, F4 = D4.FEED;
+  const hookPts = [];
+  for (let i = 0; i <= 24; i++) { const { r, a } = D4.hookCurve(i / 24); hookPts.push([r * Math.cos(a), r * Math.sin(a)]); }
+  // (and the straight run in along the channel to the TTB wheels)
+  for (const u of [H4.mouth - 0.01, F4.ttb.us[0] + F4.ttb.r]) { const p = D4.chanL(u, 0, -F4.w); hookPts.push([p[0], p[2]]); }
+  for (const y of [H4.y0, H4.y1]) flatRibbon(hookPts, 0.02, y, blackAl, rotorParts);
   const hookRollers = [];
-  for (const y of [rs.y + hk.y0, rs.y + hk.y1]) flatRibbon(hookPts, 2 * hk.r, y, blackAl, root);
-  for (let i = 1; i < hookPts.length; i += 2) {
-    const [x, z] = hookPts[i];
-    const pr = cylY(0.011, hk.y1 - hk.y0 - 0.005, std(0x3b3f45, 0.5, 0.1), root, x, rs.y + (hk.y0 + hk.y1) / 2, z, 10);
-    hookRollers.push(pr);
+  const rollerMat = std(0x3b3f45, 0.5, 0.1);
+  for (let i = 1; i < hookPts.length - 2; i++) {
+    const [x, z] = hookPts[i], r = Math.hypot(x, z);
+    // (just in front of the face)
+    hookRollers.push(cylY(0.011, H4.y1 - H4.y0 - 0.006, rollerMat, rotorParts, x * (1 - 0.012 / r), (H4.y0 + H4.y1) / 2, z * (1 - 0.012 / r), 10));
   }
-  for (let i = 0; i < hookPts.length; i += 5) {
-    const [x, z] = hookPts[i];
-    cylY(0.004, hk.y1 - hk.y0, M.alu, root, x, rs.y + (hk.y0 + hk.y1) / 2, z, 6);
-  }
-  // horizontal 1.25in omni wheels on a shaft along the hook's inner end: FUEL slides onto the ramp
-  const omniShaft = new THREE.Group();
-  let omniSpin;
   {
-    const [ax, az] = hookPts[12], [bx2, bz] = hookPts[20];
-    omniShaft.position.set((ax + bx2) / 2, rs.y + 0.21, (az + bz) / 2);
-    omniShaft.rotation.y = -Math.atan2(bz - az, bx2 - ax);
-    root.add(omniShaft);
-    const len = Math.hypot(bx2 - ax, bz - az);
-    omniSpin = new THREE.Group();
-    omniShaft.add(omniSpin);
-    cylX(0.005, len, M.alu, omniSpin, 0, 0, 0, 6);
-    for (let i = 0; i < 7; i++) cylX(0.016, 0.012, M.compliant, omniSpin, -len / 2 + (i + 0.5) * len / 7, 0, 0, 8);
+    // the Dolphin Fin: a ramp from the hook's top edge down behind it to the floor
+    const pos = [], idx = [];
+    for (let i = 0; i <= 24; i++) {
+      const { r, a } = D4.hookCurve(i / 24), b = a - H4.finBack / r;
+      pos.push(r * Math.cos(a), H4.y1, r * Math.sin(a), r * Math.cos(b), D4.FLOOR + 0.004, r * Math.sin(b));
+      if (i) { const k = 2 * i; idx.push(k - 2, k, k + 1, k - 2, k + 1, k - 1); }
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setIndex(idx);
+    g.computeVertexNormals();
+    mesh(g, std(0x7a818b, 0.45, 0.3, { side: THREE.DoubleSide }), rotorParts);
   }
-  // feeder: vertical 3in omni wheel and 3in TTB urethane wheels on the column side of the ramp,
-  // passive-roller backing on the outside; the ramp climbs to the turret
-  const fr = new THREE.Vector3(feed.x, rs.y + R_FUEL, feed.z);
-  const via = feed.via.map(([x, y, z]) => new THREE.Vector3(x, y, z));
-  const path = [fr, ...via];
-  const feederWheels = [];
-  for (const [i, t, big] of [[0, 0.5, true], [1, 0.3, false], [1, 0.8, false]]) {
-    const p = path[i].clone().lerp(path[i + 1], t);
-    const toC = new THREE.Vector3(col.x - p.x, 0, col.z - p.z).normalize();
-    const c = p.clone().addScaledVector(toC, R_FUEL + 0.03);
-    const w = new THREE.Group();
-    w.position.copy(c);
-    w.rotation.y = Math.atan2(toC.x, toC.z);
-    root.add(w);
+  // the TTB wheels (orange-tan urethane on copper hubs) and the 3in omni over the outer pair
+  const ttbSpin = [];
+  const tw = FUEL.radius + F4.ttb.r - F4.ttb.squeeze;
+  F4.ttb.us.forEach((u, j) => {
+    const [x, , z] = D4.chanL(u, 0, -tw);
+    const axle = new THREE.Group();
+    axle.position.set(x, 0, z);
+    rotorParts.add(axle);
+    ttbSpin.push(axle);
+    for (const y of F4.ttb.ys) cylY(F4.ttb.r, F4.ttb.wid, std(0xc9874a, 0.6, 0.05), axle, 0, y, 0, 24);
+    cylY(0.006, F4.ttb.omniY - D4.FLOOR, M.alu, axle, 0, (F4.ttb.omniY + D4.FLOOR) / 2, 0, 8);
+    if (!j) {
+      cylY(F4.ttb.r, F4.ttb.wid, std(0x2a2d33, 0.6, 0.1), axle, 0, F4.ttb.omniY, 0, 24);
+      for (let k = 0; k < 10; k++) { const a = (k * Math.PI) / 5; cylY(0.007, 0.016, std(0x8d939b, 0.5, 0.2), axle, Math.cos(a) * F4.ttb.r, F4.ttb.omniY, Math.sin(a) * F4.ttb.r, 6).rotation.set(0, -a, Math.PI / 2); }
+    }
+  });
+  // the 1.25in omnis on their shaft across the bend, and the channel's walls in the hub
+  const bendAxle = new THREE.Group();
+  {
+    const [x, , z] = D4.chanL(D4.BEND.u, 0, 0);
+    bendAxle.position.set(x, D4.BEND.y, z);
+    bendAxle.rotation.y = -D4.CH; // (its local x across the channel)
+    rotorParts.add(bendAxle);
     const spin = new THREE.Group();
-    w.add(spin);
-    cylX(0.038, big ? 0.03 : 0.025, big ? M.compliant : std(0x1d6fd0, 0.6, 0.05), spin, 0, 0, 0, 20);
-    cylX(0.012, 0.035, M.copper, spin, 0, 0, 0, 10);
-    if (big) for (let k = 0; k < 8; k++) { const a = (k * Math.PI) / 4; cylX(0.008, 0.02, M.compliant, spin, 0, Math.cos(a) * 0.036, Math.sin(a) * 0.036, 6).rotation.set(a, 0, 0); }
-    feederWheels.push(spin);
+    bendAxle.add(spin);
+    cylZ(0.004, 2 * F4.w, M.alu, spin, 0, 0, 0, 6);
+    for (let i = 0; i < 5; i++) cylZ(F4.omni.r, 0.018, M.compliant, spin, 0, 0, -F4.w + (i + 0.5) * (2 * F4.w) / 5, 10);
+    bendAxle.userData.spin = spin;
   }
-  kraken(root, col.x + 0.05, 0.3, col.z + 0.08, true, 'x');
-  // backing ramp outside the path
+  for (const [w, u1] of [[F4.w, F4.guide], [-F4.w, F4.ttb.us[1] - 0.045]]) {
+    const [x0, , z0] = D4.chanL(-D4.BEND.u, 0, w), [x1, , z1] = D4.chanL(u1, 0, w);
+    const len = Math.hypot(x1 - x0, z1 - z0);
+    const plate = bx(len, D4.BORE.top - D4.FLOOR, 0.004, darkPlate, rotorParts, (x0 + x1) / 2, (D4.BORE.top + D4.FLOOR) / 2, (z0 + z1) / 2);
+    plate.rotation.y = -Math.atan2(z1 - z0, x1 - x0);
+  }
+  // the hub's skin (the Shrink Wrap), slotted where the channel comes in
   {
-    const pts = [];
-    for (let i = 0; i < path.length - 1; i++) for (let k = 0; k < 4; k++) pts.push(path[i].clone().lerp(path[i + 1], k / 4));
-    pts.push(path[path.length - 1].clone());
-    const bk = [];
-    for (const p of pts) {
-      const out = new THREE.Vector3(p.x - col.x, 0, p.z - col.z).normalize();
-      bk.push(p.clone().addScaledVector(out, R_FUEL + 0.015));
-    }
-    for (let i = 0; i < bk.length - 1; i++) {
-      if (bk[i].y > wallTop + 0.04) break;
-      const a = bk[i], b = bk[i + 1];
-      const plate = rod(root, a, b, 0.004, blackAl, 4);
-      plate.scale.set(12, 1, 1);
-      if (i % 2 === 0) {
-        const mid = a.clone().add(b).multiplyScalar(0.5);
-        const out = new THREE.Vector3(mid.x - col.x, 0, mid.z - col.z).normalize();
-        const t = new THREE.Vector3().crossVectors(up, out);
-        rod(root, mid.clone().addScaledVector(t, -0.04).addScaledVector(out, -0.012), mid.clone().addScaledVector(t, 0.04).addScaledVector(out, -0.012), 0.009, std(0x3b3f45, 0.5, 0.1), 8);
-      }
-    }
+    const slot = Math.asin(Math.min(1, (F4.w + 0.005) / D4.COLUMN.r));
+    const g = new THREE.CylinderGeometry(D4.COLUMN.r, D4.COLUMN.r, D4.COLUMN.top - D4.FLOOR, 40, 1, true, 0, Math.PI * 2 - 2 * slot);
+    // (three's cylinder starts at +z, going toward +x; the slot centred on the channel's direction)
+    const wrap = mesh(g, clearSmoke, rotorParts, 0, (D4.COLUMN.top + D4.FLOOR) / 2, 0);
+    wrap.rotation.y = Math.PI / 2 - D4.CH - slot - (Math.PI * 2 - 2 * slot);
+    wrap.castShadow = false;
   }
 
   // ---- turret: bearing ring in the top plate. The shooter hangs down inside the ring, with only
@@ -1450,17 +1426,19 @@ function build4414(cfg, alliance) {
     // the intake box slides out on its racks (and stays out)
     const ex = st.hopperDeploy * extLen;
     ext.position.x = ex;
-    intakeRoller.rotation.z += st.intakeSpeed * dt * 45; // pulls FUEL in under the chin
+    intakeRoller.rotation.z -= st.intakeSpeed * dt * 45; // pulls FUEL in up the ramp
+    bottomBar.rotation.y += st.intakeSpeed * dt * 90;
     star.rotation.z += st.intakeSpeed * dt * 35;
     for (const r of rampRollers) r.rotation.y += st.intakeSpeed * dt * 20;
     // the ramp hangs from the roller end and lies back on the bumper once the box is out
     const dxr = xF - 0.06 + ex - ridge.x;
     ramp.rotation.z = -Math.min(Math.PI / 2 - 0.06, Math.atan2(ridge.y - 0.02, Math.max(1e-3, dxr)));
-    // the Dye Rotor turns (its angle comes from the hopper physics, so it and the FUEL agree)
-    rotor.rotation.y = st.rotorAngle ?? 0;
+    // the Dye Rotor's hook and feeder turn over the fixed floor (clockwise from above: its angle
+    // from the physical model), the TTB wheels spin while it feeds
+    rotorParts.rotation.y = -(st.rotorTurn ?? 0);
     for (const r of hookRollers) r.rotation.y += st.feeding * dt * 25;
-    omniSpin.rotation.x += st.feeding * dt * 30;
-    for (const w of feederWheels) w.rotation.x -= st.feeding * dt * 40;
+    bendAxle.userData.spin.rotation.z += st.feeding * dt * 30;
+    for (const w of ttbSpin) w.rotation.y -= st.feeding * dt * 60;
     turret.rotation.y = st.turretYaw;
     fly.rotation.z -= st.flywheel * dt * 10;
     hoodRoller.rotation.y -= st.flywheel * dt * 5;

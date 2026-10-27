@@ -1,0 +1,418 @@
+// 4414's RIPCURRENT as physical mechanisms (js/mech/mechanism.js). Their CAD and code aren't public:
+// this is built from their 2026 technical binder (2026.team4414.com: its text and CAD renders) and
+// what the team said in its Chief Delphi thread ("Team 4414 HighTide 2026 Tech Binder:
+// RIPCURRENT"), with 604's Toploader (js/mech/r604.js, whose CAD and code are public) as the
+// reference for how a Dye Rotor's parts work together. Every dimension below the binder doesn't
+// give is read off its renders, or is an estimate (marked).
+// Robot frame: x forward (the intake), y up, z to its right.
+//
+// The binder's numbers:
+//   - drive: 25 x 32in swerve, 7.67:1; chamfered back corners; the bumper backing is the hopper's
+//     walls ("~1in extra hopper space per side")
+//   - Dye Rotor: "2x Kraken X60 for rollers and 1x Kraken X60 for rotation", "2.5:1 reduction on
+//     feeder wheels", "36.4:1 reduction for rotation"; a "Dolphin Fin" ramp on the outside ("rotor
+//     constantly spins in the opposite direction slowly to agitate balls and reduce packing
+//     pressure"); the "Shrink Wrap" ("allow balls to fall down smoothly around the rotor and reduce
+//     agitation while firing"); "passive plastic rollers on hook and ramp coupled with bearings
+//     decrease current draw and allow balls to push each other through"; a vertical 3in omni wheel
+//     over the 3in TTB urethane wheels; horizontal 1.25in GoBilda omni wheels onto the ramp.
+//     The team: "We spin the rotor around 2.25rps which is about 20bps theoretical" and, gap-free,
+//     12-14 BPS; "The feeder wheels on the shooter are the main bps regulator of the system", "the
+//     rotor wheels run at much higher surface speeds, so balls briefly treadmill". (A moving floor,
+//     "to actively pull balls toward the hook faster than a static floor", was in their rotor
+//     prototypes V4, V5, V7 and V8, driven by a 20DP gear round its rim; the rotor that played, V9
+//     and V10, has its big 10DP gear at the middle, under the hook.)
+//   - intake: a primary 3in polycarbonate roller (two X60s, 3.45:1) and a bottom 1.5in roller (an
+//     X44, 1.5:1), deployed at the start of the match and latched; the hopper box extends on
+//     polycarbonate 10DP racks (an X44 a side, 3.33:1 at a 10t pinion): "holds 85+ balls under the
+//     trench, 100+ with net over the bump"
+//   - shooter: "4x Kraken X44 geared 1:1 to a 3in flywheel", copper mass disks; "3x 1in sushi wheel
+//     feeder on one side geared down 16:14 with .5in compression"; "1in sushi wheel hood roller at
+//     50% surface speed with 1in compression"; ".9in and .8in compression on hood backing 3d
+//     prints"; the hood "coaxial with the shooter wheels" (the team), on a sector at 85.3:1 (an X44)
+//   - turret: 55.7:1 (an X44)
+//
+// How they're put together here (the renders, and 604's): the Dye Rotor turns (36.4:1, clockwise
+// from above) on the hopper's middle over a fixed floor: its hook, lined with passive rollers, runs
+// from the floor's rim in to the rotor's hub, its tip leading, and sweeps the FUEL on the floor along
+// its face in to its root, where the feeder wheels it carries (the 3in TTB urethane wheels on an
+// axle standing up, the 3in omni on top, driven through the hub: "rotor wheels") drive them in
+// through the hub's side and round the 1.25in omnis (on their shaft across the bend) up the ramp
+// into the hub's bore, each pushing the one ahead up into the turret on the same axis. The hook's
+// back is the Dolphin Fin, a ramp FUEL ride up over when the rotor turns back; the hub's skin is the
+// Shrink Wrap, a skirt FUEL slide off. In the turret the sushi feeder (geared off the same two X60s:
+// "the main bps regulator") pushes them up into the flywheel, which flings them round under the hood
+// and out past the hood roller.
+import { IN, FUEL } from '../constants.js';
+import { Motor, Shaft, Surface, Train, Wheel } from './mechanism.js';
+
+const R = FUEL.radius;
+// what each grips FUEL with (estimates, as 604's and 341's): the TTB urethane wheels, the stealth
+// wheels on the flywheel, the sushi wheels (rubber), the intake's polycarbonate tubes, the omnis'
+// rollers, and the passive rollers (free: almost nothing along them)
+export const MU = { urethane: 1.1, stealth: 1.6, sushi: 1.0, polycarb: 0.5, omni: 0.6, rollers: 0.06, plate: 0.3 };
+
+// ------------------------------------------------------------------ the layout (robot frame)
+export const HALF_L = 12.5 * IN, HALF_W = 16 * IN; // the frame (25 x 32in)
+// the Dye Rotor's axis, and the turret's on it (the renders: just behind the center)
+export const AXIS = [-0.02, 0];
+export const FLOOR = 0.105;      // the hopper's floor under the rotor (the renders: on the two cross rails)
+export const BUCKET = { r: 0.285 }; // the floor's round middle the rotor sweeps
+// the hopper: the bumper backing as walls, chamfered at the back corners, open at the front into
+// the box; the top plate over the back (to the turret's bearing) and the net over the rest
+// (the bumper backing is the hopper's wall: "~1in extra hopper space per side", the binder)
+export const BAY = { x0: -(HALF_L + IN), hw: HALF_W + IN, chamfer: 0.12, top: 0.535, net: 0.565, hole: 0.25 };
+// the printed "stadium" pieces round the rotor: up from the floor's rim to the walls
+export const STADIUM = { r: 0.292, slope: 0.4, cap: 0.1 };
+// the rotor's hub (its "Shrink Wrap" skin) round the axis, and the skirt that sheds FUEL off it
+// (estimates: the renders)
+export const COLUMN = { r: 0.105, top: 0.36, skirt: [0.12, 0.345] };
+// the rotor's frame (it turns: at phi = 0, as here): its channel from the hook's root in to the hub,
+// along CH (rad from +x toward +z, the way the rotor turns: clockwise from above); u out along it,
+// w the way it travels
+export const CH = Math.PI / 2;
+export const FEED = {
+  w: 0.078,               // the channel's half width (FUEL's radius and a little)
+  guide: 0.11,            // how far out its leading side runs (FUEL come in along the hook beyond it)
+  // the 3in TTB urethane wheels on two axles standing up along the channel's trailing side, two
+  // to an axle: the outer at the hook's corner (the 3in omni over it), the inner at the bend, 0.8in
+  // into the FUEL (estimates)
+  ttb: { us: [0.19, 0.105], r: 1.5 * IN, ys: [0.16, 0.197], omniY: 0.234, wid: 0.024, squeeze: 0.028 },
+  // the bend: round the 1.25in omnis on their shaft across it, up into the hub
+  omni: { r: 0.625 * IN, squeeze: 0.003, wid: 0.15 },
+};
+// FUEL's center along the channel, and the bend's center (u, y)
+export const YB = FLOOR + R + 0.002;
+export const BEND = { u: R + FEED.omni.r - FEED.omni.squeeze, y: YB + R + FEED.omni.r - FEED.omni.squeeze };
+export const BORE = { r: R + 0.004, top: 0.345 };
+// the hook: its face curves from its tip at the floor's rim (sweep rad ahead of the channel) back
+// and in to the channel's mouth (mouth m out along it), then runs straight in along the channel's
+// trailing side to the TTB wheels; just off the floor; its back the Dolphin Fin (finBack m behind its
+// top edge, at the floor)
+export const HOOK = { tipR: 0.283, sweep: 1.0, mouth: 0.24, y0: FLOOR + 0.006, y1: FLOOR + 0.16, finBack: 0.09 };
+// the rotor: the hook, the hub, the feeder wheels and their gears (estimate)
+export const ROTOR = { J: 0.04 };
+
+// the turret's frame: about AXIS, x along the shot; the flywheel (3in) FLY.x out from the axis,
+// the FUEL going up the column meeting its back; .9in of squeeze between it and the backing low
+// down (half each), .8in under the hood, 1in at the hood roller
+export const FLY = { r: 1.5 * IN, y: 0.4, w: 0.12 };
+const SQ = { low: 0.9 * IN, hood: 0.8 * IN, roller: 1.0 * IN, feeder: 0.5 * IN };
+export const SHOOTER = {
+  // FUEL's center round the flywheel's axle: the flywheel squeezing it by half the low backing's
+  path: FLY.r + R - SQ.low / 2,
+  // the axle's place: FUEL coming straight up the column meet the flywheel's lower back, ENTRY deg
+  // round its axle (so they wrap it from there round to where the hood lets them go)
+  entry: 210,
+  get x() { return -this.path * Math.cos((this.entry * Math.PI) / 180); },
+  // the backings (their 3D prints) round the axle: the fixed one low down (fixedA, deg),
+  // the hood's past it (HOOD.span deg from where it lets go)
+  fixedR: FLY.r + 2 * R - SQ.low, fixedA: [150, 200],
+  hoodR: FLY.r + 2 * R - SQ.hood,
+  // the hood roller (1in sushi wheel, 50% of the flywheel's surface speed) just inside the hood's end
+  roller: { r: 0.5 * IN, at: 4, w: 0.1 },
+  // the sushi feeder: three 1in wheels on the column's front side under the flywheel, into the
+  // FUEL against the column's back wall
+  feeder: { r: 0.5 * IN, ys: [0.29, 0.315, 0.34], w: 0.06 },
+  // what turns with the flywheel: four stealth wheels with copper and mass disks between (estimate:
+  // six 3in x 1/4in copper disks, 0.26 kg each, and the wheels), the rotors are added
+  J: 1.25e-3,
+  // the hood: where it lets FUEL go, deg round the axle from forward (90 is straight up over it):
+  // a shot leaves about 90 below that (the tangent); its travel (estimate, from the renders), its
+  // speed (an X44 through 85.3:1)
+  hoodMin: 125, hoodMax: 160, hoodStow: 125, hoodSpan: 45, hoodV: 7, hoodA: 60,
+  // the side plates either side of the FUEL
+  plateZ: R + 0.006,
+};
+export const HOOD = SHOOTER;
+// the intake, at the box's full extension (it slides out BOX.ext on its racks); xF its front
+export const BOX = { ext: 0.27, front: HALF_L + 3.25 * IN + 0.2224, side: HALF_W + IN + 0.005, chin: 0.31 };
+export const INTAKE = {
+  // the bottom 1.5in polycarbonate roller at the box's lip, and the primary 3in one up behind it
+  // over the ramp's upper half (the renders: the thin white tube at the lip, the ribbed roller
+  // behind and above it; their places are estimates): a FUEL rolls over the bottom one onto the
+  // ramp, and the primary squeezes it (0.8in) up the rest of the way onto the bumper's top
+  bar: { dx: -0.03, y: 0.045, r: 0.75 * IN },
+  primary: { dx: -0.035, y: 0.245, r: 1.5 * IN },
+  width: 0.8,
+  // the ramp up from behind the bar to the bumper's top
+  ramp: [[-0.055, 0.035], [0.425, 0.168]],
+};
+// the preload: eight on the floor round the hub, clear of the hook
+export const PRELOAD = [0, 1, 2, 3, 4, 5, 6, 7].map((k) => {
+  const a = CH + 0.65 + (k / 7) * (2 * Math.PI - 1.3);
+  return [AXIS[0] + 0.19 * Math.cos(a), FLOOR + R + 0.01, AXIS[1] + 0.19 * Math.sin(a)];
+});
+
+// ------------------------------------------------------------------ the drives
+export function build4414() {
+  // the intake: the primary roller (positive pulls FUEL in over the ramp) and the bottom bar
+  const primary = new Shaft({ name: 'intake primary 3in roller', motor: new Motor('krakenX60', { count: 2, ratio: 3.45, statorLimit: 60, supplyLimit: 40 }), inertia: 3e-4 });
+  const bar = new Shaft({ name: 'intake bottom 1.5in roller', motor: new Motor('krakenX44', { ratio: 1.5, statorLimit: 40, supplyLimit: 30 }), inertia: 4e-5 });
+  // the rotor (positive turns it clockwise from above, the hook's tip leading)
+  const rotor = new Shaft({ name: 'Dye Rotor', motor: new Motor('krakenX60', { ratio: 36.4, statorLimit: 80, supplyLimit: 60 }), inertia: ROTOR.J, drag: 0.02 });
+  // the rollers: the TTB wheels and the omni over them (2.5:1; positive feeds FUEL in)
+  const rollers = new Train({ name: 'Dye Rotor rollers', motor: new Motor('krakenX60', { count: 2, ratio: 2.5, statorLimit: 60, supplyLimit: 40 }) });
+  const ttb = rollers.add(new Shaft({ name: 'TTB feeder wheels', inertia: 2.4e-4 }), 1);
+  // the 1.25in omnis across the bend: free (estimate)
+  const bend = new Shaft({ name: '1.25in omnis', inertia: 1e-5, drag: 1e-5 });
+  // the launcher: four X44s 1:1 on the flywheel; the hood roller at half its surface speed
+  const launcher = new Train({ name: 'launcher', motor: new Motor('krakenX44', { count: 4, ratio: 1, statorLimit: 60, supplyLimit: 40 }) });
+  const fly = launcher.add(new Shaft({ name: '3in flywheel and copper', inertia: SHOOTER.J }), 1);
+  const hoodRoller = launcher.add(new Shaft({ name: 'hood sushi roller', inertia: 5e-6 }), (0.5 * FLY.r) / SHOOTER.roller.r);
+  // the sushi feeder: geared down 16:14 off the flywheel (its gears down the turret's side, in the
+  // renders), so it feeds as fast as the shot's speed lets it: "the main bps regulator"
+  const feeder = launcher.add(new Shaft({ name: 'shooter sushi feeder', inertia: 1e-5 }), 14 / 16);
+  return { primary, bar, rotor, rollers, ttb, feeder, bend, launcher, fly, hoodRoller };
+}
+
+const X = [1, 0, 0], Y = [0, 1, 0], Z = [0, 0, 1];
+// the channel's frame -> the rotor's (about the axis, at phi = 0): (u out along it, y, w ahead)
+export function chanL(u, y, w) {
+  const c = Math.cos(CH), s = Math.sin(CH);
+  return [u * c - w * s, y, u * s + w * c];
+}
+// and the robot's
+export function chan(u, y, w) { const p = chanL(u, y, w); return [AXIS[0] + p[0], y, AXIS[1] + p[2]]; }
+const chanDir = (u, w) => { const c = Math.cos(CH), s = Math.sin(CH); return [u * c - w * s, 0, u * s + w * c]; };
+
+// the wheels (robot frame; the box's posed with placeIntake, the turret's with placeShooter)
+export function wheels4414(t) {
+  const F = FEED, T = F.ttb;
+  const tw = R + T.r - T.squeeze; // the TTB axle's distance behind the channel's middle
+  // (on the rotor: they turn with it about the axis, and FUEL they touch push back on its motor;
+  // their surfaces facing the channel run in toward the hub)
+  const feed = [
+    ...T.us.flatMap((u, j) => T.ys.map((y, i) => new Wheel({ name: `TTB 3in urethane ${j ? 'inner' : 'outer'} ${i + 1}`, shaft: t.ttb, center: chan(u, y, -tw), axis: [0, -1, 0], radius: T.r, width: T.wid, mu: MU.urethane, tread: 15000 }))),
+    new Wheel({ name: 'TTB 3in omni', shaft: t.ttb, kind: 'omni', center: chan(T.us[0], T.omniY, -tw), axis: [0, -1, 0], radius: T.r, width: T.wid, mu: MU.omni, tread: 30000 }),
+    // (the bend's omnis: their shaft across the channel, w)
+    new Wheel({ name: '1.25in omnis', shaft: t.bend, kind: 'omni', center: chan(BEND.u, BEND.y, 0), axis: chanDir(0, 1), radius: F.omni.r, width: F.omni.wid, mu: MU.omni, tread: 30000 }),
+  ].map((w) => w.onPivot(t.rotor, [AXIS[0], 0, AXIS[1]], [0, -1, 0]));
+  feed.forEach((w) => { w.home = w.center.slice(); w.homeAxis = w.axis.slice(); });
+  const intake = [
+    new Wheel({ name: 'intake bottom 1.5in roller', shaft: t.bar, center: [0, 0, 0], axis: Z, radius: INTAKE.bar.r, width: INTAKE.width, mu: MU.polycarb, tread: 60000 }),
+    new Wheel({ name: 'intake primary 3in roller', shaft: t.primary, center: [0, 0, 0], axis: [0, 0, -1], radius: INTAKE.primary.r, width: INTAKE.width, mu: MU.polycarb, tread: 60000 }),
+  ];
+  placeIntake(intake, BOX.ext);
+  return { feed, intake };
+}
+// a point (robot frame) turned with the rotor by phi (rad, clockwise from above) about its axis
+export function rotorPoint([x, y, z], phi) {
+  const dx = x - AXIS[0], dz = z - AXIS[1], c = Math.cos(phi), s = Math.sin(phi);
+  return [AXIS[0] + dx * c - dz * s, y, AXIS[1] + dx * s + dz * c];
+}
+export function placeRotor(wheels, phi) {
+  const c = Math.cos(phi), s = Math.sin(phi);
+  for (const w of wheels) {
+    w.center = rotorPoint(w.home, phi);
+    const [ax, ay, az] = w.homeAxis;
+    w.axis = [ax * c - az * s, ay, ax * s + az * c];
+  }
+}
+// the intake's rollers with the box out ext (m)
+export function placeIntake([bar, primary], ext) {
+  const xF = BOX.front - BOX.ext + ext, I = INTAKE;
+  bar.center = [xF + I.bar.dx, I.bar.y, 0];
+  primary.center = [xF + I.primary.dx, I.primary.y, 0];
+}
+export function shooterWheels(t) {
+  const S = SHOOTER;
+  const w = [
+    new Wheel({ name: '3in flywheel (stealth wheels)', shaft: t.fly, center: [0, 0, 0], axis: [0, 0, -1], radius: FLY.r, width: FLY.w, mu: MU.stealth, tread: 30000 }),
+    new Wheel({ name: 'hood 1in sushi roller', shaft: t.hoodRoller, center: [0, 0, 0], axis: Z, radius: S.roller.r, width: S.roller.w, mu: MU.sushi, tread: 15000 }),
+    ...S.feeder.ys.map((y, i) => new Wheel({ name: `1in sushi feeder ${i + 1}`, shaft: t.feeder, center: [0, y, 0], axis: [0, 0, -1], radius: S.feeder.r, width: S.feeder.w, mu: MU.sushi, tread: 15000 })),
+  ];
+  w.forEach((x) => { x.home = x.center.slice(); });
+  placeShooter(w, 0, S.hoodStow);
+  return w;
+}
+// where the hood lets FUEL go (deg round the flywheel's axle) -> the shot's elevation (deg): the
+// tangent there
+export const hoodElevation = (deg) => deg - 90;
+// the shooter's wheels where the turret (yaw, rad; 0 facing forward) and the hood (deg) put them
+export function placeShooter([fly, roller, ...feeders], yaw, hoodDeg) {
+  const c = Math.cos(yaw), s = Math.sin(yaw), S = SHOOTER;
+  const at = ([x, y]) => [AXIS[0] + x * c, y, AXIS[1] - x * s];
+  fly.center = at([S.x, FLY.y]);
+  const b = ((hoodDeg + S.roller.at) * Math.PI) / 180, rr = S.hoodR + S.roller.r - (SQ.roller - SQ.hood);
+  roller.center = at([S.x + rr * Math.cos(b), FLY.y + rr * Math.sin(b)]);
+  const fx = -BORE.r + 2 * R - SQ.feeder + S.feeder.r; // into the FUEL against the back wall
+  feeders.forEach((f) => { f.center = at([fx, f.home[1]]); });
+  // (the hood roller turns the other way from the flywheel and the feeder: their surfaces all carry
+  // FUEL along)
+  for (const w of [fly, roller, ...feeders]) { const k = w === roller ? 1 : -1; w.axis = [k * s, 0, k * c]; }
+}
+// the bumper's foam: two 2.5in noodles across the front, as 604's
+export function bumper4414() {
+  const shaft = new Shaft({ name: 'bumper', inertia: Infinity });
+  const r = 1.25 * IN, x = HALF_L + 3.25 * IN - r;
+  return [0.032 + r, 0.16 - r].map((y) => new Wheel({ name: 'bumper', shaft, center: [x, y, 0], axis: Z, radius: r, width: 2 * HALF_W, mu: 0.6, tread: 20000 }));
+}
+
+// ------------------------------------------------------------------ the surfaces (built here: no CAD)
+// a grid surface: f(u, v) -> [x, y, z], u in 0..1 over nu cells, v over nv
+function grid(nu, nv, f) {
+  const v = [], i = [];
+  for (let a = 0; a <= nu; a++) for (let b = 0; b <= nv; b++) v.push(...f(a / nu, b / nv));
+  for (let a = 0; a < nu; a++) for (let b = 0; b < nv; b++) { const p = a * (nv + 1) + b, q = p + nv + 1; i.push(p, q, p + 1, q, q + 1, p + 1); }
+  return { v, i };
+}
+function merge(...ms) {
+  const v = [], i = [];
+  for (const m of ms) { const o = v.length / 3; v.push(...m.v); for (const k of m.i) i.push(k + o); }
+  return { v, i };
+}
+const lerp = (a, b, t) => a + (b - a) * t;
+// a vertical sheet along a polyline [[x, z], ...] from y0 to y1
+const wall = (pts, y0, y1, n = 2) => merge(...pts.slice(1).map((p, k) => {
+  const q = pts[k], L = Math.hypot(p[0] - q[0], p[1] - q[1]), nu = Math.max(1, Math.ceil(L / 0.06));
+  return grid(nu, n, (u, v) => [lerp(q[0], p[0], u), lerp(y0, y1, v), lerp(q[1], p[1], u)]);
+}));
+// a cylinder's wall round (cx, cz), radius r, y0..y1, angles a0..a1 (rad, from +x toward +z)
+const cyl = (cx, cz, r, y0, y1, a0 = 0, a1 = 2 * Math.PI) => grid(Math.max(4, Math.ceil(((a1 - a0) * r) / 0.03)), 2, (u, v) => {
+  const a = lerp(a0, a1, u);
+  return [cx + r * Math.cos(a), lerp(y0, y1, v), cz + r * Math.sin(a)];
+});
+
+// the hopper's floor: flat under the rotor, the stadium pieces round it, its front over the bumper's
+// top, out to the walls (the rotor's hub in the middle)
+function hopperFloor() {
+  const x0 = BAY.x0, x1 = HALF_L + 3.25 * IN, z0 = -BAY.hw, nx = 48, nz = 52;
+  const h = (x, z) => {
+    const d = Math.hypot(x - AXIS[0], z - AXIS[1]);
+    let y = FLOOR;
+    if (d > STADIUM.r) y = FLOOR + Math.min(STADIUM.cap, (d - STADIUM.r) * STADIUM.slope);
+    // (over the front rail and the bumper's top, at its height)
+    if (x > HALF_L - 0.02) y = Math.max(y, lerp(y, 0.168, Math.min(1, (x - HALF_L + 0.02) / 0.035)));
+    return y;
+  };
+  return holed(grid(nx, nz, (u, v) => { const x = lerp(x0, x1, u), z = lerp(z0, -z0, v); return [x, h(x, z), z]; }), COLUMN.r - 0.01);
+}
+// The rotor's parts, in its own frame (about the axis, at phi = 0).
+// the hook's face (passive rollers): s 0 at its tip, 1 at its root
+export function hookCurve(s) {
+  const H = HOOK, w = -FEED.w, rootR = Math.hypot(H.mouth, w), aRoot = CH + Math.atan2(w, H.mouth);
+  // (out at the rim most of the way, so FUEL ride round outside the channel's guide, then in)
+  return { r: lerp(H.tipR, rootR, s * s * s), a: lerp(aRoot + H.sweep, aRoot, s) };
+}
+const polar = (r, a, y) => [r * Math.cos(a), y, r * Math.sin(a)];
+function hook() {
+  const H = HOOK;
+  const face = grid(24, 3, (u, v) => { const { r, a } = hookCurve(u); return polar(r, a, lerp(H.y0, H.y1, v)); });
+  // the Dolphin Fin: from the face's top edge down behind it to the floor
+  const fin = grid(24, 2, (u, v) => { const { r, a } = hookCurve(u); return polar(r, a - (v * H.finBack) / r, lerp(H.y1, FLOOR + 0.006, v)); });
+  // (the straight run in along the channel's trailing side to the TTB wheels)
+  const run = grid(3, 3, (u, v) => chanL(lerp(H.mouth, FEED.ttb.us[0] + FEED.ttb.r - 0.002, u), lerp(H.y0, H.y1, v), -FEED.w));
+  return merge(face, fin, run);
+}
+// the channel, the bend and the hub's bore
+function feedPath() {
+  const F = FEED, w = F.w, B = BEND, RO = B.u + R + 0.004;
+  const parts = [];
+  // the trailing wall in the hub (the TTB wheels' side, out to them)
+  parts.push(grid(6, 4, (u, v) => chanL(lerp(-B.u, F.ttb.us[1] - 0.045, u), lerp(FLOOR, BORE.top, v), -w)));
+  // the hub's floor under the channel
+  parts.push(grid(4, 2, (u, v) => chanL(lerp(B.u, COLUMN.r + 0.005, u), FLOOR + 0.001, lerp(-w, w, v))));
+  // the ramp round the bend: the outside of the bend, from under the channel up to the bore's far side
+  parts.push(grid(12, 3, (u, v) => {
+    const al = lerp(-Math.PI / 2, -Math.PI, u);
+    return chanL(B.u + RO * Math.cos(al), B.y + RO * Math.sin(al), lerp(-w, w, v));
+  }));
+  return merge(...parts);
+}
+// the bore up the hub, and the channel's leading side opposite the TTB wheels (plain walls: the
+// sushi feeder and the TTB wheels roll FUEL along them; against free rollers they'd only spin them)
+function bore() {
+  const B = BEND, w = FEED.w, parts = [cyl(0, 0, BORE.r, B.y, BORE.top)];
+  // the leading wall in the hub (out of it, nothing: FUEL come along the hook from ahead, and the
+  // ones behind them hold them in against the TTB wheels)
+  parts.push(grid(6, 4, (u, v) => chanL(lerp(-B.u, COLUMN.r, u), lerp(FLOOR, BORE.top, v), w)));
+  parts.push(grid(2, 3, (u, v) => chanL(lerp(COLUMN.r, FEED.guide, u), lerp(HOOK.y0, HOOK.y1, v), w)));
+  return merge(...parts);
+}
+// the hub's skin (Shrink Wrap) and the skirt off its top, the channel's slot cut in its side
+function column() {
+  const C = COLUMN, slot = Math.asin(Math.min(1, (FEED.w + 0.005) / C.r));
+  const [sr, sy] = C.skirt;
+  return merge(
+    cyl(0, 0, C.r, FLOOR, C.top, CH + slot, CH + 2 * Math.PI - slot),
+    cyl(0, 0, C.r, YB + R + 0.01, C.top, CH - slot, CH + slot),
+    // the skirt: down and out from the hub's top to over the hook's root
+    grid(48, 3, (u, v) => polar(lerp(C.r, sr, v), u * 2 * Math.PI, lerp(C.top, sy, v))),
+  );
+}
+// the walls, the top plate and the net
+function hopperWalls() {
+  const { x0, hw, chamfer } = BAY, xf = HALF_L + 0.01;
+  const pts = [[xf, -hw], [x0 + chamfer, -hw], [x0, -hw + chamfer], [x0, hw - chamfer], [x0 + chamfer, hw], [xf, hw]];
+  return wall(pts, FLOOR - 0.01, BAY.net + 0.02, 6);
+}
+// (the drop of triangles whose middles are inside a circle round the axis)
+function holed(m, r) {
+  const keep = [];
+  for (let t = 0; t < m.i.length; t += 3) {
+    const cx = (m.v[m.i[t] * 3] + m.v[m.i[t + 1] * 3] + m.v[m.i[t + 2] * 3]) / 3, cz = (m.v[m.i[t] * 3 + 2] + m.v[m.i[t + 1] * 3 + 2] + m.v[m.i[t + 2] * 3 + 2]) / 3;
+    if (Math.hypot(cx - AXIS[0], cz - AXIS[1]) > r) keep.push(m.i[t], m.i[t + 1], m.i[t + 2]);
+  }
+  return { v: m.v, i: keep };
+}
+function topPlate() {
+  // the plate over the back to the turret's bearing (a hard top); the net over the rest (soft),
+  // open round the turret (its hood stands up through it and shots go out over it)
+  return grid(6, 12, (u, v) => [lerp(BAY.x0, -0.21, u), BAY.top, lerp(-BAY.hw, BAY.hw, v)]);
+}
+function net() {
+  return holed(grid(20, 24, (u, v) => [lerp(-0.21, BOX.front + 0.01, u), BAY.net, lerp(-BOX.side, BOX.side, v)]), BAY.hole);
+}
+// the box (it slides out): its front panel over the intake, its sides, and the ramp from behind the
+// bottom roller up onto the bumper (at its full extension; placed with placeBox)
+function box() {
+  const xF = BOX.front, s = BOX.side, I = INTAKE;
+  const [[dx0, y0], [x1, y1]] = I.ramp;
+  return merge(
+    grid(2, 14, (u, v) => [xF, lerp(BOX.chin, BAY.net + 0.02, u), lerp(-s, s, v)]),
+    // (the chin: bent back over the primary roller)
+    grid(1, 14, (u, v) => [lerp(xF, xF + I.primary.dx - 0.03, u), BOX.chin, lerp(-s, s, v)]),
+    ...[-1, 1].map((k) => grid(6, 4, (u, v) => [lerp(HALF_L - 0.02, xF, u), lerp(0.03, BAY.net + 0.02, v), k * s])),
+    grid(6, 14, (u, v) => [lerp(xF + dx0, x1, u), lerp(y0, y1, u), lerp(-s, s, v)]),
+  );
+}
+// the turret (it turns): the column's top where FUEL come up (its back wall), the fixed backing,
+// the side plates
+function turret() {
+  const S = SHOOTER, B = BORE, F = FLY;
+  const back = grid(3, 4, (u, v) => { const a = lerp(Math.PI / 2 + 0.6, 1.5 * Math.PI - 0.6, v); return [B.r * Math.cos(a), lerp(B.top, F.y - 0.01, u), B.r * Math.sin(a)]; });
+  const fixed = grid(8, 4, (u, v) => { const a = (lerp(S.fixedA[0], S.fixedA[1], u) * Math.PI) / 180; return [S.x + S.fixedR * Math.cos(a), F.y + S.fixedR * Math.sin(a), lerp(-S.plateZ, S.plateZ, v)]; });
+  const plates = [-1, 1].map((k) => grid(8, 6, (u, v) => [lerp(-0.1, 0.32, u), lerp(B.top - 0.01, 0.64, v), k * S.plateZ]));
+  return merge(back, fixed, ...plates);
+}
+// the hood's backing (it turns about the flywheel's axle): its local frame there, the end where it
+// lets FUEL go at 0 rad (posed with roll = that end's angle)
+function hood() {
+  const S = SHOOTER;
+  return grid(10, 4, (u, v) => { const a = (u * S.hoodSpan * Math.PI) / 180; return [S.hoodR * Math.cos(a), S.hoodR * Math.sin(a), lerp(-S.plateZ, S.plateZ, v)]; });
+}
+
+export function pathSurfaces4414(t) {
+  const s = (name, m, o = {}) => new Surface({ name, vertices: m.v, indices: m.i, mu: MU.plate, ...o });
+  const body = s('hopper (floor, walls, top plate)', merge(hopperFloor(), hopperWalls(), topPlate()));
+  const netS = s('net', net(), { mu: 0.4, tread: 1500 });
+  // (the rotor's: it turns, and FUEL they touch push back on its motor)
+  const A = [AXIS[0], 0, AXIS[1]], onRotor = (sf) => sf.onShaft(t.rotor, A, [0, -1, 0]);
+  const hookS = onRotor(s('hook and Dolphin Fin (passive rollers)', hook(), { mu: MU.rollers, pos: A }));
+  const feedS = onRotor(s('channel and ramp (passive rollers)', feedPath(), { mu: MU.rollers, pos: A }));
+  const boreS = onRotor(s('bore', bore(), { pos: A }));
+  const columnS = onRotor(s('hub and skirt', column(), { mu: MU.rollers, pos: A }));
+  const boxS = s('box and intake ramp', box());
+  const turretS = s('turret', turret(), { pos: [AXIS[0], 0, AXIS[1]] });
+  const hoodS = s('hood backing', hood(), { pos: [AXIS[0] + SHOOTER.x, FLY.y, AXIS[1]] });
+  return { body, net: netS, hook: hookS, feed: feedS, bore: boreS, column: columnS, box: boxS, turret: turretS, hood: hoodS };
+}
+// the rotor's surfaces at phi (clockwise from above: a surface's yaw is the other way)
+export function placeRotorSurfaces({ hook, feed, bore, column }, phi) { for (const sf of [hook, feed, bore, column]) sf.setPose([AXIS[0], 0, AXIS[1]], -phi, 0); }
+export function placeBox(sf, ext) { sf.setPose([ext - BOX.ext, 0, 0]); }
+export function placeTurretSurfaces({ turret, hood }, yaw, hoodDeg) {
+  turret.setPose([AXIS[0], 0, AXIS[1]], yaw, 0);
+  const c = Math.cos(yaw), s = Math.sin(yaw);
+  hood.setPose([AXIS[0] + SHOOTER.x * c, FLY.y, AXIS[1] - SHOOTER.x * s], yaw, (hoodDeg * Math.PI) / 180);
+}
