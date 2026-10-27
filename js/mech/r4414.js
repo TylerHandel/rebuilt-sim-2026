@@ -70,7 +70,11 @@ export const BUCKET = { r: 0.285 }; // the floor's round middle the rotor sweeps
 // (the bumper backing is the hopper's wall: "~1in extra hopper space per side", the binder)
 // (the frame's back corners cut 3.41in each way, as little as keeps its perimeter within 110in; the
 // bumper backing 1in out from it, its cut (2 - sqrt2) in longer each way)
-export const BAY = { x0: -(HALF_L + IN), hw: HALF_W + IN, chamfer: (4 / (2 * (2 - Math.SQRT2)) + 2 - Math.SQRT2) * IN, top: 0.535, net: 0.565, hole: 0.25 };
+// The net stretches: pinned along the walls, the top plate's front edge, the box's front and round
+// the turret's ring, the load can push it up into a dome as far as dome m over the hopper's top at
+// its middle (robotConfigs' bay.dome: as far as there's room over the robot), and nothing presses
+// the load back down (the binder: "holds 85+ balls under the trench, 100+ with net over the bump")
+export const BAY = { x0: -(HALF_L + IN), hw: HALF_W + IN, chamfer: (4 / (2 * (2 - Math.SQRT2)) + 2 - Math.SQRT2) * IN, top: 0.535, net: 0.565, hole: 0.25, dome: 0.235 };
 // the bowl round the rotor and the printed "stadium" pieces that funnel FUEL into it: the floor
 // out to r, a wall standing straight up round its rim, the hook's tip running flush against it
 // (wall high at the back and sides, fading to wallF at the front, where the stadium has to stay
@@ -152,15 +156,15 @@ export const HOOD = SHOOTER;
 // the intake, at the box's full extension (it slides out BOX.ext on its racks); xF its front
 export const BOX = { ext: 0.27, front: HALF_L + 3.25 * IN + 0.2224, side: HALF_W + IN + 0.005, chin: 0.31 };
 export const INTAKE = {
-  // the bottom 1.5in polycarbonate roller at the box's lip, and the primary 3in one up behind it
-  // over the ramp's upper half (the renders: the thin white tube at the lip, the ribbed roller
-  // behind and above it; their places are estimates): a FUEL rolls over the bottom one onto the
-  // ramp, and the primary squeezes it (0.8in) up the rest of the way onto the bumper's top
-  bar: { dx: -0.03, y: 0.045, r: 0.75 * IN },
-  primary: { dx: -0.035, y: 0.245, r: 1.5 * IN },
+  // No ramp, the box's bottom open (the renders, from above; the team): the primary 3in
+  // polycarbonate roller, the kicker, low just in front of the bumper's face, its back running up
+  // it, squeezes a FUEL against the bumper (0.8in) and rolls it up the face; the 1.5in roller
+  // sitting on top of the bumper, its top running in, takes it over into the hopper (dx back from
+  // the box's front at its full extension; their places are estimates from the renders). The small
+  // roller is dark, in short segments in the renders: compliant, gripping as rubber does (mu, tread)
+  primary: { dx: -0.07, y: 0.155, r: 1.5 * IN },
+  bar: { dx: -0.23, y: 0.192, r: 0.75 * IN, mu: 1.0, tread: 20000 },
   width: 0.8,
-  // the ramp up from behind the bar to the bumper's top
-  ramp: [[-0.055, 0.035], [0.425, 0.168]],
 };
 // the preload: eight on the floor round the hub, clear of the hook
 export const PRELOAD = [0, 1, 2, 3, 4, 5, 6, 7].map((k) => {
@@ -170,7 +174,8 @@ export const PRELOAD = [0, 1, 2, 3, 4, 5, 6, 7].map((k) => {
 
 // ------------------------------------------------------------------ the drives
 export function build4414() {
-  // the intake: the primary roller (positive pulls FUEL in over the ramp) and the bottom bar
+  // the intake: the primary roller, the kicker (positive rolls FUEL up the bumper's face), and the
+  // 1.5in roller on top of the bumper (positive takes them in over it)
   const primary = new Shaft({ name: 'intake primary 3in roller', motor: new Motor('krakenX60', { count: 2, ratio: 3.45, statorLimit: 60, supplyLimit: 40 }), inertia: 3e-4 });
   const bar = new Shaft({ name: 'intake bottom 1.5in roller', motor: new Motor('krakenX44', { ratio: 1.5, statorLimit: 40, supplyLimit: 30 }), inertia: 4e-5 });
   // the rotor (positive turns it clockwise from above, the hook's tip leading)
@@ -221,7 +226,7 @@ export function wheels4414(t) {
   ].map((w) => w.onPivot(t.rotor, [AXIS[0], 0, AXIS[1]], [0, -1, 0]));
   feed.forEach((w) => { w.home = w.center.slice(); w.homeAxis = w.axis.slice(); });
   const intake = [
-    new Wheel({ name: 'intake bottom 1.5in roller', shaft: t.bar, center: [0, 0, 0], axis: Z, radius: INTAKE.bar.r, width: INTAKE.width, mu: MU.polycarb, tread: 60000 }),
+    new Wheel({ name: 'intake bottom 1.5in roller', shaft: t.bar, center: [0, 0, 0], axis: Z, radius: INTAKE.bar.r, width: INTAKE.width, mu: INTAKE.bar.mu ?? MU.polycarb, tread: INTAKE.bar.tread ?? 60000 }),
     new Wheel({ name: 'intake primary 3in roller', shaft: t.primary, center: [0, 0, 0], axis: [0, 0, -1], radius: INTAKE.primary.r, width: INTAKE.width, mu: MU.polycarb, tread: 60000 }),
   ];
   placeIntake(intake, BOX.ext);
@@ -433,20 +438,26 @@ function topPlate() {
   // open round the turret (its hood stands up through it and shots go out over it)
   return grid(6, 12, (u, v) => [lerp(BAY.x0, -0.21, u), BAY.top, lerp(-BAY.hw, BAY.hw, v)]);
 }
-function net() {
-  return holed(grid(20, 24, (u, v) => [lerp(-0.21, BOX.front + 0.01, u), BAY.net, lerp(-BOX.side, BOX.side, v)]), BAY.hole);
+// the net's height at (x, z), stretched all the way: pinned at its edges and round the turret's
+// ring, up between
+const NET_X = [-0.21, BOX.front + 0.01];
+export function netY(x, z) {
+  const u = Math.min(1, Math.max(0, (x - NET_X[0]) / (NET_X[1] - NET_X[0]))), v = Math.min(1, Math.max(0, (z + BOX.side) / (2 * BOX.side)));
+  const d = Math.hypot(x - AXIS[0], z - AXIS[1]), ring = Math.min(1, Math.max(0, (d - BAY.hole) / 0.12));
+  return BAY.net + BAY.dome * Math.sin(Math.PI * u) * Math.sin(Math.PI * v) * ring * ring * (3 - 2 * ring);
 }
-// the box (it slides out): its front panel over the intake, its sides, and the ramp from behind the
-// bottom roller up onto the bumper (at its full extension; placed with placeBox)
+function net() {
+  return holed(grid(28, 32, (u, v) => { const x = lerp(NET_X[0], NET_X[1], u), z = lerp(-BOX.side, BOX.side, v); return [x, netY(x, z), z]; }), BAY.hole);
+}
+// the box (it slides out): its front panel over the intake and its sides, its bottom open (at its
+// full extension; placed with placeBox)
 function box() {
-  const xF = BOX.front, s = BOX.side, I = INTAKE;
-  const [[dx0, y0], [x1, y1]] = I.ramp;
+  const xF = BOX.front, s = BOX.side;
   return merge(
     grid(2, 14, (u, v) => [xF, lerp(BOX.chin, BAY.net + 0.02, u), lerp(-s, s, v)]),
-    // (the chin: bent back over the primary roller)
-    grid(1, 14, (u, v) => [lerp(xF, xF + I.primary.dx - 0.03, u), BOX.chin, lerp(-s, s, v)]),
+    // (the chin: bent back at the front panel's foot)
+    grid(1, 14, (u, v) => [lerp(xF, xF - 0.06, u), BOX.chin, lerp(-s, s, v)]),
     ...[-1, 1].map((k) => grid(6, 4, (u, v) => [lerp(HALF_L - 0.02, xF, u), lerp(0.03, BAY.net + 0.02, v), k * s])),
-    grid(6, 14, (u, v) => [lerp(xF + dx0, x1, u), lerp(y0, y1, u), lerp(-s, s, v)]),
   );
 }
 // the turret (it turns): the column's top where FUEL come up (its back wall), the fixed backing,

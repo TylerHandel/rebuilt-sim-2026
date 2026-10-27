@@ -1131,10 +1131,9 @@ function build4414(cfg, alliance) {
       const m4 = new THREE.Matrix4();
       for (let j = 0; j < 60; j++) { m4.makeTranslation(xF - 0.555 + j * 0.0085, 0.192, s * rackZ); teeth.setMatrixAt(j, m4); }
       ext.add(teeth);
-      // the primary roller's drive (the renders): a Kraken X60 inside each side panel, just behind
-      // and over the roller, its pulley and the belt down to the roller's big pulley outside the
-      // panel
-      const mx = xF - 0.12, my = I4.primary.y + 0.07, px = xF + I4.primary.dx, py = I4.primary.y, bz = s * (sideZ + 0.012);
+      // the kicker's drive (the renders): a Kraken X60 inside each side panel over it, its pulley
+      // and the belt down to the kicker's big pulley outside the panel
+      const mx = xF + I4.primary.dx + 0.03, my = I4.primary.y + 0.13, px = xF + I4.primary.dx, py = I4.primary.y, bz = s * (sideZ + 0.012);
       kraken(ext, mx, my, s * (sideZ - 0.045), false, 'z');
       cylZ(0.016, 0.014, blackAl, ext, mx, my, bz, 16);
       cylZ(0.036, 0.014, blackAl, ext, px, py, bz, 28);
@@ -1144,8 +1143,13 @@ function build4414(cfg, alliance) {
         const b = bx(bl, 0.004, 0.012, M.polyBelt, ext, (mx + px) / 2 + (k * nx * (r0 + r1)) / 2, (my + py) / 2 + (k * ny * (r0 + r1)) / 2, bz);
         b.rotation.z = ba + k * Math.asin((r1 - r0) / bl);
       }
-      // and the bottom roller's pulley (its X44 belted to it the same way)
-      cylZ(0.022, 0.012, blackAl, ext, xF + I4.bar.dx, I4.bar.y, bz, 20);
+      // the link from the kicker back to the small roller on the bumper's top, a belt along it
+      // (the renders: a black arm with a pulley at each end), the X44 driving it
+      const tx = xF + I4.bar.dx, ty = I4.bar.y, ll = Math.hypot(tx - px, ty - py), la = Math.atan2(ty - py, tx - px);
+      bx(ll, 0.026, 0.006, blackAl, ext, (px + tx) / 2, (py + ty) / 2, s * (sideZ + 0.024)).rotation.z = la;
+      cylZ(0.016, 0.012, blackAl, ext, tx, ty, bz, 16);
+      cylZ(0.008, 0.016, M.alu, ext, tx, ty, s * (sideZ + 0.03), 10);
+      kraken(ext, tx + 0.02, ty + 0.09, s * (sideZ - 0.04), true, 'z');
     }
   }
   // the primary 3in polycarbonate roller under the chin, on big printed flanged hubs, and the
@@ -1153,29 +1157,19 @@ function build4414(cfg, alliance) {
   const intakeRoller = new THREE.Group();
   intakeRoller.position.set(xF + I4.primary.dx, I4.primary.y, 0);
   ext.add(intakeRoller);
-  // (both clear 1/8in-wall polycarbonate tubes, the binder: the hex shaft and the printed hubs
-  // inside them showing through)
-  const clearTube = polyMat({ color: 0xe9eef3, opacity: 0.38, roughness: 0.12 }, 0xc9d0d8);
+  // the kicker (the primary 3in roller, low in front of the bumper's face): a clear 1/8in-wall
+  // polycarbonate tube, the hex shaft and the printed hubs inside it showing through
+  const clearTube = polyMat({ color: 0xe9eef3, opacity: 0.5, roughness: 0.12 }, 0xc9d0d8);
   cylZ(I4.primary.r, 2 * sideZ - 0.03, clearTube, intakeRoller, 0, 0, 0, 28).castShadow = false;
   cylZ(0.0064, 2 * sideZ - 0.01, M.alu, intakeRoller, 0, 0, 0, 6); // 1/2in hex shaft
   for (const s of [-1, 1]) for (const zz of [0.02, 0.25]) cylZ(I4.primary.r - 0.003, 0.014, plastic, intakeRoller, 0, 0, s * (sideZ - zz), 6);
+  // the small roller on top of the bumper (the renders: dark, in short segments on its shaft)
   const bottomBar = new THREE.Group();
   bottomBar.position.set(xF + I4.bar.dx, I4.bar.y, 0);
   ext.add(bottomBar);
-  cylZ(I4.bar.r, 2 * sideZ - 0.03, clearTube, bottomBar, 0, 0, 0, 20).castShadow = false;
-  cylZ(0.004, 2 * sideZ - 0.01, M.alu, bottomBar, 0, 0, 0, 6);
-  for (const s of [-1, 1]) cylZ(I4.bar.r - 0.002, 0.012, plastic, bottomBar, 0, 0, s * (sideZ - 0.02), 6);
-  // the box's floor: a smoked polycarbonate ramp from behind the bottom roller up onto the bumper's
-  // top (the physical model's: D4.INTAKE.ramp, its back end where it is with the box all the way
-  // out), on a black angle each side
-  {
-    const [[dx0, y0], [x1, y1]] = I4.ramp, rx0 = xF + dx0, rx1 = xF - (D4.BOX.front - x1);
-    const len = Math.hypot(rx0 - rx1, y0 - y1), a = Math.atan2(y0 - y1, rx0 - rx1);
-    const fl = mesh(new THREE.BoxGeometry(len, 0.003, 2 * sideZ - 0.01), smoke, ext, (rx0 + rx1) / 2, (y0 + y1) / 2 - 0.002, 0);
-    fl.rotation.z = a;
-    fl.castShadow = false;
-    for (const s of [-1, 1]) bx(len, 0.012, 0.012, blackAl, ext, (rx0 + rx1) / 2, (y0 + y1) / 2 - 0.008, s * (sideZ - 0.008)).rotation.z = a;
-  }
+  cylZ(0.005, 2 * sideZ - 0.01, M.alu, bottomBar, 0, 0, 0, 6);
+  for (let i = 0; i < 24; i++) cylZ(I4.bar.r, (2 * sideZ - 0.05) / 24 - 0.004, std(0x2a2d33, 0.7, 0.05), bottomBar, 0, 0, -sideZ + 0.025 + (i + 0.5) * (2 * sideZ - 0.05) / 24, 14);
+  // (no floor: the box's bottom is open, the renders)
   // (a star roller over the bumper: not in their binder, so not drawn)
   const star = new THREE.Group();
   star.position.set(L / 2, 0.345, 0);

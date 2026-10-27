@@ -5,7 +5,8 @@
 // column into the turret: how fast and how steep they leave against the flywheel's speed and the
 // hood; MAP=1 sweeps both and writes the map tools/shot4414.mjs fits the launch table to), path
 // (FUEL on a treadmill carpet, the robot driving into them: intake, rotor, hook, feeder, column,
-// turret; how many and how fast), intake (intaking alone), hold (how many it holds), dump (a full
+// turret; how many and how fast), intake (intaking alone), intakefull (filling it through the
+// intake), hold (how many it holds), dump (a full
 // one fired at 3 m: the feed rate against their 12-14 BPS). And the feed's stages one at a time:
 // bend (one FUEL from the hook's root to the shot), column (FUEL fed at the hook's root as fast as
 // there's room), ring (a ring of FUEL on the floor: what the hook takes in a turn), lip (FUEL on
@@ -21,7 +22,7 @@ import { Mechanism } from '../js/mech/mechanism.js';
 import { sim2D } from '../js/ballistics.js';
 import {
   build4414, wheels4414, shooterWheels, bumper4414, pathSurfaces4414, placeIntake, placeRotor, placeRotorSurfaces, placeBox, placeShooter, placeTurretSurfaces,
-  hoodElevation, chan, rotorPoint, stadiumY, AXIS, HOOK, YB, FLY, SHOOTER, FEED, BORE, BOX, HALF_L, HALF_W, BAY, INTAKE,
+  hoodElevation, chan, rotorPoint, stadiumY, netY, AXIS, HOOK, YB, FLY, SHOOTER, FEED, BORE, BOX, HALF_L, HALF_W, BAY, INTAKE,
 } from '../js/mech/r4414.js';
 import { velocityDuty } from '../js/mech/phys604.js';
 import { launchFor, shooterFor } from '../js/mech/phys4414.js';
@@ -132,7 +133,7 @@ function fillUp(w, balls, step, seed = 1) {
   for (let round = 0, idle = 0; round < 80 && idle < 3; round++) {
     let added = 0;
     for (let k = 0; k < 40 && added < 8; k++) {
-      const x = BAY.x0 + 0.08 + rnd() * (BOX.front - BAY.x0 - 0.16), z = (rnd() - 0.5) * 2 * (BAY.hw - 0.08), y = BAY.net - R - 0.01;
+      const x = BAY.x0 + 0.08 + rnd() * (BOX.front - BAY.x0 - 0.16), z = (rnd() - 0.5) * 2 * (BAY.hw - 0.08), y = netY(x, z) - R - 0.01;
       if (Math.hypot(x - AXIS[0], z - AXIS[1]) < 0.25) continue; // (not onto the turret)
       if (balls.some((b) => { const p = b.translation(); return Math.hypot(p.x - x, p.y - y, p.z - z) < 2 * R + 0.005; })) continue;
       balls.push(ball(w, x, y, z)); added++;
@@ -206,6 +207,15 @@ const tests = {
       const r = pathRun(seed, { shoot: false, n: 24, sec: 6 });
       console.log(`4414 intaking only (rollers 100%, the rotor turning back slowly), 24 FUEL at ${SPEED} m/s: ${r.inside} in it after 6 s (in past the bumper each second: ${r.timeline.join(', ')})`);
       if (process.env.STUCK) console.log('   left', r.left.map((p) => p.map((v) => v.toFixed(2)).join(',')).join(' | '));
+    }
+  },
+  // filling it through the intake alone: 120 FUEL four abreast at SPEED, the rotor turning back
+  // slowly, as many as it takes in before they back up out of the box (the hold test drops them in
+  // under the net instead)
+  intakefull() {
+    for (let seed = 1; seed <= Math.min(SEEDS, 2); seed++) {
+      const r = pathRun(seed, { shoot: false, n: 120, sec: 16 });
+      console.log(`4414 filled through its intake (120 FUEL at ${SPEED} m/s, 16 s): ${r.inside} in it (each second: ${r.timeline.join(', ')})`);
     }
   },
   hold() {

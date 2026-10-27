@@ -1509,7 +1509,8 @@ export class Robot {
       climbLift: this.climbLift,
       climbState: this.climbState,
       rotorAngle: this.hopper.finAngle,
-      load: this.hopper.list,
+      // (a physical robot's FUEL are the field's, not in its hopper's list)
+      load: this.phys?.netLoad ? this.phys.netLoad() : this.hopper.list,
       lift: this.hopper.liftScale,
     }, dt);
     // swerve module steering to match the motion

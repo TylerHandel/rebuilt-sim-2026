@@ -32,6 +32,8 @@ export class PhysicalRobot {
     const ix = w * dx + y * dz - z * dy, iy = w * dy + z * dx - x * dz, iz = w * dz + x * dy - y * dx, iw = -x * dx - y * dy - z * dz;
     return [ix * w + iw * -x + iy * -z - iz * -y, iy * w + iw * -y + iz * -x - ix * -z, iz * w + iw * -z + ix * -y - iy * -x];
   }
+  // the FUEL it holds, in its frame ({ p }), for what's drawn over them: a net drapes over them
+  netLoad() { return this.held.map((b) => { const [x, y, z] = this._local(b.pos); return { p: { x, y, z } }; }); }
   _world(l) {
     const { t, q } = this._pose();
     const [x, y, z] = l, qx = q.x, qy = q.y, qz = q.z, qw = q.w;
