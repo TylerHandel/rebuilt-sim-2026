@@ -197,8 +197,10 @@ const OTHER_FUEL = { wh: { name: 'FUEL', kind: 'plain', shaft: FIXED }, a: [0, 0
 // pitched roll (rad) about its own z (setPose: a turret turns, an intake arm swings), with
 // friction mu against FUEL. Hard: the foam does all the giving.
 export class Surface {
-  constructor({ name = '', vertices, indices, mu = 0.3, pos = [0, 0, 0], yaw = 0, roll = 0, cell = 0.08 }) {
-    Object.assign(this, { name, mu, cell, kind: 'plain', tread: Infinity, shaft: FIXED });
+  // tread: how stiff the surface itself is where a FUEL presses it (N/m; Infinity for a hard one,
+  // less for a foam bumper, which gives with the FUEL)
+  constructor({ name = '', vertices, indices, mu = 0.3, pos = [0, 0, 0], yaw = 0, roll = 0, cell = 0.08, tread = Infinity }) {
+    Object.assign(this, { name, mu, cell, kind: 'plain', tread, shaft: FIXED });
     this.setPose(pos, yaw, roll);
     const n = indices.length / 3;
     const T = (this.tri = new Float64Array(n * 9));
@@ -462,7 +464,8 @@ export class Mechanism {
           let t1 = cross(n, Math.abs(n[1]) < 0.9 ? [0, 1, 0] : [1, 0, 0]);
           t1 = norm(t1);
           const t2 = cross(n, t1);
-          const { F, k } = foam(depth);
+          // (a soft surface, a foam bumper, gives with the FUEL: in series, like a tread)
+          const { F, k } = squeeze(depth, sf.tread);
           const fric = [t1, t2].map((u) => { const ru = cross(rb, u); return { u, mu: sf.mu, m: 1 / (1 / MB + dot(ru, ru) / IB), lam: 0, wu: 0 }; });
           C.push({ st, W1: { wh: sf, a }, n, depth, x, rb, rw, F, k, c: 2 * ZETA * Math.sqrt(k * MB), lamN: 0, fric, plain: true });
         }

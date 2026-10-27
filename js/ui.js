@@ -1,6 +1,7 @@
 // Menus (fully navigable with an Xbox controller) and the in-match HUD.
 import { ROBOTS, ROBOT_ORDER, AUTO_ROUTINES } from './robotConfigs.js';
-import { START_POSITIONS, START_ORDER } from './auto.js';
+import { START_POSITIONS, START_ORDER, teamAutoFor } from './auto.js';
+import { TEAM_AUTOS } from './teamAutos.js';
 import { CAMERA_MODES, CAMERA_NAMES } from './cameras.js';
 import { DRIVER_STATIONS, TIMING, BLUE, RED, other } from './constants.js';
 import { loadAutos, isCustom, getCustom, CUSTOM_PREFIX } from './customAutos.js';
@@ -52,7 +53,12 @@ export function saveSettings(s) {
 // ------------------------------------------------------------------ menu options
 // Each option: label, values(s) -> [[value, text]], get(s), set(s, v), desc(s)
 const autoValues = () => [...Object.entries(AUTO_ROUTINES).map(([k, v]) => [k, v.name]), ...loadAutos().map((a) => [CUSTOM_PREFIX + a.id, '✎ ' + a.name])];
-const autoDesc = (k) => (isCustom(k) ? 'Custom auto from the Auto Editor; it starts where you drew it.' : AUTO_ROUTINES[k].desc);
+const autoDesc = (k, robot) => (isCustom(k) ? 'Custom auto from the Auto Editor; it starts where you drew it.'
+  : k === 'best' && TEAM_AUTOS[robot] ? `${ROBOTS[robot].team}'s own AUTOs, from their code: ${TEAM_AUTOS[robot].map((a) => a.name).join(', ')}. It runs the one from the side it starts on.`
+    : AUTO_ROUTINES[k].desc);
+// 'best' on a robot with its team's own autos starts where you put it (that picks the auto)
+const startMatters = (auto, robot) => auto !== 'best' || !!TEAM_AUTOS[robot];
+const teamPick = (robot, start) => { const a = teamAutoFor(robot, start); return a ? `Runs ${ROBOTS[robot].team}'s "${a.name}" (${a.source}), from where it starts in their code.` : ''; };
 const robotName = (k) => `${ROBOTS[k].team} ${ROBOTS[k].archetype}`;
 const robotValues = () => ROBOT_ORDER.map((k) => [k, robotName(k)]);
 const opt = (key, label, values, desc = '') => ({
@@ -64,13 +70,14 @@ const OPT = {
   robot: opt('robot', 'Robot', robotValues),
   alliance: opt('alliance', 'Alliance', [[BLUE, 'Blue'], [RED, 'Red']]),
   ds: opt('ds', 'Driver station', DRIVER_STATIONS.map((d, i) => [i, d.name]), 'Where you stand behind your ALLIANCE WALL (for the Driver Station camera).'),
-  auto: opt('auto', 'Auto routine', autoValues, (s) => autoDesc(s.auto) + ' Drivers can\'t control the robot in AUTO (G402).'),
+  auto: opt('auto', 'Auto routine', autoValues, (s) => autoDesc(s.auto, s.robot) + ' Drivers can\'t control the robot in AUTO (G402).'),
   start: {
     label: 'Starting position',
     values: (s) => (isCustom(s.auto) ? [['drawn', 'As drawn in editor'], ['mirror', 'Mirrored left ↔ right']] : START_ORDER.map((k) => [k, START_POSITIONS[k].name])),
     get: (s) => (isCustom(s.auto) ? s.customSide : s.start),
     set: (s, v) => { if (isCustom(s.auto)) s.customSide = v; else s.start = v; },
     desc: (s) => (isCustom(s.auto) ? 'Custom autos start where you placed them; mirror to run it from the other side.'
+      : s.auto === 'best' && TEAM_AUTOS[s.robot] ? teamPick(s.robot, s.start)
       : s.auto === 'best' ? '"Best for this robot" picks its own starting position; this only applies to the other routines.'
         : 'BUMPERS overlap the ROBOT STARTING LINE without touching a BUMP (G303).'),
   },
@@ -126,11 +133,11 @@ function slotOpts(i) {
       desc: (s) => SLOT_ROLE_DESC[g(s).driver],
     },
     so('robot', 'Robot', robotValues, () => 'Which robot fills this slot.'),
-    so('auto', 'Auto routine', autoValues, (s) => autoDesc(g(s).auto)),
+    so('auto', 'Auto routine', autoValues, (s) => autoDesc(g(s).auto, g(s).robot)),
     {
       label: 'Starting position', values: () => START_ORDER.map((k) => [k, START_POSITIONS[k].name]), get: (s) => g(s).start, set: (s, v) => { g(s).start = v; },
-      show: (s) => g(s).auto !== 'best' && !isCustom(g(s).auto),
-      desc: () => 'If two robots on an ALLIANCE want the same spot, the later one moves to the nearest free one.',
+      show: (s) => startMatters(g(s).auto, g(s).robot) && !isCustom(g(s).auto),
+      desc: (s) => (g(s).auto === 'best' ? teamPick(g(s).robot, g(s).start) + ' ' : '') + 'If two robots on an ALLIANCE want the same spot, the later one moves to the nearest free one.',
     },
     { ...so('skill', 'AI skill', () => SKILL_ORDER.map((k) => [k, OPP_SKILLS[k].name]), (s) => OPP_SKILLS[g(s).skill].desc), show: (s) => g(s).driver !== 'you' },
   ];
@@ -149,7 +156,7 @@ const MODE_ORDER = ['practice', '1v1', '3v3'];
 const sec = (label) => ({ type: 'section', label });
 const o = (id) => ({ type: 'opt', opt: OPT[id] });
 const btn = (label, act, extra = {}) => ({ type: 'btn', label, act, ...extra });
-const hideForBest = (it) => ({ ...it, hidden: (s) => s.auto === 'best' });
+const hideForBest = (it) => ({ ...it, hidden: (s) => !startMatters(s.auto, s.robot) });
 const PAGES = {
   home: () => [
     { type: 'tiles' },

@@ -75,13 +75,14 @@ export function createGame(world, settings, { onEvent = () => {}, prev = null } 
   // starting spots, alliance by alliance, in driver station order
   for (const a of [BLUE, RED]) {
     const list = entries.filter((e) => e.alliance === a).sort((x, y) => x.station - y.station);
-    assignStarts(list).forEach((st, k) => Object.assign(list[k], { startKey: st.start, plan: st.plan }));
+    assignStarts(list).forEach((st, k) => Object.assign(list[k], { startKey: st.start, plan: st.plan, team: st.team || null }));
   }
   const pre = fuel.stage(entries.reduce((n, e) => n + e.preload, 0));
   let k = 0;
   const units = entries.map((e) => {
     const robot = new Robot({ cfg: cfgOf(e), alliance: e.alliance, physics, scene, field, fuel, match, climber: (e.you && CLIMBER_OPTIONS[settings.climber]) || cfgOf(e).climber || null });
-    const custom = customSelection(e.auto, e.customSide);
+    // (the team's own auto, from its side: js/teamAutos.js)
+    const custom = e.team ? { auto: e.team, mirror: false } : customSelection(e.auto, e.customSide);
     const pose = startPose(e.startKey || e.start, robot, e.alliance, custom);
     robot.spawn(pose.x, pose.z, pose.yaw);
     robot.loadFuel(pre.slice(k, k + e.preload));

@@ -7,6 +7,7 @@ import { clamp, wrapAngle } from './util.js';
 import { getCustom, customSteps } from './customAutos.js';
 import { fitsTrench } from './robotConfigs.js';
 import { underTrench } from './nav.js';
+import { TEAM_AUTOS } from './teamAutos.js';
 
 export const START_POSITIONS = {
   leftTrench: { name: 'Left Trench', fy: FIELD_W - 0.64 },
@@ -17,16 +18,34 @@ export const START_POSITIONS = {
 };
 export const START_ORDER = ['leftTrench', 'leftBump', 'hub', 'rightBump', 'rightTrench'];
 
-// Starting pose: BUMPERS overlapping the ROBOT STARTING LINE, not touching the BUMP (G303)
+// Starting pose: BUMPERS overlapping the ROBOT STARTING LINE, not touching the BUMP (G303). A
+// team's own auto starts where theirs does (its startFx, as far past the line as the BUMPERS still
+// overlap it), except a robot that only fits under the TRENCH with its intake down, which starts
+// clear of the TRENCH.
 export function startPose(key, robot, alliance, custom = null) {
-  let fy;
+  let fy, fx = ALLIANCE_ZONE_DEPTH - 0.02 - robot.halfL;
   if (custom) {
     fy = custom.mirror ? FIELD_W - custom.auto.startFy : custom.auto.startFy;
     fy = clamp(fy, robot.halfW + 0.02, FIELD_W - robot.halfW - 0.02);
+    if (custom.auto.startFx !== undefined) {
+      const at = clamp(custom.auto.startFx, ALLIANCE_ZONE_DEPTH - robot.halfL - 0.02, ALLIANCE_ZONE_DEPTH + robot.halfL - 0.05);
+      const w = fw(at, fy, alliance);
+      if (!robot.cfg.intake.fold || !underTrench(w.x, w.z, robot.halfL)) fx = at;
+    }
   } else fy = START_POSITIONS[key].fy;
-  const fx = ALLIANCE_ZONE_DEPTH - 0.02 - robot.halfL;
   const w = fw(fx, fy, alliance);
   return { x: w.x, z: w.z, yaw: alliance === 'blue' ? 0 : Math.PI };
+}
+
+// The team's own auto for a robot started at spot key (js/teamAutos.js): the one from the side
+// nearest it, or null if the team's code isn't in. avoid: spots already taken.
+const nearestSpot = (fy) => START_ORDER.reduce((a, k) => (Math.abs(START_POSITIONS[k].fy - fy) < Math.abs(START_POSITIONS[a].fy - fy) ? k : a));
+export function teamAutoFor(robotKey, key, avoid = new Set()) {
+  const list = TEAM_AUTOS[robotKey];
+  if (!list) return null;
+  const want = START_POSITIONS[key]?.fy ?? FIELD_W / 2;
+  const free = list.filter((a) => !avoid.has(nearestSpot(a.startFy)));
+  return free.sort((a, b) => Math.abs(a.startFy - want) - Math.abs(b.startFy - want))[0] || null;
 }
 
 // Resolve a custom auto selection: { auto, mirror } or null for built-in routines
@@ -129,15 +148,22 @@ export function mirrorPlan(plan) {
 
 // Starting spots for one ALLIANCE's robots, so no two start on top of each other. entries (in
 // driver station order): { robot (key), auto, start, plan? }. Each gets the spot it wants if
-// it's free; a 'best' plan runs mirrored if only the other side is free; otherwise the nearest
-// free spot. Custom autos start where they were drawn. Returns [{ start, plan }].
+// it's free; 'best' on a robot whose team's code is in runs the team's own auto from the side it
+// starts on (another side's if that spot's taken); a 'best' plan runs mirrored if only the other
+// side is free; otherwise the nearest free spot. Custom autos start where they were drawn.
+// Returns [{ start, plan, team }] (team: the team auto to run, as a custom auto).
 export function assignStarts(entries) {
   const taken = new Set();
-  const nearest = (fy) => START_ORDER.reduce((a, k) => (Math.abs(START_POSITIONS[k].fy - fy) < Math.abs(START_POSITIONS[a].fy - fy) ? k : a));
+  const nearest = nearestSpot;
   const out = entries.map((e) => {
     const custom = getCustom(e.auto);
     if (custom) { taken.add(nearest(custom.startFy)); return { start: null, plan: null, custom: true }; }
     return null;
+  });
+  entries.forEach((e, i) => {
+    if (out[i] || e.auto !== 'best' || e.plan) return;
+    const team = teamAutoFor(e.robot, e.start, taken);
+    if (team) { taken.add(nearest(team.startFy)); out[i] = { start: nearest(team.startFy), plan: null, team }; }
   });
   entries.forEach((e, i) => {
     if (out[i]) return;
@@ -172,10 +198,13 @@ export class AutoRunner {
     this.done = false;
   }
 
-  // mirror for start side (routines are authored for the right side / low fy)
+  // mirror for start side (routines are authored for the right side / low fy); never so close to
+  // a wall that the robot can't turn there with its intake out (a team's waypoint by the wall is
+  // for its own robot's size)
   P(fx, fy, sideMirror = true) {
+    const r = this.robot, m = Math.hypot(r.halfL + (r.cfg.intake.reach || 0), r.halfW * 0.5) + 0.03;
     const y = sideMirror && this.left ? FIELD_W - fy : fy;
-    return fw(fx, y, this.alliance);
+    return fw(clamp(fx, m, 2 * HALF_L - m), clamp(y, m, FIELD_W - m), this.alliance);
   }
 
   _build(routine) {
@@ -295,13 +324,14 @@ export class AutoRunner {
     // an intake that stows folded up (8793's) comes down on the way under a TRENCH
     // (only a robot that fits under it: the others go over the BUMPS and leave it stowed)
     cmd.lower = !!r.cfg.intake.fold && fitsTrench(r.cfg) && underTrench(r.pos.x, r.pos.z, r.halfL + 1.2);
+    this.elapsed = (this.elapsed || 0) + dt;
     if (this.done || this.i >= this.steps.length) {
       this.done = true;
       return;
     }
     const s = this.steps[this.i];
     this.stepT += dt;
-    const next = () => { this.i++; this.stepT = 0; this.pi = 0; };
+    const next = () => { this.i++; this.stepT = 0; this.pi = 0; this.lag = 0; };
     if (s.type === 'shoot') {
       cmd.shoot = true;
       // too close to the HUB for this shooter: back away toward our ALLIANCE WALL
@@ -310,7 +340,8 @@ export class AutoRunner {
       return;
     }
     if (s.type === 'wait') {
-      if (this.stepT >= s.t) next();
+      cmd.intake = !!s.intake;
+      if (s.until !== undefined ? this.elapsed >= s.until : this.stepT >= s.t) next();
       return;
     }
     if (s.type === 'climb') {
@@ -339,13 +370,32 @@ export class AutoRunner {
       const d = Math.hypot(dx, dz);
       let remain = d;
       for (let k = this.pi; k + 1 < pts.length; k++) remain += Math.hypot(pts[k + 1].x - pts[k].x, pts[k + 1].z - pts[k].z);
-      const vmax = r.cfg.drive.maxSpeed * (s.speed ?? 1);
-      const sp = Math.min(vmax, Math.sqrt(2 * 6 * Math.max(0, remain - 0.02)) + 0.05);
+      const vmax = r.cfg.drive.maxSpeed * (s.pts[this.pi][2] ?? s.speed ?? 1);
+      let sp = Math.min(vmax, Math.sqrt(2 * 6 * Math.max(0, remain - 0.02)) + 0.05);
+      // slow for the turn at the waypoint ahead (it's left 0.35 m before it): a right angle at
+      // half speed, a U-turn at a fifth
+      if (!last) {
+        const nx = pts[this.pi + 1].x - tgt.x, nz = pts[this.pi + 1].z - tgt.z, nl = Math.hypot(nx, nz);
+        if (nl > 1e-3 && d > 1e-3) {
+          const turn = Math.acos(clamp((dx * nx + dz * nz) / (d * nl), -1, 1));
+          const vc = vmax * Math.max(0.2, 1 - (0.5 * turn) / (Math.PI / 2));
+          sp = Math.min(sp, Math.sqrt(vc * vc + 2 * 6 * Math.max(0, d - 0.35)));
+        }
+      }
+      // like a path follower's position feedback: falling behind where it should be by now (pushing
+      // over a DEPOT barrier, through a pile) builds up a lag that adds to the command, 3 m/s per m
+      const moving = Math.hypot(r.vel.x, r.vel.z);
+      this.lag = clamp((this.lag || 0) + (sp - moving) * dt - (moving > 0.8 * sp ? 0.5 * dt : 0), 0, 0.6);
+      sp = Math.min(r.cfg.drive.maxSpeed, sp + 3 * this.lag);
       if (d > 1e-3) { cmd.vx = (dx / d) * sp; cmd.vz = (dz / d) * sp; }
       // heading: face the direction of travel (intake first) unless told otherwise
       let face = s.face !== undefined ? (this.alliance === 'blue' ? s.face : s.face + Math.PI) : Math.atan2(-dz, dx);
       if (this.left && s.face === undefined) face = Math.atan2(-dz, dx);
-      if (d > 0.15 || s.face !== undefined) cmd.omega = clamp(5 * wrapAngle(face - r.yaw), -r.cfg.drive.maxOmega, r.cfg.drive.maxOmega);
+      // a chassis-aimed shooter about to stop and shoot turns to its shot over the last 2.5 m, so
+      // it arrives aimed (as the teams' autos do) instead of swinging round where it stops
+      const aimAhead = s.face === undefined && r.cfg.shooter.type === 'fixed' && this.steps[this.i + 1]?.type === 'shoot' && remain < 2.5;
+      if (aimAhead) { const h = fw(HUB.fx, HUB.fy, this.alliance); face = Math.atan2(-(h.z - r.pos.z), h.x - r.pos.x) - (r.aimOffset || 0); }
+      if (d > 0.15 || s.face !== undefined || aimAhead) cmd.omega = clamp(5 * wrapAngle(face - r.yaw), -r.cfg.drive.maxOmega, r.cfg.drive.maxOmega);
       cmd.intake = !!s.intake;
       // Under a TRENCH later on this route: stop taking FUEL in once the load is nearly up to the
       // arm (it would bulge the net or hold the lid up too high to get under), and if it's still

@@ -331,13 +331,17 @@ export function guideSurface() {
   return new Surface({ name: 'guides', vertices: V, indices: I, mu: 0.3 });
 }
 // The front bumper, which FUEL climb over on the way in: square foam under fabric (the team; mu:
-// fabric on foam, an estimate), its face and top. 8793's frame: 27.5in.
-export function bumperSurface({ halfL = 13.75 * IN, halfW = 13.75 * IN + BUMPER_T, mu = 0.6 } = {}) {
+// fabric on foam, an estimate), its face and top. 8793's frame: 27.5in. The foam gives with a FUEL
+// pressed into it (tread, N/m: an estimate, about 2 N per mm), so the arm's bare aluminum rollers
+// squeeze FUEL against it lightly (the tip roller's 39 mm of overlap with the bumper's corner is
+// mostly the bumper giving) and slip on one that's held up rather than stall the X60 (the team):
+// 28-39 auto-unjams a match against 34-91 with a rigid bumper.
+export function bumperSurface({ halfL = 13.75 * IN, halfW = 13.75 * IN + BUMPER_T, mu = 0.6, tread = 2000 } = {}) {
   const x1 = halfL + BUMPER_T;
   const V = [
     x1, BUMPER_Y0, -halfW, x1, BUMPER_Y0, halfW, x1, BUMPER_Y1, halfW, x1, BUMPER_Y1, -halfW, // face
     halfL, BUMPER_Y1, -halfW, halfL, BUMPER_Y1, halfW,                                         // top, back edge
   ];
   const I = [0, 1, 2, 0, 2, 3, 3, 2, 5, 3, 5, 4];
-  return new Surface({ name: 'bumper', vertices: V, indices: I, mu });
+  return new Surface({ name: 'bumper', vertices: V, indices: I, mu, tread });
 }
