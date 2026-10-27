@@ -414,15 +414,20 @@ function addElectronics(parent, x, z, rot = 0) {
   return g;
 }
 
-function limelight(parent, x, y, z, ry = 0) {
+// a Limelight, its lens facing +x (turned ry about y, then tilted tilt rad up); ll4: a Limelight 4's
+// face (one lens off to one side, the finned heat sink, a green status bar), not the two LEDs
+function limelight(parent, x, y, z, ry = 0, { tilt = 0, ll4 = false } = {}) {
   const g = new THREE.Group();
   g.position.set(x, y, z);
-  g.rotation.y = ry;
+  g.rotation.set(0, ry, tilt, 'YXZ');
   parent.add(g);
   rbx(0.03, 0.06, 0.1, 0.006, M.anodBlack, g, 0, 0, 0);
-  const lens = mesh(new THREE.CircleGeometry(0.014, 16), M.lens, g, 0.0155, 0, 0);
+  const lens = mesh(new THREE.CircleGeometry(ll4 ? 0.011 : 0.014, 16), M.lens, g, 0.0155, 0, ll4 ? -0.012 : 0);
   lens.rotation.y = Math.PI / 2;
-  for (const s of [-1, 1]) { const l = mesh(new THREE.CircleGeometry(0.006, 10), M.led, g, 0.0155, 0, s * 0.03); l.rotation.y = Math.PI / 2; }
+  if (ll4) {
+    for (const fz of [0.044, 0.037, 0.03, 0.004, -0.028, -0.035, -0.042]) bx(0.004, 0.05, 0.003, M.anodBlack, g, 0.0165, 0, fz);
+    bx(0.002, 0.022, 0.005, M.led, g, 0.0158, 0, 0.016);
+  } else for (const s of [-1, 1]) { const l = mesh(new THREE.CircleGeometry(0.006, 10), M.led, g, 0.0155, 0, s * 0.03); l.rotation.y = Math.PI / 2; }
   return g;
 }
 
@@ -1409,16 +1414,20 @@ function build4414(cfg, alliance) {
   // ---- turret: bearing ring in the top plate, the shooter in it where the physical model has it
   // (js/mech/r4414.js SHOOTER, FLY: its x along the shot): the 3in flywheel (four stealth wheels,
   // copper disks at its ends, the binder) just ahead of the axis, the fixed backing low behind it,
-  // and the hood, coaxial with it (the team), its two arched plates swinging up over it with the
-  // hood roller at their end and the belts up them (the renders); the four X44s down the column
+  // and the hood, coaxial with it (the team), its two plates swinging up over it with the hood
+  // roller at their apex, the wheel opposite the flywheel (three sushi wheels on one shaft), belted
+  // up the plates from stubs geared off the flywheel's shaft (the renders); the Limelight sunk in
+  // just ahead of the flywheel; the four X44s down the column
   const turret = new THREE.Group();
   turret.position.set(tx, wallTop, tz);
   root.add(turret);
   {
-    const ring = flatPart(arcPts(0, 0, 0.19, 0, Math.PI * 2, 48), [arcPts(0, 0, 0.14, 0, Math.PI * 2, 48)], 0.006, darkPlate, turret, 0.008);
+    // (notched at the front for the Limelight, recessed in it just ahead of the flywheel)
+    const nz = 0.056, na = Math.asin(nz / 0.14);
+    const ring = flatPart(arcPts(0, 0, 0.19, 0, Math.PI * 2, 48), [[...arcPts(0, 0, 0.14, na, Math.PI * 2 - na, 44), [0.178, nz], [0.178, -nz]]], 0.006, darkPlate, turret, 0.008);
     ring.castShadow = true;
     const tb = boltSet(turret, std(0xc4c8ce, 0.3, 0.9));
-    for (let i = 0; i < 16; i++) { const a = (i / 16) * Math.PI * 2; tb.add(new THREE.Vector3(Math.cos(a) * 0.165, 0.008, Math.sin(a) * 0.165), up); }
+    for (let i = 1; i < 16; i++) { const a = (i / 16) * Math.PI * 2; tb.add(new THREE.Vector3(Math.cos(a) * 0.165, 0.008, Math.sin(a) * 0.165), up); }
     tb.done();
     // the column's top under the shooter
     mesh(new THREE.CylinderGeometry(0.118, 0.118, 0.12, 36, 1, true), std(0x23262b, 0.5, 0.4, { side: THREE.DoubleSide }), turret, 0, D4.BORE.top - wallTop - 0.06, 0);
@@ -1449,13 +1458,19 @@ function build4414(cfg, alliance) {
   for (const sz of [-1, 1]) for (const k of [0, 1]) cylZ(F4s.r - 0.002, 0.006, M.copper, fly, 0, 0, sz * (F4s.w / 2 + 0.004 + k * 0.007), 24);
   cylZ(0.0064, 2 * (pz + 0.04), M.alu, fly, 0, 0, 0, 6);
   { const gr = spurGear(0.03, 30, 0.01, M.copper, body); gr.rotation.x = Math.PI / 2; gr.position.set(ax, ay, pz + 0.042); }
+  // the hood roller's drive (Shooter PT): a ~30T 20DP gear on the flywheel's shaft at each end,
+  // inside the side plates, turning with it (dz: where these gears and the belts run, between the
+  // hood's plates and the side plates)
+  const G30 = 0.75 * IN, G20 = 0.5 * IN, dz = pz + 0.0155;
+  for (const sz of [-1, 1]) { const gr = spurGear(G30, 30, 0.005, M.copper, fly, 3); gr.rotation.x = Math.PI / 2; gr.position.set(0, 0, sz > 0 ? dz + 0.005 : -dz); }
   // the fixed backing low behind the flywheel (its printed arc)
   {
     const g = new THREE.CylinderGeometry(S4.fixedR + 0.003, S4.fixedR + 0.003, 2 * pz, 16, 1, true, 0, ((S4.fixedA[1] - S4.fixedA[0]) * Math.PI) / 180);
     const b = mesh(g, std(0x2c2f35, 0.6, 0.1, { side: THREE.DoubleSide }), body, ax, ay, 0);
-    // (three's cylinder: angle from +z toward +x about y; turned to lie round the axle in x-y)
+    // (three's cylinder: angle from +z toward +x about y; turned to lie round the axle in x-y, its
+    // sweep from fixedA[0])
     b.rotation.x = Math.PI / 2;
-    b.rotation.y = Math.PI / 2 - (S4.fixedA[1] * Math.PI) / 180;
+    b.rotation.y = Math.PI / 2 + (S4.fixedA[0] * Math.PI) / 180;
   }
   // the sushi feeder: three 1in wheels up the column's front side under the flywheel
   const fx = -D4.BORE.r + 2 * FUEL.radius - 0.5 * IN + S4.feeder.r;
@@ -1465,32 +1480,66 @@ function build4414(cfg, alliance) {
   hood.position.set(ax, ay, 0);
   body.add(hood);
   const h0 = S4.hoodStow, h1 = h0 + S4.hoodSpan, rIn = S4.hoodR, rOut = S4.hoodR + 0.045;
+  // the hood roller's place: at the hood's tip (where it lets FUEL go), 1in into the FUEL
+  const rr = S4.rollerR, raD = h0 + S4.roller.at, ra = (raD * Math.PI) / 180;
+  // the stub each side: carried on the hood's plate, its 20T meshed with the flywheel's ~30T (so it
+  // rolls round that gear as the hood swings), its GT2 pulley under the belt up the plate's edge
+  // to the roller's (sa: the stub's angle on the hood, from the renders: ahead of the flywheel's top
+  // when the hood is up)
+  const sd = G30 + G20, sa = ((raD - 80) * Math.PI) / 180, sx = sd * Math.cos(sa), sy = sd * Math.sin(sa), rp = 0.0115;
   for (const sz of [-1, 1]) {
-    // an arched plate each side (pocketed), the hood's backing between them
-    const ap = new THREE.Shape(), n = 16;
-    for (let i = 0; i <= n; i++) { const a = ((h0 - 3 + ((h1 + 8 - h0) * i) / n) * Math.PI) / 180; i ? ap.lineTo(rOut * Math.cos(a), rOut * Math.sin(a)) : ap.moveTo(rOut * Math.cos(a), rOut * Math.sin(a)); }
-    for (let i = n; i >= 0; i--) { const a = ((h0 - 3 + ((h1 + 8 - h0) * i) / n) * Math.PI) / 180; ap.lineTo((rIn - 0.01) * Math.cos(a), (rIn - 0.01) * Math.sin(a)); }
-    for (let i = 0; i < 3; i++) { const a = ((h0 + 8 + i * 13) * Math.PI) / 180, rm = (rIn + rOut) / 2; const h = new THREE.Path(); h.absarc(rm * Math.cos(a), rm * Math.sin(a), 0.011, 0, Math.PI * 2, true); ap.holes.push(h); }
+    // a plate each side, a pocketed sector (the renders' truss): from round the axle out along the
+    // belt's edge to the roller at its apex, round the arc behind (the sector gear's, doubled 1/8in
+    // 7075: the binder) and back in; the hood's backing between them
+    const ap = new THREE.Shape(), n = 16, a0 = raD - 3, a1 = h1 + 8;
+    ap.moveTo(0.026 * Math.cos(((a0 - 90) * Math.PI) / 180), 0.026 * Math.sin(((a0 - 90) * Math.PI) / 180));
+    ap.lineTo(sx + 0.016 * Math.cos(sa - Math.PI / 2), sy + 0.016 * Math.sin(sa - Math.PI / 2));
+    for (let i = 0; i <= n; i++) { const a = ((a0 + ((a1 - a0) * i) / n) * Math.PI) / 180; ap.lineTo(rOut * Math.cos(a), rOut * Math.sin(a)); }
+    ap.lineTo(0.026 * Math.cos(((a1 + 90) * Math.PI) / 180), 0.026 * Math.sin(((a1 + 90) * Math.PI) / 180));
+    ap.absarc(0, 0, 0.026, ((a1 + 90) * Math.PI) / 180, ((a0 + 270) * Math.PI) / 180, false);
+    for (const [hr, hd, hs] of [[0.5, 22, 0.014], [0.72, 14, 0.012], [0.72, 32, 0.012], [0.5, 46, 0.012], [0.82, 50, 0.009]]) { const a = ((raD + hd) * Math.PI) / 180, rm = hr * rOut; const h = new THREE.Path(); h.absarc(rm * Math.cos(a), rm * Math.sin(a), hs, 0, Math.PI * 2, true); ap.holes.push(h); }
     mesh(new THREE.ExtrudeGeometry(ap, { depth: 0.005, bevelEnabled: false }), blackAl, hood, 0, 0, sz * (pz + 0.012) - 0.0025);
   }
   {
-    const g = new THREE.CylinderGeometry(rIn + 0.002, rIn + 0.002, 2 * pz, 20, 1, true, 0, (S4.hoodSpan * Math.PI) / 180);
+    // (the printed backing, from just short of the roller back over the flywheel)
+    const b0 = S4.roller.at + S4.roller.gap, g = new THREE.CylinderGeometry(rIn + 0.002, rIn + 0.002, 2 * pz, 20, 1, true, 0, ((S4.hoodSpan - b0) * Math.PI) / 180);
     const b = mesh(g, std(0x2c2f35, 0.6, 0.1, { side: THREE.DoubleSide }), hood, 0, 0, 0);
     b.rotation.x = Math.PI / 2;
-    b.rotation.y = Math.PI / 2 - (h1 * Math.PI) / 180;
+    b.rotation.y = Math.PI / 2 + ((h0 + b0) * Math.PI) / 180;
   }
-  // the hood roller (1in sushi wheel) at the hood's end, belted down the arched plates
-  const rr = S4.hoodR + S4.roller.r - 0.2 * IN, ra = ((h0 + S4.roller.at) * Math.PI) / 180;
-  const hoodRoller = cylZ(S4.roller.r, 2 * pz, M.compliant, hood, rr * Math.cos(ra), rr * Math.sin(ra), 0, 14);
+  // the hood roller: three 1in sushi wheels side by side on its hex shaft across the plates, the
+  // wheel opposite the flywheel (its face runs with the FUEL, at half the flywheel's surface speed)
+  const hoodRoller = new THREE.Group();
+  hoodRoller.position.set(rr * Math.cos(ra), rr * Math.sin(ra), 0);
+  hood.add(hoodRoller);
+  for (let i = 0; i < S4.roller.n; i++) {
+    const w = cylZ(S4.roller.r, S4.roller.seg - 0.002, M.compliant, hoodRoller, 0, 0, (i - (S4.roller.n - 1) / 2) * S4.roller.seg, 16);
+    w.rotation.y = i * 0.7; // (the segments' facets out of step: they read as separate wheels)
+  }
+  cylZ(0.0064, 2 * (dz + 0.008), M.alu, hoodRoller, 0, 0, 0, 6);
+  for (const sz of [-1, 1]) bx(0.003, S4.roller.r * 1.6, 0.002, std(0x1b1d21, 0.6, 0.1), hoodRoller, 0, 0, sz * (S4.roller.seg / 2)); // (the joints)
+  // the stubs (they turn against the flywheel: one mesh), the belts up the plates (two strands each,
+  // over the GT2 pulleys)
+  const stubs = [];
   for (const sz of [-1, 1]) {
-    const a = new THREE.Vector3(0, 0, sz * (pz + 0.022)), b = new THREE.Vector3(rr * Math.cos(ra), rr * Math.sin(ra), sz * (pz + 0.022));
-    rod(hood, a, b, 0.006, M.polyBelt, 4).scale.set(1, 1, 0.35);
-    for (const p of [a, b]) cylZ(0.014, 0.01, M.alu, hood, p.x, p.y, p.z, 12);
+    const st = new THREE.Group();
+    st.position.set(sx, sy, 0);
+    hood.add(st);
+    stubs.push(st);
+    { const gr = spurGear(G20, 20, 0.005, M.copper, st, 0); gr.rotation.x = Math.PI / 2; gr.position.set(0, 0, sz > 0 ? dz + 0.005 : -dz); }
+    const zb = sz * (dz + 0.0085);
+    for (const p of [st, hoodRoller]) cylZ(rp, 0.006, M.alu, p, 0, 0, zb, 14);
+    const a = new THREE.Vector3(sx, sy, zb), b = new THREE.Vector3(rr * Math.cos(ra), rr * Math.sin(ra), zb);
+    const d = new THREE.Vector3().subVectors(b, a).normalize(), nrm = new THREE.Vector3(-d.y, d.x, 0).multiplyScalar(rp);
+    for (const k of [-1, 1]) rod(hood, a.clone().addScaledVector(nrm, k), b.clone().addScaledVector(nrm, k), 0.003, M.polyBelt, 6);
   }
   // the four X44s, 1:1 to the flywheel, down the column's side, their gears up to its gear
   for (let i = 0; i < 4; i++) kraken(body, -0.03 - (i % 2) * 0.055, ay - 0.06 - Math.floor(i / 2) * 0.065, pz + 0.07, true, 'z');
   { const gr = spurGear(0.024, 24, 0.01, M.copper, body); gr.rotation.x = Math.PI / 2; gr.position.set(-0.03, ay - 0.06, pz + 0.042); }
-  limelight(turret, 0.11, 0.036, 0.11, 0); // on the ring, looking where it shoots
+  // the Limelight (one lens, the finned face: a Limelight 4, by the renders): just ahead of the
+  // flywheel, centered across the shooter, sunk into the notch in the turret's top plate, its top
+  // about flush with it, looking out along the shot and a little up (ShooterV10, V11, Turret PT)
+  limelight(body, ax + F4s.r + 0.03, -0.014, 0, 0, { tilt: 0.75, ll4: true });
   // cable chain to the turret
   const chain = mesh(new THREE.TorusGeometry(0.17, 0.008, 4, 24, Math.PI * 0.8), std(0x111214, 0.8, 0.05), turret, 0, 0.018, 0);
   chain.rotation.x = Math.PI / 2;
@@ -1521,7 +1570,9 @@ function build4414(cfg, alliance) {
     for (const w of ttbSpin) w.rotation.y += st.feeding * dt * 60; // (the stack turns about +y: its face toward the channel runs in)
     turret.rotation.y = st.turretYaw;
     fly.rotation.z -= st.flywheel * dt * 10;
-    hoodRoller.rotation.z += st.flywheel * dt * 10;
+    // (the stubs and the roller against it, 1.5 times as fast: the ~30:20 mesh, 1:1 belts)
+    hoodRoller.rotation.z += st.flywheel * dt * 15;
+    for (const s of stubs) s.rotation.z += st.flywheel * dt * 15;
     hood.rotation.z = st.hoodTurn ?? 0; // (its turn from stow, the physical model's)
     net.drape(st.load, ex);
   };

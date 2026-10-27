@@ -11,8 +11,9 @@
 // bend (one FUEL from the hook's root to the shot), column (FUEL fed at the hook's root as fast as
 // there's room), ring (a ring of FUEL on the floor: what the hook takes in a turn), lip (FUEL on
 // the stadium round an empty bowl: how fast they come down into it).
-// Env: SEEDS (6), SPEED (1 m/s), STUCK (where the ones left over are), TRACE=i (follow FUEL i),
-// SHOT=rad,hood (one shot of your own), LAYERS (fill), TIMELINE, ROTOR (rps, 2.25), ROLLERS (duty, 1);
+// Env: SEEDS (6), SPEED (1 m/s), STUCK (where the ones left over are), TRACE=i (follow FUEL i;
+// shooter: every TEVERY steps, 3, with its spin), SHOT=rad,hood (one shot of your own), LAYERS
+// (fill), TIMELINE, ROTOR (rps, 2.25), ROLLERS (duty, 1);
 // dump: DSEEDS (fills), NOBOX (none in the box), LOAD (where the load is, each 0.5 s), SNAP=t and
 // SNAPFILE (where the FUEL low round the rotor are, in its frame, nine times from t s); hold: HSEEDS
 import { writeFileSync } from 'fs';
@@ -183,7 +184,7 @@ const tests = {
         r.step(live); w.step();
         watch.check(live, i * DT);
         if (watch.shots.length) minFly = Math.min(minFly, r.t.fly.omega);
-        if (process.env.TRACE && i % 3 === 0 && balls[0] && balls[0].translation().y < 3) { const p = balls[0].translation(), v = balls[0].linvel(); console.log(`   ${(i * DT).toFixed(3)} ${p.x.toFixed(3)},${p.y.toFixed(3)},${p.z.toFixed(3)} v ${v.x.toFixed(2)},${v.y.toFixed(2)}: ${names(r, balls[0])}`); }
+        if (process.env.TRACE && i % Number(process.env.TEVERY ?? 3) === 0 && balls[0] && balls[0].translation().y < 3) { const p = balls[0].translation(), v = balls[0].linvel(); console.log(`   ${(i * DT).toFixed(3)} ${p.x.toFixed(3)},${p.y.toFixed(3)},${p.z.toFixed(3)} v ${v.x.toFixed(2)},${v.y.toFixed(2)} w ${balls[0].angvel().z.toFixed(0)}: ${names(r, balls[0])}`); }
       }
       w.free();
       const o = watch.shots;

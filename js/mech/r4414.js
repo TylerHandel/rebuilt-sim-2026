@@ -30,7 +30,30 @@
 //     feeder on one side geared down 16:14 with .5in compression"; "1in sushi wheel hood roller at
 //     50% surface speed with 1in compression"; ".9in and .8in compression on hood backing 3d
 //     prints"; the hood "coaxial with the shooter wheels" (the team), on a sector at 85.3:1 (an X44)
+//     ("20dp hood sector gear"); "Dual GT2 3mm pitch 6mm wide belts directly over the hood side
+//     plates" ("allows for a hood roller while maintaining the low profile of a static hood")
 //   - turret: 55.7:1 (an X44)
+//
+// The shooter's powertrain, read off the binder's renders (Shooter PT, Shooter isolated, ShooterV10
+// and V11; sizes not in the text are estimates): the four X44s stacked down the column's side, a
+// 20DP gear tower 1:1 up to the flywheel's shaft. The flywheel: 3in stealth wheels with copper
+// disks at its ends, on a hex shaft. At each end of that shaft a 20DP gear (~30T, by its size
+// against the 20T) drives a 20T ("20DP 20T" on it, Shooter PT) on a stub carried by the hood's side
+// plate: one mesh, so the stub turns against the flywheel, and as the hood swings about the
+// flywheel's axle the stub rolls round that gear, the belt's length never changing. A GT2 pulley
+// on each stub, a belt straight up the plate's edge to a pulley on the hood roller's shaft at the
+// plates' apex (pulleys alike, ~1:1). So the hood holds ONE powered shaft, its three sushi wheels
+// side by side over the middle of the path (~4in of the ~6.5in between the plates; the renders
+// look nearer 1.5in than 1in across, the binder says 1in), at the hood's tip: the last thing a FUEL
+// touches. Its face runs with the FUEL, opposite the flywheel's: a pair of opposed wheels, the
+// FUEL leaving between them, the flywheel at its surface's speed and the roller at half that
+// ("50% surface speed": 1.5 turns a flywheel turn, about the 30:20 mesh with the 1:1 belts).
+// Behind it the two printed backings: the hood's (.8in), from just short of the roller back over
+// the flywheel, and the fixed one low down (.9in) where FUEL come up the column. (Their earlier
+// shooters, ShooterV1-V6, had a full second set of wheels over the flywheel; V9 a row of free
+// rollers along the hood; the one that played, V10 and V11, this.) The Limelight sits just in front
+// of the flywheel, recessed into the turret's top plate, looking out along the shot (V10, V11,
+// Turret PT: one lens and a finned face, a Limelight 4 by the look).
 //
 // How they're put together here (the renders, and 604's): the Dye Rotor turns (36.4:1, clockwise
 // from above) on the hopper's middle over a fixed floor sunk in a bowl: the stadium pieces funnel
@@ -134,12 +157,20 @@ export const SHOOTER = {
   // round its axle (so they wrap it from there round to where the hood lets them go)
   entry: 210,
   get x() { return -this.path * Math.cos((this.entry * Math.PI) / 180); },
-  // the backings (their 3D prints) round the axle: the fixed one low down (fixedA, deg),
-  // the hood's past it (HOOD.span deg from where it lets go)
-  fixedR: FLY.r + 2 * R - SQ.low, fixedA: [150, 200],
+  // the backings (their 3D prints) round the axle: the fixed one low down (fixedA, deg: from where
+  // FUEL come up the column to the top plate's level, flush with it, so it never reaches past the
+  // hood roller, which lets them go: ShooterV10's stepped print under the hood's), the hood's past
+  // it (HOOD.span deg from where it lets go)
+  fixedR: FLY.r + 2 * R - SQ.low, fixedA: [165, 200],
   hoodR: FLY.r + 2 * R - SQ.hood,
-  // the hood roller (1in sushi wheel, 50% of the flywheel's surface speed) just inside the hood's end
-  roller: { r: 0.5 * IN, at: 4, w: 0.1 },
+  // the hood roller at the hood's tip, the wheel opposite the flywheel: n 1in sushi wheels side by
+  // side on its shaft, seg wide each (the renders: three over ~4in of the middle, estimate), its
+  // center at the angle the hood lets FUEL go (at, deg past it), 1in into the FUEL; it turns k
+  // times a flywheel turn (the binder's 50% surface speed), J its shaft's (three wheels, the hex,
+  // two pulleys: estimate). The hood's backing stops gap deg short of it (the renders: the print
+  // runs up to the roller)
+  roller: { r: 0.5 * IN, n: 3, seg: 1.4 * IN, at: 0, k: 1.5, J: 1e-5, gap: 6 },
+  get rollerR() { return this.hoodR + this.roller.r - (SQ.roller - SQ.hood); },
   // the sushi feeder: three 1in wheels on the column's front side under the flywheel, into the
   // FUEL against the column's back wall
   feeder: { r: 0.5 * IN, ys: [0.38, 0.405, 0.43], w: 0.06 },
@@ -200,10 +231,13 @@ export function build4414() {
   // the 1.25in omnis over the entrance: bevel-geared off the top of the stack (the renders; the team:
   // they spin more than twice as fast), 3:1.25 so their surface runs with the 3in wheels' (estimate)
   const bend = rollers.add(new Shaft({ name: '1.25in omnis', inertia: 1e-5, drag: 1e-5 }), 3 / 1.25);
-  // the launcher: four X44s 1:1 on the flywheel; the hood roller at half its surface speed
+  // the launcher: four X44s 1:1 on the flywheel (their gear tower); the hood roller off the
+  // flywheel's shaft through the ~30:20 mesh at each end and the GT2 belts up the hood's plates,
+  // turning against it (its axis is the other way: placeShooter), k times as fast: half its
+  // surface speed, the wheel opposite it
   const launcher = new Train({ name: 'launcher', motor: new Motor('krakenX44', { count: 4, ratio: 1, statorLimit: 60, supplyLimit: 40 }) });
   const fly = launcher.add(new Shaft({ name: '3in flywheel and copper', inertia: SHOOTER.J }), 1);
-  const hoodRoller = launcher.add(new Shaft({ name: 'hood sushi roller', inertia: 5e-6 }), (0.5 * FLY.r) / SHOOTER.roller.r);
+  const hoodRoller = launcher.add(new Shaft({ name: 'hood sushi roller (belted up the hood)', inertia: SHOOTER.roller.J }), SHOOTER.roller.k);
   // the sushi feeder: geared down 16:14 off the flywheel (its gears down the turret's side, in the
   // renders), so it feeds as fast as the shot's speed lets it: "the main bps regulator"
   const feeder = launcher.add(new Shaft({ name: 'shooter sushi feeder', inertia: 1e-5 }), 14 / 16);
@@ -285,7 +319,8 @@ export function shooterWheels(t) {
   const S = SHOOTER;
   const w = [
     new Wheel({ name: '3in flywheel (stealth wheels)', shaft: t.fly, center: [0, 0, 0], axis: [0, 0, -1], radius: FLY.r, width: FLY.w, mu: MU.stealth, tread: 30000 }),
-    new Wheel({ name: 'hood 1in sushi roller', shaft: t.hoodRoller, center: [0, 0, 0], axis: Z, radius: S.roller.r, width: S.roller.w, mu: MU.sushi, tread: 15000 }),
+    // (the hood roller's sushi wheels, side by side across the path on the one shaft)
+    ...Array.from({ length: S.roller.n }, (_, i) => new Wheel({ name: `hood 1in sushi roller ${i + 1}`, shaft: t.hoodRoller, center: [0, 0, 0], axis: Z, radius: S.roller.r, width: S.roller.seg - 0.002, mu: MU.sushi, tread: 15000 })),
     ...S.feeder.ys.map((y, i) => new Wheel({ name: `1in sushi feeder ${i + 1}`, shaft: t.feeder, center: [0, y, 0], axis: [0, 0, -1], radius: S.feeder.r, width: S.feeder.w, mu: MU.sushi, tread: 15000 })),
   ];
   w.forEach((x) => { x.home = x.center.slice(); });
@@ -296,17 +331,19 @@ export function shooterWheels(t) {
 // tangent there
 export const hoodElevation = (deg) => deg - 90;
 // the shooter's wheels where the turret (yaw, rad; 0 facing forward) and the hood (deg) put them
-export function placeShooter([fly, roller, ...feeders], yaw, hoodDeg) {
-  const c = Math.cos(yaw), s = Math.sin(yaw), S = SHOOTER;
-  const at = ([x, y]) => [AXIS[0] + x * c, y, AXIS[1] - x * s];
+export function placeShooter([fly, ...rest], yaw, hoodDeg) {
+  const c = Math.cos(yaw), s = Math.sin(yaw), S = SHOOTER, n = S.roller.n;
+  const rollers = rest.slice(0, n), feeders = rest.slice(n);
+  // (x along the shot, y up, z across it to the right)
+  const at = ([x, y], z = 0) => [AXIS[0] + x * c + z * s, y, AXIS[1] - x * s + z * c];
   fly.center = at([S.x, FLY.y]);
-  const b = ((hoodDeg + S.roller.at) * Math.PI) / 180, rr = S.hoodR + S.roller.r - (SQ.roller - SQ.hood);
-  roller.center = at([S.x + rr * Math.cos(b), FLY.y + rr * Math.sin(b)]);
+  const b = ((hoodDeg + S.roller.at) * Math.PI) / 180, rr = S.rollerR;
+  rollers.forEach((w, i) => { w.center = at([S.x + rr * Math.cos(b), FLY.y + rr * Math.sin(b)], (i - (n - 1) / 2) * S.roller.seg); });
   const fx = -BORE.r + 2 * R - SQ.feeder + S.feeder.r; // into the FUEL against the back wall
   feeders.forEach((f) => { f.center = at([fx, f.home[1]]); });
   // (the hood roller turns the other way from the flywheel and the feeder: their surfaces all carry
   // FUEL along)
-  for (const w of [fly, roller, ...feeders]) { const k = w === roller ? 1 : -1; w.axis = [k * s, 0, k * c]; }
+  for (const w of [fly, ...rollers, ...feeders]) { const k = rollers.includes(w) ? 1 : -1; w.axis = [k * s, 0, k * c]; }
 }
 // the front bumper: solid foam (2.5in on its 3/4in backing, 1.25in to 5in up), across the front and
 // round to the side bumpers' faces; soft (20 kN/m, as 341's)
@@ -488,10 +525,11 @@ function turret() {
   return merge(back, fixed, ...plates);
 }
 // the hood's backing (it turns about the flywheel's axle): its local frame there, the end where it
-// lets FUEL go at 0 rad (posed with roll = that end's angle)
+// lets FUEL go (the roller) at 0 rad (posed with roll = that end's angle); the print from just
+// short of the roller back
 function hood() {
-  const S = SHOOTER;
-  return grid(10, 4, (u, v) => { const a = (u * S.hoodSpan * Math.PI) / 180; return [S.hoodR * Math.cos(a), S.hoodR * Math.sin(a), lerp(-S.plateZ, S.plateZ, v)]; });
+  const S = SHOOTER, a0 = S.roller.at + S.roller.gap;
+  return grid(10, 4, (u, v) => { const a = (lerp(a0, S.hoodSpan, u) * Math.PI) / 180; return [S.hoodR * Math.cos(a), S.hoodR * Math.sin(a), lerp(-S.plateZ, S.plateZ, v)]; });
 }
 
 export function pathSurfaces4414(t) {
