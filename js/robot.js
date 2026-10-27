@@ -13,7 +13,8 @@ import { Drivetrain, SwerveDrive } from './drivetrain.js';
 import { Physical8793 } from './mech/phys8793.js';
 import { Physical2910 } from './mech/phys2910.js';
 import { Physical1678 } from './mech/phys1678.js';
-const PHYSICAL = { 8793: Physical8793, 2910: Physical2910, 1678: Physical1678 };
+import { Physical341 } from './mech/phys341.js';
+const PHYSICAL = { 8793: Physical8793, 2910: Physical2910, 1678: Physical1678, 341: Physical341 };
 import { clamp, wrapAngle, approach, approachAngle, gauss, DEG, rand } from './util.js';
 
 const WHEEL_R = 0.05;
@@ -1109,13 +1110,15 @@ export class Robot {
         } else {
           // measured from the middle of the turret's travel (its hard stops are +-lim from there)
           const lim = sh.turretRange * DEG, mid = (this.turrets[0].center ?? 0) * DEG;
-          const rel = wrapAngle(sol.psi - this.yaw - mid);
+          // (a physical robot that aims its own way, 341's, says where: phys.aimPsi)
+          const psi = this.phys?.aimPsi ?? sol.psi;
+          const rel = wrapAngle(psi - this.yaw - mid);
           // choose the equivalent angle closest to the current turret position within limits
           const cands = [rel, rel + 2 * Math.PI, rel - 2 * Math.PI].filter((a) => Math.abs(a) <= lim);
           const cur = this.turretYaw - mid;
           const goal = cands.length ? cands.reduce((a, b) => (Math.abs(b - cur) < Math.abs(a - cur) ? b : a)) : clamp(rel, -lim, lim);
           this.turretYaw = this.turretYaws[0] = mid + approach(cur, goal, sh.turretRate * DEG * dt);
-          aimErr = wrapAngle(sol.psi - (this.yaw + this.turretYaw));
+          aimErr = wrapAngle(psi - (this.yaw + this.turretYaw));
         }
         this._lastPsi = sol.psi;
         this.aimErr = aimErr;

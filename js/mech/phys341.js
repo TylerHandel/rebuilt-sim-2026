@@ -13,19 +13,22 @@
 //     RPM at over 75 A) for 0.2 s pulses them out for 0.25 s (feeder -3 V, rollers -12 V, top
 //     rollers -6 V);
 //   - let go: the flywheel stays at speed (AT_SPEED), the hood stowed, everything else stopped.
-// Their robot only intakes while it shoots (it's hopperless: the right trigger does both); the
-// AI's intake command runs its rollers too, as if the driver held the trigger with the shot not
-// yet on (the rollers and top rollers at 12 V, nothing fed).
+// Their robot only intakes while it shoots (it's hopperless: the right trigger does both, and the
+// intake's default command runs its rollers only while the shooter's SHOOTING). The AI's intake
+// command without a shot runs just the intake's rollers, so what it picks up waits on the tray:
+// the top rollers would run the uptake too (they share its motors), feeding FUEL up into the
+// spinning flywheel unaimed.
 import { Mechanism } from './mechanism.js';
 import { PhysicalRobot } from './physical.js';
 import {
   build341, wheels341, shooterWheels, placeShooter, placeIntake, intakeRot, hoodElevation, pathSurfaces341, placeTurretSurfaces,
-  shotFor, HALF, INTAKE, SHOOTER, PRELOAD, PIVOT,
+  shotFor, HALF, INTAKE, SHOOTER, PRELOAD, PIVOT, TURRET,
 } from './r341.js';
 import PATH from './path341.js';
 import { Field } from '../field.js';
 import { underTrench } from '../nav.js';
 import { clamp } from '../util.js';
+import { HALF_L, ALLIANCE_ZONE_DEPTH } from '../constants.js';
 
 const DEG = Math.PI / 180;
 const R = 0.075;
@@ -120,10 +123,12 @@ export class Physical341 extends PhysicalRobot {
     this.account(t, mode);
     const pass = mode === 'pass';
     const wantShot = on && feeding && setpoint > 0 && !!r.shot;
-    // their RPM and hood for the distance from the turret to the target
+    // their RPM and hood for the distance from the turret to where it aims (their shooting on the
+    // move, RobotState.calculateAimingPoint: the target less the turret's own field velocity,
+    // filtered, times the shot's time of flight)
+    this._aim(dt, pass);
     if (r.shot) {
-      const tgt = pass ? r.shot.target : Field.hubCenter(r.alliance), tp = this._world([-0.102, 0, -0.076]);
-      const want = shotFor(pass ? 'ferry' : 'hub', Math.hypot(tgt.x - tp.x, tgt.z - tp.z));
+      const want = shotFor(pass ? 'ferry' : 'hub', this.aimDist);
       if (wantShot || this.state !== 'stopped') this.targetRpm = want.rpm;
       this.wantHood = want.hood;
     }
@@ -148,7 +153,7 @@ export class Physical341 extends PhysicalRobot {
     this.pulseT = Math.max(0, this.pulseT - dt);
     const pulsing = this.pulseT > 0;
     T.intake.cmd = !on ? 0 : outtake || pulsing ? -1 : intaking ? 1 : 0;
-    T.serializer.cmd = !on ? 0 : outtake || pulsing ? -0.5 : intaking ? 1 : 0;
+    T.serializer.cmd = !on ? 0 : outtake || pulsing ? -0.5 : shooting ? 1 : 0;
     T.feederT.cmd = !on ? 0 : pulsing ? -3 / 12 : this.state === 'shooting' && Math.abs(this.hoodDeg - this.hoodGoal) <= 3 ? 3 / 12 : 0;
     // the flywheel's velocity loop (no reverse voltage: it coasts down)
     if (this.state !== 'stopped' && this.targetRpm > 0) {
@@ -164,6 +169,24 @@ export class Physical341 extends PhysicalRobot {
     r.intakeSpeed = T.intake.cmd > 0 ? 1 : T.intake.cmd < 0 ? -1 : 0;
   }
 
+  // where the turret aims and how far that is (their RobotState): the turret's field velocity
+  // (the robot's, plus its turn about the turret's offset), low-passed as theirs is (alpha 0.25 a
+  // 20 ms loop), times the time of flight they use (the HUB's 1.16 s; a feed's 1.3 s from their
+  // own half, 1.6 s from the far half, 1.8 s from the far ALLIANCE ZONE) off the target.
+  // aimPsi: the turret's field heading to it (Robot._shooter turns the turret there)
+  _aim(dt, pass) {
+    const r = this.r, tp = this._world([TURRET[0], 0, TURRET[1]]), c = r.body.translation(), v = r.body.linvel(), w = r.body.angvel().y;
+    const vx = v.x + w * (tp.z - c.z), vz = v.z - w * (tp.x - c.x);
+    const k = 1 - Math.pow(0.75, dt / 0.02);
+    this.fv = this.fv ?? { x: vx, z: vz };
+    this.fv.x += k * (vx - this.fv.x); this.fv.z += k * (vz - this.fv.z);
+    const tgt = pass && r.shot ? r.shot.target : Field.hubCenter(r.alliance);
+    const own = r.alliance === 'blue' ? r.pos.x + HALF_L : HALF_L - r.pos.x; // (from its own wall)
+    const tof = !pass ? 1.16 : own < HALF_L ? 1.3 : own < 2 * HALF_L - ALLIANCE_ZONE_DEPTH ? 1.6 : 1.8;
+    const ax = tgt.x - this.fv.x * tof, az = tgt.z - this.fv.z * tof;
+    this.aimDist = Math.hypot(ax - tp.x, az - tp.z);
+    this.aimPsi = Math.atan2(-(az - tp.z), ax - tp.x);
+  }
   // the arm's turn from the CAD's pose (rad), for drawing it
   armTurn() { return intakeRot(this.armDeg); }
   // about how fast a FUEL leaves at the flywheel's speed now (m/s; tools/mechlab341.mjs shooter)

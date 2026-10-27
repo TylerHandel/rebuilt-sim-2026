@@ -228,6 +228,13 @@ export class Surface {
   constructor({ name = '', vertices, indices, mu = 0.3, pos = [0, 0, 0], yaw = 0, roll = 0, cell = 0.08, tread = Infinity }) {
     Object.assign(this, { name, mu, cell, kind: 'plain', tread, shaft: FIXED });
     this.setPose(pos, yaw, roll);
+    // (no zero-area triangles: a mesh welded to a grid can collapse one to a line or a point, and
+    // its contact normal would be NaN)
+    indices = Array.from({ length: indices.length / 3 }, (_, t) => t).filter((t) => {
+      const a = indices[t * 3] * 3, b = indices[t * 3 + 1] * 3, c = indices[t * 3 + 2] * 3, V = vertices;
+      const ux = V[b] - V[a], uy = V[b + 1] - V[a + 1], uz = V[b + 2] - V[a + 2], vx = V[c] - V[a], vy = V[c + 1] - V[a + 1], vz = V[c + 2] - V[a + 2];
+      return Math.hypot(uy * vz - uz * vy, uz * vx - ux * vz, ux * vy - uy * vx) > 1e-12;
+    }).flatMap((t) => [indices[t * 3], indices[t * 3 + 1], indices[t * 3 + 2]]);
     const n = indices.length / 3;
     const T = (this.tri = new Float64Array(n * 9));
     for (let t = 0; t < n; t++) for (let k = 0; k < 3; k++) for (let j = 0; j < 3; j++) T[t * 9 + k * 3 + j] = vertices[indices[t * 3 + k] * 3 + j];

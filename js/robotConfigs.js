@@ -623,6 +623,9 @@ export const ROBOTS = {
     teamName: 'Miss Daisy',
     robotName: 'Miss Daisy XXIV',
     archetype: 'Serializer',
+    // built of its physical mechanisms (js/mech/r341.js, phys341.js): its FUEL go through its
+    // CAD's ball path, moved by its rollers under its code's controls
+    physical: '341',
     blurb: 'Almost no hopper: a triple-roller slapdown lifts FUEL onto a single-layer tray under the turret table, where three spinning 6in omni wheels serialize it into the uptake to the turret. Shoots as fast as it intakes. Climbs Level 1.',
     // their CAD: bumpers +-0.428 m, 27x27in frame
     frame: { length: 27 * IN, width: 27 * IN },
