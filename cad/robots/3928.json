@@ -1,6 +1,7 @@
 {
-  "source": "3928 Team Neutrino, \"26\" (Onshape 57c9f32575b97450a6090cdb, workspace 05c87b094e9a536a82f6159e, element 475266d70d4d89294ebea1cd), STEP through tools/step2glb.py",
+  "source": "3928 Team Neutrino, \"26\" (Onshape 57c9f32575b97450a6090cdb, workspace 05c87b094e9a536a82f6159e, element 475266d70d4d89294ebea1cd), STEP through tools/step2glb.py; materials (\"bom\") put on these GLBs with tools/extract-parts.mjs --retag on 27 Oct, from a fresh STEP (1.2 mm, 0.45 rad, screws, nuts, washers and rivets skipped) and collars, pulleys and plugs too, its parts moved to microversion 758368cc81468dbb186c1b4e (the turret turned as in the GLBs)",
   "front": "-y",
+  "bom": "3928-materials.json",
   "parts": [
     {
       "out": "cad/robots/3928-body.glb",

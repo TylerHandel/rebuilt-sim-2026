@@ -1,6 +1,7 @@
 {
-  "source": "1706 Ratchet Rockers, \"Mirage Public Release\" (Onshape 23ba2ed5b3893ab97929c8b6, workspace d7012e1e8978e09c9756ee4c, element 70526e43c92b434a946b53a6), STEP through tools/step2glb.py",
+  "source": "1706 Ratchet Rockers, \"Mirage Public Release\" (Onshape 23ba2ed5b3893ab97929c8b6, workspace d7012e1e8978e09c9756ee4c, element 70526e43c92b434a946b53a6), STEP through tools/step2glb.py; materials (\"bom\") put on these GLBs with tools/extract-parts.mjs --retag on 27 Oct, from a fresh STEP (1.2 mm, 0.45 rad, screws, nuts, washers and rivets skipped), its parts moved to microversion 4e6ecfdea4e867c97cb956bd (196d4dd5fbc969b40c781b9d for the mount), the GLBs' pose",
   "front": "-x",
+  "bom": "1706-materials.json",
   "parts": [
     {
       "out": "cad/robots/1706-body.glb",

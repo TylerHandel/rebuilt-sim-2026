@@ -1,5 +1,7 @@
 {
+  "source": "2910 (Onshape dfb391aac173a4555d00a5b5, workspace 3dc64f602735252892b0e47b, element 6c654da4eb6b1710fb0900bd), STEP through tools/step2glb.py as in cad/README.md; the shooter (and hood, split from it), hopper re-extracted on 27 Oct from a fresh STEP with the \"bom\", same geometry; the intake's materials put on with --retag (a bracket has moved in the CAD since), from that STEP less its hex adapters",
   "front": "-y",
+  "bom": "2910-materials.json",
   "parts": [
     {
       "out": "cad/robots/2910-intake.glb",

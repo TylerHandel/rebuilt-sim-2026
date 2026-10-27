@@ -29,9 +29,13 @@
 // name (without Onshape's instance suffix " <3>", letters and digits only, which also gets past
 // STEP's mangling of quotes and such); a name that several parts share is narrowed by the part
 // id (a glTF export's node carries it, PTC_onshape_metadata; a STEP part takes its "like" match's)
-// and then by placement (the node sits on the part studio's origin where the instance is, 1 mm).
-// A part matched to rows that still disagree, or to none, or to a row with no material, keeps its
-// color. EXTRACT_LOG=file.json writes each kept part's name, color and verdict.
+// and then by placement (the node sits on the part studio's origin where the instance is, 1 mm);
+// a name the BOM lacks (STEP calls some parts "id2590") goes by placement alone. A part matched
+// to rows that still disagree, or to none, or to a row with no material, keeps its color. EXTRACT_LOG=file.json writes each kept part's name, center, color and verdict.
+// --retag: leave each output's geometry as it is and only split its materials by the BOM, each
+// triangle taking the verdict of the nearest kept part of its color (and each connected piece its
+// triangles' majority): for outputs made from an older state of the CAD than a new export can
+// reproduce exactly (parts dragged since, a turret turned), where re-extracting would move things.
 import { NodeIO, getBounds } from '@gltf-transform/core';
 import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
 import { prune, dedup, weld, simplify, flatten, join, quantize, compactPrimitive } from '@gltf-transform/functions';
@@ -40,7 +44,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const [src, recipePath] = process.argv.slice(2);
-if (!recipePath) { console.log('usage: node tools/extract-parts.mjs robot.glb recipe.json'); process.exit(1); }
+if (!recipePath) { console.log('usage: node tools/extract-parts.mjs robot.glb recipe.json [--retag]'); process.exit(1); }
+const RETAG = process.argv.includes('--retag');
 const recipe = JSON.parse(fs.readFileSync(recipePath, 'utf8'));
 const HW = /screw|\bnut\b|washer|\brivets?\b|shcs|bhcs|fhcs|rivnut|insert|retaining|zip tie|^9\d{4}a|^fuel\b|reference cube|origin cube/i;
 const io = new NodeIO().registerExtensions(ALL_EXTENSIONS);
@@ -94,21 +99,27 @@ if (recipe.bom) {
 }
 const kind = (r) => (!r.material ? null : AL.test(r.material) ? 'alu' : 'not-alu');
 const agree = (rows) => new Set(rows.map(kind)).size === 1;
+const allRows = [...bomRows.values()].flat();
+const placedAt = (rows, t) => rows.filter((r) => r.at.some((a) => Math.hypot(a[0] - t[0], a[1] - t[1], a[2] - t[2]) < 0.001));
 const verdict = (name, pid, places) => {
   let rows = bomRows.get(nameKey(name));
+  // (a name the BOM doesn't know, like the "id2590" a STEP export gives some parts: the rows of
+  // the parts placed there, if they agree)
+  if (!rows) rows = places.map((t) => placedAt(allRows, t)).find((f) => f.length);
   if (!rows) return null;
   if (!agree(rows) && pid) { const f = rows.filter((r) => r.partId === pid); if (f.length) rows = f; }
   for (const t of places) {
     if (agree(rows)) break;
-    const f = rows.filter((r) => r.at.some((a) => Math.hypot(a[0] - t[0], a[1] - t[1], a[2] - t[2]) < 0.001));
+    const f = placedAt(rows, t);
     if (f.length) rows = f;
   }
   return agree(rows) ? kind(rows[0]) : null;
 };
-// splits each merged primitive by its triangles' _BOM into one per verdict, in the same mesh (so
-// quantize's per-mesh grid is unchanged): aluminum ones get a copy of the color's material named
-// "alu", the BOM's other materials one named "not-alu"; then drops _BOM
-const splitBom = (doc) => {
+// splits each primitive by its triangles' verdicts (code(prim, i): 0 by color, 1 aluminum, 2 not;
+// null for a primitive to leave alone) into one per verdict, in the same mesh (so quantize's
+// per-mesh grid is unchanged): aluminum ones get a copy of the color's material named "alu", the
+// BOM's other materials one named "not-alu"
+const splitByVerdict = (doc, code) => {
   const copies = new Map();
   const variant = (m, c) => {
     if (!m || !c) return m;
@@ -116,18 +127,17 @@ const splitBom = (doc) => {
     return (copies.get(m)[c] ??= m.clone().setName(c === 1 ? 'alu' : 'not-alu'));
   };
   for (const mesh of doc.getRoot().listMeshes()) {
-    for (const p of mesh.listPrimitives()) {
-      const tag = p.getAttribute('_BOM');
-      if (!tag) continue;
-      const t = tag.getArray(), idx = p.getIndices().getArray();
+    for (const p of [...mesh.listPrimitives()]) {
+      const idx = p.getIndices()?.getArray();
+      if (!idx || code(p, 0) === null) continue;
       const groups = new Map();
       for (let i = 0; i < idx.length; i += 3) {
-        const c = t[idx[i]];
+        const c = code(p, i / 3);
         if (!groups.has(c)) groups.set(c, []);
         groups.get(c).push(idx[i], idx[i + 1], idx[i + 2]);
       }
       const list = [...groups].sort((a, b) => a[0] - b[0]);
-      if (list.length === 1) { p.setAttribute('_BOM', null); p.setMaterial(variant(p.getMaterial(), list[0][0])); continue; }
+      if (list.length === 1) { p.setMaterial(variant(p.getMaterial(), list[0][0])); continue; }
       const prims = list.map((_, i) => (i === 0 ? p : p.clone()));
       list.forEach(([c, ids], i) => {
         const q = prims[i];
@@ -135,10 +145,92 @@ const splitBom = (doc) => {
         q.setIndices(doc.createAccessor().setType('SCALAR').setArray(new Uint32Array(ids)).setBuffer(p.getIndices().getBuffer()));
         q.setMaterial(variant(p.getMaterial(), c));
       });
-      for (const q of prims) { compactPrimitive(q); q.setAttribute('_BOM', null); }
+      for (const q of prims) compactPrimitive(q);
     }
   }
 };
+// by the _BOM vertex attribute (all of a triangle's corners carry its part's), then dropped
+const splitBom = (doc) => {
+  splitByVerdict(doc, (p, t) => {
+    const tag = p.getAttribute('_BOM');
+    return tag ? tag.getArray()[p.getIndices().getArray()[3 * t]] : null;
+  });
+  for (const m of doc.getRoot().listMeshes()) for (const p of m.listPrimitives()) p.setAttribute('_BOM', null);
+};
+// --retag: the verdicts put on part.out as it is (its geometry untouched), each triangle taking
+// that of the nearest kept part of its color (its centroid within 8 mm of the part's surface,
+// in the output's frame), for when the CAD has moved on since the output was made
+const retag = async (file, parts) => {
+  const out = await io.read(file);
+  if (out.getRoot().listMaterials().some((m) => /^(not-)?alu$/.test(m.getName()))) throw new Error(file + ' is tagged already');
+  const ck = (m) => (m ? m.getBaseColorFactor().map((x) => Math.round(x * 255)).join(',') : '-');
+  const CELL = 0.01, R = 0.008, grid = new Map();
+  for (const { tris, color, c } of parts) {
+    for (const t of tris) {
+      const lo = [0, 1, 2].map((d) => Math.floor((Math.min(t[0][d], t[1][d], t[2][d]) - R) / CELL));
+      const hi = [0, 1, 2].map((d) => Math.floor((Math.max(t[0][d], t[1][d], t[2][d]) + R) / CELL));
+      for (let i = lo[0]; i <= hi[0]; i++) for (let j = lo[1]; j <= hi[1]; j++) for (let k = lo[2]; k <= hi[2]; k++) {
+        const key = `${color}|${i},${j},${k}`;
+        if (!grid.has(key)) grid.set(key, []);
+        grid.get(key).push([t, c]);
+      }
+    }
+  }
+  const codes = new Map(), tally = [0, 0, 0];
+  let far = 0; // triangles with no kept part of their color near
+  for (const n of out.getRoot().listNodes()) {
+    if (!n.getMesh()) continue;
+    const m = n.getWorldMatrix();
+    for (const p of n.getMesh().listPrimitives()) {
+      const color = ck(p.getMaterial()), pos = p.getAttribute('POSITION'), idx = p.getIndices(), e = [0, 0, 0];
+      if (p.getMaterial()?.getName() === 'poly' || !idx) continue;
+      const w = (i) => { pos.getElement(i, e); return [0, 1, 2].map((r) => m[r] * e[0] + m[4 + r] * e[1] + m[8 + r] * e[2] + m[12 + r]); };
+      const cs = new Uint8Array(idx.getCount() / 3);
+      for (let t = 0; t < cs.length; t++) {
+        const a = w(idx.getScalar(3 * t)), b = w(idx.getScalar(3 * t + 1)), c = w(idx.getScalar(3 * t + 2));
+        const q = [0, 1, 2].map((d) => (a[d] + b[d] + c[d]) / 3);
+        let best = R;
+        for (const [s, code] of grid.get(`${color}|${q.map((x) => Math.floor(x / CELL)).join(',')}`) || []) {
+          const d = pointTri(q, s[0], s[1], s[2]);
+          if (d < best) { best = d; cs[t] = code; }
+        }
+        if (best === R) far++;
+      }
+      // a connected piece of the mesh is one part (or a piece of one): it takes its triangles'
+      // majority, so no part ends up half one material where it touches another
+      const up = new Int32Array(pos.getCount()).map((_, i) => i);
+      const find = (i) => { while (up[i] !== i) i = up[i] = up[up[i]]; return i; };
+      for (let k = 0; k < idx.getCount(); k += 3) { const a = find(idx.getScalar(k)); up[find(idx.getScalar(k + 1))] = a; up[find(idx.getScalar(k + 2))] = a; }
+      const votes = new Map();
+      for (let t = 0; t < cs.length; t++) { const r = find(idx.getScalar(3 * t)); if (!votes.has(r)) votes.set(r, [0, 0, 0]); votes.get(r)[cs[t]]++; }
+      for (let t = 0; t < cs.length; t++) { const v = votes.get(find(idx.getScalar(3 * t))); cs[t] = v.indexOf(Math.max(...v)); tally[cs[t]]++; }
+      codes.set(p, cs);
+    }
+  }
+  splitByVerdict(out, (p, t) => (codes.has(p) ? codes.get(p)[t] : null));
+  await out.transform(prune());
+  await io.write(file, out);
+  console.log(`retagged ${file}: ${tally[1]} triangles aluminum, ${tally[2]} not, ${tally[0]} by color (${far} with no kept part of their color near)`);
+};
+// distance from p to triangle (a, b, c) (Ericson, Real-Time Collision Detection 5.1.5)
+const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+function pointTri(p, a, b, c) {
+  const ab = sub(b, a), ac = sub(c, a), ap = sub(p, a), d1 = dot(ab, ap), d2 = dot(ac, ap);
+  if (d1 <= 0 && d2 <= 0) return Math.hypot(...ap);
+  const bp = sub(p, b), d3 = dot(ab, bp), d4 = dot(ac, bp);
+  if (d3 >= 0 && d4 <= d3) return Math.hypot(...bp);
+  const vc = d1 * d4 - d3 * d2;
+  if (vc <= 0 && d1 >= 0 && d3 <= 0) { const v = d1 / (d1 - d3); return Math.hypot(...sub(ap, [v * ab[0], v * ab[1], v * ab[2]])); }
+  const cp = sub(p, c), d5 = dot(ab, cp), d6 = dot(ac, cp);
+  if (d6 >= 0 && d5 <= d6) return Math.hypot(...cp);
+  const vb = d5 * d2 - d1 * d6;
+  if (vb <= 0 && d2 >= 0 && d6 <= 0) { const w = d2 / (d2 - d6); return Math.hypot(...sub(ap, [w * ac[0], w * ac[1], w * ac[2]])); }
+  const va = d3 * d6 - d5 * d4;
+  if (va <= 0 && d4 - d3 >= 0 && d5 - d6 >= 0) { const w = (d4 - d3) / (d4 - d3 + (d5 - d6)); return Math.hypot(...sub(bp, [w * (c[0] - b[0]), w * (c[1] - b[1]), w * (c[2] - b[2])])); }
+  const den = 1 / (va + vb + vc), v = vb * den, w = vc * den;
+  return Math.hypot(...sub(ap, [ab[0] * v + ac[0] * w, ab[1] * v + ac[1] * w, ab[2] * v + ac[2] * w]));
+}
 const toSRGB = (c) => Math.round(255 * (c <= 0.0031308 ? 12.92 * c : 1.055 * c ** (1 / 2.4) - 0.055));
 const log = [];
 
@@ -158,6 +250,7 @@ for (const part of recipe.parts) {
   const glassRe = (part.glass || []).map((r) => new RegExp(r, 'i'));
   const glass = new Set();
   const refOf = new Map(); // kept node -> its "like" match
+  const at = new Map(); // kept node -> its center (model frame), for the log
   const walk = (n, on, named, clear) => {
     const name = n.getName();
     if (HW.test(name) || exc.some((r) => r.test(name))) return;
@@ -176,7 +269,7 @@ for (const part of recipe.parts) {
         if (m) refOf.set(n, m);
       }
       if (ok && (part.onlyName || part.onlyBox)) ok = nm || (part.onlyBox || []).some((bx) => inBox(c, bx));
-      if (ok) keep.add(n);
+      if (ok) { keep.add(n); at.set(n, c); }
     }
     for (const c of n.listChildren()) walk(c, hit, nm, cl);
   };
@@ -194,6 +287,7 @@ for (const part of recipe.parts) {
     const code = { alu: 1, 'not-alu': 2 };
     const tagged = new Map(); // mesh -> its verdict
     const tally = { alu: 0, 'not-alu': 0, null: 0 };
+    const codeOf = new Map(); // kept node -> its verdict's code
     const tag = (mesh, c) => {
       for (const p of mesh.listPrimitives()) {
         const count = p.getAttribute('POSITION').getCount();
@@ -206,8 +300,9 @@ for (const part of recipe.parts) {
       const v = glass.has(n) ? null : verdict(n.getName(), pid.get(n) || ref?.pid, [n.getWorldTranslation(), ...(ref ? [ref.t] : [])]);
       if (!glass.has(n)) tally[v]++;
       const m0 = n.getMesh().listPrimitives()[0]?.getMaterial();
-      if (process.env.EXTRACT_LOG && !glass.has(n)) log.push({ out: part.out, name: n.getName(), rgb: m0 ? m0.getBaseColorFactor().slice(0, 3).map(toSRGB) : null, bom: v });
+      if (process.env.EXTRACT_LOG && !glass.has(n)) log.push({ out: part.out, name: n.getName(), at: at.get(n).map((x) => Math.round(x * 1000)), rgb: m0 ? m0.getBaseColorFactor().slice(0, 3).map(toSRGB) : null, bom: v });
       const c = code[v] ?? 0, mesh = n.getMesh();
+      codeOf.set(n, c);
       if (!tagged.has(mesh)) tag(mesh, c);
       else if (tagged.get(mesh) !== c) {
         // (instances of a part share its mesh; one whose verdict differs gets its own)
@@ -218,6 +313,28 @@ for (const part of recipe.parts) {
       }
     }
     console.log(`  BOM: ${tally.alu} parts aluminum, ${tally['not-alu']} not, ${tally.null} by color`);
+    if (RETAG) {
+      // each kept part's triangles in the output's frame (model frame less the origin), by color
+      const M = AXES[recipe.front], o = part.origin || [0, 0, 0];
+      const list = [];
+      for (const [n, c] of codeOf) {
+        const w = n.getWorldMatrix(), e = [0, 0, 0];
+        for (const p of n.getMesh().listPrimitives()) {
+          const pos = p.getAttribute('POSITION'), idx = p.getIndices(), V = [];
+          for (let i = 0; i < pos.getCount(); i++) {
+            pos.getElement(i, e);
+            const q = [0, 1, 2].map((r) => w[r] * e[0] + w[4 + r] * e[1] + w[8 + r] * e[2] + w[12 + r]);
+            V.push([0, 1, 2].map((r) => M[r] * q[0] + M[4 + r] * q[1] + M[8 + r] * q[2] - o[r]));
+          }
+          const tris = [];
+          for (let k = 0; k < (idx ? idx.getCount() : V.length); k += 3) tris.push([0, 1, 2].map((j) => V[idx ? idx.getScalar(k + j) : k + j]));
+          const m = p.getMaterial();
+          list.push({ tris, c, color: m ? m.getBaseColorFactor().map((x) => Math.round(x * 255)).join(',') : '-' });
+        }
+      }
+      await retag(part.out, list);
+      continue;
+    }
   }
   for (const n of root.listNodes()) if (n.getMesh() && !keep.has(n)) n.setMesh(null);
   await doc.transform(prune(), flatten());
