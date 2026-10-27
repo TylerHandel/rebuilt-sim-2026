@@ -8,7 +8,8 @@
 //   hopper floor: full (SHOOT) while a shot is being fed; otherwise off, or 7% (PRELOADING) when
 //     its hopper CANrange says it's full and its feeder CANrange sees nothing waiting.
 //   shooter: the drum's motors on their velocity loop at their table's RPM for the distance to
-//     the HUB (or their passing table's, the hood flat out), the hood to its table's angle.
+//     the HUB (or their passing table's, the hood flat out), the hood to its table's angle, while
+//     there's a shot to make; between shots it idles at a low speed with the hood down.
 //   a shot is fed when the hood's within 3 deg of its angle and the chassis is aimed (4 deg for
 //     the HUB, 15 for a pass); for the HUB also stopped (0.15 m/s) and 1.5 m or more away. Their
 //     flywheel tolerance (3000 RPM) doesn't hold anything.
@@ -29,6 +30,8 @@ const HALF_L = 0.343, HALF_W = 0.349; // its frame (27in x 27.5in)
 export const PIVOT_MM = { v: (5500 / 60 / 40) * 360, a: 4000, kP: (5 * 40) / 360, kV: 12 / ((5800 / 60) / (40 / 360)) };
 const HOOD_MM = { v: (7000 / 60 / ((52 / 12) * (18 / 12) * (146 / 10))) * 360, a: 3000 };
 const TOL = { hood: 3, aim: 4 * DEG, passAim: 15 * DEG, speed: 0.15, minDist: 1.5 };
+// the drum's idle between shots (motor RPM; the team: a very low speed)
+const IDLE_RPM = 500;
 
 // a trapezoidal profile's next setpoint (position p, velocity v) toward goal
 export function profile(p, v, goal, vmax, amax, dt) {
@@ -134,11 +137,11 @@ export class Physical2910 extends PhysicalRobot {
       if (!pass) { const c = Field.hubCenter(r.alliance); dist = Math.hypot(c.x - r.pos.x, c.z - r.pos.z); }
       want = pass ? passFor(dist) : shotFor(dist);
     }
-    // (their shooter is at RUN all match, DEFAULT_STATE included, at their table's speed for the
-    // distance to the HUB: the drum's always up to speed, and only coasts when the robot's
-    // disabled)
+    // between shots the hood's down (their DEFAULT_STATE: angle 0) and the drum idles slowly (the
+    // team: only a very low speed; their public code's DEFAULT_STATE runs it at the table's speed
+    // for the distance to the HUB), spinning up to the shot's speed once there's a shot to make
     if (want) { this.targetRpm = want.rpm; this.hoodGoal = want.hood; }
-    else { const c = Field.hubCenter(r.alliance); this.targetRpm = shotFor(Math.hypot(c.x - r.pos.x, c.z - r.pos.z)).rpm; }
+    else { this.targetRpm = IDLE_RPM; this.hoodGoal = 0; }
     if (!on) this.targetRpm = 0;
     // their velocity loop (no reverse voltage: it coasts down)
     const rps = T.shooter.omega / (2 * Math.PI), target = this.targetRpm / 60;
@@ -148,7 +151,10 @@ export class Physical2910 extends PhysicalRobot {
     const v = r.body.linvel(), speed = Math.hypot(v.x, v.z);
     const hoodOk = Math.abs(this.hoodDeg - (this.hoodGoal ?? 0)) <= TOL.hood;
     const aim = Math.abs(r.aimErr ?? Infinity);
-    const ready = !!want && hoodOk && (pass ? aim <= TOL.passAim : aim <= TOL.aim && speed <= TOL.speed && dist >= TOL.minDist);
+    // (and, since it idles low between shots, the drum up to the shot's speed: within 5%. Their
+    // public code's 3000 RPM tolerance would feed straight away from idle, every FUEL short)
+    const spunUp = Math.abs(rps * 60 - this.targetRpm) <= 0.05 * this.targetRpm;
+    const ready = !!want && hoodOk && spunUp && (pass ? aim <= TOL.passAim : aim <= TOL.aim && speed <= TOL.speed && dist >= TOL.minDist);
     this.feed = on && feeding && ready && r.passClear !== false;
     // the hopper floor: SHOOT, PRELOADING (its hopper CANrange full for 0.25 s, nothing at the
     // feeder's) or off
