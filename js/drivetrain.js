@@ -24,10 +24,11 @@ const TOP_FRACTION = 0.88; // the top speed teams command / the gearing's free s
 const DEFAULTS = { motor: 'krakenX60', motors: 4, wheel: 4 * IN, stator: 80, supply: 70, mu: 1.3 };
 
 export class Drivetrain {
-  // d: cfg.drive ({ ratio, wheel, motor, stator, supply, mu }), m: robot mass (kg),
+  // d: cfg.drive ({ ratio, wheel, motor, stator, supply, mu, teleop: { stator, supply } }), m: robot mass (kg),
   // L, W: frame (m), r: the modules' distance from the center (m)
   constructor(d, m, L, W, r) {
     Object.assign(this, DEFAULTS, d);
+    this.base = { stator: this.stator, supply: this.supply };
     this.m = m;
     this.r = r;
     const mo = MOTORS[this.motor];
@@ -43,6 +44,10 @@ export class Drivetrain {
     // spinning: the same wheels, at r from the center; I ~ a uniform slab with the bumpers
     this.Iz = (m * ((L + 0.17) ** 2 + (W + 0.17) ** 2)) / 12;
   }
+
+  // the current limits for the match's phase: cfg.drive's own until teleop, then cfg.drive.teleop's
+  // over them (what a team's teleopInit applies)
+  limitsFor(teleop) { if (this.teleop) Object.assign(this, this.base, teleop ? this.teleop : null); }
 
   // The motors' total push at speed v (m/s, >= 0), full throttle: { F (N), V (battery volts),
   // I (battery amps) }. The battery sags with the current drawn and the current depends on the

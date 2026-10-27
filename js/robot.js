@@ -490,6 +490,7 @@ export class Robot {
     // robot, the motors and the tires' grip hold or give
     const q = this.body.rotation();
     const yaw = Math.atan2(2 * (q.w * q.y + q.x * q.z), 1 - 2 * (q.y * q.y + q.z * q.z));
+    this.drivetrain.limitsFor(!!this.match?.isTeleop);
     this.swerve.step(this.body, yaw, tvx, tvz, tw, down, dt);
     if (this.phys) this.phys.preStep(dt, this.lastT);
     this._guideCaptured(dt);

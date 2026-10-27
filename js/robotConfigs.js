@@ -129,8 +129,10 @@ export const ROBOTS = {
     frame: { length: 27.0 * IN, width: 27.5 * IN },
     height: 21.5 * IN,
     mass: 64, // robot (up to 115 lb) + bumpers + battery
-    // SDS MK5n R1 (7.03:1, 4in wheels), Kraken X60s (see drivetrain.js)
-    drive: { ratio: 7.03 },
+    // SDS MK5n R1 (7.03:1, 4in wheels), Kraken X60s (see drivetrain.js). Current limits (their code,
+    // config/ReBlitz.java, Robot.configureTeleopCurrentLimits): 40 A supply; the stator limit is the
+    // modules' slip current, 100 A, raised to 120 A when teleop starts
+    drive: { ratio: 7.03, stator: 100, supply: 40, teleop: { stator: 120 } },
     // slap-down intake from 2910's CAD: its 2in roller reaches ~7.8in past the bumper
     // rate: fast enough that driving through FUEL is the only limit; pull: roller surface speed
     // arm: the CAD intake's pivot and its 2in roller's reach and angle, stowed (as exported) and
@@ -268,8 +270,9 @@ export const ROBOTS = {
     frame: { length: 27.5 * IN, width: 27.5 * IN },
     height: 21.5 * IN, // top of the shooter (their CAD)
     mass: 58, // robot (up to 115 lb) + bumpers + battery
-    // WCP Swerve X2t, geared for their stated 14.8 ft/s free speed (6.84:1 on 4in wheels)
-    drive: { ratio: 6.84 },
+    // WCP Swerve X2t, geared for their stated 14.8 ft/s free speed (6.84:1 on 4in wheels); their
+    // code's TunerConstants: 40 A supply, the stator limit the 120 A slip current
+    drive: { ratio: 6.84, stator: 120, supply: 40 },
     // Intake V3 (their CAD): three silicone rollers on an arm that swings down from a pivot over
     // the front of the frame. Stowed, it folds back up inside the frame perimeter and stands
     // 0.69 m tall, too tall for the TRENCH: it has to be down to drive under. fold.hull is the
@@ -408,8 +411,10 @@ export const ROBOTS = {
     frame: { length: 27.0 * IN, width: 27.0 * IN },
     height: 21.6 * IN,
     mass: 65, // robot (up to 115 lb) + bumpers + battery
-    // SDS MK5n R1 (7.03:1, 4in wheels)
-    drive: { ratio: 7.03 },
+    // SDS MK5n R1 (7.03:1, 4in wheels). Current limits (their code): TunerConstants' 80 A stator
+    // (and slip current) and 40 A supply, then at teleopInit DriveConstants.getTeleConfig()'s 60 A
+    // stator and 30 A supply
+    drive: { ratio: 7.03, stator: 80, supply: 40, teleop: { stator: 60, supply: 30 } },
     // full-width slapdown: 2in silicone roller + 1.25in kicker bar, pivot at the front
     // a 2in silicone-covered carbon fiber roller (their reveal), set to squeeze FUEL 3/4in like
     // the compliant-wheel intakes (hopper.js intakePush)
@@ -633,8 +638,10 @@ export const ROBOTS = {
     frame: { length: 27 * IN, width: 27 * IN },
     height: 21.75 * IN, // the shooter on the table (their CAD)
     mass: 62, // robot (up to 115 lb) + bumpers + battery
-    // WCP Swerve X2i in its low gearing (their CAD); ~7.1:1 assumed
-    drive: { ratio: 7.13 },
+    // WCP Swerve X2i (their CAD); their code (BetaBotTunerConstants, the constants every mode uses):
+    // 7.67:1 on a 1.8in wheel radius, the stator limit the 35 A slip current (ModuleIOTalonFX;
+    // 55 A only while the driver holds defense), the supply limit Phoenix's default 70 A
+    drive: { ratio: 7.67, wheel: 3.6 * IN, stator: 35, supply: 70 },
     // "Main Slap Down (brontosaurus)" (their CAD): two silicone rollers at the bottom of an arm
     // that swings down from a pivot 0.34 m up, three plastic rollers over them lift FUEL over the
     // bumper. Stowed it stands up, too tall for the TRENCH: it has to be down to drive under.
@@ -840,8 +847,11 @@ export const ROBOTS = {
     frame: { length: 27 * IN, width: 28.5 * IN },
     height: 21.7 * IN, // top of the hopper walls and the shooter tower (their CAD)
     mass: 64, // robot (up to 115 lb) + bumpers + battery
-    // WCP X2i / X2c modules, X1 gearing with 10T pinions: 7.67:1 (their code), 4in wheels
-    drive: { ratio: 7.674 },
+    // WCP X2i / X2c modules, X1 gearing with 10T pinions: 7.67:1 (their code), 4in wheels. Current
+    // limits (their code, CompTunerConstants): 40 A supply, the stator limit the 120 A slip current.
+    // (Their PowerManager's swerve supply limits reach only the practice bot: in
+    // Swerve.applyCurrentLimits the comp bot's branch of the ?: re-applies the 40 A.)
+    drive: { ratio: 7.674, stator: 120, supply: 40 },
     // linear deploy on titanium racks (their CAD's slider: 0.306 m, tilted 5.5deg up toward the
     // robot; their code runs it to 11.8in), a 3in main roller and a 2in top roller (21.8in of grip
     // tape), the 3in's front 0.28 m past the frame; the intake's front plate is the front wall of
