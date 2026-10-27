@@ -5,14 +5,18 @@
 //     zeroed to at boot as 150) and held stiff;
 //   - shooting (the driver's right trigger, the AI's shot): the flywheel's velocity loop at their
 //     table's RPM for the distance from the turret to the target, the hood to their table's angle
-//     (stowed under a TRENCH); once it's within 130 RPM (debounced 0.1 s) and the turret's on
-//     target, SHOOTING: the intake's rollers and the top rollers / uptake run at 12 V
-//     (DEPLOYED_INTAKING, their intake's default command while it shoots) and the feeder (the
-//     powered omni) at 3 V while the hood's within 3 deg;
+//     (stowed under a TRENCH); once it's within 130 RPM (debounced 0.1 s) and the turret's within
+//     6 deg (Turret.readyToShoot, debounced 0.2 s), SHOOTING: the intake's rollers and the top
+//     rollers / uptake run at 12 V (DEPLOYED_INTAKING, their intake's default command while it
+//     shoots) and the feeder (the powered omni) at 3 V while the hood's within 3 deg;
 //   - their unjam: while it intakes and shoots, the top rollers or the feeder stalled (under 500
-//     RPM at over 75 A) for 0.2 s pulses them out for 0.25 s (feeder -3 V, rollers -12 V, top
-//     rollers -6 V);
-//   - let go: the flywheel stays at speed (AT_SPEED), the hood stowed, everything else stopped.
+//     RPM at over 75 A on the leader motor) for 0.2 s pulses them out for 0.25 s (feeder -3 V,
+//     rollers -12 V, top rollers -6 V). (Neither stalls when the zipper locks up, below: the top
+//     rollers slip on the FUEL they're over, and a Falcon at 3 V can't draw 75 A.);
+//   - let go: the flywheel stays at speed (AT_SPEED), the hood stowed, the feeder and the intake's
+//     rollers stopped, and the top rollers and uptake run backward at 3 V (their DEPLOYED case
+//     has no break: it falls through into ZEROING's -3 V);
+//   - the AI's driver lets go and presses again when nothing comes out (letGo).
 // Their robot only intakes while it shoots (it's hopperless: the right trigger does both, and the
 // intake's default command runs its rollers only while the shooter's SHOOTING). The AI's intake
 // command without a shot runs just the intake's rollers, so what it picks up waits on the tray:
@@ -46,6 +50,9 @@ const profile = (p, v, goal, vmax, amax, dt) => {
 // over their tables' rows, at the elevation the CAD's geometry gives; their HUB table's shots
 // come down within 0.05 m of its distance at 1.5, 2.4, 4.2 and 5.5 m, 0.2 m short at 3-3.5 m)
 export const EXIT_PER_FLY_SURFACE = 0.7;
+// the AI's driver letting go of the trigger when nothing comes out (letGo): after (s) without a
+// shot, for (s)
+export const LET_GO = { after: 0.8, for: 0.4 };
 
 // the arm's position loop toward goal (their angles, deg; positive swings it down), its X44 at 12 V
 // at most: their gentle slot while it's moving, the stiff one within 30 deg (holding it against
@@ -88,7 +95,8 @@ export class Physical341 extends PhysicalRobot {
     this.armDeg = INTAKE.down; this.armGoal = INTAKE.down;
     this.hoodDeg = 0; this.hoodSet = [0, 0]; this.hoodGoal = 0;
     this.state = 'stopped'; // their shooter: stopped, spinning up, shooting, at speed, pulsing out
-    this.targetRpm = 0; this.atSpeedT = 0; this.jamT = 0; this.pulseT = 0;
+    this.targetRpm = 0; this.atSpeedT = 0; this.turretT = 0; this.jamT = 0; this.pulseT = 0;
+    this.lastShotT = 0; this.shotsSeen = 0; this.letGoUntil = -1; this.now = 0;
     for (const tr of [this.t.intake, this.t.serializer, this.t.feederT, this.t.shooter]) { tr.omega = 0; tr.cmd = 0; }
     this.t.pivot._omega = 0; this.t.pivot.cmd = 0;
   }
@@ -136,7 +144,10 @@ export class Physical341 extends PhysicalRobot {
     // (their atSpeed: within 130 RPM, its falling edge debounced 0.1 s)
     this.atSpeedT = Math.abs(rpm - this.targetRpm) <= SHOOTER.tol ? 0.1 : Math.max(0, this.atSpeedT - dt);
     const atSpeed = this.atSpeedT > 0 && this.targetRpm > 0;
-    const turretReady = Math.abs(r.aimErr ?? Infinity) < 3 * DEG;
+    // (their Turret.readyToShoot: within 6 deg of where it should point, its falling edge
+    // debounced 0.2 s)
+    this.turretT = Math.abs(r.aimErr ?? Infinity) < 6 * DEG ? 0.2 : Math.max(0, this.turretT - dt);
+    const turretReady = this.turretT > 0;
     const inTrench = underTrench(r.pos.x, r.pos.z, 0);
     if (!on) this.state = 'stopped';
     else if (wantShot) this.state = this.pulseT > 0 ? 'pulsing' : atSpeed && turretReady ? 'shooting' : 'spinning up';
@@ -145,15 +156,24 @@ export class Physical341 extends PhysicalRobot {
     // the hood: their table's angle while it shoots (stowed under a TRENCH), stowed otherwise
     this.hoodGoal = (this.state === 'shooting' || this.state === 'spinning up' || this.state === 'pulsing') && !inTrench ? this.wantHood ?? 0 : 0;
     // the intake: their default command runs it while it shoots; the AI's intake command too
-    const intaking = on && (shooting || !!r.cmd.intake);
+    // (not while its driver has let go of the trigger: letGo)
+    this.now = t;
+    const lettingGo = t < this.letGoUntil;
+    const intaking = on && (shooting || (!!r.cmd.intake && !lettingGo));
+    if (r.stats.shots !== this.shotsSeen) { this.shotsSeen = r.stats.shots; this.lastShotT = t; }
+    if (this.state !== 'shooting') this.lastShotT = t;
     // their unjam: the top rollers or the feeder stalled for 0.2 s while it intakes and shoots
-    const stalled = (tr) => (Math.abs(tr.omega) * 60) / (2 * Math.PI) < 500 && Math.abs(tr.motor.current) > 75;
+    // (Intake.isStopped, Shooter.feederStopped: the leader motor's current, under 500 RPM)
+    const stalled = (tr) => (Math.abs(tr.omega) * 60) / (2 * Math.PI) < 500 && Math.abs(tr.motor.current) / tr.motor.count > 75;
     this.jamT = intaking && shooting && (stalled(T.serializer) || stalled(T.feederT)) ? this.jamT + dt : 0;
     if (this.jamT > 0.2 && this.pulseT <= 0) { this.pulseT = 0.25; this.jamT = 0; r.stats.unjams = (r.stats.unjams || 0) + 1; }
     this.pulseT = Math.max(0, this.pulseT - dt);
     const pulsing = this.pulseT > 0;
     T.intake.cmd = !on ? 0 : outtake || pulsing ? -1 : intaking ? 1 : 0;
-    T.serializer.cmd = !on ? 0 : outtake || pulsing ? -0.5 : shooting ? 1 : 0;
+    // (not shooting, their intake's default command puts it in DEPLOYED, whose case falls through
+    // into ZEROING's: the intake's rollers stopped and the top rollers and uptake run backward at
+    // 3 V. The AI's intake command without a shot, which their code doesn't have, leaves them off.)
+    T.serializer.cmd = !on ? 0 : outtake || pulsing ? -0.5 : shooting ? 1 : intaking ? 0 : -3 / 12;
     T.feederT.cmd = !on ? 0 : pulsing ? -3 / 12 : this.state === 'shooting' && Math.abs(this.hoodDeg - this.hoodGoal) <= 3 ? 3 / 12 : 0;
     // the flywheel's velocity loop (no reverse voltage: it coasts down)
     if (this.state !== 'stopped' && this.targetRpm > 0) {
@@ -186,6 +206,23 @@ export class Physical341 extends PhysicalRobot {
     const ax = tgt.x - this.fv.x * tof, az = tgt.z - this.fv.z * tof;
     this.aimDist = Math.hypot(ax - tp.x, az - tp.z);
     this.aimPsi = Math.atan2(-(az - tp.z), ax - tp.x);
+  }
+  // The AI's driver (js/opponent.js asks each step; true: let go of the trigger now). Shooting
+  // with FUEL in it and nothing out for LET_GO.after s, it lets go for LET_GO.for s and presses
+  // again, as a driver does when nothing comes out: their code then puts the intake in DEPLOYED
+  // (the top rollers and uptake backward at 3 V, the intake's rollers and the feeder stopped)
+  // and the shooter AT_SPEED (the hood stowed). That backs off the FUEL pressed into the zipper's
+  // merge, which their unjam can't see (README: 341). (In matches it lets go a few times a
+  // match; tools/mechlab341.mjs path LETGO=1.)
+  letGo() {
+    const t = this.now;
+    if (t < this.letGoUntil) return true;
+    if (this.state === 'shooting' && this.r.stored.length > 0 && t - this.lastShotT > LET_GO.after) {
+      this.letGoUntil = t + LET_GO.for;
+      this.r.stats.letGo = (this.r.stats.letGo || 0) + 1;
+      return true;
+    }
+    return false;
   }
   // the arm's turn from the CAD's pose (rad), for drawing it
   armTurn() { return intakeRot(this.armDeg); }

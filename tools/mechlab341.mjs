@@ -11,7 +11,8 @@
 // shooting: the uptake pushes FUEL on up through the idle shooter, so it's no measure of what it
 // holds), hold (how many it holds, everything off).
 // Env: SEEDS (6), SPEED (1 m/s), ARM (their angle down, 149), ABREAST (rate: 3 or 4), TRACE (a FUEL's index to follow),
-// STUCK (where the ones left over are), LEAK (how ones get out other than shot), EXIT (the exit/flywheel-surface ratio to report against)
+// STUCK (where the ones left over are), LEAK (how ones get out other than shot), EXIT (the exit/flywheel-surface ratio to report against),
+// LETGO (path: the AI driver letting go of the trigger when nothing comes out, as in play)
 import { RAPIER } from '../js/physics.js';
 import { FUEL, GROUP, groups, HUB } from '../js/constants.js';
 import { Mechanism } from '../js/mech/mechanism.js';
@@ -21,7 +22,7 @@ import {
   shotFor, REGRESSIONS, INTAKE, SHOOTER, OMNI, PIVOT, TURRET, HALF,
 } from '../js/mech/r341.js';
 import PATH from '../js/mech/path341.js';
-import { EXIT_PER_FLY_SURFACE } from '../js/mech/phys341.js';
+import { EXIT_PER_FLY_SURFACE, LET_GO } from '../js/mech/phys341.js';
 
 await RAPIER.init();
 const R = FUEL.radius, DT = 1 / 120, SEEDS = Number(process.env.SEEDS ?? 6), SPEED = Number(process.env.SPEED ?? 1);
@@ -153,7 +154,7 @@ const tests = {
   path() {
     const runs = [];
     for (let seed = 1; seed <= SEEDS; seed++) runs.push(pathRun(seed));
-    console.log(`341 carpet to shot (18 FUEL, three abreast, the robot at ${SPEED} m/s, everything on, shooting at 3 m): a median ${med(runs.map((r) => r.shots))} shot (${Math.min(...runs.map((r) => r.shots))}..${Math.max(...runs.map((r) => r.shots))}), ` +
+    console.log(`341 carpet to shot (18 FUEL, three abreast, the robot at ${SPEED} m/s, ${process.env.LETGO ? 'shooting, the AI driver letting go when nothing comes out' : 'everything on'}, shooting at 3 m): a median ${med(runs.map((r) => r.shots))} shot (${Math.min(...runs.map((r) => r.shots))}..${Math.max(...runs.map((r) => r.shots))}; ${runs.filter((r) => r.shots <= 12).length} of ${runs.length} runs locked up with 12 or fewer), ` +
       `${med(runs.map((r) => r.rate)).toFixed(1)} FUEL/s once they're coming; ${med(runs.map((r) => r.inside))} in it at the end; in each second ${runs[0].timeline.join(', ')} (seed 1); intake X60s down to ${med(runs.map((r) => r.minIntake)).toFixed(0)}%, top rollers to ${med(runs.map((r) => r.minSer)).toFixed(0)}%`);
     if (process.env.STUCK) for (const r of runs) console.log(`   ${r.shots} shot; left`, r.left.map((p) => p.map((v) => v.toFixed(2)).join(',')).join(' | '));
   },
@@ -227,9 +228,22 @@ function pathRun(seed, { shoot = true, n = 18, sec = 7, drain = false, abreast =
   const watch = shotWatch(shooter);
   let minIntake = 1, minSer = 1;
   const timeline = [];
+  let letGoUntil = -1, sinceShot = 0;
   for (let k = 0; k < sec / DT; k++) {
     const live = balls.filter((b) => b.translation().y < 3);
     run();
+    // (LETGO=1: as in play, the AI's driver lets go of the trigger when nothing's come out for a
+    // while with FUEL in it, and their code runs the top rollers and uptake backward at 3 V, the
+    // intake's rollers and the feeder stopped: js/mech/phys341.js letGo)
+    if (shoot && process.env.LETGO) {
+      const now = k * DT;
+      sinceShot = watch.shots.length && watch.shots[watch.shots.length - 1].t > now - DT * 1.5 ? 0 : sinceShot + DT;
+      if (now < letGoUntil) { t.intake.cmd = 0; t.serializer.cmd = -3 / 12; t.feederT.cmd = 0; }
+      else {
+        t.intake.cmd = 1; t.serializer.cmd = 1; t.feederT.cmd = 3 / 12;
+        if (sinceShot > LET_GO.after && now > 1 && live.some(inRobot)) { letGoUntil = now + LET_GO.for; sinceShot = -LET_GO.for; }
+      }
+    }
     rollResist(live, SPEED);
     path.step(DT, live, live); shooter.step(DT, live); w.step();
     minIntake = Math.min(minIntake, Math.abs(t.intake.omega) / free.intake);
