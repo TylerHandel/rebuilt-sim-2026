@@ -1453,7 +1453,7 @@ function build4414(cfg, alliance) {
     // the Dye Rotor's hook and feeder turn over the fixed floor (clockwise from above: its angle
     // from the physical model), the TTB wheels spin while it feeds
     rotorParts.rotation.y = -(st.rotorTurn ?? 0);
-    bendAxle.userData.spin.rotation.z += st.feeding * dt * 30;
+    bendAxle.userData.spin.rotation.z += st.feeding * dt * 144; // (2.4 times the stack's speed)
     for (const w of ttbSpin) w.rotation.y += st.feeding * dt * 60; // (the stack turns about +y: its face toward the channel runs in)
     turret.rotation.y = st.turretYaw;
     fly.rotation.z -= st.flywheel * dt * 10;

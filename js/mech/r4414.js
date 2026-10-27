@@ -41,7 +41,7 @@
 // the way in from the hook's end, is the one powered stack (RotorV10's render: the 3in TTB urethane
 // wheels on a shaft standing up, the 3in omni over them, driven through the hub: "rotor wheels"),
 // with the 1.25in omnis on their shaft across the entrance over the FUEL coming in (a row of small
-// omni wheels): the stack drives FUEL in
+// omni wheels, bevel-geared off the top of the stack): the stack drives FUEL in
 // through the hub's side, under the omnis and up the ramp into the hub's bore, each pushing the one
 // ahead up into the turret on the same axis. Nothing else turns at the hook's root. The hook's back
 // is the Dolphin Fin, a ramp FUEL ride up over when the rotor turns back; the hub's skin is the
@@ -90,7 +90,8 @@ export const FEED = {
   // ("to allow balls to fall down smoothly into the 3in TTB urethane wheels"), 0.8in into the FUEL
   // against the hook's end (estimates: the renders)
   ttb: { u: 0.105, r: 1.5 * IN, ys: [0.16, 0.197], omniY: 0.234, wid: 0.024, squeeze: 0.028 },
-  // the entrance: under the 1.25in omnis on their shaft across it, round the bend up into the hub
+  // the entrance: under the 1.25in omnis on their shaft across it (driven: their undersides run in),
+  // round the bend up into the hub
   omni: { r: 0.625 * IN, squeeze: 0.003, wid: 0.15 },
 };
 // FUEL's center along the channel, and the bend's center (u, y)
@@ -167,8 +168,9 @@ export function build4414() {
   // the rollers: the TTB wheels and the omni over them (2.5:1; positive feeds FUEL in)
   const rollers = new Train({ name: 'Dye Rotor rollers', motor: new Motor('krakenX60', { count: 2, ratio: 2.5, statorLimit: 60, supplyLimit: 40 }) });
   const ttb = rollers.add(new Shaft({ name: 'TTB feeder wheels', inertia: 2.4e-4 }), 1);
-  // the 1.25in omnis across the bend: free (estimate)
-  const bend = new Shaft({ name: '1.25in omnis', inertia: 1e-5, drag: 1e-5 });
+  // the 1.25in omnis over the entrance: bevel-geared off the top of the stack (the renders; the team:
+  // they spin more than twice as fast), 3:1.25 so their surface runs with the 3in wheels' (estimate)
+  const bend = rollers.add(new Shaft({ name: '1.25in omnis', inertia: 1e-5, drag: 1e-5 }), 3 / 1.25);
   // the launcher: four X44s 1:1 on the flywheel; the hood roller at half its surface speed
   const launcher = new Train({ name: 'launcher', motor: new Motor('krakenX44', { count: 4, ratio: 1, statorLimit: 60, supplyLimit: 40 }) });
   const fly = launcher.add(new Shaft({ name: '3in flywheel and copper', inertia: SHOOTER.J }), 1);
@@ -199,8 +201,8 @@ export function wheels4414(t) {
   const feed = [
     ...T.ys.map((y, i) => new Wheel({ name: `TTB 3in urethane ${i + 1}`, shaft: t.ttb, center: chan(T.u, y, tw), axis: [0, 1, 0], radius: T.r, width: T.wid, mu: MU.urethane, tread: 15000 })),
     new Wheel({ name: 'TTB 3in omni', shaft: t.ttb, kind: 'omni', center: chan(T.u, T.omniY, tw), axis: [0, 1, 0], radius: T.r, width: T.wid, mu: MU.omni, tread: 30000 }),
-    // (the entrance's omnis: their shaft across the channel, w)
-    new Wheel({ name: '1.25in omnis', shaft: t.bend, kind: 'omni', center: chan(BEND.u, BEND.y, 0), axis: chanDir(0, 1), radius: F.omni.r, width: F.omni.wid, mu: MU.omni, tread: 30000 }),
+    // (the entrance's omnis: their shaft across the channel, turning so their undersides run in)
+    new Wheel({ name: '1.25in omnis', shaft: t.bend, kind: 'omni', center: chan(BEND.u, BEND.y, 0), axis: chanDir(0, -1), radius: F.omni.r, width: F.omni.wid, mu: MU.omni, tread: 30000 }),
   ].map((w) => w.onPivot(t.rotor, [AXIS[0], 0, AXIS[1]], [0, -1, 0]));
   feed.forEach((w) => { w.home = w.center.slice(); w.homeAxis = w.axis.slice(); });
   const intake = [

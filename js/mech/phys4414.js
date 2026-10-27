@@ -85,7 +85,7 @@ export class Physical4414 extends PhysicalRobot {
     this.targetRad = 0; this.launching = false; this.ready = false; this.feedingNow = false;
     this.va = null;
     for (const tr of [this.t.rollers, this.t.launcher]) { tr.omega = 0; tr.cmd = null; }
-    for (const sh of [this.t.rotor, this.t.primary, this.t.bar, this.t.bend]) { sh._omega = 0; sh.cmd = 0; }
+    for (const sh of [this.t.rotor, this.t.primary, this.t.bar]) { sh._omega = 0; sh.cmd = 0; }
   }
 
   // the box's front now
