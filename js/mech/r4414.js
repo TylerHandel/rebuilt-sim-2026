@@ -170,6 +170,11 @@ export const INTAKE = {
   primary: { dx: -0.085, y: 0.14, r: 1.5 * IN },
   bar: { dx: -0.23, y: 0.2, r: 0.75 * IN, mu: 1.0, tread: 20000 },
   kick: { gap: 0.004, y: 0.75 * IN + 0.006, r: 0.75 * IN, mu: 1.0, tread: 20000 },
+  // two tubes across the box over the primary roller, each free on its bearings (the isolated
+  // intake render; the team): FUEL in the box can't pile on the primary's top, which runs forward
+  // and would throw them back out; ahead of the way up the bumper's face (estimates)
+  guards: [{ dx: -0.05, y: 0.245 }, { dx: -0.095, y: 0.285 }],
+  guardR: 0.5 * IN,
   width: 0.8,
 };
 // the kick wheel's place: just in front of the bumper's face (the box's front is 0.2224 m out from it)
@@ -239,6 +244,7 @@ export function wheels4414(t) {
     new Wheel({ name: 'intake primary 3in roller', shaft: t.primary, center: [0, 0, 0], axis: [0, 0, -1], radius: INTAKE.primary.r, width: INTAKE.width, mu: MU.polycarb, tread: 60000 }),
     // (the kick wheel: a 1:1 belt, so its rim runs with the black roller's)
     new Wheel({ name: 'intake kick wheel', shaft: t.bar, center: [0, 0, 0], axis: Z, radius: INTAKE.kick.r, width: INTAKE.width, mu: INTAKE.kick.mu, tread: INTAKE.kick.tread }),
+    ...INTAKE.guards.map((g, i) => new Wheel({ name: `intake guard tube ${i + 1}`, shaft: new Shaft({ name: `guard tube ${i + 1}`, inertia: 2e-5, drag: 1e-6 }), center: [0, 0, 0], axis: Z, radius: INTAKE.guardR, width: INTAKE.width, mu: MU.plate })),
   ];
   placeIntake(intake, BOX.ext);
   return { feed, intake };
@@ -268,11 +274,12 @@ export function placeRotor(wheels, phi) {
   }
 }
 // the intake's rollers with the box out ext (m)
-export function placeIntake([bar, primary, kick], ext) {
+export function placeIntake([bar, primary, kick, ...guards], ext) {
   const xF = BOX.front - BOX.ext + ext, I = INTAKE;
   bar.center = [xF + I.bar.dx, I.bar.y, 0];
   primary.center = [xF + I.primary.dx, I.primary.y, 0];
   kick.center = [xF + I.kick.dx, I.kick.y, 0];
+  guards.forEach((g, i) => { g.center = [xF + I.guards[i].dx, I.guards[i].y, 0]; });
 }
 export function shooterWheels(t) {
   const S = SHOOTER;

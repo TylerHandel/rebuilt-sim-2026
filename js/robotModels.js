@@ -1181,6 +1181,14 @@ function build4414(cfg, alliance) {
   ext.add(kickBar);
   cylZ(0.005, 2 * sideZ - 0.01, M.alu, kickBar, 0, 0, 0, 6);
   for (let i = 0; i < 24; i++) cylZ(I4.kick.r, (2 * sideZ - 0.05) / 24 - 0.004, std(0x2a2d33, 0.7, 0.05), kickBar, 0, 0, -sideZ + 0.025 + (i + 0.5) * (2 * sideZ - 0.05) / 24, 14);
+  // the two guard tubes over the primary roller, free on bearings (the isolated intake render)
+  for (const g of I4.guards) {
+    const tube = new THREE.Group();
+    tube.position.set(xF + g.dx, g.y, 0);
+    ext.add(tube);
+    cylZ(I4.guardR, 2 * sideZ - 0.03, std(0xb9bec6, 0.45, 0.3), tube, 0, 0, 0, 16);
+    for (const s of [-1, 1]) cylZ(I4.guardR * 0.7, 0.008, M.alu, tube, 0, 0, s * (sideZ - 0.01), 12);
+  }
   // (no floor: the box's bottom is open, the renders)
   // (a star roller over the bumper: not in their binder, so not drawn)
   const star = new THREE.Group();
