@@ -1,7 +1,8 @@
 // 341's Miss Daisy XXIV in play, built of its physical mechanisms (js/mech/r341.js; the shared
 // part: js/mech/physical.js). Its controls are its code's (Team341/FRC2026-Public: Intake,
 // Shooter, Turret and RobotContainer's bindings):
-//   - the intake down (their 149 deg; their encoder's zeroed there at boot) and held stiff;
+//   - the intake down (their 149 deg, a degree off the bumper it rests on, which their encoder's
+//     zeroed to at boot as 150) and held stiff;
 //   - shooting (the driver's right trigger, the AI's shot): the flywheel's velocity loop at their
 //     table's RPM for the distance from the turret to the target, the hood to their table's angle
 //     (stowed under a TRENCH); once it's within 130 RPM (debounced 0.1 s) and the turret's on
@@ -57,7 +58,7 @@ export function servoArm(T, deg, goal, dt) {
 }
 export function turnArm(T, deg, dt) {
   deg += (T.pivot.omega * dt) / DEG;
-  if (deg > INTAKE.down + 1) { deg = INTAKE.down + 1; if (T.pivot._omega > 0) T.pivot._omega = 0; } // (the carpet, the hard stop)
+  if (deg > INTAKE.down + 1) { deg = INTAKE.down + 1; if (T.pivot._omega > 0) T.pivot._omega = 0; } // (the bumper: the arm's plate 5 mm into its foam, where it rests at their 150)
   if (deg < INTAKE.stowed) { deg = INTAKE.stowed; if (T.pivot._omega < 0) T.pivot._omega = 0; }
   return deg;
 }
@@ -80,7 +81,7 @@ export class Physical341 extends PhysicalRobot {
 
   reset() {
     super.reset();
-    // down from the start (their encoder's zeroed there)
+    // down from the start (their encoder's zeroed resting on the bumper)
     this.armDeg = INTAKE.down; this.armGoal = INTAKE.down;
     this.hoodDeg = 0; this.hoodSet = [0, 0]; this.hoodGoal = 0;
     this.state = 'stopped'; // their shooter: stopped, spinning up, shooting, at speed, pulsing out

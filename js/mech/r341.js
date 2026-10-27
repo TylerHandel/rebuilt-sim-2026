@@ -3,12 +3,14 @@
 // the intake, serializer, feeder, shooter, hood and turret subsystems and their tables). Robot
 // frame: x forward (the intake), y up, z to its right; the CAD's x across to the left, y back, z up.
 //
-// The ball path, 4 wide to 1 ("the zipper"): the slapdown intake's two 1.25in silicone rollers
-// pinch FUEL off the carpet against the bumper, and its three free 2in polycarbonate rollers hold
-// them against it up and over, to the top roller on the arm's pivot (2.25in compliant wheels in
-// the middle, mecanums pushing in from each side), which brings them in onto the serializer's
-// floor. There the table's two top rollers (compliant wheels, mecanums pushing toward the uptake's
-// side) and three 6in omni wheels lying flat (two free, one powered: the feeder) steer them into
+// The ball path, 4 wide to 1 ("the zipper"): on the slapdown intake, down, the front ("top")
+// 1.25in silicone roller pulls FUEL in off the carpet to the bumper's foot, where the bottom one
+// lifts them up its face; the top roller rolls them up it, and three 2in polycarbonate rollers
+// (all of them driven) roll them over its top, squeezed against it, to the top roller on the
+// arm's pivot (2.25in compliant wheels in the middle, mecanums pushing in from each side), which
+// brings them in onto the serializer's floor. There the table's two top rollers (compliant
+// wheels, mecanums pushing toward the uptake's side) and three 6in omni wheels lying flat (two
+// free, one powered: the feeder) steer them into
 // the uptake behind the turret, where two shafts of 1.625in flex wheels push them up into the
 // turret: a 1in urethane wheel hands them to the shooter, whose 4in urethane flywheel wraps them
 // round under the hood's two rows of 2in Stealth wheels and flings them out forward.
@@ -30,35 +32,43 @@ export const MU = { compliant: 1.6, urethane: 1.3, stealth: 1.4, silicone: 1.0, 
 
 // ------------------------------------------------------------------ the layout (robot frame)
 export const HALF = 13.5 * IN; // the frame's half length and width (27in)
-// The intake swings on the top roller's shaft. As the CAD has it, folded up (their 0 deg); down,
-// their 149 (their DEPLOYMENT_ANGLE), turned forward and down.
+// The intake swings on the top roller's shaft. As the CAD has it, folded up (their 9 deg: below);
+// down, their 149 (their DEPLOYMENT_ANGLE), turned forward and down.
 export const PIVOT = [0.255, 0.337];
 export const INTAKE = {
-  // the two 1.25in polycarbonate rollers wrapped in silicone (bottom, top) and the three free 2in
-  // polycarbonate rollers ("dead axle"), on the arm, as exported
-  bottom: { at: [0.291, 0.680], d: 1.25 * IN, w: 0.583 },
-  top: { at: [0.119, 0.680], d: 1.25 * IN, w: 0.565 },
+  // the two 1.25in polycarbonate rollers wrapped in silicone (bottom, top: the silicone's 34 mm
+  // outside, the CAD's) and the three 2in polycarbonate rollers ("dead axle"), on the arm, as
+  // exported (folded up; the 2in ones from the pivot out)
+  bottom: { at: [0.291, 0.680], d: 0.034, w: 0.583 },
+  top: { at: [0.119, 0.680], d: 0.034, w: 0.565 },
   dead: [[0.192, 0.397], [0.121, 0.468], [0.083, 0.574]], deadD: 2 * IN, deadW: 0.562,
   // on the pivot's shaft: three 2.25in 50A compliant wheels in the middle, seven 2in mecanums each
   // side pushing to the middle
   compliant: [-0.056, -0.018, 0.020], left: [-0.298, -0.263, -0.228, -0.193, -0.158, -0.123, -0.088], right: [0.052, 0.087, 0.122, 0.157, 0.192, 0.227, 0.262],
   down: 149, up: 44, stowed: 0,
-  // the CAD's folded pose, in their angles. Their code finds down by driving the arm until it
-  // stalls and calls that 149 (ZEROING); what it stalls on is the bumper (the bottom roller's plate
-  // rests against its face: their binder). 149 from the CAD's pose would put the bottom roller under
-  // the bumper and squeeze FUEL 45-64 mm between the rollers and it; their binder: their "free
-  // rollers maintain compression with the bumper throughout the entire intake path", ~0.5in was
-  // best and over 1in jammed. 137 deg from the CAD's pose (so the CAD's is their 12) squeezes a
-  // FUEL 5 mm between the top roller and the bumper's face, 14 and 10 under the free rollers at
-  // the bumper's top corner, 9 under the first on the floor, and 12 under the pivot's wheels
-  cad: 12,
+  // the CAD's folded pose, in their angles. Down is where the arm rests on the bumper: their code
+  // zeroes its encoder there (150 at boot, 149 on the operator's button) and holds 149; their
+  // binder: the "plate for the bottom roller rest[s] against [the] vertical plane of [the] bumper".
+  // That plate is the arm's side plates' straight back edge (the CAD's "Main Slap Down"): swung
+  // 140 deg from the CAD's pose it stands vertical (within 0.3 deg) and lies on the face of a
+  // 2.5in foam bumper (0.4275 out; the CAD has only its wood) from 0.05 to 0.19 m up, and the
+  // plate's lowest corner clears the carpet by 34 mm. (149 from the CAD's pose would sink it 39 mm
+  // into the foam; their 150, where it boots, sinks it 5 mm.) So the CAD's pose is their 9, and
+  // down (their 149) is 140 from it. There the bottom roller sits at the bumper's foot, 4 mm in
+  // front of its face, and FUEL climb the face squeezed 15 mm between it and the top roller
+  // (their binder: ~0.5in was best, >1in caused problems), 27 and 20 mm under the third and second
+  // 2in rollers round its top corner (the foam's corner gives too), 21 under the second over its
+  // top, 19 under the first and 16 under the pivot's wheels over the serializer's floor. (With its
+  // 2in rollers driven it takes in every FUEL the bench brings it, 17.6 a second, from 137 to 143
+  // alike: tools/mechlab341.mjs rate.)
+  cad: 9,
   // the arm (side plates, rollers, bash bar): an estimate of the binder's 16.5 lb intake less its
   // fixed gearboxes and plates
   mass: 3.0, com: 0.25, J: 0.2,
 };
 // the serializer's floor (top) and its three 6in omni wheels lying flat at FUEL height: the
 // powered one (the feeder) nearest the uptake, two free
-export const FLOOR_Y = 0.173;
+export const FLOOR_Y = 0.1747;
 export const OMNI = { d: 6 * IN, y: 0.248, w: 0.037, feeder: [-0.044, 0.075], free: [[0.108, 0.219], [0.121, -0.229]] };
 // the table's top rollers over the floor (x, the wheels' z): compliant wheels, and 2in printed
 // mecanums pushing toward the uptake's side (the robot's left)
@@ -112,12 +122,23 @@ export const PRELOAD = [
 // ------------------------------------------------------------------ the drives
 export function build341() {
   // the intake's rollers: positive runs them inward (the bottom roller's front up, the top one's
-  // back up; the top roller on the pivot's bottom rearward)
+  // back up; the 2in rollers' and the top roller on the pivot's bottoms rearward)
+  // Their CAD's belts: the X60s' 12t pulleys onto a 20t, its shaft's 18t to the pivot shaft's 22t
+  // (104T belt): 2.04:1 (their binder's "2:1"). From the pivot shaft a 20t-to-20t belt runs to
+  // each roller on the arm in turn (55T to the first 2in roller, 60T to the second, 65T to the
+  // third, 65T to the top roller; the belts' lengths match the rollers' spacing to the mm), and
+  // from the top roller (60T) a pair of 36t spur gears turns the other way, belted (90T) to the
+  // bottom roller. So the three 2in rollers are driven too ("dead axle": each tube turns on
+  // bearings on stub shafts, which tie the side plates together), all at the pivot shaft's speed,
+  // the bottom roller the other way. (Free, the 2in rollers left FUEL stalled where the top roller
+  // lets go of them: between the bumper's face and the third, which pressed them down ~30 N, and
+  // on the floor under the first, 8 cm short of the pivot's wheels.)
   const intake = new Train({ name: 'intake rollers', motor: new Motor('krakenX60', { count: 2, statorLimit: 90, supplyLimit: 30 }) });
-  const bottom = intake.add(new Shaft({ name: 'intake bottom roller', inertia: 3e-5 }), 1 / 2);
-  const top = intake.add(new Shaft({ name: 'intake top roller', inertia: 3e-5 }), -1 / 2);
-  const pivotRoller = intake.add(new Shaft({ name: 'intake top shaft (on the pivot)', inertia: 1.5e-4 }), -1 / 2);
-  const dead = INTAKE.dead.map((_, i) => new Shaft({ name: `intake free 2in roller ${i + 1}`, inertia: 4e-5, drag: 2e-5 }));
+  const k = (12 / 20) * (18 / 22);
+  const bottom = intake.add(new Shaft({ name: 'intake bottom roller', inertia: 3e-5 }), k);
+  const top = intake.add(new Shaft({ name: 'intake top roller', inertia: 3e-5 }), -k);
+  const pivotRoller = intake.add(new Shaft({ name: 'intake top shaft (on the pivot)', inertia: 1.5e-4 }), -k);
+  const dead = INTAKE.dead.map((_, i) => intake.add(new Shaft({ name: `intake 2in roller ${i + 1}`, inertia: 6e-5 }), -k));
   // the top rollers and the uptake: positive runs the top rollers' bottoms rearward and the
   // uptake's faces up
   const serializer = new Train({ name: 'top rollers and uptake', motor: new Motor('krakenX60', { count: 2, statorLimit: 90, supplyLimit: 30 }) });
@@ -221,8 +242,10 @@ export function hoodElevation(deg) {
 // the CAD's surfaces: the body; the intake's arm on the pivot's shaft (it swings with it); the
 // turret and the hood (posed each step)
 // The front bumper, which FUEL climb on the way in (their CAD leaves it out): XLPE foam under
-// fabric (their binder: stiffer and more even than pool noodles; tread, N/m, an estimate), a
-// its face and top
+// fabric (their binder: stiffer and more even than pool noodles), its face and top. (Its tread,
+// N/m, an estimate: a FUEL pressed into a 2.5in slab of foam that takes ~0.25 MPa at 25% squeeze
+// sinks in about 5-8 mm at 20-50 N, 13-18 kN/m; far stiffer than the FUEL, which does most of the
+// giving.)
 export function bumperSurface({ mu = 0.6, tread = 20000 } = {}) {
   // (the CAD's bumper wood: 0.345-0.364 m out, 0.041-0.168 m up; 2.5in of foam on it)
   const x0 = HALF, x1 = 0.364 + 2.5 * IN, hw = x1, y0 = 0.041, y1 = 0.168;
