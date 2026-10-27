@@ -164,8 +164,8 @@ export const INTAKE = {
   // sitting on top of the bumper, its top running in, takes it over into the hopper (dx back from
   // the box's front at its full extension; their places are estimates from the renders). The small
   // roller is dark, in short segments in the renders: compliant, gripping as rubber does (mu, tread)
-  primary: { dx: -0.07, y: 0.155, r: 1.5 * IN },
-  bar: { dx: -0.23, y: 0.192, r: 0.75 * IN, mu: 1.0, tread: 20000 },
+  primary: { dx: -0.085, y: 0.14, r: 1.5 * IN },
+  bar: { dx: -0.23, y: 0.2, r: 0.75 * IN, mu: 1.0, tread: 20000 },
   width: 0.8,
 };
 // the preload: eight on the floor round the hub, clear of the hook
