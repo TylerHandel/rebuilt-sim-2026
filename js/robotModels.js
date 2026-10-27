@@ -1557,7 +1557,8 @@ function build8793(cfg, alliance) {
     // (the path's wheels at a tenth of their real speed, the X60 at ~550 rad/s, so you can see them turn)
     for (const w of spinning) w.g.rotation.z += -st.intakeSpeed * 55 * w.k * dt;
     turret.rotation.y = st.turretYaw;
-    cadArm.rotation.z = (1 - st.intakeDeploy) * fold.stowDeg * Math.PI / 180;
+    // (where its pivot's motors and the FUEL under it have the arm: js/mech/phys8793.js)
+    cadArm.rotation.z = st.armTurn ?? (1 - st.intakeDeploy) * fold.stowDeg * Math.PI / 180;
     cadTurret.rotation.y = st.turretYaw;
     fly.rotation.z -= st.flywheel * dt * 8;
     hood.rotation.z = (st.hoodDeg - 62) * Math.PI / 180 * 0.8;

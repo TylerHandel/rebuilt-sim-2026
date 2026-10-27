@@ -15,11 +15,11 @@
 import { RAPIER } from '../js/physics.js';
 import { FUEL, IN, GROUP, groups } from '../js/constants.js';
 import { Mechanism, Shaft, Wheel, Motor, foam } from '../js/mech/mechanism.js';
-import { MU, COMPLIANT_TREAD, NECK, build8793, intake8793, conveyorWheels, armWheels, shooterWheels, shooterSmallAt, flywheelDuty, codeExitSpeed, SHOOTER, INDEXER, DUTY_INDEXER, indexerWheels, pathSurfaces } from '../js/mech/r8793.js';
+import { MU, COMPLIANT_TREAD, NECK, build8793, intake8793, conveyorWheels, armWheels, shooterWheels, shooterSmallAt, flywheelDuty, codeExitSpeed, SHOOTER, INDEXER, DUTY_INDEXER, indexerWheels, pathSurfaces, placeArm, armState, servoArm, turnArm, ARM } from '../js/mech/r8793.js';
 if (process.env.IDX_RATIO) INDEXER.ratio = Number(process.env.IDX_RATIO); // (to try other indexer gearing)
 import PATH_MESH from '../js/mech/path8793.js';
 import { JAM } from '../js/mech/phys8793.js';
-import { BUMPER_T } from '../js/robotConfigs.js';
+import { BUMPER_T, ROBOTS } from '../js/robotConfigs.js';
 
 await RAPIER.init();
 const R = FUEL.radius, DT = 1 / Number(process.env.HZ ?? 120), SUB = Number(process.env.SUB ?? 8), SEEDS = Number(process.env.SEEDS ?? 12);
@@ -55,7 +55,7 @@ const tests = {
       for (let seed = 1; seed <= SEEDS; seed++) runs.push(pathRun(seed, { x44 }));
       const med = (a) => { const b = [...a].sort((p, q) => p - q); return b[b.length >> 1]; };
       console.log(`8793 conveyor, X44s ${x44 ? 'powered  ' : 'unpowered'} (every roller locked to the X60): a median ${med(runs.map((r) => r.through))} of ${runs[0].n} through (${Math.min(...runs.map((r) => r.through))}..${Math.max(...runs.map((r) => r.through))}, ${SEEDS} runs), ` +
-        `${med(runs.map((r) => r.rate)).toFixed(1)} FUEL/s; X60 up to ${Math.max(...runs.map((r) => r.peakI)).toFixed(0)} A, rollers slowed to ${med(runs.map((r) => r.minSpeed)).toFixed(0)}% (median), ${med(runs.map((r) => r.unjams))} unjams`);
+        `${med(runs.map((r) => r.rate)).toFixed(1)} FUEL/s; X60 up to ${Math.max(...runs.map((r) => r.peakI)).toFixed(0)} A, rollers slowed to ${med(runs.map((r) => r.minSpeed)).toFixed(0)}% (median), ${med(runs.map((r) => r.unjams))} unjams; the arm lifted up to ${med(runs.map((r) => r.maxLift)).toFixed(1)} deg (median)`);
     }
   },
   // the shooter's grip: with their old gearing (both shafts at the motor's speed) their code says
@@ -94,7 +94,7 @@ const tests = {
     const all = runs.flatMap((r) => r.shots);
     const avg = (a) => a.reduce((p, q) => p + q, 0) / (a.length || 1);
     console.log(`8793 carpet to shot (indexer ${INDEXER.ratio}:1): a median ${med(runs.map((r) => r.shots.length))} of ${runs[0].n} shot (${Math.min(...runs.map((r) => r.shots.length))}..${Math.max(...runs.map((r) => r.shots.length))}, ${SEEDS} runs), ` +
-      `${med(runs.map((r) => r.shotRate)).toFixed(1)} FUEL/s; out at ${avg(all.map((x) => x.v)).toFixed(2)} m/s, ${avg(all.map((x) => x.el)).toFixed(1)} deg (${all.filter((x) => x.el < 30).length} knocked off instead); the flywheel sagged to ${med(runs.map((r) => r.minRps)).toFixed(0)} rps; ${med(runs.map((r) => r.unjams))} unjams (median)`);
+      `${med(runs.map((r) => r.shotRate)).toFixed(1)} FUEL/s; out at ${avg(all.map((x) => x.v)).toFixed(2)} m/s, ${avg(all.map((x) => x.el)).toFixed(1)} deg (${all.filter((x) => x.el < 30).length} knocked off instead); the flywheel sagged to ${med(runs.map((r) => r.minRps)).toFixed(0)} rps; ${med(runs.map((r) => r.unjams))} unjams, the arm lifted up to ${med(runs.map((r) => r.maxLift)).toFixed(1)} deg (median)`);
   },
   // where 8793 holds FUEL: intake 12 with the indexer stopped, then stop the rollers too and let
   // them settle (its preload goes where they end up)
@@ -292,9 +292,15 @@ function pathRun(seed, { x44 = true, turret = false, e = 60, target = 60, nBalls
   const carpet = w.createRigidBody(RAPIER.RigidBodyDesc.kinematicVelocityBased().setLinvel(-1, 0, 0));
   w.createCollider(RAPIER.ColliderDesc.cuboid(15, 0.01, 1).setTranslation(front + 15, -0.01, 0).setFriction(0.3).setRestitution(0.2), carpet);
   const trains = build8793();
-  const wheels = [...conveyorWheels(trains), ...armWheels(trains)];
-  const surfaces = Object.values(pathSurfaces(PATH_MESH, { yaw }));
-  const mech = new Mechanism({ substeps: 6, sub: Number(process.env.PATHSUB ?? 1), shafts: [...new Set(wheels.map((x) => x.shaft))], wheels, surfaces });
+  const arm = armWheels(trains), wheels = [...conveyorWheels(trains), ...arm];
+  const sf = pathSurfaces(PATH_MESH, { yaw });
+  sf.arm.onShaft(trains.pivot, [ARM.pivot[0], ARM.pivot[1], 0]);
+  const surfaces = Object.values(sf);
+  const mech = new Mechanism({ substeps: 6, sub: Number(process.env.PATHSUB ?? 1), shafts: [...new Set(wheels.map((x) => x.shaft)), trains.pivot], wheels, surfaces });
+  // the arm down on its pivot, under their position loop (as js/mech/phys8793.js runs it): the
+  // FUEL under its rollers lift it. ARM=fixed holds it rigid on its stop instead.
+  const armSt = armState((ROBOTS['8793'].intake.fold.stowDeg * Math.PI) / 180, 0), rigid = process.env.ARM === 'fixed';
+  let maxLift = 0;
   const mechs = [mech];
   let smech = null;
   if (turret) {
@@ -315,7 +321,17 @@ function pathRun(seed, { x44 = true, turret = false, e = 60, target = 60, nBalls
     intake8793(trains, true, { x44, dir: unjamT > 0 ? -1 : 1 });
     if (turret) { trains.indexer.cmd = hold ? 0 : unjamT > 0 ? -DUTY_INDEXER : DUTY_INDEXER; trains.shooter.cmd = hold ? 0 : flywheelDuty(trains, target); }
   };
-  const step = (balls) => { control(); for (const m of mechs) m.step(DT, balls, m === mech && TOGETHER ? balls : null); w.step(); };
+  const step = (balls) => {
+    control();
+    servoArm(trains, armSt, true, DT);
+    if (rigid) trains.pivot.stop(0, 0);
+    sf.arm.setPose([ARM.pivot[0], ARM.pivot[1], 0], 0, armSt.roll);
+    placeArm(arm, armSt.roll);
+    for (const m of mechs) m.step(DT, balls, m === mech && TOGETHER ? balls : null);
+    turnArm(trains, armSt, DT);
+    maxLift = Math.max(maxLift, (armSt.roll * 180) / Math.PI);
+    w.step();
+  };
   for (let i = 0; i < 1 / DT; i++) step([]); // spin up
   const free = Math.abs(trains.horizontal.omega);
   const balls = [];
@@ -357,7 +373,7 @@ function pathRun(seed, { x44 = true, turret = false, e = 60, target = 60, nBalls
   const res = { n: balls.length, through: past.size, first: times[0] ?? NaN, last: times[times.length - 1] ?? NaN,
     rate: times.length > 1 ? (times.length - 1) / (times[times.length - 1] - times[0]) : 0, peakI, minSpeed: (100 * minW) / free,
     stuck: xs.length ? `${xs.length} at ${Math.min(...xs).toFixed(2)}..${Math.max(...xs).toFixed(2)}` : '',
-    unjams, shots, shotRate: shots.length > 1 ? (shots.length - 1) / (shots[shots.length - 1].t - shots[0].t) : 0, minRps,
+    unjams, maxLift, shots, shotRate: shots.length > 1 ? (shots.length - 1) / (shots[shots.length - 1].t - shots[0].t) : 0, minRps,
     held: balls.map((b) => b.translation()).filter((p) => p.x < 0.35 && p.y > 0.05 && p.y < 0.7).map((p) => [p.x, p.y, p.z]) };
   w.free();
   return res;
