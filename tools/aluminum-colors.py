@@ -1,6 +1,9 @@
 # Which colors in each robot's CAD are aluminum: its Onshape bill of materials lists every part's
 # material and appearance, so a color most of whose parts (that have a material) are aluminum is
-# drawn as aluminum (js/robotModels.js cadPart). Writes js/aluminumColors.js.
+# drawn as aluminum (js/robotModels.js cadPart). Writes js/aluminumColors.js, and in the cache dir
+# <team>-materials.json, each part's material and placements: a recipe's "bom" in
+# tools/extract-parts.mjs, which marks the aluminum parts' material part by part (the color rule
+# is for the GLBs made without one).
 #   python3 -I tools/aluminum-colors.py [cache dir]
 # Needs ONSHAPE_ACCESS_KEY / ONSHAPE_SECRET_KEY in the environment. The documents are the ones
 # cad/robots/<team>.json's "source" names (2910's is in tools/path-mesh-2910.py).
@@ -41,6 +44,45 @@ def bom(team):
     return json.load(open(f))
 
 
+def assembly(team):
+    f = f'{CACHE}/{team}-asm.json'
+    if not os.path.exists(f):
+        did, kind, wv, eid = doc_ref(team)
+        j = get(f'/assemblies/d/{did}/{kind}/{wv}/e/{eid}')
+        if 'rootAssembly' not in j: raise RuntimeError(j.get('message', 'no assembly definition'))
+        json.dump(j, open(f, 'w'))
+    return json.load(open(f))
+
+
+def materials(team):
+    # Per part: its name, Onshape part id, material and where each of its instances sits, for
+    # tools/extract-parts.mjs (a recipe's "bom"), which decides aluminum part by part: a color is
+    # too coarse (8793's cable carrier and 3D prints share the aluminum plates' slate). Names
+    # repeat ("Part 1", "Side Plate"), so two more keys tell such parts apart: the part id, which a
+    # glTF export carries on each node (PTC_onshape_metadata), and the placements: the BOM row
+    # lists the part's occurrences (instance-id paths) and the assembly definition has each one's
+    # transform (row-major, meters), whose translation is the part studio's origin in the robot,
+    # where an export puts the part's node. (A document shared by link may refuse the assembly
+    # definition: no placements then.)
+    j = bom(team)
+    try:
+        asm = assembly(team)
+        occ = {'.'.join(o['path']): o['transform'] for o in asm['rootAssembly']['occurrences']}
+    except Exception:
+        occ = {}
+    H = {h['name']: h['id'] for h in j.get('headers', [])}
+    out = []
+    for r in j.get('rows', []):
+        v = r['headerIdToValue']
+        m = v.get(H.get('Material'))
+        mat = (m.get('displayName') or m.get('id') or '') if isinstance(m, dict) else (m or '')
+        at = [[round(t[i], 4) for i in (3, 7, 11)] for t in (occ.get(p) for p in r.get('relatedOccurrences', [])) if t]
+        out.append({'name': v.get(H.get('Name')) or '', 'partId': r.get('itemSource', {}).get('partId', ''), 'material': mat.strip(), 'at': at})
+    with open(f'{CACHE}/{team}-materials.json', 'w') as f:
+        json.dump({'team': team, 'parts': out}, f, separators=(',', ':'))
+    return out
+
+
 def colors(team):
     j = bom(team)
     H = {h['name']: h['id'] for h in j.get('headers', [])}
@@ -61,9 +103,10 @@ def colors(team):
             # (a light gray, by its chroma and lightness: raw or clear-anodized aluminum, drawn in
             # whatever gray the CAD likes; a dark gray: anodized dark (kept dark, but metal); colored:
             # anodized or powder-coated. The slate 67, 72, 77 is a CAD library's aluminum (all of it
-            # aluminum in 1678's CAD; 8793's aluminum, the team): raw)
+            # aluminum in 1678's CAD; 8793's aluminum, the team): raw. Near-black is a black coat, left
+            # as it is like colored. js/robotModels.js aluFinish judges a part's color the same way)
             chroma, light = (max(r, g, b) - min(r, g, b)) / 255, max(r, g, b) / 255
-            finish = 'colored' if chroma >= 0.15 else 'raw' if light >= 0.45 or (r, g, b) == (67, 72, 77) else 'dark'
+            finish = 'colored' if chroma >= 0.15 or light < 0.1 else 'raw' if light >= 0.45 or (r, g, b) == (67, 72, 77) else 'dark'
             out.append({'rgb': [r, g, b], 'parts': al, 'of': n, 'finish': finish})
     return out
 
@@ -73,7 +116,9 @@ res = {}
 for t in teams:
     try:
         res[t] = colors(t)
-        print(t, [(c['rgb'], c['finish'], f"{c['parts']}/{c['of']}") for c in res[t]])
+        mats = materials(t)
+        print(t, [(c['rgb'], c['finish'], f"{c['parts']}/{c['of']}") for c in res[t]],
+              f"materials: {sum(1 for m in mats if m['at'])}/{len(mats)} parts placed")
     except Exception as e:
         print(t, 'no BOM:', e)
 with open(f'{ROOT}/js/aluminumColors.js', 'w') as f:
