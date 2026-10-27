@@ -21,6 +21,12 @@ which are the sim's blue fx, fy.
   transcribed from their FieldConstants.java (the right side mirrors the left).
 - 1678 (Choreo): each routine's trajectories' samples, at their speed there; driveOverBump (3 m/s straight back over the
   BUMP to where the next trajectory starts) and fireCommand (3 s) between them.
+- 581 (team581/frc-2026 comp-bot: Left/RightNormalAuto, imperative state machines on their
+  Trailblazer follower): the segments' points transcribed (in their RED coordinates, flipped to
+  blue) and their PidPathFollower replayed (straight at each point, the next once within its
+  transition tolerance and heading tolerance), cycle after cycle: intake out, back over the BUMP
+  to SHOOT_X beside it, shoot 3.25 s from when it's off the BUMP. Their AutoSelection offers only
+  these two (Left/RightSpecialAuto aren't selectable).
 """
 import argparse, json, math, os
 
@@ -244,6 +250,105 @@ def auto_1678(d, trajs, mirror):
     return start, pts
 
 
+# ------------------------------------------------------------------ 581: Trailblazer
+# LeftNormalAuto's segments (comp-bot autos/auto_state_machines; RightNormalAuto is the same
+# mirrored across the field), in their RED coordinates (Point.ofRed: blue = rotated 180 degrees
+# about the field's center). (x, y, heading deg, transition tolerance m, max m/s, max rad/s,
+# angle tolerance deg); None: the segment's 4.5 m/s, 4 rotations/s. FieldUtil: the DEPOT TRENCH's
+# center line (AprilTag 17's y, 2026 welded layout), the DEPOT BUMP's (48.94 + 12 + 73/2 in from
+# the wall) less their BUMP_OFFSET (-0.13).
+L581 = 16.541
+TR581, BY581, SX581 = 0.6444996, (48.94 + 12 + 73 / 2) * 0.0254 + 0.13, 13.83
+SEG4 = 4.0 * 2 * math.pi  # Units.rotationsToRadians(4.0)
+INTAKE_FIRST = [  # their intakeFirstCycle (intake on from the start)
+    (10.489, TR581, 90, 0.75), (9.010, 1.417, 120, 0.4), (8.553, 2.677, 85, 0.4), (8.670, 3.37, 30, 0.4),
+    (9.6, 3.57, -90, 0.4), (9.7, BY581, -32, 0.3), (10.6, BY581, 0, 0.3), (SX581, BY581, 0, 0.3),
+]
+TURN_TO_TRENCH = [  # the first four points of their second and third cycles
+    (13.2, TR581, -160, 2.0, 2.0, 4.0, 50), (13.2, TR581, 180, 0.2, 2.5, 4.0), (12.5, TR581, 180, 0.2, 3.0, 2.0),
+    (11.5, TR581, 180, 0.2, 4.5, 0.5),
+]
+INTAKE_SECOND = TURN_TO_TRENCH + [  # their defaultIntakeSecondCycle
+    (10.628, 0.87, 140, 0.4), (9.140, 1.417, 130, 0.4), (8.7, 2.477, 85, 0.4), (8.5, 3.76, 30, 0.4),
+    (10.07, 3.77, -15, 0.5), (10.2, BY581, -50, 0.1), (SX581, BY581, 0, 0.3),
+]
+INTAKE_THIRD = TURN_TO_TRENCH + [  # their intakeThirdCycle
+    (9.6, 1.717, 130, 0.4), (8.7, 2.477, 90, 0.3), (8.6, 3.76, 90, 0.3), (9.31, 3.77, -32, 0.3),
+    (9.7, BY581, 0, 0.3), (10.6, BY581, 0, 0.3), (SX581, BY581, 0, 0.3),
+]
+# (state machine: each cycle drives its segment until it heads for the last point, SHOOT_X
+# (READY_TO_CROSS_BUMP), then CROSS_BUMP_TO_SHOOT drives there over the BUMP, and SHOOT starts
+# once it's flat again (their BumpCrossingTracker); SHOOT lasts 3.25 s at most (2 s once it
+# isn't shooting). The intake runs from the start, and in the later cycles from START_INTAKE (the
+# third point, under the TRENCH); the first cycle cancels it at the BUMP, the second keeps it on
+# until SHOOT, the third's idleRequest stops it at the BUMP. Their cluster map's other second
+# cycle (a lane further out) isn't modeled: the default one.)
+CYCLES_581 = [(INTAKE_FIRST, 0, False), (INTAKE_SECOND, 2, True), (INTAKE_THIRD, 2, False)]
+BUMP_CLEAR_581 = L581 - (11.915 + 44.4 / 2 * 0.0254) - 0.343  # (blue fx) its center a half frame past the BUMP
+
+
+def auto_581(mirror):
+    """their follower replayed (PidPathFollower: straight at the target point, at the speed left to
+    the end of the segment within the point's constraints, 8 m/s^2; the next point once within its
+    transition tolerance, heading included)"""
+    def blue(p):
+        x, y, h = L581 - p[0], W - p[1], p[2] + 180
+        return (x, W - y, -h) if mirror else (x, y, h)
+    start = blue((12.1, 0.47, 90))
+    pos, speed, hdg, dt, t = [start[0], start[1]], 0.0, start[2], 0.02, 0.0
+    pts, samples, anchor = [], [], [tuple(pos)]  # samples: (x, y, intake, shoot, v)
+
+    def flush():
+        # sampled along the way, a new point wherever the settings change
+        groups, at = [], anchor[0]
+        for s in samples:
+            if not groups or groups[-1][0] != s[2:]:
+                groups.append((s[2:], [at]))
+            groups[-1][1].append(s[:2])
+            at = s[:2]
+        for (intake, shoot, v), xy in groups:
+            for q in resample(xy)[1:]:
+                pts.append(pt(q[0], q[1], intake, shoot, v))
+        samples.clear()
+        anchor[0] = tuple(pos)
+
+    for n, (seg, intake_from, intake_after) in enumerate(CYCLES_581):
+        P, last, i, landed = [blue(p) for p in seg], len(seg) - 1, 0, None
+        while t < 60:
+            p = seg[i]
+            tol, vmax = p[3], p[4] if len(p) > 4 else 4.5
+            wmax, atol = min(p[5] if len(p) > 5 else SEG4, SEG4), p[6] if len(p) > 6 else 100
+            herr = (P[i][2] - hdg + 180) % 360 - 180
+            d = math.dist(pos, P[i][:2])
+            if i < last and d < tol and abs(herr) < atol:
+                i += 1
+                continue
+            if i == last and d < 0.01:
+                break
+            # SHOOT (their prepareScoreRequest) once it's off the BUMP on the way to SHOOT_X
+            if i == last and landed is None and pos[0] < BUMP_CLEAR_581:
+                landed = t
+            left = d + sum(math.dist(P[k][:2], P[k + 1][:2]) for k in range(i, last))
+            sp = min(vmax, math.sqrt(2 * 8.0 * left))
+            # (straight at the point: only the speed is rate limited)
+            speed += max(-8.0 * dt, min(8.0 * dt, sp - speed))
+            if d > 1e-6:
+                pos = [pos[0] + (P[i][0] - pos[0]) / d * min(speed * dt, d), pos[1] + (P[i][1] - pos[1]) / d * min(speed * dt, d)]
+            step = math.degrees(wmax) * dt
+            hdg += max(-step, min(step, herr))
+            t += dt
+            shooting = landed is not None
+            intake = i >= intake_from and (i < last or (intake_after and not shooting))
+            samples.append((pos[0], pos[1], intake, 'hub' if shooting else 'off', vmax))
+        if landed is None:
+            landed = t
+        flush()
+        hold = round(3.25 - (t - landed), 2) if n < len(CYCLES_581) - 1 else 20
+        pts[-1].update(action='shoot', t=hold)
+        speed, t = 0.0, t + hold
+    return start, pts
+
+
 # ------------------------------------------------------------------ all of it
 def main():
     ap = argparse.ArgumentParser()
@@ -271,6 +376,10 @@ def main():
         st, pts = auto_1678(a.t1678, ['startToScore', 'scoreToSecondSweep', 'secondScoreToNeutral'], mirror)
         autos.setdefault('1678', []).append({'id': f'1678-{side}', 'name': name, 'side': side, 'source': f'autos/midline/{src}.java',
                                              'startFx': round(st[0], 3), 'startFy': round(st[1], 3), 'shootPreload': False, 'points': pts})
+    for side, mirror, name, src in [('left', False, 'Left Normal', 'LeftNormalAuto'), ('right', True, 'Right Normal', 'RightNormalAuto')]:
+        st, pts = auto_581(mirror)
+        autos.setdefault('581', []).append({'id': f'581-{side}', 'name': name, 'side': side, 'source': f'autos/auto_state_machines/{src}.java',
+                                            'startFx': round(st[0], 3), 'startFy': round(st[1], 3), 'shootPreload': False, 'points': pts})
     out = os.path.join(ROOT, 'js', 'teamAutos.js')
     with open(out, 'w') as f:
         f.write('// The teams\' own AUTOs, from their robot code (tools/team-autos.py writes this file; see its\n')

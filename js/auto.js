@@ -133,6 +133,18 @@ export const BEST_AUTOS = {
     { out: 'bump', fx: 8.07, a: 6.04, b: 5.16, speed: 0.44, home: 'trench', shootAt: [3.38, 5.58] },
     { out: 'bump', fx: 8.23, a: 5.79, b: 4.67, speed: 0.72, home: 'bump', shootAt: [2.78, 5.92] },
   ] },
+  // Set by reasoning, not searched. 581 runs its team's own AUTOs (js/teamAutos.js); this is for
+  // when both TRENCH spots are taken. 72-77: two sweeps over the BUMP, one on each half of the
+  // line, home to shoot beside the BUMP where their autos do (their SHOOT_X)
+  581: { start: 'rightBump', preload: 'stand', trips: [
+    { out: 'bump', fx: 7.8, a: 1.6, b: 4.0, speed: 0.6, home: 'bump', shootAt: [2.7, 2.6] },
+    { out: 'bump', fx: 7.8, a: 4.0, b: 6.4, speed: 0.6, home: 'bump', shootAt: [2.7, 5.46] },
+  ] },
+  // 119-125: the same for 1114 (too tall for the TRENCH: over the BUMP both ways)
+  1114: { start: 'rightBump', preload: 'stand', trips: [
+    { out: 'bump', fx: 7.8, a: 1.6, b: 4.0, speed: 0.6, home: 'bump', shootAt: [2.7, 2.6] },
+    { out: 'bump', fx: 7.8, a: 4.0, b: 6.4, speed: 0.6, home: 'bump', shootAt: [2.7, 5.46] },
+  ] },
 };
 
 // The same plan run from the other side of the field. DEPOT runs are dropped (there's only
