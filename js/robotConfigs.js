@@ -148,7 +148,7 @@ export const ROBOTS = {
     // 0.30 m along slotted rails with the first intake (the CAD's two poses), then stay out for
     // the match. capacity / retracted are the team's stated numbers; how much it really holds is
     // measured from the hopper (bay) below (hopper.js measureCapacity)
-    storage: { capacity: 58, retracted: 40, extLen: 0.30, extend: 'latched' },
+    storage: { capacity: 60, retracted: 40, extLen: 0.30, extend: 'latched' },
     // the hopper as the FUEL sees it (robot frame: x forward, y up, z to the side; meters).
     // Powered floor rollers slope down to the back, where compliant indexer wheels lift FUEL
     // into the drum.

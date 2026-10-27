@@ -15,8 +15,8 @@
 //     intaking, the feeder runs back at 4 V (holding FUEL off the drum) and the arm goes limp.
 //   the hood stows (17.5 deg) whenever it isn't shooting.
 // And what a driver of it does: contractHopper when FUEL are left out over the intake while it
-// fires (not while it intakes), and the lid (their climber) up, but down for a TRENCH.
-// The extension slides out with the first intake and stays (js/robot.js _hopper); the lid can't
+// fires (not while it intakes), and the lid (their climber) up while it shoots, down for a TRENCH.
+// The extension rides out and in with the intake arm (a pin in a slot); the lid can't
 // come down onto FUEL.
 import { Mechanism } from './mechanism.js';
 import { PhysicalRobot } from './physical.js';
@@ -303,12 +303,16 @@ export class Physical1678 extends PhysicalRobot {
   extNow() { return slotExt(this.armDeg); }
   // how far up the lid is now (0-1 of its travel), as the climber has it
   liftNow() { const h = this.r.cfg.bay.lift?.h; return h ? clamp(this.lift / h, 0, 1) : 0; }
-  // how far up the lid wants to be (0-1 of its travel): see postStep
+  // how far up the lid wants to be (0-1 of its travel): up while it shoots (the driver's
+  // expandHopper; the team: the lid's down otherwise) and in AUTO (their autos expand it early
+  // in the first path), down for a TRENCH; never down onto FUEL piled under it, but the climber
+  // holds it where it is: FUEL can't push it up
   liftScale() {
     const r = this.r, bay = r.cfg.bay, h = bay.lift?.h;
     if (!h) return 0;
-    const onLoad = clamp((this.loadTop() - 0.01 - bay.top) / h, 0, 1);
-    return Math.max(this.tucked || this.nearTrench ? 0 : 1, onLoad);
+    const up = !(this.tucked || this.nearTrench) && (this.wasShooting || r.match?.isAuto);
+    const now = this.liftNow(), onLoad = clamp((this.loadTop() - 0.01 - bay.top) / h, 0, 1);
+    return up ? 1 : Math.min(now, onLoad);
   }
   // their isNearingTrench: under one, or within 1.5 m of one and driving toward it
   _nearingTrench() {

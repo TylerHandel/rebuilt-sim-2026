@@ -36,9 +36,7 @@ export const PIVOT = [0.305, 0.169]; // the intake's pivot tube
 export const DRUM = [-0.288, 0.477]; // the drum's axle, which the hood turns about
 export const INTAKE = {
   // as the CAD has it: folded up inside the hopper (their 130 deg; 0 is down)
-  // 2in silicone-covered roller: the CAD's tube is 2.03in with no cover drawn; a 1/16in silicone
-  // wall over it (an estimate) makes 2.16in
-  main: { at: [0.143, 0.368], d: 0.0548 },
+  main: { at: [0.143, 0.368], d: 0.0516 },           // 2in silicone-covered roller (the CAD's)
   // the 1.25in kicker bar at the front of the bumper when it's down: locked in place, not free to
   // turn (the team); the roller rolls FUEL up over it
   kicker: { at: [0.312, 0.322], d: 0.0326 },

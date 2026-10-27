@@ -134,9 +134,11 @@ export class Physical2910 extends PhysicalRobot {
       if (!pass) { const c = Field.hubCenter(r.alliance); dist = Math.hypot(c.x - r.pos.x, c.z - r.pos.z); }
       want = pass ? passFor(dist) : shotFor(dist);
     }
-    // (their shooter stays at RUN once it's been asked for a shot: the flywheel keeps the last
-    // shot's speed between shots, all match, and only coasts when the robot's disabled)
+    // (their shooter is at RUN all match, DEFAULT_STATE included, at their table's speed for the
+    // distance to the HUB: the drum's always up to speed, and only coasts when the robot's
+    // disabled)
     if (want) { this.targetRpm = want.rpm; this.hoodGoal = want.hood; }
+    else { const c = Field.hubCenter(r.alliance); this.targetRpm = shotFor(Math.hypot(c.x - r.pos.x, c.z - r.pos.z)).rpm; }
     if (!on) this.targetRpm = 0;
     // their velocity loop (no reverse voltage: it coasts down)
     const rps = T.shooter.omega / (2 * Math.PI), target = this.targetRpm / 60;
@@ -176,9 +178,10 @@ export class Physical2910 extends PhysicalRobot {
   // about how fast a FUEL leaves at the drum's speed now (m/s; tools/mechlab.mjs shooter2910)
   exitSpeed() { return EXIT_PER_DRUM_SURFACE * Math.abs(this.t.drum.omega) * SHOOTER.drum.d / 2; }
 
-  // how many it holds: the team's "hold at least 50" (its hopper takes 45 set in a layer at a time,
-  // tools/mechlab2910.mjs hold; the intake packs more)
-  capacity() { return 50; }
+  // how many it holds: about 60 or more, the FUEL squashed together (the team; its hopper takes
+  // 45 set in a layer at a time, tools/mechlab2910.mjs hold, and the intake packs it to 58-60 in
+  // matches)
+  capacity() { return 60; }
 }
 // a FUEL's exit speed over the drum's surface speed (tools/mechlab.mjs shooter2910 measures it)
 export const EXIT_PER_DRUM_SURFACE = 0.8;

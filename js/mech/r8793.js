@@ -17,7 +17,8 @@
 // limit, the two vertical-roller motors (CAN 23, 24) at 95% x 0.9244 (INDEXER_TO_ROLLER_RATIO),
 // mirrored, with 50 A limits (and 40 A from the supply). Then the turret indexer and the shooter,
 // further down.
-import { IN } from '../constants.js';
+import { IN, FUEL } from '../constants.js';
+const FUEL_R = FUEL.radius;
 import { BUMPER_T, BUMPER_Y0, BUMPER_Y1 } from '../robotConfigs.js';
 import { Motor, Shaft, Surface, Train, Wheel } from './mechanism.js';
 
@@ -237,7 +238,12 @@ export function indexerWheels({ ishafts }) {
 // 4in shaft's inertia: half the SDS flywheel's 0.00117 kg·m² (Onshape's mass properties: 0.70 kg),
 // the 4in solid roller wheel (~0.3 kg, ~0.00035) and the shaft and pulleys.
 export const SHOOTER = {
-  ratio: 28 / 18, smallPerLarge: 18 / 28, moi: 0.00097,
+  // 28:18 from the motor to the 4in wheel (a reduction, for torque), and the 2in wheels geared up
+  // from it 28:18 so their surface runs near the 4in's and the FUEL leave with little spin (the
+  // team; their code's FLYWHEEL_SMALL_PER_LARGE_RATIO says 18/28, which it only uses to convert
+  // speeds: codeExitSpeed). Geared up, FUEL leave within 3% of the speed their aim solver expects;
+  // at 18/28 they'd leave 15-18% short of it.
+  ratio: 28 / 18, smallPerLarge: 28 / 18, codeSmallPerLarge: 18 / 28, moi: 0.00097,
   large: { x: 0.127, y: 0.411, r: 2 * IN }, small: { r: 1 * IN, d: 0.203 },
   elevation: [52, 72],
   kV: 0.125, kP: 0.4, maxRps: 90,
@@ -274,7 +280,7 @@ export function placeShooter([lw, sw], e, yaw = 0, turretX = -0.127) {
 // What leaves the shooter for a motor speed (rotations/s -> m/s; tools/mechlab.mjs shooter, the
 // average over its elevations), a FUEL fed in slowly (1.5 m/s): the grip runs out past ~80
 // rotations/s
-export const EXIT_TABLE = [[0, 0], [15, 2.07], [20, 2.71], [30, 4.05], [40, 5.16], [50, 6.11], [60, 7.14], [70, 8.04], [80, 8.39], [90, 8.52]];
+export const EXIT_TABLE = [[0, 0], [15, 2.7], [20, 3.51], [30, 4.99], [40, 6.23], [50, 7.31], [60, 8.45], [70, 9.34], [80, 9.74], [90, 9.87]];
 const interp = (t, x, i, j) => {
   for (let k = 1; k < t.length; k++) if (x <= t[k][i]) return t[k - 1][j] + ((t[k][j] - t[k - 1][j]) * (x - t[k - 1][i])) / (t[k][i] - t[k - 1][i]);
   return t[t.length - 1][j];
@@ -283,7 +289,7 @@ const interp = (t, x, i, j) => {
 // leaves faster: the median exit speed (relative to the robot) of 8793's shots in AI matches, at
 // the flywheel speed it was commanded to (so the droop of a stream of shots is in it, as their
 // FlywheelDroopCompensator learns it). Past 80 rotations/s, unmeasured: it stops there.
-export const SHOT_TABLE = [[0, 0], [15, 2.07], [20, 2.71], [30, 4.15], [40, 5.4], [50, 6.29], [60, 7.21], [70, 8.26], [80, 9.21]];
+export const SHOT_TABLE = [[0, 0], [15, 2.7], [20, 3.51], [30, 5.11], [40, 6.52], [50, 7.52], [60, 8.53], [70, 9.59], [80, 10.69]];
 export const exitSpeed = (rps) => interp(SHOT_TABLE, Math.max(0, rps), 0, 1);
 export const rpsFor = (v) => interp(SHOT_TABLE, Math.max(0, v), 1, 0);
 // their velocity loop (VelocityVoltage: kV x target + kP x error, in volts) toward targetRps,
@@ -295,7 +301,7 @@ export function flywheelDuty({ shooter }, targetRps, V = 12) {
 }
 // the exit speed their aim solver assumes for a motor speed (m/s): the two wheels' surface
 // speeds averaged (FLYWHEEL_EFFECTIVE_DIAMETER_METERS)
-export const codeExitSpeed = (rps) => Math.PI * ((4 * IN + 2 * IN * SHOOTER.smallPerLarge) / 2 / SHOOTER.ratio) * rps;
+export const codeExitSpeed = (rps) => Math.PI * ((4 * IN + 2 * IN * SHOOTER.codeSmallPerLarge) / 2 / SHOOTER.ratio) * rps;
 
 // ------------------------------------------------------------------ the ball path's surfaces
 // Everything FUEL can touch between the intake and the shooter, from their CAD itself
@@ -331,13 +337,16 @@ export function guideSurface() {
   return new Surface({ name: 'guides', vertices: V, indices: I, mu: 0.3 });
 }
 // The front bumper, which FUEL climb over on the way in: square foam under fabric (the team; mu:
-// fabric on foam, an estimate), its face and top. 8793's frame: 27.5in. The foam gives with a FUEL
-// pressed into it (tread, N/m: an estimate, about 2 N per mm), so the arm's bare aluminum rollers
-// squeeze FUEL against it lightly (the tip roller's 39 mm of overlap with the bumper's corner is
-// mostly the bumper giving) and slip on one that's held up rather than stall the X60 (the team):
-// 28-39 auto-unjams a match against 34-91 with a rigid bumper.
-export function bumperSurface({ halfL = 13.75 * IN, halfW = 13.75 * IN + BUMPER_T, mu = 0.6, tread = 2000 } = {}) {
-  const x1 = halfL + BUMPER_T;
+// fabric on foam, an estimate), its face and top. 8793's frame: 27.5in. The bumper isn't in their
+// CAD; the team: its foam is stiff (far stiffer than pool noodles: tread, N/m, an estimate) and
+// the arm's bare aluminum rollers compress FUEL against it less than a compliant intake would. So
+// its face is where the arm's tip roller, rolling FUEL up it, compresses one by squeeze: 1-1/8in
+// (a generic 3.25in bumper would make it 39 mm). Less and FUEL perch on the bumper's corner
+// between the arm's second and third rollers, out of their reach (tools/mechlab.mjs robot: a
+// median 9 of 12 through at 5/8in, 11 at 7/8, 12 at 1-1/8).
+export function bumperSurface({ halfL = 13.75 * IN, halfW = 13.75 * IN + BUMPER_T, mu = 0.6, tread = 20000, squeeze = (9 / 8) * IN } = {}) {
+  const [tx, ty] = [ARM.pivot[0] + ARM.rollers[3][0], ARM.pivot[1] + ARM.rollers[3][1]], reach = 1 * IN + FUEL_R * 2 - squeeze;
+  const x1 = Math.min(halfL + BUMPER_T, tx - Math.sqrt(reach * reach - (BUMPER_Y1 - ty) ** 2));
   const V = [
     x1, BUMPER_Y0, -halfW, x1, BUMPER_Y0, halfW, x1, BUMPER_Y1, halfW, x1, BUMPER_Y1, -halfW, // face
     halfL, BUMPER_Y1, -halfW, halfL, BUMPER_Y1, halfW,                                         // top, back edge
