@@ -141,13 +141,30 @@ export function build341() {
   const dead = INTAKE.dead.map((_, i) => intake.add(new Shaft({ name: `intake 2in roller ${i + 1}`, inertia: 6e-5 }), -k));
   // the top rollers and the uptake: positive runs the top rollers' bottoms rearward and the
   // uptake's faces up
+  // Their CAD's belts (each belt's length matches its pulleys' spacing to the tooth): both X60s'
+  // 12t pulleys onto an intermediate shaft's 24t (50T belts: their binder's 2:1); from it a 20t to
+  // the front top roller's 20t (75T, 15 mm), that one's 20t to the back top roller's (50T): both at
+  // the intermediate's speed. The uptake is the binder's "7:5": the intermediate's 28t drives the
+  // front uptake shaft's 20t (50T), 7:5 FASTER than the top rollers (8.8 m/s at their flex wheels'
+  // rims, the top rollers' compliant wheels 8.7: FUEL handed from one to the other at the same
+  // speed); its 24t, an 80T belt to a 24t behind and 36t:36t spur gears turn the back shaft the
+  // other way at the same speed. (It was the other way up, the uptake at 5/7, half as fast: FUEL
+  // waited at the uptake, and the zipper behind it had longer to lock up (wheels341): 9 of 24
+  // tools/mechlab341.mjs path runs locked, 4.7 FUEL/s; with this and the floor's fix
+  // (tools/path-mesh-341.py) 6, 5.8 FUEL/s, and at 0.5 m/s 8.6.)
   const serializer = new Train({ name: 'top rollers and uptake', motor: new Motor('krakenX60', { count: 2, statorLimit: 90, supplyLimit: 30 }) });
   const tableA = serializer.add(new Shaft({ name: 'table top roller (front)', inertia: 1e-4 }), -1 / 2);
   const tableB = serializer.add(new Shaft({ name: 'table top roller (back)', inertia: 1e-4 }), -1 / 2);
-  const upBack = serializer.add(new Shaft({ name: 'uptake (back)', inertia: 3e-5 }), (1 / 2) * (5 / 7));
-  const upFront = serializer.add(new Shaft({ name: 'uptake (front)', inertia: 3e-5 }), -(1 / 2) * (5 / 7));
-  // the feeder: the powered omni (positive turns FUEL on its face toward the uptake)
-  const feederT = new Train({ name: 'feeder', motor: new Motor('falcon500', { statorLimit: 100, supplyLimit: 20 }) });
+  const upBack = serializer.add(new Shaft({ name: 'uptake (back)', inertia: 3e-5 }), (1 / 2) * (7 / 5));
+  const upFront = serializer.add(new Shaft({ name: 'uptake (front)', inertia: 3e-5 }), -(1 / 2) * (7 / 5));
+  // the feeder: the powered omni (positive turns FUEL on its face toward the uptake). (Its
+  // direction is their code's and their CAD's: their feeder runs at -3 V on TalonFXFactory's
+  // CounterClockwise_Positive, so clockwise looking down at the Falcon's shaft, which points up;
+  // one 10:60 spur stage under the omni turns the omni the other way, counterclockwise from
+  // above: its front toward the robot's left, its left side rearward. Its current limits are
+  // TalonFXFactory's 90 A stator, 30 A supply: FeederIOReal builds its own 100/20 and never
+  // applies them.)
+  const feederT = new Train({ name: 'feeder', motor: new Motor('falcon500', { statorLimit: 90, supplyLimit: 30 }) });
   const feeder = feederT.add(new Shaft({ name: 'feeder 6in omni', inertia: 6e-4 }), 1 / 6);
   const omniFree = OMNI.free.map((_, i) => new Shaft({ name: `free 6in omni ${i + 1}`, inertia: 6e-4, drag: 1e-4 }));
   // the shooter: positive runs the flywheel's back up (FUEL up its back and over it), the hood's
@@ -195,6 +212,13 @@ export function wheels341(t) {
     ...U.z.map((z) => new Wheel({ name: 'uptake front flex wheel', shaft: t.upFront, center: [...U.front, z], axis: Z, radius: U.d / 2, width: 1 * IN, mu: MU.compliant, tread: 4000 })),
   ];
   // the omnis lie flat: axis up (the powered one's face turning toward the uptake, at -z)
+  // Where the zipper can lock up: a FUEL from the right, pressed onto the powered omni's front by
+  // the ones behind it (100-170 N), is rubbed toward the lane and spun, and pins the lane's FUEL
+  // against the left wall, dragging it forward, where the front top roller's compliant wheels slip
+  // on it. At their 3 V the omni slows to a third of its speed against that FUEL and grinds it
+  // into the lane (tools/mechlab341.mjs path: 12 of 48 runs lock; none with the feeder stopped;
+  // 3 at 6 V). Their unjam can't see it (nothing stalls), so in play the AI's driver lets go of
+  // the trigger and presses again (js/mech/phys341.js letGo).
   const omnis = [
     new Wheel({ name: 'feeder 6in omni', shaft: t.feeder, kind: 'omni', center: [OMNI.feeder[0], OMNI.y, OMNI.feeder[1]], axis: Y, radius: OMNI.d / 2, width: OMNI.w, mu: MU.omni }),
     ...OMNI.free.map(([x, z], i) => new Wheel({ name: t.omniFree[i].name, shaft: t.omniFree[i], kind: 'omni', center: [x, OMNI.y, z], axis: Y, radius: OMNI.d / 2, width: OMNI.w, mu: MU.omni })),
