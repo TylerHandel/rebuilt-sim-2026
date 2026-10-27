@@ -9,21 +9,25 @@
 // intake), hold (how many it holds), dump (a full
 // one fired at 3 m: the feed rate against their 12-14 BPS). And the feed's stages one at a time:
 // bend (one FUEL from the hook's root to the shot), column (FUEL fed at the hook's root as fast as
-// there's room), ring (a ring of FUEL on the floor: what the hook takes in a turn), lip (FUEL on
-// the stadium round an empty bowl: how fast they come down into it).
+// there's room), pillar (one FUEL set down still round the bend and up the bore: does it get to the
+// shot alone, or where does it stop), ring (a ring of FUEL on the floor: what the hook takes in a
+// turn), lip (FUEL on the stadium round an empty bowl: how fast they come down into it).
 // Env: SEEDS (6), SPEED (1 m/s), STUCK (where the ones left over are), TRACE=i (follow FUEL i;
 // shooter: every TEVERY steps, 3, with its spin), SHOT=rad,hood (one shot of your own), LAYERS
 // (fill), TIMELINE, ROTOR (rps, 2.25), ROLLERS (duty, 1);
 // dump: DSEEDS (fills), NOBOX (none in the box), LOAD (where the load is, each 0.5 s), SNAP=t and
-// SNAPFILE (where the FUEL low round the rotor are, in its frame, nine times from t s); hold: HSEEDS
+// SNAPFILE (where the FUEL low round the rotor are, in its frame, nine times from t s), PARKED (the
+// ones that stay put while it feeds; =file writes them); hold: HSEEDS; bend, column, pillar:
+// PATHLOG=file (each step, each FUEL's place and everything touching it, and the surfaces and
+// wheels round the path, for drawing; pillar: PILLAR=tag picks the run it logs)
 import { writeFileSync } from 'fs';
 import { RAPIER } from '../js/physics.js';
 import { FUEL, GROUP, groups, HUB } from '../js/constants.js';
-import { Mechanism } from '../js/mech/mechanism.js';
+import { Mechanism, Surface, foam } from '../js/mech/mechanism.js';
 import { sim2D } from '../js/ballistics.js';
 import {
   build4414, wheels4414, shooterWheels, pathSurfaces4414, placeIntake, placeRotor, placeRotorSurfaces, placeBox, placeShooter, placeTurretSurfaces,
-  hoodElevation, chan, rotorPoint, stadiumY, netY, AXIS, HOOK, YB, FLY, SHOOTER, FEED, BORE, BOX, HALF_L, HALF_W, BAY, INTAKE,
+  hoodElevation, chan, rotorPoint, stadiumY, netY, AXIS, HOOK, YB, FLY, SHOOTER, FEED, BORE, BOX, HALF_L, HALF_W, BAY, INTAKE, BEND, RAMP, STADIUM, FLOOR,
 } from '../js/mech/r4414.js';
 import { velocityDuty } from '../js/mech/phys604.js';
 import { launchFor, shooterFor } from '../js/mech/phys4414.js';
@@ -49,6 +53,57 @@ function ball(w, x, y, z, v = [0, 0, 0]) {
 const med = (a) => { const b = [...a].sort((p, q) => p - q); return b[b.length >> 1]; };
 const RPM = (w) => (w * 60) / TAU;
 const names = (r, b) => [...r.path.contacts, ...r.shooter.contacts].filter((c) => c.ball === b).map((c) => c.wheel.name + ' ' + c.force.toFixed(0)).join(', ');
+
+// (PATHLOG=file, in bend and column: each step, each FUEL's place, velocity and everything touching
+// it: the force, the dent, where and which way, and the surface's own velocity there (a wheel's
+// rim, a surface turning with the rotor); FUEL on FUEL from their places (the foam at half the
+// overlap each). With the surfaces' triangles and the wheels near the path, posed as they are, for
+// drawing. Off unless set.)
+function pathLog(r) {
+  if (!process.env.PATHLOG) return null;
+  const steps = [];
+  const sub = (a, b) => a.map((v, i) => v - b[i]), dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+  const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+  const vel = (c) => {
+    const wh = c.wheel;
+    if (wh instanceof Surface) {
+      if (!wh.pivot) return [0, 0, 0];
+      const d = sub(c.x, wh.pivot), a = wh.pivotAxis, rr = sub(d, a.map((v) => v * dot(d, a)));
+      return cross(a, rr).map((v) => v * wh.shaft.omega);
+    }
+    const d = sub(c.x, wh.center), rr = sub(d, wh.axis.map((v) => v * dot(d, wh.axis))), l = Math.hypot(...rr) || 1;
+    return cross(wh.axis, rr.map((v) => (v / l) * wh.radius)).map((v) => v * wh.shaft.omega);
+  };
+  const near = (p) => Math.abs(p[0] - AXIS[0]) < 0.34 && Math.abs(p[2] - AXIS[1]) < 0.36 && p[1] < 0.8;
+  return {
+    rec(balls, t) {
+      const P = balls.map((b) => { const p = b.translation(); return [p.x, p.y, p.z]; });
+      balls.forEach((b, i) => {
+        const p = P[i], v = b.linvel();
+        if (p[1] > 3) return;
+        const cs = [...r.path.contacts, ...r.shooter.contacts].filter((c) => c.ball === b).map((c) => ({ name: c.wheel.name, wheel: !(c.wheel instanceof Surface), kind: c.wheel.kind, F: c.force, d: c.depth, x: c.x, n: c.n, vs: vel(c) }));
+        P.forEach((q, j) => {
+          const dl = Math.hypot(...sub(p, q)), d = 2 * R - dl;
+          if (j !== i && q[1] < 3 && d > 0) cs.push({ name: 'FUEL', wheel: false, F: foam(d / 2).F, d, x: p.map((v, k) => (v + q[k]) / 2), n: sub(p, q).map((v) => v / dl), vs: [0, 0, 0], other: j });
+        });
+        steps.push({ t, i, p, v: [v.x, v.y, v.z], c: cs });
+      });
+    },
+    save() {
+      const sfs = [...r.path.surfaces, ...r.shooter.surfaces].map((sf) => {
+        const T = sf.tri, out = [], [ex, ey, ez] = sf.axes;
+        const w = (k) => [0, 1, 2].map((j) => sf.pos[j] + ex[j] * T[k] + ey[j] * T[k + 1] + ez[j] * T[k + 2]);
+        for (let o = 0; o < T.length; o += 9) {
+          const a = w(o), b = w(o + 3), c = w(o + 6);
+          if (near([0, 1, 2].map((j) => (a[j] + b[j] + c[j]) / 3))) out.push(...a, ...b, ...c);
+        }
+        return { name: sf.name, tri: out.map((v) => +v.toFixed(5)) };
+      }).filter((s) => s.tri.length);
+      const whs = [...r.path.wheels, ...r.shooter.wheels].filter((wh) => near(wh.center)).map((wh) => ({ name: wh.name, kind: wh.kind, c: wh.center, a: wh.axis, r: wh.radius, w: wh.width, omega: wh.shaft.omega, shaft: wh.shaft.name }));
+      writeFileSync(process.env.PATHLOG, JSON.stringify({ axis: AXIS, R, surfaces: sfs, wheels: whs, steps }));
+    },
+  };
+}
 
 // the robot's mechanisms, fixed in the world: the box out ext, the turret at yaw (rad; 0 facing
 // forward), the hood at its angle (deg)
@@ -240,6 +295,33 @@ const tests = {
     }
     console.log(`4414 holds ${n.join(', ')} (the box out, the rotor turning back slowly; dropped in until there's no room; their 85+ under the TRENCH, 100+ with the net up)`);
   },
+  // one FUEL set down still along the way up, the rotor held still, the rollers on: round the
+  // ramp's arc (deg from under the bend's center, 0, to the bore's foot, 90) and up the bore (y m):
+  // whether it gets to the shot alone, or where it comes to rest and what touches it there
+  pillar() {
+    const at = [0, 15, 30, 45, 60, 75, 90].map((a) => ['ramp ' + a, (a * Math.PI) / 180]).concat([0.29, 0.31, 0.33, 0.35, 0.37].map((y) => ['bore ' + y, y]));
+    for (const [tag, q] of at) {
+      const r = rig({ hood: 140, yaw: Math.PI });
+      const w = world({ carpet: false });
+      for (let i = 0; i < 1 / DT; i++) { launcher(r.t, 480); feed(r, 0, ROLLERS); r.t.rotor._omega = 0; r.step([]); }
+      const rc = RAMP.RO - R, [u, y] = tag.startsWith('ramp') ? [BEND.u - rc * Math.sin(q), BEND.y - rc * Math.cos(q)] : [BEND.u - rc, q];
+      const [x, , z] = chan(u, 0, 0), b = ball(w, x, y, z);
+      const watch = shotWatch(r), log = process.env.PILLAR === tag ? pathLog(r) : null;
+      let k = 0, slow = 0;
+      for (; k < 2 / DT; k++) {
+        launcher(r.t, 480); feed(r, 0, ROLLERS); r.t.rotor._omega = 0;
+        const live = [b].filter((q2) => q2.translation().y < 3);
+        r.step(live); log?.rec([b], k * DT); w.step(); watch.check(live, k * DT);
+        if (!live.length) break;
+        const v = b.linvel(); slow = Math.hypot(v.x, v.y, v.z) < 0.02 ? slow + 1 : 0;
+        if (slow > 0.3 / DT) break;
+      }
+      log?.save();
+      const p = b.translation(), dx = p.x - AXIS[0], dz = p.z - AXIS[1];
+      console.log(`  set down at ${tag} (u ${u.toFixed(3)}, y ${y.toFixed(3)}): ${watch.shots.length ? `shot after ${watch.shots[0].t.toFixed(2)} s` : `stuck after ${(k * DT).toFixed(2)} s at u ${dz.toFixed(3)} w ${(-dx).toFixed(3)} y ${p.y.toFixed(3)}: ${names(r, b)}`}`);
+      w.free();
+    }
+  },
   // one FUEL at the hook's root, the rotor held still, the rollers on: in, round the bend, up
   bend() {
     const r = rig({ hood: 140, yaw: Math.PI });
@@ -247,14 +329,15 @@ const tests = {
     for (let i = 0; i < 1 / DT; i++) { launcher(r.t, 480); feed(r, 0, ROLLERS); r.t.rotor._omega = 0; r.step([]); }
     const [x, , z] = chan(Number(process.env.U ?? 0.175), 0, Number(process.env.W ?? -0.005));
     const b = ball(w, x, YB + 0.002, z);
-    const watch = shotWatch(r);
+    const watch = shotWatch(r), log = pathLog(r);
     for (let i = 0; i < 1.5 / DT; i++) {
       launcher(r.t, 480); feed(r, 0, ROLLERS); r.t.rotor._omega = 0;
       const live = [b].filter((q) => q.translation().y < 3);
-      r.step(live); w.step(); watch.check(live, i * DT);
+      r.step(live); log?.rec([b], i * DT); w.step(); watch.check(live, i * DT);
       if (i % 3 === 0 && live.length) { const p = b.translation(), v = b.linvel(), wv = b.angvel(); console.log(`   ${(i * DT).toFixed(3)} ${(p.x - AXIS[0]).toFixed(3)},${p.y.toFixed(3)},${(p.z - AXIS[1]).toFixed(3)} v ${Math.hypot(v.x, v.y, v.z).toFixed(2)} vy ${v.y.toFixed(2)} spin ${wv.x.toFixed(0)},${wv.y.toFixed(0)},${wv.z.toFixed(0)} feeder ${r.t.feeder.omega.toFixed(0)}: ${process.env.N ? [...r.path.contacts].filter((c) => c.ball === b).map((c) => c.wheel.name + ' n' + c.n.map((q) => q.toFixed(2)).join(',')).join('; ') : names(r, b)}`); }
       if (!live.length) break;
     }
+    log?.save();
     console.log(watch.shots.length ? `shot after ${watch.shots[0].t.toFixed(2)} s` : 'not shot');
   },
   // the column alone: FUEL set down at the hook's root (U, W in the channel's frame) whenever
@@ -268,15 +351,16 @@ const tests = {
     const run = () => { launcher(r.t, 400); if (rot) feed(r); else { feed(r, 0, ROLLERS); r.t.rotor._omega = 0; r.phi = 0; } };
     for (let i = 0; i < 1 / DT; i++) { run(); r.step([]); }
     const at = chan(Number(process.env.U ?? 0.2), 0, Number(process.env.W ?? 0));
-    const balls = [], watch = shotWatch(r);
+    const balls = [], watch = shotWatch(r), log = pathLog(r);
     for (let k = 0; k < 3 / DT; k++) {
       run();
       const live = balls.filter((b) => b.translation().y < 3);
       const [x, , z] = rotorPoint(at, r.phi), om = r.t.rotor.omega;
       if (!live.some((b) => { const p = b.translation(); return Math.hypot(p.x - x, p.y - YB, p.z - z) < 2 * R + 0.005; })) balls.push(ball(w, x, YB + 0.002, z, still ? [0, 0, 0] : [-om * (z - AXIS[1]), 0, om * (x - AXIS[0])]));
-      r.step(live); w.step(); watch.check(live, k * DT);
+      r.step(live); log?.rec(balls, k * DT); w.step(); watch.check(live, k * DT);
       if (process.env.TRACE && k > 1.5 / DT && k < 1.9 / DT && k % 3 === 0) console.log(`  ${(k * DT).toFixed(3)} ${watch.shots.length} shot, rollers ${RPM(r.t.ttb.omega).toFixed(0)} rpm ${r.t.rollers.motor.current.toFixed(0)} A, feeder ${r.t.feeder.omega.toFixed(0)}:` + live.map((b) => { const p = b.translation(), v = b.linvel(); return `\n     ${(p.x - AXIS[0]).toFixed(3)},${p.y.toFixed(3)},${(p.z - AXIS[1]).toFixed(3)} v ${Math.hypot(v.x, v.y, v.z).toFixed(2)}: ${names(r, b)}`; }).join(''));
     }
+    log?.save();
     const s = watch.shots.map((o) => o.t).filter((t) => t > 1);
     console.log(`4414's column${rot ? ' (the rotor turning)' : ''}, FUEL fed at the hook's root as fast as there's room: ${s.length > 1 ? ((s.length - 1) / (s[s.length - 1] - s[0])).toFixed(1) : 0} FUEL/s shot (after the first second)`);
   },
@@ -389,6 +473,36 @@ function dumpRun(seed = 1) {
         console.log(`   ${((k + 1) * DT).toFixed(1)} s: ${watch.shots.length} shot; on the rotor's floor ${fl} (${ride} riding round with it), low round it ${st}, in the box ${bx}, up on the others ${up}`);
         if (process.env.LOAD === 'box' && k % 120 === 119) for (const b of balls) { const p = b.translation(); if (inRobot(b) && p.x > HALF_L - 0.05) { const v = b.linvel(); console.log(`     at ${p.x.toFixed(3)},${p.y.toFixed(3)},${p.z.toFixed(3)} v ${Math.hypot(v.x, v.y, v.z).toFixed(2)}: ${names(r, b)}`); } }
       }
+      // (PARKED: each 0.5 s, the FUEL in it that moved under 1.5 cm over the last second while the
+      // rotor fed: where (the robot's frame; the rotor's u, w), what touches them; PARKED=file also
+      // writes them all, for drawing)
+      // (ESCAPE: FUEL that leave the bowl while it feeds, from on its floor (inside the rim, low) out
+      // over the wall onto the stadium: how many, a second and a rotor turn, and where round the rim
+      // (deg from the front, toward the right))
+      if (process.env.ESCAPE) {
+        for (const b of balls) {
+          const p = b.translation(); if (p.y > 3) continue;
+          const d = Math.hypot(p.x - AXIS[0], p.z - AXIS[1]);
+          if (d < STADIUM.r - 0.03 && p.y < FLOOR + R + 0.02) b.inBowl = true;
+          else if (b.inBowl && d > STADIUM.r + 0.01) { b.inBowl = false; (r.esc ??= []).push({ t: k * DT, a: (Math.atan2(p.z - AXIS[1], p.x - AXIS[0]) * 180) / Math.PI }); }
+        }
+        r.turns = (r.turns ?? 0) + (Math.abs(r.t.rotor.omega) * DT) / TAU;
+      }
+      if (process.env.PARKED && k % 60 === 59) {
+        const now = (k + 1) * DT, park = [];
+        for (const b of balls) {
+          if (!inRobot(b)) continue;
+          const p = b.translation(), h = (b.hist ??= []);
+          h.push([now, p.x, p.y, p.z]);
+          const o = h.find((q) => q[0] >= now - 1.0 - 1e-6);
+          if (now < 1.5 || !o || Math.hypot(p.x - o[1], p.y - o[2], p.z - o[3]) > 0.015) continue;
+          const dx = p.x - AXIS[0], dz = p.z - AXIS[1], rr = Math.hypot(dx, dz), a = Math.atan2(dz, dx) - Math.PI / 2 - r.phi;
+          park.push({ t: now, p: [p.x, p.y, p.z], u: rr * Math.cos(a), w: rr * Math.sin(a), rr, c: names(r, b) });
+        }
+        if (park.length) console.log(`   -- ${now.toFixed(1)} s, ${park.length} parked (rotor ${r.t.rotor.motor.current.toFixed(0)} A, rollers ${r.t.rollers.motor.current.toFixed(0)} A, intake ${r.t.primary.motor.current.toFixed(0)}/${r.t.bar.motor.current.toFixed(0)} A):` + park.map((q) => `\n     at ${q.p.map((v) => v.toFixed(3)).join(',')} (${q.rr.toFixed(3)} out; rotor's u ${q.u.toFixed(3)} w ${q.w.toFixed(3)}): ${q.c}`).join(''));
+        (r.parked ??= []).push(...park);
+        if (process.env.PARKED !== '1' && k === Math.round(10 / DT) - 1) writeFileSync(process.env.PARKED, JSON.stringify(r.parked));
+      }
       if (process.env.TIMELINE && k % 60 === 59) console.log(`   ${((k + 1) * DT).toFixed(1)} s: ${watch.shots.length} shot; rotor ${(r.t.rotor.omega / TAU).toFixed(2)} rps ${r.t.rotor.motor.current.toFixed(0)} A, rollers ${RPM(r.t.ttb.omega).toFixed(0)} rpm ${r.t.rollers.motor.current.toFixed(0)} A, flywheel ${r.t.fly.omega.toFixed(0)}`);
     }
     if (process.env.STAGES) {
@@ -397,6 +511,11 @@ function dumpRun(seed = 1) {
       const shotB = watch.shots.map((o) => o.b);
       console.log(`  stages: into the channel ${ins.length}, into the bore ${bores.length}, shot ${watch.shots.length}; median gap in ${med(gaps(ins)).toFixed(3)} s, bore ${med(gaps(bores)).toFixed(3)} s, shots ${med(gaps(watch.shots.map((o) => o.t))).toFixed(3)} s; channel->bore median ${med(shotB.filter((b) => b.tIn !== undefined && b.tBore !== undefined).map((b) => b.tBore - b.tIn)).toFixed(3)} s, bore->shot ${med(watch.shots.filter((o) => o.b.tBore !== undefined).map((o) => o.t - o.b.tBore)).toFixed(3)} s`);
       console.log('  entries: ' + ins.slice(0, 40).map((x) => x.toFixed(2)).join(' '));
+    }
+    if (process.env.ESCAPE) {
+      const e = r.esc ?? [], last = watch.shots.length ? watch.shots[watch.shots.length - 1].t : 10, ef = e.filter((q) => q.t <= last), turns = r.turns * (last / 10);
+      const bin = (lo, hi) => ef.filter((q) => Math.abs(q.a) >= lo && Math.abs(q.a) < hi).length;
+      console.log(`  out of the bowl over its wall while it fed (to the last shot, ${last.toFixed(1)} s, ~${turns.toFixed(0)} turns): ${ef.length} (${(ef.length / last).toFixed(2)}/s, ${(ef.length / turns).toFixed(2)} a turn); at the front (within 45 deg) ${bin(0, 45)}, the sides ${bin(45, 135)}, the back ${bin(135, 181)}`);
     }
     const s = watch.shots.map((x) => x.t), first = s[0] ?? 0, in1 = s.filter((x) => x - first < 1).length;
     const left = balls.filter((b) => b.translation().y < 3 && inRobot(b));

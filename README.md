@@ -569,8 +569,9 @@ Bench (`node --import ./tools/node-env.mjs tools/mechlab4414.mjs [test ...]`):
 | `intakefull` | Filled through the intake alone (120 FUEL at 1 m/s): 60-64 in the frame at its fullest, settling to about 52 with a few more perched on the rollers in the open box (61-65, and about 30 more on the box's ramp, with the ramp). |
 | `hold` | 81-82, dropped in under the net until there's no room, the load's top 0.67 m (62 under the flat net). |
 | `dump` | The table's 3 m shot from a full hopper (`DSEEDS=8`): 58-60 of 63-65 in 10 s, 8.7-10.2 FUEL/s through the middle, 9.7 the median, 13-14 in its best second, every shot landing within 0.4 m. `LAYERS=2` (a light load, 33-38): 27-34 fired, 5.6-9.1 FUEL/s through the middle, 7.6 the median, 11-12 in its best second. About a third of each fill starts in the intake box, and those come back over the bumper slowly; `NOBOX=1` leaves them out. `LOAD` shows where the load is, `SNAP` where the FUEL round the rotor are; `DIAG`, `COLUMN`, `STAGES` and `HEAT` show where they wait. |
-| `bend` | One FUEL at the way in, the rotor held still: in, up the ramp and shot in about 0.15 s. |
-| `column` | FUEL set down outside the stack as fast as there's room: 10.9 FUEL/s with the rotor held still (each starts at rest). |
+| `bend` | One FUEL at the way in, the rotor held still: in, up the ramp and shot in 0.20 s, alone, with the rollers down to 40% (only at 100% before the ramp's face was brought in to the omnis: they missed a FUEL on it by 1mm, and one that came up short fell back and sat on the ramp at the stack's last reach). |
+| `pillar` | One FUEL set down still round the bend and up the bore: from anywhere on the lower half of the bend it's shot alone; from the bore's foot up to 0.33 m it falls back and hangs on the omnis at 0.275 m. Nothing powered reaches a FUEL on the bore's axis between 0.293 m (the omnis' reach) and 0.329 m (the sushi feeder's), so alone it has to coast across at about 0.9 m/s or more, or wait for the next one to push it. |
+| `column` | FUEL set down outside the stack as fast as there's room: 11.0 FUEL/s with the rotor held still (each starts at rest; 10.0 with the omnis missing them). |
 | `ring` | 8 FUEL laid round the floor, the rotor feeding from rest: 3-4 in on its first turn, 3-5 in 1.5 s. |
 | `lip` | 7-8 FUEL laid on the stadium round an empty bowl: 3-6 shot in 4 s. |
 

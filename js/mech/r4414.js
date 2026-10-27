@@ -129,8 +129,11 @@ export const YB = FLOOR + R + 0.002;
 export const BEND = { u: R + FEED.omni.r - FEED.omni.squeeze, y: YB + R + FEED.omni.r - FEED.omni.squeeze };
 export const BORE = { r: R + 0.004, top: 0.345 };
 // the ramp round the bend: its face (FUEL's side) RO m from the bend's center, a row of n rollers
-// lying across it, each free on its bearings (r, J: estimates, the renders), the plate behind them
-export const RAMP = { RO: BEND.u + R + 0.004, rollers: { n: 9, r: 0.0125, J: 2e-6 } };
+// lying across it, each free on its bearings (r, J: estimates, the renders), the plate behind them.
+// A FUEL riding it is BEND.u from the omnis' axle, so they squeeze it FEED.omni.squeeze all the way
+// round and up to the bore's middle (4mm more, as the bore's clearance, and they'd miss it by 1mm:
+// a FUEL left on the bend with nothing behind it sat at the stack's last reach, u 0.03)
+export const RAMP = { RO: BEND.u + R, rollers: { n: 9, r: 0.0125, J: 2e-6 } };
 // the hook: its face curves gradually from its tip, flush with the bowl's wall (tipA rad round from
 // the channel, ahead), back and in to the hub's side on the channel's trailing side, coming in along
 // the channel there (a cubic: lead m on along the wall from the tip, root m out along the channel
