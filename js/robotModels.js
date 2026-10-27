@@ -1285,17 +1285,16 @@ function build4414(cfg, alliance) {
     kraken(root, x, 0.13, z);
     bx(0.03, 0.006, 0.02, M.led, root, x + 0.02, 0.166, z);
   }
-  // printed "stadium" pieces: terraces that funnel FUEL down to the bowl's wall (the physical
-  // model's stadium, D4.stadiumY)
+  // printed "stadium" pieces that funnel FUEL down to the bowl's wall: the physical model's own
+  // slope (D4.stadiumY), just under it, so the FUEL drawn on them sit on what's drawn (a point
+  // inside the rim takes the rim's height, so the edge meets the wall's top)
   {
     const NX = 64, NZ = 76, x0 = bay.x0, x1 = bay.x1, z0 = -bay.hw, z1 = bay.hw;
-    const step = 0.018;
     const hAt = (x, z) => {
-      if (Math.hypot(x - D4.AXIS[0], z - D4.AXIS[1]) < D4.STADIUM.r) return -1;
-      const h = D4.stadiumY(x, z) - D4.FLOOR;
-      const k = Math.floor(h / step), fr = h / step - k;
-      return D4.FLOOR - 0.005 + (k + THREE.MathUtils.smoothstep(fr, 0.75, 1)) * step;
+      const dx = x - D4.AXIS[0], dz = z - D4.AXIS[1], d = Math.hypot(dx, dz), k = d < D4.STADIUM.r + 1e-4 ? (D4.STADIUM.r + 1e-4) / (d || 1) : 1;
+      return D4.stadiumY(D4.AXIS[0] + dx * k, D4.AXIS[1] + dz * k) - 0.002;
     };
+    const inBowl = (x, z) => Math.hypot(x - D4.AXIS[0], z - D4.AXIS[1]) < D4.STADIUM.r;
     const inside = (x, z) => (x - x0) - Math.abs(z) + bay.hw - chamfer >= -0.005;
     const pos = [], idx = [], map = new Map();
     const vid = (i, j) => {
@@ -1309,7 +1308,7 @@ function build4414(cfg, alliance) {
     for (let i = 0; i < NX; i++) {
       for (let j = 0; j < NZ; j++) {
         const xa = x0 + ((x1 - x0) * (i + 0.5)) / NX, za = z0 + ((z1 - z0) * (j + 0.5)) / NZ;
-        if (hAt(xa, za) < 0 || !inside(xa, za)) continue;
+        if (inBowl(xa, za) || !inside(xa, za)) continue;
         const a = vid(i, j), b = vid(i + 1, j), c = vid(i + 1, j + 1), d = vid(i, j + 1);
         idx.push(a, d, c, a, c, b);
       }

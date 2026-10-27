@@ -102,9 +102,13 @@ export const BAY = { x0: -(HALF_L + IN), hw: HALF_W + IN, chamfer: (4 / (2 * (2 
 // out to r, a wall standing straight up round its rim, the hook's tip running flush against it
 // (wall high at the back and sides, fading to wallF at the front, where the stadium has to stay
 // well under the bumper's top, BUMPER_TOP, or FUEL slosh forward over it into the box), and the
-// stadium from its top up (slope) toward the hopper's walls, to cap over the floor (estimates: the
-// renders' clear ring round the floor)
-export const STADIUM = { r: 0.292, wall: 0.07, wallF: 0, slope: 0.25, cap: 0.1 };
+// stadium from its top up (slope) toward the hopper's walls, to cap over the floor, easing toward
+// the front to slopeF and capF (estimates: the renders' clear ring round the floor, about as tall
+// as the TTB wheels' top, over the hook's top edge so FUEL it sweeps along the wall can't ride up
+// over it; the prints run from the wall's top up to the walls, no flat shelf at the back and sides
+// where FUEL sat: at 0.07 and 0.25 capped 0.1 they came off it slower, of 22 laid on it round an
+// empty bowl 4 shot in the first second against 11)
+export const STADIUM = { r: 0.292, wall: 0.105, wallF: 0, slope: 0.45, slopeF: 0.25, cap: 0.25, capF: 0.1 };
 export const BUMPER_TOP = 0.168;
 // the rotor's hub (its "Shrink Wrap" skin) round the axis, and the skirt that sheds FUEL off it
 // (estimates: the renders)
@@ -386,8 +390,10 @@ export function stadiumY(x, z) {
   const S = STADIUM, d = Math.hypot(x - AXIS[0], z - AXIS[1]);
   // (the wall lower toward the front, wallF there: under the bumper's top, so FUEL coming over it
   // roll down into the bowl and none roll out of it into the box)
-  const c = Math.max(0, (x - AXIS[0]) / (d || 1)), wall = lerp(S.wall, S.wallF, c * c);
-  let y = d < S.r ? FLOOR : FLOOR + Math.min(S.cap, wall + (d - S.r) * S.slope);
+  const c = Math.max(0, (x - AXIS[0]) / (d || 1)), f = c * c, wall = lerp(S.wall, S.wallF, f);
+  // (the prints as steep as slope at the back and sides, easing to slopeF and capF toward the front,
+  // where the load comes back over the bumper from the box and mustn't meet a ridge)
+  let y = d < S.r ? FLOOR : FLOOR + Math.min(lerp(S.cap, S.capF, f), wall + (d - S.r) * lerp(S.slope, S.slopeF, f));
   // (over the front rail and the bumper's top, at its height)
   if (x > HALF_L - 0.02) y = Math.max(y, lerp(y, BUMPER_TOP, Math.min(1, (x - HALF_L + 0.02) / 0.035)));
   return y;
