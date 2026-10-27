@@ -21,6 +21,13 @@ function initMaterials() {
   mats.poly = new THREE.MeshPhysicalMaterial({
     color: 0xc4d6e8, transparent: true, opacity: 0.09, roughness: 0.05, metalness: 0, depthWrite: false, side: THREE.DoubleSide, // faint, like real polycarbonate
   });
+  // the ALLIANCE WALL's glass (the Driver Stations', drawn and CAD): the drivers look through it
+  // all match, so clearer than the HUB's panels on every preset: barely tinted, perfectly smooth,
+  // alpha blended (never the clear sheet's transmission, which washes the field out behind it
+  // on High and up), just enough showing for its edges and a glint of reflection
+  mats.dsGlass = new THREE.MeshPhysicalMaterial({
+    color: 0xeef4fa, transparent: true, opacity: 0.035, roughness: 0, metalness: 0, depthWrite: false, side: THREE.DoubleSide,
+  });
   mats.funnel = new THREE.MeshStandardMaterial({
     color: 0xf2f4f7, transparent: true, opacity: 0.72, roughness: 0.4, side: THREE.DoubleSide,
   });
@@ -33,6 +40,12 @@ function initMaterials() {
     mats[a + 'Tower'] = new THREE.MeshStandardMaterial({ color: ALLIANCE_COLOR[a], roughness: 0.4, metalness: 0.3 });
     mats[a + 'Bump'] = new THREE.MeshStandardMaterial({ color: ALLIANCE_COLOR[a], roughness: 0.85, metalness: 0.0 });
   }
+}
+
+// (for the field CAD's alliance wall glass, js/cadModels.js)
+export function driverStationGlass() {
+  initMaterials();
+  return mats.dsGlass;
 }
 
 function makeNetTexture() {
@@ -596,7 +609,7 @@ export class Field {
       boxC(wx, ALLIANCE_WALL_H / 2, zc, wallT / 2, ALLIANCE_WALL_H / 2, w / 2, { restitution: 0.4 });
       if (sg.kind === 'ds') {
         box(wallT, DS_BASE_H, w - 0.02, mats.diamond, wx, DS_BASE_H / 2, zc, grp);
-        const glass = new THREE.Mesh(new THREE.BoxGeometry(0.012, DS_GLASS_H, w - 0.04), mats.poly);
+        const glass = new THREE.Mesh(new THREE.BoxGeometry(0.012, DS_GLASS_H, w - 0.04), mats.dsGlass);
         glass.position.set(wx, DS_BASE_H + DS_GLASS_H / 2, zc);
         grp.add(glass);
         box(0.06, 0.05, w, col, wx, ALLIANCE_WALL_H, zc, grp);

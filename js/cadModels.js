@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { registerPoly, powderCoat } from './robotModels.js';
+import { driverStationGlass } from './field.js';
 
 const D = Math.PI / 180;
 
@@ -34,7 +35,12 @@ export async function loadCadModels(scene, field) {
           o.castShadow = true;
           o.receiveShadow = true;
           if (o.material && e.color) o.material = new THREE.MeshStandardMaterial({ color: e.color, roughness: 0.6, metalness: 0.2 });
-          else if (o.material && o.material.transparent && o.material.opacity < 0.7) {
+          else if (o.material && o.material.transparent && o.material.opacity < 0.7 && DS_GLASS.test(o.name)) {
+            // the ALLIANCE WALL's glass: clear on every preset, so the field reads through it from
+            // the Driver Station (not the HUB's sheet), and it casts no shadow on the carpet
+            o.material = driverStationGlass();
+            o.castShadow = false;
+          } else if (o.material && o.material.transparent && o.material.opacity < 0.7) {
             tintClear(o.material);
             // (polycarbonate, not the HUB's black net: glossy sheet on High and up, a fifth of its
             // light blue-gray showing so the HUB's big panels read)
@@ -61,6 +67,9 @@ export async function loadCadModels(scene, field) {
 // The field's aluminum: the color (230, 230, 230) most of whose parts are aluminum in the field's
 // Onshape bill of materials (107 of 123: the HUB's frames), powder-coated
 const POLY = new Map(), FIELD_ALU = new Map();
+// the field CAD's alliance wall glass (the Driver Stations' panels, round to the OUTPOST): one
+// merged part for both ends
+const DS_GLASS = /Outpost_Exchange_Border/;
 function isFieldAluminum(m) {
   if (!m.color || m.transparent) return false;
   const c = m.color.getHex(), r = (c >> 16) & 255, g = (c >> 8) & 255, b = c & 255;
