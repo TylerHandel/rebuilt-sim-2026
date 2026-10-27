@@ -226,5 +226,5 @@ export class Physical4414 extends PhysicalRobot {
   // the top of its load (for the net and the TRENCH)
   loadTop() { let top = 0; for (const b of this.held) { const y = this._local(b.pos)[1]; if (y + R > top) top = y + R; } return top; }
   // how many it holds (tools/mechlab4414.mjs hold)
-  capacity() { return 70; }
+  capacity() { return 66; }
 }

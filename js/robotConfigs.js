@@ -225,7 +225,6 @@ export const ROBOTS = {
       x0: -0.305, x1: 0.317, hw: 0.376, top: 0.53, chamfer: 0.12, wallTop: 0.53,
       dome: { h: 0.27, x0: -0.165, cx: -0.02, cz: 0, rHole: 0.2 },
       floor: { a: 0.105, b: 0, lo: 0.105, hi: 0.105 },
-      funnel: { slope: 0.4, cap: 0.1 },
       // the intake box's ramp: up from the main floor to a ridge over the front bumper, then down
       // to the roller at the front of the box (lift: ball center over a steep ramp)
       ramp: { x: 0.4, y: 0.19, fwd: 1.05, lo: 0.02, lift: 0.03 },
