@@ -1,0 +1,186 @@
+{
+  "source": "604 Quixilver, \"Toploader\" (Onshape 0baaf96036e07596972c4d48, workspace 7236f4fc3d9cbd0caa07ab6c, element e54d06e7bb840dd08bd9d927), STEP through tools/step2glb.py",
+  "front": "-y",
+  "parts": [
+    {
+      "out": "cad/robots/604-body.glb",
+      "include": [
+        "Chassis Assembly",
+        "Superstructure Assembly",
+        "DPC Assembly",
+        "Intake Assembly",
+        "Hopper Assembly"
+      ],
+      "exclude": [
+        "WCP Swerve X2",
+        "Bumper Assembly",
+        "DPC Rotor Assembly",
+        "Intake Arm Assembly",
+        "Hopper Slider Assembly",
+        "Spacer",
+        "Standoff",
+        "Bearing",
+        "Shaft End Screw",
+        "1824440000",
+        "USBC_",
+        "id2322",
+        "Overlay",
+        "PDP 2.0",
+        "Bot Housing",
+        "Top Housing",
+        "canivore",
+        "Pigeon PCB",
+        "Robot Radio",
+        "Kraken",
+        "MAXPlanetary"
+      ],
+      "glass": [
+        "Bellypan",
+        "Main Breaker Mount",
+        "Turret Mount Plate",
+        "Slider Mount",
+        "Giant Washer"
+      ],
+      "smooth": true,
+      "ratio": 0.04,
+      "error": 0.01
+    },
+    {
+      "out": "cad/robots/604-motors.glb",
+      "include": [
+        "Chassis Assembly",
+        "Superstructure Assembly",
+        "DPC Assembly",
+        "Intake Assembly",
+        "Hopper Assembly"
+      ],
+      "exclude": [
+        "WCP Swerve X2",
+        "Bumper Assembly",
+        "DPC Rotor Assembly",
+        "Intake Arm Assembly",
+        "Hopper Slider Assembly",
+        "Spacer",
+        "Standoff",
+        "Bearing",
+        "Shaft End Screw",
+        "1824440000",
+        "USBC_",
+        "id2322",
+        "Overlay",
+        "PDP 2.0",
+        "Bot Housing",
+        "Top Housing",
+        "canivore",
+        "Pigeon PCB",
+        "Robot Radio"
+      ],
+      "onlyName": [
+        "Kraken",
+        "MAXPlanetary"
+      ],
+      "ratio": 0.06,
+      "error": 0.01
+    },
+    {
+      "out": "cad/robots/604-intake.glb",
+      "include": [
+        "Intake Arm Assembly"
+      ],
+      "exclude": [
+        "Spacer",
+        "Standoff",
+        "Bearing"
+      ],
+      "glass": [
+        "Arm Plate",
+        "Hopper Retainer",
+        "Cross Tube$",
+        "Kicker Bar Side Plate",
+        "Kicker Bar Tube"
+      ],
+      "origin": [
+        0.3048,
+        0.2064,
+        0
+      ],
+      "smooth": true,
+      "ratio": 0.12,
+      "error": 0.008
+    },
+    {
+      "out": "cad/robots/604-hopper.glb",
+      "include": [
+        "Hopper Slider Assembly"
+      ],
+      "glass": [
+        "Slot Reinforcement"
+      ],
+      "smooth": true,
+      "ratio": 0.3,
+      "error": 0.008
+    },
+    {
+      "out": "cad/robots/604-rotor.glb",
+      "include": [
+        "DPC Rotor Assembly"
+      ],
+      "exclude": [
+        "Spacer",
+        "Standoff",
+        "Bearing"
+      ],
+      "origin": [
+        -0.0254,
+        0,
+        0
+      ],
+      "smooth": true,
+      "ratio": 0.06,
+      "error": 0.008
+    },
+    {
+      "out": "cad/robots/604-turret.glb",
+      "include": [
+        "Turret Base Assembly",
+        "Turret Hood Gearbox Assembly",
+        "Osmo Nano Mount Assembly"
+      ],
+      "exclude": [
+        "Spacer",
+        "Standoff",
+        "Bearing"
+      ],
+      "glass": [
+        "Base Plate Bearing Flange Section"
+      ],
+      "origin": [
+        -0.0254,
+        0,
+        0
+      ],
+      "smooth": true,
+      "ratio": 0.1,
+      "error": 0.008
+    },
+    {
+      "out": "cad/robots/604-hood.glb",
+      "include": [
+        "Turret Hood Assembly"
+      ],
+      "exclude": [
+        "Spacer",
+        "Standoff",
+        "Bearing"
+      ],
+      "origin": [
+        -0.0261,
+        0.5969,
+        0.0744
+      ],
+      "smooth": true,
+      "ratio": 0.06,
+      "error": 0.008
+    }
+  ]
+}

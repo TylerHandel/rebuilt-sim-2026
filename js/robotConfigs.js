@@ -936,6 +936,84 @@ export const ROBOTS = {
     stats: { 'Shot rate': '26 BPS (est.)', Aiming: 'Chassis', 'Top speed': '', Trench: 'No (BUMPS)' },
     colors: { frame: 0xb4b9c1, accent: 0xc0272d, trim: 0x2a2c31 },
   },
+  604: {
+    key: '604',
+    team: 604,
+    teamName: 'Quixilver',
+    robotName: 'Toploader',
+    archetype: 'Dye Rotor',
+    blurb: 'Pinnacles winner, Half Moon Bay finalist and 4th seed in the Newton Division (the Autonomous Award). One driver, fully automated scoring: a turret that shoots on the move from anywhere in its zone and feeds from outside it, fed single file by its "Dynamic Point of Capture" serializer, a dye rotor whose hook sweeps FUEL round a plywood bucket to omni wheels that push them up a ramp into a corrugated plastic tube to the turret. A full-width intake on independent polycarbonate arms pushes the sliding hopper out. Goes over the BUMPS (too tall for the TRENCH).',
+    // built of its physical mechanisms (js/mech/r604.js, phys604.js): its FUEL go through its
+    // CAD's ball path, moved by its rollers under its code's controls
+    physical: '604',
+    // their CAD ("Toploader Assembly") and release thread: a 27in square chassis ("to maximize area
+    // available for the serializer circular bucket")
+    frame: { length: 27 * IN, width: 27 * IN },
+    height: 29.5 * IN, // the top of the superstructure's coroplast and the turret (their CAD: 0.749 m)
+    mass: 64, // their CAD's BOM: 61.9 kg with the battery and the bumpers' wood; the bumpers' foam and covers
+    // WCP Swerve X2 (their CAD): (54/10)(16/40)(45/15) = 6.48:1 on 3.91in wheels, their drive
+    // motors' 120 A stator and 40 A supply limits (20 A while launching: phys604.js)
+    drive: { ratio: 6.48, wheel: 3.91 * IN, stator: 120, supply: 40 },
+    // two 2in rollers in silicone tubing (21in) on polycarbonate arms pivoting on the gearboxes' arm
+    // shaft 0.3048 m forward and 0.2064 m up (their Viz3d's 12in and 8.125in); the front roller's
+    // 0.175 m past the bumpers deployed (their -5 deg); stowed (their 80, 98 at boot) the arms
+    // stand up inside the frame. fold.hull: the arm's side outline round the pivot, deployed.
+    intake: {
+      width: 21 * IN, reach: 0.175, rate: 200, pull: 5, deployTime: 0.45, retractTime: 0.9, side: 'front', latched: false,
+      fold: {
+        pivot: [0.3048, 0.2064], stowDeg: 103,
+        hull: [[-0.026, 0.108], [-0.042, -0.076], [0.057, -0.166], [0.137, -0.173], [0.297, -0.107], [0.317, 0.129], [0.240, 0.136]],
+      },
+    },
+    // the hopper box slides out 0.2921 m over the intake as the arms come down (their CAD's slider;
+    // the arms' retainer plates push it out, surgical tubing pulls it back)
+    storage: { extLen: 0.2921, extend: 'intake' },
+    // their CAD: corrugated plastic walls to 0.69 m (the box out front, the superstructure's at the
+    // back) over the DPC serializer: a plywood bucket (floor 0.154 m up, a balustrade round it, 0.62 m
+    // across) on the rotor's axis, 1in behind the center, where its hook sweeps FUEL round to the
+    // capture point by the central column, whose omni wheels push them up the ramp into the tube
+    // to the turret
+    bay: {
+      x0: -0.343, x1: 0.343, hw: 0.336, top: 0.69,
+      // the bucket's floor, then up over the intake's gearboxes and Ball Bar behind the bumper to the
+      // arms under the box out front (0.3 m up)
+      floor: { a: 0.154, b: 0, lo: 0.154, hi: 0.3, pts: [[-0.343, 0.154], [0.25, 0.154], [0.31, 0.255], [0.36, 0.3], [0.66, 0.3]] },
+      column: { x: -0.0254, z: 0, r: 0.0815, y1: 0.524 },
+      obstacles: [
+        { x: -0.0254, z: 0, r: 0.0815, y0: 0.35, y1: 1 }, // the tube
+        { x: -0.0254, z: 0, r: 0.12, y0: 0.15, y1: 0.35 }, // the ramp and the up-feed round its foot
+        { x: -0.0254, z: 0, r: 0.18, y0: 0.53, y1: 1 }, // the turret
+        // (the Dyeper plates in the back corners, outside the bucket)
+        { box: [-0.343, -0.2, 0, 0.262, -0.4, -0.2] },
+        { box: [-0.343, -0.2, 0, 0.262, 0.2, 0.4] },
+      ],
+      drive: 'rotor', rotor: { x: -0.0254, z: 0, y: 0.154, r: 0.29, grip: 40, drag: 4, finR0: 0.11, spin: 15.1, idle: 0 },
+      feed: { x: -0.0254, z: 0.0, via: [[0.0, 0.25, 0.0], [-0.025, 0.42, 0], [-0.025, 0.6, 0]] },
+      hook: { r0: 0.28, r1: 0.12, th0: -1.2, th1: 0.4, y0: 0.2, y1: 0.256, r: 0.014 },
+    },
+    shooter: {
+      type: 'turret',
+      // on the rotor's axis (their CAD's revolutes), 50 to 310 deg round from straight ahead (their
+      // soft limits: it can't point within 50 deg of the intake), facing back at rest (180)
+      turretPos: { x: -0.0254, z: 0.0, center: 180, start: 180 },
+      exitRadius: 0.02, // the nip between the main and hood rollers, about over the axis
+      exitY: 0.68,
+      turretRange: 130, turretRate: 573, // their Motion Magic's 10 rad/s
+      // "Prototype serializer showed ~15BPS single stream" (their release thread)
+      bps: 15,
+      // their hood (15 to 35 deg) launches at 90 less it: 55 to 75 deg; their table tops out at
+      // 9.9 m/s (8 m), their roller lookup at 12 (600 rad/s)
+      hoodMin: 55, hoodMax: 75,
+      speedMax: 12,
+      spinTau: 0.3,
+      shotDrop: 0.004,
+      speedSigma: 0.013, angleSigma: 0.6, yawSigma: 0.6,
+    },
+    climber: null, // none in their CAD
+    stats: { 'Shot rate': '15 BPS', Aiming: 'Turret', 'Top speed': '', Trench: 'No (BUMPS)' },
+    // their CAD: gold printed parts and bumpers, black corrugated plastic, raw aluminum
+    colors: { frame: 0xc3c8ce, accent: 0xfab508, trim: 0x1d1e21 },
+  },
 };
 
 // Top speed, turn rate and acceleration come from each robot's drivetrain (drivetrain.js): its
@@ -949,7 +1027,7 @@ for (const cfg of Object.values(ROBOTS)) {
   if (cfg.stats) cfg.stats['Top speed'] = `${ft(dt.topSpeed)} ft/s (${ft(dt.freeSpeed)} free)`;
 }
 
-export const ROBOT_ORDER = ['2910', '4414', '8793', '971', '1678', '1690', '4946', '3928', '341', '4930', '1706', '581', '1114'];
+export const ROBOT_ORDER = ['2910', '4414', '8793', '971', '1678', '1690', '4946', '3928', '341', '4930', '1706', '581', '1114', '604'];
 
 // Optional add-on climbers for robots without one (971 and 1678 have their own, cfg.climber)
 export const CLIMBER_OPTIONS = {
