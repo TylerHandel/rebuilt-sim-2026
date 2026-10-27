@@ -334,6 +334,15 @@ export function guideSurface() {
     // (the floor is 0.18 up out to 0.165 each side: the cover's just outside it, a hair lower)
     quad([0.15, 0.178, 0.165 * zs], [0.335, 0.178, 0.165 * zs], [0.335, 0.178, 0.335 * zs], [0.15, 0.178, 0.335 * zs]);
   }
+  // Nor round the outside of the right neck wheel, into the robot's side behind it: a wall just
+  // outboard of the wheel (its face is at z 0.170), from the turret structure's front plate to
+  // behind the vertical roller. The CAD has a 3in wheel there (the team: it's 4in now) and leaves
+  // that side open, where the left's 5in wheel has its mount: so the right vertical roller, its
+  // compliant face (mu 1.6, wrapping a FUEL as the omni on the left doesn't) running rearward and
+  // out round its back, pressed FUEL 4.5 cm into the compliant neck wheel's outer side and on round
+  // it, out of the ball path for good (eight matches of 2910 v 8793: 34 FUEL, 2-9 a match, none on
+  // the left; with the wall, 1).
+  quad([0.03, 0.17, 0.175], [0.16, 0.17, 0.175], [0.16, 0.34, 0.175], [0.03, 0.34, 0.175]);
   return new Surface({ name: 'guides', vertices: V, indices: I, mu: 0.3 });
 }
 // The front bumper, which FUEL climb over on the way in: square foam under fabric (the team; mu:

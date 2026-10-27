@@ -15,12 +15,13 @@
 import { Mechanism } from './mechanism.js';
 import { PhysicalRobot } from './physical.js';
 import {
-  build2910, wheels2910, pathSurfaces2910, placeIntake, placeHood, intakeRot, hoodElevation, shotFor, passFor,
+  build2910, wheels2910, bumper2910, pathSurfaces2910, placeIntake, placeHood, intakeRot, hoodElevation, shotFor, passFor,
   INTAKE, SHOOTER, RANGES, PRELOAD, PIVOT, DRUM,
 } from './r2910.js';
 import PATH from './path2910.js';
 import { Field } from '../field.js';
 import { FUEL, FIELD_W, fw } from '../constants.js';
+import { BUMPER_Y0 } from '../robotConfigs.js';
 
 const DEG = Math.PI / 180, R = FUEL.radius;
 const HALF_L = 0.343, HALF_W = 0.349; // its frame (27in x 27.5in)
@@ -46,7 +47,7 @@ export function profile(p, v, goal, vmax, amax, dt) {
 export class Physical2910 extends PhysicalRobot {
   constructor(robot) {
     const t = build2910(), w = wheels2910(t), s = pathSurfaces2910(PATH, t);
-    const pathWheels = [...w.floor, ...w.indexer, ...w.intake];
+    const pathWheels = [...w.floor, ...w.indexer, ...w.intake, ...bumper2910()];
     super(robot, {
       path: new Mechanism({ body: robot.body, substeps: 6, shafts: [...new Set(pathWheels.map((x) => x.shaft)), t.pivot], wheels: pathWheels, surfaces: Object.values(s) }),
       shooter: new Mechanism({ body: robot.body, substeps: 6, sub: 8, shafts: [t.drum, t.hood], wheels: [w.drum, ...w.hood] }),
@@ -74,7 +75,11 @@ export class Physical2910 extends PhysicalRobot {
   // the hopper runs out over the intake (its panels slide out with the first deploy and stay)
   where(x, y, z) {
     const inFrame = Math.abs(x) < HALF_L && Math.abs(z) < HALF_W && y > 0.105 && y < 0.62;
-    const inFront = x >= HALF_L && x < 0.72 && Math.abs(z) < HALF_W && y < 0.6;
+    // (in front: not one the robot's nose is over, pitched up on a BUMP, its center below the
+    // bumper's bottom edge: the intake can't reach it, and the robot's collider has to keep it out
+    // from under the robot as it comes down; with only the bumper, js/mech/r2910.js, 4 still got in
+    // under the frame that way in four matches)
+    const inFront = x >= HALF_L && x < 0.72 && Math.abs(z) < HALF_W && y > BUMPER_Y0 && y < 0.6;
     return {
       own: inFrame || inFront,
       // (held: in the hopper; not one on the carpet the intake's still reaching for)
