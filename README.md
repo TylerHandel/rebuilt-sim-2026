@@ -572,7 +572,7 @@ Bench (`node --import ./tools/node-env.mjs tools/mechlab4414.mjs [test ...]`):
 | `ring` | 8 FUEL laid round the floor, the rotor feeding from rest: 3-4 in on its first turn, 3-5 in 1.5 s. |
 | `lip` | 7-8 FUEL laid on the stadium round an empty bowl: 3-6 shot in 4 s. |
 
-In AI matches against 604 (seeds 1-4 and 6-13) it scores 243 FUEL points on average (170-287; 604 311), against 257 (219-305; 604 286) before the bowl's wall: the same within the matches' spread. It launches about 430 FUEL a match either way, 80-100 of them passes. The faster feed doesn't show in play because the feed isn't what holds it there: it mostly shoots while it collects, from part of a load, and spends about 40% of its time shooting waiting for the shot to be ready (the flywheel within 2%, the hood within 1.5°, the turret on). That puts it below 604 and 1678 here, where the real team was among the strongest. The non-physical model it replaces scored 570-670, from a set 14 BPS and a hopper that never ran short.
+In AI matches against 604 (seeds 1-6) it scores 252 FUEL points on average (216-282), against 238 (170-287) with the earlier layout: a little more, within the matches' spread. It launches 390-570 FUEL a match, 50-190 of them passes. The faster feed shows little in play because the feed isn't what mostly holds it there: it mostly shoots while it collects, from part of a load, and spends about 40% of its time shooting waiting for the shot to be ready (the flywheel within 2%, the hood within 1.5°, the turret on). That puts it below 604 and 1678 here, where the real team was among the strongest. The non-physical model it replaces scored 570-670, from a set 14 BPS and a hopper that never ran short.
 
 ### 341
 
