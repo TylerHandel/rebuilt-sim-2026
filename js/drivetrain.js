@@ -10,6 +10,8 @@ export const MOTORS = {
   // the small Kraken (WCP), FOC: ~7530 rpm free, ~4.1 N·m / ~280 A stall at 12 V (WCP's published
   // curve, approximate); rotor inertias estimated from the motors' size
   krakenX44: { free: (7530 / 60) * 2 * Math.PI, stallTorque: 4.1, stallCurrent: 280, freeCurrent: 1.5, V: 12, rotorInertia: 2.5e-5 },
+  // the Falcon 500 (VEX's published curve): 6380 rpm free, 4.69 N·m / 257 A stall at 12 V
+  falcon500: { free: (6380 / 60) * 2 * Math.PI, stallTorque: 4.69, stallCurrent: 257, freeCurrent: 1.5, V: 12, rotorInertia: 5e-5 },
 };
 const V_REST = 12.6;     // a charged battery, resting (V)
 const R_BATTERY = 0.02;  // battery internal resistance plus main breaker and wiring (ohm)
