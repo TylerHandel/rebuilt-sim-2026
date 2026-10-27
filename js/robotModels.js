@@ -1217,10 +1217,23 @@ function build4414(cfg, alliance) {
     // the rotor's big 10DP gear under the center (36.4:1 from the motor)
     spurGear(0.12, 72, 0.008, blackAl, rotor, 8).position.y = -0.008;
   }
-  // base plate and the fixed ring wall round the rotor, on standoffs
+  // base plate and the fixed ring wall round the rotor, on standoffs: the bowl's wall (js/mech/r4414.js
+  // STADIUM, the physical model's), standing up from the floor to the stadium's edge, lower toward
+  // the front; the hook's tip runs flush against it
   flatPart(arcPts(rs.x, rs.z, rs.r + 0.03, 0, Math.PI * 2, 48), [], 0.005, darkPlate, root, rs.y - 0.03);
-  const ringWall = mesh(new THREE.CylinderGeometry(rs.r + 0.012, rs.r + 0.012, 0.03, 72, 1, true), smoke, root, rs.x, rs.y + 0.005, rs.z);
-  ringWall.castShadow = false;
+  {
+    const S4 = D4.STADIUM, pos = [], idx = [];
+    for (let i = 0; i <= 96; i++) {
+      const a = (i / 96) * Math.PI * 2, x = D4.AXIS[0] + S4.r * Math.cos(a), z = D4.AXIS[1] + S4.r * Math.sin(a);
+      pos.push(x, D4.FLOOR - 0.006, z, x, D4.stadiumY(x + 1e-4 * Math.cos(a), z + 1e-4 * Math.sin(a)), z);
+      if (i) { const k = 2 * i; idx.push(k - 2, k, k + 1, k - 2, k + 1, k - 1); }
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setIndex(idx);
+    g.computeVertexNormals();
+    mesh(g, smoke, root).castShadow = false;
+  }
   for (let i = 0; i < 16; i++) {
     const a = (i / 16) * Math.PI * 2;
     cylY(0.004, 0.06, blackAl, root, rs.x + Math.cos(a) * (rs.r + 0.02), rs.y - 0.01, rs.z + Math.sin(a) * (rs.r + 0.02), 6);
@@ -1230,16 +1243,16 @@ function build4414(cfg, alliance) {
     kraken(root, x, 0.13, z);
     bx(0.03, 0.006, 0.02, M.led, root, x + 0.02, 0.166, z);
   }
-  // printed "stadium" pieces: terraces that funnel FUEL down onto the rotor
+  // printed "stadium" pieces: terraces that funnel FUEL down to the bowl's wall (the physical
+  // model's stadium, D4.stadiumY)
   {
     const NX = 64, NZ = 76, x0 = bay.x0, x1 = bay.x1, z0 = -bay.hw, z1 = bay.hw;
-    const f = bay.funnel, step = 0.018;
+    const step = 0.018;
     const hAt = (x, z) => {
-      const d = Math.hypot(x - rs.x, z - rs.z) - rs.r - 0.012;
-      if (d < 0) return -1;
-      const h = Math.min(f.cap, d * f.slope);
+      if (Math.hypot(x - D4.AXIS[0], z - D4.AXIS[1]) < D4.STADIUM.r) return -1;
+      const h = D4.stadiumY(x, z) - D4.FLOOR;
       const k = Math.floor(h / step), fr = h / step - k;
-      return rs.y - 0.005 + (k + THREE.MathUtils.smoothstep(fr, 0.75, 1)) * step;
+      return D4.FLOOR - 0.005 + (k + THREE.MathUtils.smoothstep(fr, 0.75, 1)) * step;
     };
     const inside = (x, z) => (x - x0) - Math.abs(z) + bay.hw - chamfer >= -0.005;
     const pos = [], idx = [], map = new Map();
@@ -1310,8 +1323,29 @@ function build4414(cfg, alliance) {
     g.computeVertexNormals();
     mesh(g, std(0x7a818b, 0.45, 0.3, { side: THREE.DoubleSide }), rotorParts);
   }
-  // the TTB wheels (orange-tan urethane on copper hubs) and the 3in omni over the outer pair
+  // the TTB wheels' housing round their backs
+  {
+    const hp = D4.housing().map(([u, w]) => D4.chanL(u, 0, w));
+    for (let i = 1; i < hp.length; i++) {
+      const [x0, , z0] = hp[i - 1], [x1, , z1] = hp[i], len = Math.hypot(x1 - x0, z1 - z0);
+      bx(len, H4.y1 - H4.y0, 0.004, blackAl, rotorParts, (x0 + x1) / 2, (H4.y0 + H4.y1) / 2, (z0 + z1) / 2).rotation.y = -Math.atan2(z1 - z0, x1 - x0);
+    }
+  }
+  // the TTB wheels (orange-tan urethane on copper hubs) and the 3in omni over the outer pair; and the
+  // 3in omni set into the hook's face ahead of its root, on their train
   const ttbSpin = [];
+  const omni3 = (parent, y) => {
+    cylY(F4.ttb.r, F4.ttb.wid, std(0x2a2d33, 0.6, 0.1), parent, 0, y, 0, 24);
+    for (let k = 0; k < 10; k++) { const a = (k * Math.PI) / 5; cylY(0.007, 0.016, std(0x8d939b, 0.5, 0.2), parent, Math.cos(a) * F4.ttb.r, y, Math.sin(a) * F4.ttb.r, 6).rotation.set(0, -a, Math.PI / 2); }
+  };
+  {
+    const [x, y, z] = D4.hookOmniAt(), axle = new THREE.Group();
+    axle.position.set(x - D4.AXIS[0], 0, z - D4.AXIS[1]);
+    rotorParts.add(axle);
+    ttbSpin.push(axle);
+    omni3(axle, y);
+    cylY(0.006, 0.06, M.alu, axle, 0, y, 0, 8);
+  }
   const tw = FUEL.radius + F4.ttb.r - F4.ttb.squeeze;
   F4.ttb.us.forEach((u, j) => {
     const [x, , z] = D4.chanL(u, 0, -tw);
@@ -1321,10 +1355,7 @@ function build4414(cfg, alliance) {
     ttbSpin.push(axle);
     for (const y of F4.ttb.ys) cylY(F4.ttb.r, F4.ttb.wid, std(0xc9874a, 0.6, 0.05), axle, 0, y, 0, 24);
     cylY(0.006, F4.ttb.omniY - D4.FLOOR, M.alu, axle, 0, (F4.ttb.omniY + D4.FLOOR) / 2, 0, 8);
-    if (!j) {
-      cylY(F4.ttb.r, F4.ttb.wid, std(0x2a2d33, 0.6, 0.1), axle, 0, F4.ttb.omniY, 0, 24);
-      for (let k = 0; k < 10; k++) { const a = (k * Math.PI) / 5; cylY(0.007, 0.016, std(0x8d939b, 0.5, 0.2), axle, Math.cos(a) * F4.ttb.r, F4.ttb.omniY, Math.sin(a) * F4.ttb.r, 6).rotation.set(0, -a, Math.PI / 2); }
-    }
+    if (!j) omni3(axle, F4.ttb.omniY);
   });
   // the 1.25in omnis on their shaft across the bend, and the channel's walls in the hub
   const bendAxle = new THREE.Group();
