@@ -1,6 +1,7 @@
 {
-  "source": "8793 Pumpkin Bots, \"8793-2026-A-0000 Robot\" (Onshape e34c8122db6474f80cc7e909, workspace dd037c647c748146eb3a3f31, element 56e3b8b78eff91db02fc8880), STEP through tools/step2glb.py",
+  "source": "8793 Pumpkin Bots, \"8793-2026-A-0000 Robot\" (Onshape e34c8122db6474f80cc7e909, workspace dd037c647c748146eb3a3f31, element 56e3b8b78eff91db02fc8880), STEP through tools/step2glb.py (--lin 0.0012 --ang 0.45, skipping screw|bolt|\\bnut\\b|washer|rivet|shcs|bhcs|fhcs|^9\\d{4}a|collar); the intake as in microversion 31969bc54e2cebc3ff05ea1d (down; the workspace has it stowed since 15 Oct): its parts moved to that microversion's assembly transforms, and its glTF export for like",
   "front": "-y",
+  "bom": "8793-materials.json",
   "parts": [
     {
       "out": "cad/robots/8793-body.glb",

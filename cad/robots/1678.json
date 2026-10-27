@@ -1,6 +1,7 @@
 {
-  "source": "1678 Citrus Circuits, \"1678-26c-0000 CAD Release\" (Onshape acdaaf42764a293a9452326d, workspace f887ef4c6a254c09c73344c3, element a9684fa7665096e977b19c44), STEP through tools/step2glb.py",
+  "source": "1678 Citrus Circuits, \"1678-26c-0000 CAD Release\" (Onshape acdaaf42764a293a9452326d, workspace f887ef4c6a254c09c73344c3, element a9684fa7665096e977b19c44), STEP through tools/step2glb.py; the STEP at 1.2 mm and 0.45 rad, skipping screw|bolt|\\bnut\\b|washer|rivet|shcs|bhcs|fhcs|^9\\d{4}a|sprocket|plug|bushing (re-extracted on 27 Oct with the \"bom\", same geometry)",
   "front": "-y",
+  "bom": "1678-materials.json",
   "parts": [
     {
       "out": "cad/robots/1678-body.glb",

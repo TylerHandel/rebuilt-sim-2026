@@ -1,6 +1,7 @@
 {
-  "source": "1114 Simbotics, \"S26-A000\" / Simbot Tim (Onshape 7959d159451177786d52dd9a, workspace 535bc31b66b0cc442967f1d0, element a263c1a625ed8cf2484ae82f), STEP through the translation API and tools/step2glb.py; exported with the intake and hopper box slid out",
+  "source": "1114 Simbotics, \"S26-A000\" / Simbot Tim (Onshape 7959d159451177786d52dd9a, workspace 535bc31b66b0cc442967f1d0, element a263c1a625ed8cf2484ae82f), STEP through the translation API and tools/step2glb.py; exported with the intake and hopper box slid out; materials (\"bom\") put on these GLBs with tools/extract-parts.mjs --retag on 27 Oct, from a fresh STEP (1.2 mm, 0.45 rad, screws, nuts, washers and rivets skipped), its parts moved to microversion c4eb6a7367c3253e383dd5f9, the GLBs' pose",
   "front": "-y",
+  "bom": "1114-materials.json",
   "parts": [
     {
       "out": "cad/robots/1114-body.glb",

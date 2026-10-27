@@ -1,6 +1,7 @@
 {
-  "source": "4930 Electric Mayhem, \"Floyd 2: Whole Robot Assembly\" (Onshape 83c8fa924839349576d211d0, workspace 9af803d0057b2f9fe7042ded, element 208bd6bbadd59d7f2b97c01f), STEP through tools/step2glb.py",
+  "source": "4930 Electric Mayhem, \"Floyd 2: Whole Robot Assembly\" (Onshape 83c8fa924839349576d211d0, workspace 9af803d0057b2f9fe7042ded, element 208bd6bbadd59d7f2b97c01f), STEP through tools/step2glb.py; materials (\"bom\") put on these GLBs with tools/extract-parts.mjs --retag on 27 Oct, from a fresh STEP (1.2 mm, 0.45 rad, screws, nuts, washers and rivets skipped) and collars, pulleys and plugs too (re-extracting from it gives 12 more triangles)",
   "front": "-y",
+  "bom": "4930-materials.json",
   "parts": [
     {
       "out": "cad/robots/4930-body.glb",

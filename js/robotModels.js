@@ -132,6 +132,26 @@ function aluMat(hex, finish) {
   }
   return ALU_CACHE.get(k);
 }
+// An aluminum part's finish by its CAD color, as tools/aluminum-colors.py judges a color: colored
+// (chroma 0.15 and up: anodized or powder-coated, like 8793's orange tubes) and near-black (a black
+// coat, like 8793's rollers) are left as they are (null); light grays and the slate 67, 72, 77 (a
+// CAD library's aluminum) are raw; other grays dark-anodized.
+function aluFinish(c) {
+  const r = (c >> 16) & 255, g = (c >> 8) & 255, b = c & 255;
+  const chroma = (Math.max(r, g, b) - Math.min(r, g, b)) / 255, light = Math.max(r, g, b) / 255;
+  if (chroma >= 0.15 || light < 0.1) return null;
+  return light >= 0.45 || (r === 67 && g === 72 && b === 77) ? 'raw' : 'dark';
+}
+// A CAD part's material as drawn. tools/extract-parts.mjs names a material by the team's bill of
+// materials when it knows the parts' materials ("alu": aluminum parts, "not-alu": parts of another
+// material, so a 3D print or cable carrier in the plates' color stays plastic); the rest (parts
+// the BOM doesn't place, and GLBs made without it) go by color: js/aluminumColors.js lists which
+// of a team's CAD colors are mostly aluminum.
+function cadMaterial(team, m) {
+  if (m.name === 'not-alu') return m;
+  if (m.name === 'alu') { const f = m.color && aluFinish(m.color.getHex()); return f ? aluMat(m.color.getHex(), f) : m; }
+  return aluminumFor(team, m) ?? m;
+}
 // which of a team's CAD colors are aluminum (js/aluminumColors.js), for a CAD part's material
 function aluminumFor(team, m) {
   const list = ALUMINUM_COLORS[team];
@@ -446,7 +466,7 @@ function cadPart(parent, file, onLoad) {
         // polycarbonate (see-through in the CAD, or marked "poly" by tools/extract-parts.mjs)
         const m = o.material;
         if (m.transparent || m.name === 'poly') { o.material = M.poly; o.castShadow = false; }
-        else o.material = aluminumFor(team, m) ?? m;
+        else o.material = cadMaterial(team, m);
       });
       parent.add(gltf.scene);
       onLoad(gltf.scene);
