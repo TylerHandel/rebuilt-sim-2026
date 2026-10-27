@@ -412,15 +412,19 @@ export class Robot {
   _hopper(dt, on) {
     const st = this.cfg.storage;
     if (!st.extLen) return;
-    // 'latched' hoppers come out with the intake at the start and stay out; 'intake' hoppers
-    // follow the intake. Either way the hopper can't close on FUEL that needs the room.
-    let want = st.extend === 'latched' ? (this.hopperDeploy > 0.02 || this.intakeDeploy > 0.3 ? 1 : 0) : this.intakeDeploy;
-    const gc = this.geoCap;
-    // (a compacting intake crams the load into the fixed part harder: gc.compacted)
-    const inFixed = gc.compacted ?? gc.retracted;
-    const need = Math.min(1, Math.max(0, (this.stored.length - inFixed) / Math.max(1, gc.extended - inFixed)));
-    want = Math.max(want, need);
-    if (on || want < this.hopperDeploy) this.hopperDeploy = approach(this.hopperDeploy, want, dt / 0.45);
+    // (a physical robot's extension goes where its mechanism puts it: 1678's rides on its intake arm)
+    if (this.phys?.extNow) this.hopperDeploy = clamp(this.phys.extNow() / st.extLen, 0, 1);
+    else {
+      // 'latched' hoppers come out with the intake at the start and stay out; 'intake' hoppers
+      // follow the intake. Either way the hopper can't close on FUEL that needs the room.
+      let want = st.extend === 'latched' ? (this.hopperDeploy > 0.02 || this.intakeDeploy > 0.3 ? 1 : 0) : this.intakeDeploy;
+      const gc = this.geoCap;
+      // (a compacting intake crams the load into the fixed part harder: gc.compacted)
+      const inFixed = gc.compacted ?? gc.retracted;
+      const need = Math.min(1, Math.max(0, (this.stored.length - inFixed) / Math.max(1, gc.extended - inFixed)));
+      want = Math.max(want, need);
+      if (on || want < this.hopperDeploy) this.hopperDeploy = approach(this.hopperDeploy, want, dt / 0.45);
+    }
     if (!this.hopperCollider) return;
     // collider follows the sliding section
     const out = this.hopperDeploy * st.extLen;
@@ -694,8 +698,9 @@ export class Robot {
     for (const e of this.hopper.list) if (!e.tr) loadTop = Math.max(loadTop, e.p.y + R);
     // (a physical robot's load is its FUEL bodies: js/mech/phys1678.js)
     if (this.phys?.loadTop) loadTop = Math.max(loadTop, this.phys.loadTop());
-    // (the lid rides up with the intake, 1678's: its climber lifts it while the intake is down)
-    if (lift) this.hopper.liftScale = this.phys?.liftScale ? this.phys.liftScale() : Math.max(this.intakeDeploy, clamp((loadTop - 0.01 - bay.top) / lift.h, 0, 1));
+    // (the lid rides up with the intake, 1678's: its climber lifts it while the intake is down, at
+    // the climber's pace)
+    if (lift) this.hopper.liftScale = this.phys?.liftNow ? this.phys.liftNow() : Math.max(this.intakeDeploy, clamp((loadTop - 0.01 - bay.top) / lift.h, 0, 1));
     // topLoad: the top with the intake down; topY: the true top, with a folded intake as it is now
     // growTop: the part that grows with the load (a net it bulges up, a lid it holds up), 0 if none
     this.growTop = lift ? bay.top + lift.h * this.hopper.liftScale + 0.01 : bay.dome ? loadTop + 0.005 : 0;
@@ -1474,6 +1479,8 @@ export class Robot {
     const sh = this.cfg.shooter;
     m.anim({
       intakeDeploy: this.intakeDeploy,
+      // (a physical arm's own turn from its CAD pose, rad: 1678's)
+      armTurn: this.phys?.armTurn?.(),
       intakeSpeed: this.intakeSpeed * (this.intakeSpeed > 0 ? this.rollerSpeed ?? 1 : 1),
       hopperDeploy: this.hopperDeploy,
       flywheel: this.flywheel,

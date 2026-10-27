@@ -12,7 +12,7 @@ import { FUEL, GROUP, groups, HUB } from '../js/constants.js';
 import { Mechanism } from '../js/mech/mechanism.js';
 import { sim2D } from '../js/ballistics.js';
 import {
-  build1678, wheels1678, pathSurfaces1678, placeIntake, placeHood, placeNet, intakeRot, hoodRot, hoodElevation, shotFor, REGRESSIONS,
+  build1678, wheels1678, pathSurfaces1678, placeIntake, placeHood, placeNet, intakeRot, slotExt, slotRate, SLOT, hoodRot, hoodElevation, shotFor, REGRESSIONS,
   INTAKE, SHOOTER, TUNNEL, FEEDER, FLEX, FLOOR, TUNNEL_D, DRUM, PIVOT,
 } from '../js/mech/r1678.js';
 import PATH from '../js/mech/path1678.js';
@@ -21,7 +21,7 @@ import { EXIT_PER_DRUM_SURFACE, servoArm, turnArm, CONTRACT } from '../js/mech/p
 await RAPIER.init();
 const R = FUEL.radius, DT = 1 / 120, SEEDS = Number(process.env.SEEDS ?? 6);
 const HELD = groups(GROUP.HELD, 0xffff & ~GROUP.HELD);
-const EXT = 0.303, LIFT = 0.2, SPEED = Number(process.env.SPEED ?? 1);
+const EXT = slotExt(INTAKE.down), LIFT = 0.2, SPEED = Number(process.env.SPEED ?? 1);
 if (process.env.INTAKE_D) INTAKE.main.d = Number(process.env.INTAKE_D); // (to try other roller sizes)
 
 function world({ carpet = true } = {}) {
@@ -41,13 +41,13 @@ const RPM = (w) => (w * 60) / (2 * Math.PI);
 
 // the robot's mechanisms, fixed in the world: the intake at their angle deg, the hood at hood, the
 // extension out and the lid up (as in a match once it's intaked)
-function rig({ deg = Number(process.env.ARM ?? INTAKE.down), hood = SHOOTER.hoodMin, ext = EXT, lift = LIFT } = {}) {
+function rig({ deg = Number(process.env.ARM ?? INTAKE.down), hood = SHOOTER.hoodMin, ext = slotExt(deg), lift = LIFT } = {}) {
   const t = build1678(), wh = wheels1678(t), s = pathSurfaces1678(PATH, t);
   placeIntake(wh.intake, deg);
   s.intake.setPose([PIVOT[0], PIVOT[1], 0], 0, intakeRot(deg));
   placeHood(wh.hood, hood);
   s.hood.setPose([DRUM[0], DRUM[1], 0], 0, hoodRot(hood));
-  s.slide.setPose([ext, 0, 0]);
+  s.slide.setPose([ext, 0, 0]); s.slide.onSlide(t.pivot, [1, 0, 0]);
   s.lid.setPose([0, lift, 0]);
   placeNet(s.net, ext, lift);
   const pathW = [...wh.floor, ...wh.tunnel, ...wh.intake];
@@ -214,6 +214,10 @@ const tests = {
       servoArm(t, deg, goal, DT);
       placeIntake(wh.intake, deg);
       surf.intake.setPose([PIVOT[0], PIVOT[1], 0], 0, intakeRot(deg));
+      // (the extension on the arm's pin and slot)
+      const k = slotRate(deg);
+      surf.slide.setPose([slotExt(deg), 0, 0]); surf.slide.slideK = k; t.pivot.inertia = INTAKE.J + SLOT.mass * k * k;
+      placeNet(surf.net, slotExt(deg), LIFT);
     };
     let k1 = 0;
     for (let k = 0; k < 8 / DT; k++) {

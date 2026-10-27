@@ -248,6 +248,9 @@ export class Surface {
   // and push back on that shaft's motor. pivot, axis: a point on the shaft's axis and its
   // direction, in the frame's coordinates.
   onShaft(shaft, pivot, axis = [0, 0, 1]) { Object.assign(this, { shaft, pivot, pivotAxis: axis }); return this; }
+  // a surface that slides along dir (frame coordinates) as a shaft turns, slideK m per radian of
+  // the shaft (a pin in a slot): FUEL it touches feel it moving, and push back on that shaft
+  onSlide(shaft, dir = [1, 0, 0]) { Object.assign(this, { shaft, slideDir: dir, slideK: 0 }); return this; }
   setPose(pos, yaw = 0, roll = 0) {
     this.pos = pos;
     // the surface's axes in the frame: Ry(yaw) Rz(roll), columns
@@ -446,7 +449,12 @@ export class Mechanism {
           const x = sub(bc, mul(n, R - depth / 2)), rb = sub(x, bc);
           // (on a shaft: the contact's arm about its axis, which moves the surface there)
           let a = [0, 0, 1], rw = [0, 0, 0];
-          if (sf.shaft !== FIXED) {
+          if (sf.slideDir) {
+            // (sliding: its velocity slideK omega along slideDir, as (a x rw) omega with a normal to it)
+            const L = mul(qrot(fr.q, sf.slideDir), sf.slideK), az = Math.abs(sf.slideDir[2]) < 0.9 ? [0, 0, 1] : [1, 0, 0];
+            a = qrot(fr.q, az);
+            rw = cross(L, a);
+          } else if (sf.shaft !== FIXED) {
             a = qrot(fr.q, sf.pivotAxis);
             const d = sub(x, add(fr.p, qrot(fr.q, sf.pivot)));
             rw = sub(d, mul(a, dot(d, a)));

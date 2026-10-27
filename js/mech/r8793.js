@@ -27,7 +27,13 @@ import { Motor, Shaft, Surface, Train, Wheel } from './mechanism.js';
 // (Aluminum on foam grips far less than a compliant wheel or grip tape: estimates to tune.)
 // what each grips FUEL with (estimates; the order is the team's: compliant wheels grip far more
 // than mecanums' rollers or bare aluminum, and it's what carries a centered FUEL all the way through)
-export const MU = { compliant: 1.6, gripTape: 1.3, omni: 1.0, mecanum: 0.8, aluminum: 0.45 };
+// An omni wheel touches a FUEL only on the small hard rollers round its rim, where a compliant
+// wheel wraps it on a broad patch: far less grip (the team). 0.6 halves the auto-unjams in
+// matches against 1.0 (the rollers slip on FUEL waiting at the turret instead of stalling the
+// X60) and FUEL still go through two abreast (tools/mechlab.mjs funnel, robot).
+export const MU = { compliant: 1.6, gripTape: 1.3, omni: 0.6, mecanum: 0.8, aluminum: 0.45 };
+// a 4in 45A compliant wheel's give at its rim (N/m; an estimate)
+export const COMPLIANT_TREAD = 12000;
 export const HORIZONTAL = [
   ['conveyor 1', [18, 33], 2 * IN, MU.mecanum, '2in compliant wheel in the middle, two 2in mecanums each side, all pushing to the middle'],
   ['conveyor 2', [25, 24], 2 * IN, MU.mecanum, 'eight 2in mecanums, four each side, pushing to the middle'],
@@ -43,14 +49,15 @@ export const HORIZONTAL = [
 // speeds when an X44 turns 1.2 times the X60 (0.9244 x 7530 / 5800 = 1.200)
 export const VERTICAL = { ratio: [[1, 5], [28, 18], [1, 1]], diameter: 4 * IN, perX60: 1.2 };
 // At the neck, where the conveyor's floor ramps down to the turret indexer's rails and FUEL
-// go single file (their CAD, Conveyor V2): a vertical-axis omni wheel each side, a 5in on the left
-// and a 3in on the right, their faces 0.08 m from the middle, each belted from the vertical
-// roller on its side (18t:18t on the left, 18t:28t on the right), so the two faces run at very
-// different speeds and turn a pair of FUEL arriving abreast instead of wedging them.
+// go single file: a vertical-axis wheel each side, 4in on both (the team: the CAD's 5in and 3in
+// are out of date), an omni on the left and a 45A compliant on the right, like the vertical
+// rollers; on the CAD's axles (a 0.139 m gap: a FUEL squeezes 11 mm through), each belted from the
+// vertical roller on its side (the CAD's 18t:18t on the left, 18t:28t on the right), so the two
+// faces run at different speeds and turn a pair of FUEL arriving abreast instead of wedging them.
 export const NECK = {
   x: 0.065, y: 0.237,
-  left: { z: -0.122, d: 5 * IN, belt: [18, 18] },
-  right: { z: 0.119, d: 3 * IN, belt: [18, 28] },
+  left: { z: -0.122, d: 4 * IN, belt: [18, 18], kind: 'omni' },
+  right: { z: 0.119, d: 4 * IN, belt: [18, 28], kind: 'compliant' },
 };
 // what their code commands while intaking (duty cycle)
 export const DUTY = { rollers: 0.95, vertical: 0.95 * 0.9244 };
@@ -76,7 +83,7 @@ export function build8793() {
     const s = horizontal.add(new Shaft({ name: `vertical roller, ${side}`, inertia: 1e-4 }), -VERTICAL.perX60 * vk);
     s.diameter = VERTICAL.diameter;
     const nk = NECK[side];
-    s.neck = horizontal.add(new Shaft({ name: `neck ${nk.d / IN}in omni, ${side}`, inertia: 6e-5 }), (-VERTICAL.perX60 * vk * nk.belt[0]) / nk.belt[1]);
+    s.neck = horizontal.add(new Shaft({ name: `neck ${nk.d / IN}in ${nk.kind === 'omni' ? 'omni' : 'compliant 45A'}, ${side}`, inertia: 6e-5 }), (-VERTICAL.perX60 * vk * nk.belt[0]) / nk.belt[1]);
     s.neck.diameter = nk.d;
     return s;
   });
@@ -114,7 +121,8 @@ export function intake8793({ horizontal, x44 }, on = true, { x44: powered = true
 export const CONVEYOR = {
   shafts: [ // [roller index in HORIZONTAL, x, y, the wheels' z (or the half width they spread over)]
     [0, 0.122, 0.315, [-0.077, -0.039, -0.001, 0.037, 0.075]],
-    [1, 0.217, 0.34, 0.28],
+    // (conveyor 2's eight spread evenly over what FUEL touch: between the vertical rollers' faces)
+    [1, 0.217, 0.34, 0.24 - 2 * IN],
     [2, 0.292, 0.336, 0.31],
   ],
   vertical: { x: 0.217, y: 0.241, z: 0.24 },
@@ -150,11 +158,12 @@ export function conveyorWheels({ rollers, vshafts }) {
   // two 1in-wide wheels stacked on each, 1in apart, around the FUEL's center height
   for (const dy of [-0.6 * IN, 0.6 * IN]) {
     wheels.push(new Wheel({ shaft: vl, name: 'vertical omni', kind: 'omni', center: [v.x, v.y + dy, -v.z], axis: [0, -1, 0], radius: r, width: w, mu: MU.omni }));
-    wheels.push(new Wheel({ shaft: vr, name: 'vertical compliant 45A', center: [v.x, v.y + dy, v.z], axis: [0, 1, 0], radius: r, width: w, mu: MU.compliant, tread: 12000 }));
+    wheels.push(new Wheel({ shaft: vr, name: 'vertical compliant 45A', center: [v.x, v.y + dy, v.z], axis: [0, 1, 0], radius: r, width: w, mu: MU.compliant, tread: COMPLIANT_TREAD }));
   }
   for (const [i, side] of [[0, 'left'], [1, 'right']]) {
     const nk = NECK[side], sh = vshafts[i].neck;
-    wheels.push(new Wheel({ shaft: sh, name: sh.name, kind: 'omni', center: [NECK.x, NECK.y, nk.z], axis: [0, side === 'left' ? -1 : 1, 0], radius: nk.d / 2, width: w, mu: MU.omni }));
+    const how = nk.kind === 'omni' ? { kind: 'omni', mu: MU.omni } : { mu: MU.compliant, tread: COMPLIANT_TREAD };
+    wheels.push(new Wheel({ shaft: sh, name: sh.name, ...how, center: [NECK.x, NECK.y, nk.z], axis: [0, side === 'left' ? -1 : 1, 0], radius: nk.d / 2, width: w }));
   }
   return wheels;
 }

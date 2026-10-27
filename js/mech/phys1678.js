@@ -21,7 +21,7 @@
 import { Mechanism } from './mechanism.js';
 import { PhysicalRobot } from './physical.js';
 import {
-  build1678, wheels1678, pathSurfaces1678, placeIntake, placeHood, placeNet, intakeRot, hoodRot, hoodElevation, shotFor,
+  build1678, wheels1678, pathSurfaces1678, placeIntake, placeHood, placeNet, intakeRot, slotExt, slotRate, SLOT, hoodRot, hoodElevation, shotFor,
   INTAKE, SHOOTER, TUNNEL, RANGES, PRELOAD, PIVOT, DRUM,
 } from './r1678.js';
 import PATH from './path1678.js';
@@ -36,7 +36,9 @@ const PIVOT_PID = { kP: 125 / 360, kS: 0.28, kG: 0.3 };
 const HOOD_MM = { v: 300, a: 2500 };
 // ShotVerifier and Superstructure's tolerances
 const TOL = { hubAim: 1.3 * DEG, ferryAim: 4 * DEG, rpm: 80, ferryRpm: 150, hood: 0.5, speed: 1.0 };
-const LID_SPEED = 0.4; // m/s, the climber raising the lid
+// m/s, the climber moving the lid: an X60 through 33:1 on a 1.757in pulley is ~0.42 m/s free; up
+// it's held to 30 A (their LOW_CURRENT, lifting the lid), down it gets 90 A
+const LID_SPEED = { up: 0.3, down: 0.4 };
 
 // a trapezoidal profile's next setpoint (position p, velocity v) toward goal
 function profile(p, v, goal, vmax, amax, dt) {
@@ -83,6 +85,8 @@ export class Physical1678 extends PhysicalRobot {
       preload: PRELOAD,
     });
     Object.assign(this, { t, w, s });
+    // the extension, driven by the arm through its pin and slot (FUEL in it push back on the arm)
+    s.slide.onSlide(t.pivot, [1, 0, 0]);
     this.ownsIntake = true;
     this.ownsHood = true;
     this.reset();
@@ -134,9 +138,13 @@ export class Physical1678 extends PhysicalRobot {
     this.hoodDeg = this.hoodSet[0];
     // the lid on the climber: up (once the intake's been down), down for a TRENCH, but never onto
     // the FUEL under it
-    this.lift += clamp(this.liftScale() * (r.cfg.bay.lift?.h ?? 0) - this.lift, -LID_SPEED * dt, LID_SPEED * dt);
+    this.lift += clamp(this.liftScale() * (r.cfg.bay.lift?.h ?? 0) - this.lift, -LID_SPEED.down * dt, LID_SPEED.up * dt);
     // pose the moving parts
-    const ext = (r.hopperDeploy || 0) * (r.cfg.storage.extLen || 0);
+    // the extension where the arm's pin puts it, and how it moves as the arm turns (its mass felt
+    // through the slot at the arm)
+    const ext = slotExt(this.armDeg), k = slotRate(this.armDeg);
+    this.s.slide.slideK = k;
+    T.pivot.inertia = INTAKE.J + SLOT.mass * k * k;
     this.s.intake.setPose([PIVOT[0], PIVOT[1], 0], 0, intakeRot(this.armDeg));
     placeIntake(this.w.intake, this.armDeg);
     this.s.hood.setPose([DRUM[0], DRUM[1], 0], 0, hoodRot(this.hoodDeg));
@@ -289,6 +297,12 @@ export class Physical1678 extends PhysicalRobot {
     r.feeding = shooting && this.firing && verified ? 1 : 0;
     r.intakeSpeed = (S.intake ?? 0) > 0.5 ? 1 : (S.intake ?? 0) < 0 ? -1 : 0;
   }
+  // the arm's turn from the CAD's pose (rad), for drawing it
+  armTurn() { return intakeRot(this.armDeg); }
+  // how far out the extension is (m): where the arm's pin puts it
+  extNow() { return slotExt(this.armDeg); }
+  // how far up the lid is now (0-1 of its travel), as the climber has it
+  liftNow() { const h = this.r.cfg.bay.lift?.h; return h ? clamp(this.lift / h, 0, 1) : 0; }
   // how far up the lid wants to be (0-1 of its travel): see postStep
   liftScale() {
     const r = this.r, bay = r.cfg.bay, h = bay.lift?.h;

@@ -15,7 +15,7 @@
 import { RAPIER } from '../js/physics.js';
 import { FUEL, IN, GROUP, groups } from '../js/constants.js';
 import { Mechanism, Shaft, Wheel, Motor, foam } from '../js/mech/mechanism.js';
-import { build8793, intake8793, conveyorWheels, armWheels, shooterWheels, shooterSmallAt, flywheelDuty, codeExitSpeed, SHOOTER, INDEXER, DUTY_INDEXER, indexerWheels, pathSurfaces } from '../js/mech/r8793.js';
+import { MU, COMPLIANT_TREAD, NECK, build8793, intake8793, conveyorWheels, armWheels, shooterWheels, shooterSmallAt, flywheelDuty, codeExitSpeed, SHOOTER, INDEXER, DUTY_INDEXER, indexerWheels, pathSurfaces } from '../js/mech/r8793.js';
 if (process.env.IDX_RATIO) INDEXER.ratio = Number(process.env.IDX_RATIO); // (to try other indexer gearing)
 import PATH_MESH from '../js/mech/path8793.js';
 import { JAM } from '../js/mech/phys8793.js';
@@ -213,7 +213,7 @@ const tests = {
   funnel() {
     let seed = 1;
     const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647 - 0.5);
-    for (const variant of ['plain neck', 'omni 4in + 4in', 'omni 3in + 5in (8793)']) {
+    for (const variant of ['plain neck', 'omni 4in + 4in', 'omni + compliant (8793)']) {
       let ok = 0, times = [];
       for (let trial = 0; trial < 8; trial++) {
         seed = trial + 1;
@@ -250,14 +250,19 @@ function funnelRun(variant, rnd) {
   }
   let mech = null;
   if (variant !== 'plain neck') {
-    const [rl, rr] = variant.startsWith('omni 4in') ? [2 * IN, 2 * IN] : [1.5 * IN, 2.5 * IN];
-    const mk = () => new Shaft({ motor: new Motor('krakenX44', { ratio: 9, statorLimit: 30 }), inertia: 8e-5 });
-    const l = mk(), r = mk();
+    // (8793's: a 4in omni on the left and a 4in 45A compliant on the right, the right's face
+    // slower by its 18t:28t belt)
+    const is8793 = variant.includes('8793');
+    const [rl, rr] = [2 * IN, 2 * IN];
+    const mk = (ratio) => new Shaft({ motor: new Motor('krakenX44', { ratio, statorLimit: 30 }), inertia: 8e-5 });
+    const l = mk(9), r = mk(is8793 ? (9 * NECK.right.belt[1]) / NECK.right.belt[0] : 9);
     const n = [s, c, 0];
     const at = (x, z) => [x * c + R * s, -x * s + R * c, z];
     const xw = -0.27, half = neck + ((wide - neck) * (-0.06 - xw)) / 0.34, reach = 0.025;
-    const wl = new Wheel({ shaft: l, center: at(xw, half + rl - reach), axis: n, radius: rl, width: 1 * IN, kind: 'omni', mu: 1.0 });
-    const wr = new Wheel({ shaft: r, center: at(xw, -(half + rr - reach)), axis: n, radius: rr, width: 1 * IN, kind: 'omni', mu: 1.0 });
+    const wl = new Wheel({ shaft: l, center: at(xw, half + rl - reach), axis: n, radius: rl, width: 1 * IN, kind: 'omni', mu: MU.omni });
+    const wr = is8793
+      ? new Wheel({ shaft: r, center: at(xw, -(half + rr - reach)), axis: n, radius: rr, width: 1 * IN, mu: MU.compliant, tread: COMPLIANT_TREAD })
+      : new Wheel({ shaft: r, center: at(xw, -(half + rr - reach)), axis: n, radius: rr, width: 1 * IN, kind: 'omni', mu: MU.omni });
     mech = new Mechanism({ substeps: 6, shafts: [l, r], wheels: [wl, wr] });
     l.cmd = -1; r.cmd = 1; // faces at the funnel run downstream (+x)
   }

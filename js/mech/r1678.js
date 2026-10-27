@@ -36,16 +36,24 @@ export const PIVOT = [0.305, 0.169]; // the intake's pivot tube
 export const DRUM = [-0.288, 0.477]; // the drum's axle, which the hood turns about
 export const INTAKE = {
   // as the CAD has it: folded up inside the hopper (their 130 deg; 0 is down)
-  main: { at: [0.143, 0.368], d: 0.0516 },           // 2in silicone-covered roller
+  // 2in silicone-covered roller: the CAD's tube is 2.03in with no cover drawn; a 1/16in silicone
+  // wall over it (an estimate) makes 2.16in
+  main: { at: [0.143, 0.368], d: 0.0548 },
   // the 1.25in kicker bar at the front of the bumper when it's down: locked in place, not free to
   // turn (the team); the roller rolls FUEL up over it
   kicker: { at: [0.312, 0.322], d: 0.0326 },
   // free polycarbonate sleeves on dead shafts (one rides on the bumper's top when it's down)
   idlers: [{ at: [0.253, 0.247], d: 0.0188 }, { at: [0.131, 0.329], d: 0.0188 }],
   stowed: 130, partIn: 50,
-  // down: their 0 (the CAD's pose turned 130 deg). (With the kicker bar free to turn instead of
-  // locked, a FUEL resting against it sits 6 mm out of the roller's reach and few get in: 8 of 24
-  // in 6 s on tools/mechlab1678.mjs intake, against 24 locked)
+  // the CAD's folded pose, in their angles. Their encoder is zeroed folded (130) and the arm comes
+  // down until the free sleeve at its back sits on the bumper's top (0.146 m up): 2 deg past where
+  // 130 deg from the CAD's pose would put it, which leaves that sleeve hovering 3 mm over the
+  // bumper and the roller 4 mm out of reach of a FUEL resting against the kicker bar (a dead spot)
+  cad: 132,
+  // down: their 0 (the CAD's pose turned 132 deg). A FUEL on the carpet against the kicker bar is
+  // then squeezed 3 mm by the roller, which rolls it up over the bar; driving into the NEUTRAL
+  // ZONE's FUEL at 3 m/s it takes in about 34 in 2 s (against 15 with the arm 2 deg higher and the
+  // bare tube, when FUEL sat on the bar out of the roller's reach)
   down: 0,
   // its arm (plates, roller, two X60s, crash bar): their sim's 0.222 kg m^2 about the pivot
   mass: 4.2, com: 0.22, comDeg: -1, J: 0.222,
@@ -172,7 +180,7 @@ export function wheels1678(t) {
 // rotate a point (x, y) about (cx, cy) by a (rad)
 const rot = ([x, y], [cx, cy], a) => { const c = Math.cos(a), s = Math.sin(a), dx = x - cx, dy = y - cy; return [cx + dx * c - dy * s, cy + dx * s + dy * c]; };
 // the arm's turn from the CAD's pose at their angle deg (0 down, 130 folded up)
-export function intakeRot(deg) { return ((deg - INTAKE.stowed) * Math.PI) / 180; }
+export function intakeRot(deg) { return ((deg - INTAKE.cad) * Math.PI) / 180; }
 export function placeIntake(wheels, deg) {
   const a = intakeRot(deg);
   for (const w of wheels) { const [x, y] = rot(w.home, PIVOT, a); w.center = [x, y, 0]; }
@@ -205,6 +213,23 @@ export function pathSurfaces1678(mesh, t, { mu = 0.35 } = {}) {
 // the net between the lid's front edge (lid raised lift) and the top of the extension's front
 // panel (out ext); folded away while the extension's in
 export const NET = { lidX: 0.335, lidY: 0.545, frontX: 0.335, frontY: 0.505 };
+// The extension rides on the intake: a pin on the arm's side plate, 0.173 m from the pivot, runs
+// in an angled slot in the extension's side plate (which slides fore and aft on its rail), so the
+// arm's angle sets how far out it is: all the way (0.30 m) with the arm down, in with it folded,
+// halfway at their 80 deg (their contractHopper pulls it in as it lifts the intake). From the CAD.
+export const SLOT = { pin: [0.158, 0.2597], at: [0.1543, 0.2697], dir: [-0.2079, 0.9782], mass: 2.5 };
+const slotPin = (deg) => {
+  const [px, py] = SLOT.pin, r = Math.hypot(px - PIVOT[0], py - PIVOT[1]);
+  const f = Math.atan2(py - PIVOT[1], px - PIVOT[0]) + intakeRot(deg);
+  return [PIVOT[0] + r * Math.cos(f), PIVOT[1] + r * Math.sin(f)];
+};
+// the slot's centerline x at height y (the extension's plate, extension in)
+const slotX = (y) => SLOT.at[0] + ((y - SLOT.at[1]) * SLOT.dir[0]) / SLOT.dir[1];
+const SLOT0 = SLOT.pin[0] - slotX(SLOT.pin[1]);
+// how far out the extension is (m) with the arm at their angle deg
+export function slotExt(deg) { const [x, y] = slotPin(deg); return Math.max(0, x - slotX(y) - SLOT0); }
+// d(extension)/d(arm angle), m per radian (the arm's angle up)
+export function slotRate(deg) { return ((slotExt(deg + 0.5) - slotExt(deg - 0.5)) * 180) / Math.PI; }
 export function placeNet(net, ext, lift) {
   if (ext < 0.05) { net.setPose([0, -10, 0]); return; }
   const fx = NET.frontX + ext, dy = NET.lidY + lift - NET.frontY;

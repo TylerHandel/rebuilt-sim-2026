@@ -422,9 +422,8 @@ export const ROBOTS = {
     // the horizontal extension (polycarbonate sides, a corrugated front) slides straight out: a pin
     // on the intake plate rides a slanted vertical slot in the side plates (their robot page and
     // CAD), so the intake swinging down pushes the extension forward: down 130deg, 0.303 m out
-    // (their code: HOPPER_MAX_EXTENSION_DISTANCE), its front panel flush with the crash bar.
-    // It comes out with the first intake and stays out (the intake folding back in doesn't pull
-    // it back).
+    // (their code: HOPPER_MAX_EXTENSION_DISTANCE), its front panel flush with the crash bar, and
+    // folding the intake pulls it back in (their contractHopper; js/mech/r1678.js SLOT).
     storage: { extLen: 0.303, extend: 'latched' },
     // their CAD: roller floor (dead-axle rollers, then flex wheels) sloping down to the ball
     // tunnel at the back; the lid (corrugated plastic on the climber tubes) sits at 0.545 m and

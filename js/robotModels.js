@@ -12,6 +12,7 @@ import { IN, FUEL } from './constants.js';
 import { BUMPER_T, BUMPER_Y0, BUMPER_Y1, frameShape, offsetShape, modulePoints } from './robotConfigs.js';
 import { ALLIANCE_COLOR_CSS } from './field.js';
 import { hookPath } from './hopper.js';
+import { build8793 as trains8793, conveyorWheels as conveyorWheels8793 } from './mech/r8793.js';
 
 export const BUMP_Y0 = BUMPER_Y0, BUMP_Y1 = BUMPER_Y1;
 const lerp = THREE.MathUtils.lerp;
@@ -385,6 +386,40 @@ function wheelStack(parent, len, r, n, wheelMat, x, y, z, width = 0.02) {
     const zz = -len / 2 + (i + 0.5) * (len / n);
     cylZ(r, width, wheelMat, g, 0, 0, zz, 20);
   }
+  return g;
+}
+
+// A wheel drawn about its own axis (local Z) at radius r, width w: 'mecanum' (a hub and rollers
+// set at angle deg round the rim), 'omni' (two staggered rows of rollers across the rim) or a
+// compliant wheel (a soft tire on a hub)
+function rolledWheel(kind, r, w, deg = 45) {
+  const g = new THREE.Group();
+  if (kind === 'compliant') {
+    cylZ(r, w, M.compliant, g, 0, 0, 0, 24);
+    cylZ(r * 0.45, w + 0.002, M.hubGrey, g, 0, 0, 0, 12);
+    return g;
+  }
+  const mecanum = kind === 'mecanum';
+  cylZ(r * (mecanum ? 0.62 : 0.55), w * (mecanum ? 0.9 : 0.8), M.hubGrey, g, 0, 0, 0, 16);
+  const rows = mecanum ? [0] : [-w / 4, w / 4];
+  const n = mecanum ? 10 : Math.max(8, Math.round((2 * Math.PI * r) / 0.022));
+  const rr = mecanum ? r * 0.15 : Math.min(0.009, w / 4);
+  const len = mecanum ? w * 1.15 : ((2 * Math.PI * r) / n) * 0.85;
+  const geo = new THREE.CapsuleGeometry(rr, Math.max(0.001, len - 2 * rr), 3, 8);
+  rows.forEach((z, k) => {
+    for (let i = 0; i < n; i++) {
+      const a = ((i + (k ? 0.5 : 0)) / n) * Math.PI * 2;
+      const roller = new THREE.Mesh(geo, M.black);
+      roller.castShadow = true;
+      roller.position.set(Math.cos(a) * (r - rr), Math.sin(a) * (r - rr), z);
+      // a roller's axis: along the rim (omni), or turned deg from the wheel's axis toward the rim
+      // (mecanum); the capsule's own axis is its Y
+      const tangent = new THREE.Vector3(-Math.sin(a), Math.cos(a), 0);
+      const dir = mecanum ? new THREE.Vector3(0, 0, 1).multiplyScalar(Math.cos((deg * Math.PI) / 180)).addScaledVector(tangent, Math.sin((deg * Math.PI) / 180)) : tangent;
+      roller.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize());
+      g.add(roller);
+    }
+  });
   return g;
 }
 
@@ -1362,9 +1397,44 @@ function build8793(cfg, alliance) {
   const cadArm = new THREE.Group();
   cadArm.position.set(fold.pivot[0], fold.pivot[1], 0);
   root.add(cadArm);
-  cadPart(root, 'robots/8793-body.glb', () => { drawn.visible = false; });
-  cadPart(root, 'robots/8793-mount.glb', () => {});
-  cadPart(cadArm, 'robots/8793-intake.glb', () => { intake.visible = false; });
+  // The wheels in the ball path, drawn from the physical model (js/mech/r8793.js): the mecanums
+  // and the compliant wheel on the conveyor's shafts, the vertical rollers (a 4in omni on the left,
+  // 4in 45A compliants on the right) and the neck's (a 4in omni and a 4in compliant). The CAD's
+  // are out of date (2in compliant wheels where the robot has mecanums, a 5in and a 3in omni at
+  // the neck, omnis on both vertical rollers), so they're cut out of it as it loads.
+  const pathWheels = conveyorWheels8793(trains8793()).filter((wh) => !/shaft$/.test(wh.name));
+  const spinning = [];
+  const wheelsUp = new THREE.Group();
+  root.add(wheelsUp);
+  for (const wh of pathWheels) {
+    const kind = wh.kind === 'plain' ? 'compliant' : wh.kind;
+    const g = rolledWheel(kind, wh.radius, wh.width, wh.mecanum);
+    const holder = new THREE.Group();
+    holder.position.set(...wh.center);
+    holder.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), new THREE.Vector3(...wh.axis));
+    holder.add(g);
+    wheelsUp.add(holder);
+    spinning.push({ g, k: wh.shaft.k * (wh.shaft.train ? 1 : 0) });
+  }
+  // what to cut from the CAD: anything inside a path wheel's cylinder (the hex shafts and hubs
+  // stay); the neck's CAD wheels were bigger (5in on the left)
+  const cutters = pathWheels.map((wh) => ({
+    c: new THREE.Vector3(...wh.center), a: new THREE.Vector3(...wh.axis),
+    r: (/^neck/.test(wh.name) ? Math.max(wh.radius, 2.5 * IN) : wh.radius) + 0.006, hw: wh.width / 2 + 0.004,
+  }));
+  const inWheel = (p, cut) => {
+    const d = p.clone().sub(cut.c), along = d.dot(cut.a), rad = d.addScaledVector(cut.a, -along).length();
+    return Math.abs(along) < cut.hw && rad > 0.012 && rad < cut.r;
+  };
+  const scrap = new THREE.Group();
+  scrap.visible = false;
+  root.add(scrap);
+  const cutCad = (scene, parent, list) => moveCadTris(scene, parent, (c) => list.some((cut) => inWheel(c, cut)), scrap);
+  // (the pivot shaft's wheels are in the intake's CAD, about its own origin: the arm turns about them)
+  const pivotCuts = cutters.filter((_, i) => /^pivot/.test(pathWheels[i].name)).map((cut) => ({ ...cut, c: cut.c.clone().sub(new THREE.Vector3(fold.pivot[0], fold.pivot[1], 0)) }));
+  cadPart(root, 'robots/8793-body.glb', (sc) => { drawn.visible = false; cutCad(sc, root, cutters); });
+  cadPart(root, 'robots/8793-mount.glb', (sc) => cutCad(sc, root, cutters));
+  cadPart(cadArm, 'robots/8793-intake.glb', (sc) => { intake.visible = false; cutCad(sc, cadArm, pivotCuts); });
   cadPart(cadTurret, 'robots/8793-turret.glb', () => { turret.visible = false; });
 
   // FUEL in the ball path (intake -> conveyor -> turret)
@@ -1376,6 +1446,8 @@ function build8793(cfg, alliance) {
     intake.rotation.z = lerp(STOWED, deploy, st.intakeDeploy);
     for (const r of intakeRollers) r.rotation.z += st.intakeSpeed * dt * 40;
     for (const w of convWheels) w.rotation.z += (st.intakeSpeed + st.feeding) * dt * 25;
+    // (the path's wheels at a tenth of their real speed, the X60 at ~550 rad/s, so you can see them turn)
+    for (const w of spinning) w.g.rotation.z += -st.intakeSpeed * 55 * w.k * dt;
     turret.rotation.y = st.turretYaw;
     cadArm.rotation.z = (1 - st.intakeDeploy) * fold.stowDeg * Math.PI / 180;
     cadTurret.rotation.y = st.turretYaw;
@@ -1536,7 +1608,7 @@ function build1678(cfg, alliance) {
 
   const anim = (st, dt) => {
     slide.position.x = st.hopperDeploy * extLen;
-    intake.rotation.z = st.intakeDeploy * INTAKE_1678.swing;
+    intake.rotation.z = st.armTurn ?? st.intakeDeploy * INTAKE_1678.swing;
     roller.rotation.y += st.intakeSpeed * dt * 40;
     drum.rotation.z += st.flywheel * dt * 8;
     // the lid rides up on the climber tubes (and all the way up to reach the rung for a climb)
