@@ -152,7 +152,7 @@ export const RAMP = { RO: BEND.u + R, rollers: { n: 9, r: 0.0125, J: 2e-6, frict
 // bearings (r, and its inertia J: a plastic tube; estimates: the renders; friction as the ramp's), their fronts on the
 // curve FUEL ride along (hookCurve) and the plate behind them; past them, where it comes in to the
 // hub, no rollers (the team), the plate itself the face
-export const HOOK = { tipR: STADIUM.r - 0.003, tipA: 0.45, lead: 0.12, root: 0.1, y0: FLOOR + 0.006, y1: FLOOR + 0.1, finBack: 0.09, rollers: { n: 17, end: 0.75, r: 0.011, J: 1e-6, friction: 0.003 } };
+export const HOOK = { tipR: STADIUM.r - 0.003, tipA: 0.45, lead: 0.12, root: 0.1, y0: FLOOR + 0.006, y1: FLOOR + 0.1, finBack: 0.09, rollers: { n: 17, end: 0.75, r: 0.011, J: 1e-6, friction: 0.003 }, edge: 0.002 };
 // the rotor: the hook, the hub, the feeder wheels and their gears (estimate)
 export const ROTOR = { J: 0.04 };
 
@@ -450,7 +450,13 @@ function hook() {
   const face = grid(32, 3, (u, v) => { const { r, a } = hookPlate(u); return polar(r, a, lerp(H.y0, H.y1, v)); });
   // the Dolphin Fin: from the plate's top edge down behind it to the floor
   const fin = grid(32, 2, (u, v) => { const { r, a } = hookPlate(u); return polar(r, a - (v * H.finBack) / r, lerp(H.y1, FLOOR + 0.006, v)); });
-  return merge(face, fin);
+  // the top plate's edge over the rollers (they're held between plates): edge m behind their
+  // fronts, so a FUEL pressed onto the rollers, its foam giving, rubs it too (the team: the FUEL
+  // still touch the plates' edges, with real friction). 2.5cm over a FUEL's middle its surface is
+  // 4.3mm back from where it meets the rollers. (In the dump it's little load: the rotor's and
+  // rollers' currents within the noise of none, 25 and 45 A against 26 and 47; flush, 25 and 40)
+  const edge = [grid(32, 1, (u, v) => { const { r, a } = hookBack(u * H.rollers.end, H.edge); return polar(r, a, lerp(H.y1 - 0.004, H.y1, v)); })];
+  return merge(face, fin, ...edge);
 }
 // the channel, the bend and the hub's bore
 function feedPath() {
