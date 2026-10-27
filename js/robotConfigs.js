@@ -82,14 +82,17 @@ export function offsetShape(pts, d) {
   });
 }
 
-// where the swerve modules sit (x, z): 3in in from the corners, or inside a round frame
+// where the swerve modules sit (x, z): 3in in from the corners, or inside a round frame; at a cut
+// corner (frame.chamfer) a module made to fit the diagonal (4414's "2 custom swerve modules"), its
+// wheel just inside it
 export function modulePoints(cfg) {
   const f = cfg.frame, inset = 0.075;
+  const rw = (cfg.drive?.wheel ?? 4 * IN) / 2, cut = f.chamfer ? Math.max(inset, f.chamfer / 2 + (rw + 0.006) * Math.SQRT1_2) : inset;
   if (f.round) {
     const { r, cx } = f.round, d = (r - 0.1) * Math.SQRT1_2;
     return [[cx + d, d], [cx + d, -d], [cx - d, d], [cx - d, -d]];
   }
-  return [[1, 1], [1, -1], [-1, 1], [-1, -1]].map(([sx, sz]) => [sx * (f.length / 2 - inset), sz * (f.width / 2 - inset)]);
+  return [[1, 1], [1, -1], [-1, 1], [-1, -1]].map(([sx, sz]) => { const d = sx < 0 ? cut : inset; return [sx * (f.length / 2 - d), sz * (f.width / 2 - d)]; });
 }
 
 // whether a robot fits under the TRENCH arm (4946 doesn't: it goes over the BUMPS)
@@ -203,7 +206,10 @@ export const ROBOTS = {
     blurb: 'Extending hopper holds about 88 FUEL under a stretchy net. A Dye Rotor single-streams FUEL into a turret shooter (about 14 FUEL per second) with precomputed shoot-on-the-move.',
     // its intake, Dye Rotor and shooter as physical mechanisms (js/mech/r4414.js, phys4414.js)
     physical: '4414',
-    frame: { length: 25.0 * IN, width: 32.0 * IN, chamfer: 0.12 }, // back corners cut off
+    // back corners cut off, as little as keeps the frame perimeter within 110in ("chamfered corners
+    // maximize hopper area and dye rotor diameter while staying within 110", the binder): 114in
+    // round the 25x32in rectangle, each 45-degree cut saving (2 - sqrt2) x its legs, so 3.41in legs
+    frame: { length: 25.0 * IN, width: 32.0 * IN, chamfer: (4 / (2 * (2 - Math.SQRT2))) * IN },
     height: 21.75 * IN,
     mass: 64, // robot (up to 115 lb) + bumpers + battery
     // 7.67:1 on 4in wheels (tech binder), Kraken X60s
@@ -224,7 +230,7 @@ export const ROBOTS = {
     // stated 88 the load bulges it up (dome: its height at the middle; pinned at the edges, the
     // top plate from x0 back, and round the turret), as far as there's room over the robot.
     bay: {
-      x0: -0.305, x1: 0.317, hw: 0.376, top: 0.53, chamfer: 0.12, wallTop: 0.53,
+      x0: -0.305, x1: 0.317, hw: 0.376, top: 0.53, chamfer: (4 / (2 * (2 - Math.SQRT2))) * IN, wallTop: 0.53,
       dome: { h: 0.27, x0: -0.165, cx: -0.02, cz: 0, rHole: 0.2 },
       floor: { a: 0.105, b: 0, lo: 0.105, hi: 0.105 },
       // the intake box's ramp: up from the main floor to a ridge over the front bumper, then down

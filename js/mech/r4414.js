@@ -68,7 +68,9 @@ export const BUCKET = { r: 0.285 }; // the floor's round middle the rotor sweeps
 // the hopper: the bumper backing as walls, chamfered at the back corners, open at the front into
 // the box; the top plate over the back (to the turret's bearing) and the net over the rest
 // (the bumper backing is the hopper's wall: "~1in extra hopper space per side", the binder)
-export const BAY = { x0: -(HALF_L + IN), hw: HALF_W + IN, chamfer: 0.12, top: 0.535, net: 0.565, hole: 0.25 };
+// (the frame's back corners cut 3.41in each way, as little as keeps its perimeter within 110in; the
+// bumper backing 1in out from it, its cut (2 - sqrt2) in longer each way)
+export const BAY = { x0: -(HALF_L + IN), hw: HALF_W + IN, chamfer: (4 / (2 * (2 - Math.SQRT2)) + 2 - Math.SQRT2) * IN, top: 0.535, net: 0.565, hole: 0.25 };
 // the bowl round the rotor and the printed "stadium" pieces that funnel FUEL into it: the floor
 // out to r, a wall standing straight up round its rim, the hook's tip running flush against it
 // (wall high at the back and sides, fading to wallF at the front, where the stadium has to stay
