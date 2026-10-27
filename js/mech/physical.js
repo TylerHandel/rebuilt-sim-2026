@@ -5,6 +5,8 @@
 // FUEL it has hold of, what got in, and what got shot. Each robot (js/mech/phys8793.js,
 // js/mech/phys2910.js) adds its mechanisms, where its ball path is, and its code's controls.
 
+import { FUEL } from '../constants.js';
+
 export class PhysicalRobot {
   // path: the Mechanism of its ball path (FUEL in it touch each other there, foam on foam);
   // shooter: the Mechanism whose wheels shoot (a FUEL leaving them fast and upward is a shot);
@@ -39,12 +41,16 @@ export class PhysicalRobot {
     return { x: t.x + ix * qw + iw * -qx + iy * -qz - iz * -qy, y: t.y + iy * qw + iw * -qy + iz * -qx - ix * -qz, z: t.z + iz * qw + iw * -qz + ix * -qy - iy * -qx };
   }
 
-  // the preload: into its slots (what doesn't fit goes to its alliance's human player)
+  // the preload: into its free slots, the ones no FUEL it holds is within a FUEL's width of (what
+  // doesn't fit goes to its alliance's human player)
   load(balls) {
-    const fuel = this.r.fuel;
+    const fuel = this.r.fuel, d2 = (2 * FUEL.radius) ** 2;
+    const taken = [...new Set([...this.held, ...this.owned])].filter((b) => b.state === 'field').map((b) => b.body.translation());
+    const free = this.preload.map((l) => this._world(l))
+      .filter((p) => !taken.some((q) => (p.x - q.x) ** 2 + (p.y - q.y) ** 2 + (p.z - q.z) ** 2 < d2));
     balls.forEach((b, i) => {
-      if (i >= this.preload.length) { fuel.addToChute(this.r.alliance, b); return; }
-      const p = this._world(this.preload[i]);
+      if (i >= free.length) { fuel.addToChute(this.r.alliance, b); return; }
+      const p = free[i];
       fuel.launch(b, p, { x: 0, y: 0, z: 0 }, {});
       b.inFlight = false;
       fuel.own(b, 0);
