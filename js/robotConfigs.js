@@ -830,7 +830,10 @@ export const ROBOTS = {
     teamName: 'Blazing Bulldogs',
     robotName: 'Rubble',
     archetype: 'Dumper',
-    blurb: 'Hopper Division finalist. Rebuilt mid-season from a turret into a dumper: a linear intake slides out on titanium racks and carries the front of the hopper with it, a roller floor that pivots up to compact the load feeds a drum at the back, and an adjustable hood throws FUEL out over the back. Fits under the TRENCH.',
+    blurb: 'Hopper Division finalist. Rebuilt mid-season from a turret into a dumper: a linear intake slides out on titanium racks and carries the front of the hopper with it, a roller floor that pivots up to compact the load (ramps on the intake lift it as it comes in) feeds a drum at the back, and an adjustable hood throws FUEL out over the back. Fits under the TRENCH.',
+    // built of its physical mechanisms (js/mech/r581.js, phys581.js): its FUEL go through its
+    // CAD's ball path, moved by its rollers under its code's controls
+    physical: '581',
     // their CAD ("2026 Dumper Champs Bot") and release post: 27 x 28.5in frame perimeter
     frame: { length: 27 * IN, width: 28.5 * IN },
     height: 21.7 * IN, // top of the hopper walls and the shooter tower (their CAD)
@@ -838,9 +841,10 @@ export const ROBOTS = {
     // WCP X2i / X2c modules, X1 gearing with 10T pinions: 7.67:1 (their code), 4in wheels
     drive: { ratio: 7.674 },
     // linear deploy on titanium racks (their CAD's slider: 0.306 m, tilted 5.5deg up toward the
-    // robot), a 3in main roller and a 2in top roller; the intake's front plate is the front wall
-    // of the hopper's extension, so the hopper comes out with it
-    intake: { width: 22 * IN, reach: 0.19, rate: 200, pull: 5, deployTime: 0.3, retractTime: 0.5, side: 'front', latched: false },
+    // robot; their code runs it to 11.8in), a 3in main roller and a 2in top roller (21.8in of grip
+    // tape), the 3in's front 0.28 m past the frame; the intake's front plate is the front wall of
+    // the hopper's extension, so the hopper comes out with it
+    intake: { width: 22 * IN, reach: 0.28, rate: 200, pull: 5, deployTime: 0.3, retractTime: 0.5, side: 'front', latched: false, compacts: true },
     storage: { extLen: 0.305, extend: 'intake' },
     // their CAD: a roller floor sloping up from the shooter tower to the front (it pivots up at the
     // tower to compact the load), smoked polycarbonate walls on the bumpers, a net over the top from
@@ -858,15 +862,20 @@ export const ROBOTS = {
       type: 'fixed',
       facing: 'back', // their code: the shooter faces 180deg from the robot's front
       lanes: [-0.2, -0.067, 0.067, 0.2],
-      exit: { x: -0.33, y: 0.56 }, // over the 4in drum (their CAD)
+      // where FUEL leave the drum and the hood's two 2in rollers, over the 4in drum (their CAD;
+      // tools/mechlab581.mjs shooter: -0.21..-0.27, 0.63..0.68 over their hood angles)
+      exit: { x: -0.24, y: 0.65 },
       // their alpha bot shot 15/s; the Champs robot scored 252 FUEL a match in the Hopper Division
       // (Statbotics), up from 145 at their first event, against 1678's 283 and 2910's 304 at Champs:
-      // on the same scale, about 23/s
+      // on the same scale, about 23/s (its physical ball path dumps a full hopper at about 24/s:
+      // tools/mechlab581.mjs dump)
       bps: 23,
-      // hood: 35deg of travel (their CAD's limits), opening up for longer shots (their code)
-      hoodMin: 45, hoodMax: 79,
-      speedMax: 15,
-      spinTau: 0.25, // four X60s and an inertia wheel geared 3:1
+      // hood: their 13-45 (ShooterHoodConfig), turning the hood about the drum's axle, opens up for
+      // longer shots: FUEL leave at 75 to 43 deg (the CAD's geometry; tools/mechlab581.mjs)
+      hoodMin: 43, hoodMax: 76,
+      // their table tops out at 2500 RPM (feeding), where FUEL leave at ~8.3 m/s
+      speedMax: 9,
+      spinTau: 0.25, // four X60s 1:1 on the drum, and a 4in steel inertia wheel geared up 3:1
       shotDrop: 0.002,
       speedSigma: 0.013, angleSigma: 0.65, yawSigma: 0.65,
     },
