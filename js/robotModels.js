@@ -1300,7 +1300,7 @@ function build4414(cfg, alliance) {
   root.add(rotorParts);
   const H4 = D4.HOOK, F4 = D4.FEED;
   const hookPts = [];
-  for (let i = 0; i <= 24; i++) { const { r, a } = D4.hookCurve(i / 24); hookPts.push([r * Math.cos(a), r * Math.sin(a)]); }
+  for (let i = 0; i <= 24; i++) { const { r, a } = D4.hookPlate(i / 24); hookPts.push([r * Math.cos(a), r * Math.sin(a)]); }
   for (const y of [H4.y0, H4.y1]) flatRibbon(hookPts, 0.02, y, blackAl, rotorParts);
   const rollerMat = std(0x3b3f45, 0.5, 0.1);
   const hookRollers = D4.hookRollerAt().map(([x, y, z]) => cylY(H4.rollers.r, H4.y1 - H4.y0 - 0.006, rollerMat, rotorParts, x - D4.AXIS[0], y, z - D4.AXIS[1], 10));
@@ -1308,7 +1308,7 @@ function build4414(cfg, alliance) {
     // the Dolphin Fin: a ramp from the hook's top edge down behind it to the floor
     const pos = [], idx = [];
     for (let i = 0; i <= 24; i++) {
-      const { r, a } = D4.hookCurve(i / 24), b = a - H4.finBack / r;
+      const { r, a } = D4.hookPlate(i / 24), b = a - H4.finBack / r;
       pos.push(r * Math.cos(a), H4.y1, r * Math.sin(a), r * Math.cos(b), D4.FLOOR + 0.004, r * Math.sin(b));
       if (i) { const k = 2 * i; idx.push(k - 2, k, k + 1, k - 2, k + 1, k - 1); }
     }

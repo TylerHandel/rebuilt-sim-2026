@@ -42,7 +42,8 @@
 // wheels on a shaft standing up, the 3in omni over them, driven through the hub: "rotor wheels"),
 // with the 1.25in omnis on their shaft across the entrance over the FUEL coming in (a row of small
 // omni wheels, bevel-geared off the top of the stack): the stack drives FUEL in
-// through the hub's side, under the omnis and up the ramp into the hub's bore, each pushing the one
+// through the hub's side, under the omnis and up the ramp (rollers on bearings too, lying across
+// it) into the hub's bore, each pushing the one
 // ahead up into the turret on the same axis. Nothing else turns at the hook's root. The hook's back
 // is the Dolphin Fin, a ramp FUEL ride up over when the rotor turns back; the hub's skin is the
 // Shrink Wrap, a skirt FUEL slide off. In the turret the sushi feeder (geared off the same
@@ -98,13 +99,17 @@ export const FEED = {
 export const YB = FLOOR + R + 0.002;
 export const BEND = { u: R + FEED.omni.r - FEED.omni.squeeze, y: YB + R + FEED.omni.r - FEED.omni.squeeze };
 export const BORE = { r: R + 0.004, top: 0.345 };
+// the ramp round the bend: its face (FUEL's side) RO m from the bend's center, a row of n rollers
+// lying across it, each free on its bearings (r, J: estimates, the renders), the plate behind them
+export const RAMP = { RO: BEND.u + R + 0.004, rollers: { n: 9, r: 0.0125, J: 2e-6 } };
 // the hook: its face curves gradually from its tip, flush with the bowl's wall (tipA rad round from
 // the channel, ahead), back and in to the hub's side on the channel's trailing side, coming in along
 // the channel there (a cubic: lead m on along the wall from the tip, root m out along the channel
 // from the hub); from just off the floor to y1, over a FUEL's middle and a little over the wall; its
 // back the Dolphin Fin (finBack m behind its top edge, at the floor) (estimates: the renders)
 // The rollers: n of them standing up along the face, each free on its bearings (r, and its
-// inertia J: a plastic tube; estimates: the renders)
+// inertia J: a plastic tube; estimates: the renders), their fronts on the curve FUEL ride along
+// (hookCurve) and the plate behind them
 export const HOOK = { tipR: STADIUM.r - 0.003, tipA: 0.6, lead: 0.12, root: 0.1, y0: FLOOR + 0.006, y1: FLOOR + 0.1, finBack: 0.09, rollers: { n: 23, r: 0.011, J: 1e-6 } };
 // the rotor: the hook, the hub, the feeder wheels and their gears (estimate)
 export const ROTOR = { J: 0.04 };
@@ -206,6 +211,8 @@ export function wheels4414(t) {
     // (the hook's rollers, each on its own bearings: FUEL roll along the hook almost freely, but
     // not up or down it)
     ...hookRollerAt().map((c, i) => new Wheel({ name: 'hook rollers', shaft: new Shaft({ name: `hook roller ${i + 1}`, inertia: HOOK.rollers.J, drag: 1e-6 }), center: c, axis: [0, 1, 0], radius: HOOK.rollers.r, width: HOOK.y1 - HOOK.y0 - 0.006, mu: MU.plate })),
+    // (the ramp's rollers, each on its own bearings, lying across the channel)
+    ...rampRollerAt().map((c, i) => new Wheel({ name: 'ramp rollers', shaft: new Shaft({ name: `ramp roller ${i + 1}`, inertia: RAMP.rollers.J, drag: 1e-6 }), center: c, axis: chanDir(0, 1), radius: RAMP.rollers.r, width: 2 * F.w - 0.01, mu: MU.plate })),
     // (the entrance's omnis: their shaft across the channel, turning so their undersides run in)
     new Wheel({ name: '1.25in omnis', shaft: t.bend, kind: 'omni', center: chan(BEND.u, BEND.y, 0), axis: chanDir(0, -1), radius: F.omni.r, width: F.omni.wid, mu: MU.omni, tread: 30000 }),
   ].map((w) => w.onPivot(t.rotor, [AXIS[0], 0, AXIS[1]], [0, -1, 0]));
@@ -217,10 +224,16 @@ export function wheels4414(t) {
   placeIntake(intake, BOX.ext);
   return { feed, intake };
 }
-// the hook's rollers' centers (robot frame, the rotor at phi = 0): on its face, half proud of it
+// the hook's rollers' centers (robot frame, the rotor at phi = 0): their fronts on the curve
 export function hookRollerAt() {
   const n = HOOK.rollers.n, y = (HOOK.y0 + HOOK.y1) / 2;
-  return Array.from({ length: n }, (_, i) => { const { r, a } = hookCurve((i + 1) / (n + 1)); return [AXIS[0] + r * Math.cos(a), y, AXIS[1] + r * Math.sin(a)]; });
+  return Array.from({ length: n }, (_, i) => { const { r, a } = hookBack((i + 1) / (n + 1), HOOK.rollers.r); return [AXIS[0] + r * Math.cos(a), y, AXIS[1] + r * Math.sin(a)]; });
+}
+// the ramp's rollers' centers (robot frame, the rotor at phi = 0): their faces where the ramp's face
+// is, from under the bend up to the bore's far side
+export function rampRollerAt() {
+  const n = RAMP.rollers.n, rc = RAMP.RO + RAMP.rollers.r;
+  return Array.from({ length: n }, (_, i) => { const al = -Math.PI / 2 - ((i + 0.5) / n) * (Math.PI / 2); return chan(BEND.u + rc * Math.cos(al), BEND.y + rc * Math.sin(al), 0); });
 }
 // a point (robot frame) turned with the rotor by phi (rad, clockwise from above) about its axis
 export function rotorPoint([x, y, z], phi) {
@@ -342,23 +355,36 @@ export function hookCurve(s) {
   const u = k.reduce((a, c, i) => a + c * P[i][0], 0), w = k.reduce((a, c, i) => a + c * P[i][1], 0);
   return { r: Math.min(H.tipR, Math.hypot(u, w)), a: CH + Math.atan2(w, u) };
 }
+// the curve at s, d m back from it (behind, away from the FUEL it sweeps)
+export function hookBack(s, d) {
+  const p = (q) => { const { r, a } = hookCurve(Math.min(1, Math.max(0, q))); return [r * Math.cos(a), r * Math.sin(a), a]; };
+  const [x, z, a] = p(s), [x0, z0] = p(s - 0.005), [x1, z1] = p(s + 0.005);
+  let nx = -(z1 - z0), nz = x1 - x0; const l = Math.hypot(nx, nz) || 1; nx /= l; nz /= l;
+  // (the normal facing ahead, the way the rotor turns: +a)
+  if (nx * -Math.sin(a) + nz * Math.cos(a) < 0) { nx = -nx; nz = -nz; }
+  const bx = x - d * nx, bz = z - d * nz;
+  return { r: Math.hypot(bx, bz), a: Math.atan2(bz, bx) };
+}
+// the hook's plate, behind its rollers
+export const hookPlate = (s) => hookBack(s, 2 * HOOK.rollers.r + 0.003);
 const polar = (r, a, y) => [r * Math.cos(a), y, r * Math.sin(a)];
 function hook() {
   const H = HOOK;
-  const face = grid(32, 3, (u, v) => { const { r, a } = hookCurve(u); return polar(r, a, lerp(H.y0, H.y1, v)); });
-  // the Dolphin Fin: from the face's top edge down behind it to the floor
-  const fin = grid(32, 2, (u, v) => { const { r, a } = hookCurve(u); return polar(r, a - (v * H.finBack) / r, lerp(H.y1, FLOOR + 0.006, v)); });
+  const face = grid(32, 3, (u, v) => { const { r, a } = hookPlate(u); return polar(r, a, lerp(H.y0, H.y1, v)); });
+  // the Dolphin Fin: from the plate's top edge down behind it to the floor
+  const fin = grid(32, 2, (u, v) => { const { r, a } = hookPlate(u); return polar(r, a - (v * H.finBack) / r, lerp(H.y1, FLOOR + 0.006, v)); });
   return merge(face, fin);
 }
 // the channel, the bend and the hub's bore
 function feedPath() {
-  const F = FEED, w = F.w, B = BEND, RO = B.u + R + 0.004;
+  const F = FEED, w = F.w, B = BEND, RO = RAMP.RO + 0.004; // (the plate a little behind the rollers' faces)
   const parts = [];
   // the trailing wall in the hub (the hook's side, out to its end at the hub's side)
   parts.push(grid(6, 4, (u, v) => chanL(lerp(-B.u, COLUMN.r, u), lerp(FLOOR, BORE.top, v), -w)));
   // the hub's floor under the channel
   parts.push(grid(4, 2, (u, v) => chanL(lerp(B.u, COLUMN.r + 0.005, u), FLOOR + 0.001, lerp(-w, w, v))));
-  // the ramp round the bend: the outside of the bend, from under the channel up to the bore's far side
+  // the ramp's plate round the bend, behind its rollers: the outside of the bend, from under the
+  // channel up to the bore's far side
   parts.push(grid(12, 3, (u, v) => {
     const al = lerp(-Math.PI / 2, -Math.PI, u);
     return chanL(B.u + RO * Math.cos(al), B.y + RO * Math.sin(al), lerp(-w, w, v));
