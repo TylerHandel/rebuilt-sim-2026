@@ -35,14 +35,16 @@
 // How they're put together here (the renders, and 604's): the Dye Rotor turns (36.4:1, clockwise
 // from above) on the hopper's middle over a fixed floor sunk in a bowl: the stadium pieces funnel
 // FUEL down to a wall standing straight up round the floor's rim (the clear ring in the renders),
-// and the hook's tip runs flush against it. The hook, lined with passive rollers, runs from the
-// rim in to the rotor's hub, its tip leading, and sweeps the FUEL on the floor along its face in to
-// its root, where the feeder wheels it carries (the 3in TTB urethane wheels on an axle standing up,
-// the 3in omni on top, driven through the hub: "rotor wheels"; a housing round their backs) drive
-// them in through the hub's side and round the 1.25in omnis (on their shaft across the bend) up the
-// ramp into the hub's bore, each pushing the one ahead up into the turret on the same axis. The
-// hook's back is the Dolphin Fin, a ramp FUEL ride up over when the rotor turns back; the hub's skin
-// is the Shrink Wrap, a skirt FUEL slide off. In the turret the sushi feeder (geared off the same
+// and the hook's tip runs flush against it. The hook, lined with passive rollers standing up along
+// its face, curves gradually from the rim in to the rotor's hub, its tip leading, and sweeps the
+// FUEL on the floor along its face in to the hub's side. There, on the inside of its curve across
+// the way in from the hook's end, is the one powered stack (RotorV10's render: the 3in TTB urethane
+// wheels on a shaft standing up, the 3in omni over them, driven through the hub: "rotor wheels"),
+// with the 1.25in omnis on their shaft across the entrance over it: the stack drives FUEL in
+// through the hub's side, under the omnis and up the ramp into the hub's bore, each pushing the one
+// ahead up into the turret on the same axis. Nothing else turns at the hook's root. The hook's back
+// is the Dolphin Fin, a ramp FUEL ride up over when the rotor turns back; the hub's skin is the
+// Shrink Wrap, a skirt FUEL slide off. In the turret the sushi feeder (geared off the same
 // two X60s: "the main bps regulator") pushes them up into the flywheel, which flings them round
 // under the hood and out past the hood roller.
 import { IN, FUEL } from '../constants.js';
@@ -81,28 +83,24 @@ export const COLUMN = { r: 0.105, top: 0.36, skirt: [0.12, 0.345] };
 export const CH = Math.PI / 2;
 export const FEED = {
   w: 0.078,               // the channel's half width (FUEL's radius and a little)
-  guide: 0.11,            // how far out its leading side runs (FUEL come in along the hook beyond it)
-  // the 3in TTB urethane wheels on two axles standing up along the channel's trailing side, two
-  // to an axle: the outer at the hook's corner (the 3in omni over it), the inner at the bend, 0.8in
-  // into the FUEL (estimates)
-  ttb: { us: [0.19, 0.105], r: 1.5 * IN, ys: [0.16, 0.197], omniY: 0.234, wid: 0.024, squeeze: 0.028 },
-  // the bend: round the 1.25in omnis on their shaft across it, up into the hub
+  // the stack: two 3in TTB urethane wheels on a shaft standing up on the channel's leading side (the
+  // inside of the hook's curve), u out along it, just outside the hub, and the 3in omni over them
+  // ("to allow balls to fall down smoothly into the 3in TTB urethane wheels"), 0.8in into the FUEL
+  // against the hook's end (estimates: the renders)
+  ttb: { u: 0.12, r: 1.5 * IN, ys: [0.16, 0.197], omniY: 0.234, wid: 0.024, squeeze: 0.028 },
+  // the entrance: under the 1.25in omnis on their shaft across it, round the bend up into the hub
   omni: { r: 0.625 * IN, squeeze: 0.003, wid: 0.15 },
-  // a 3in omni standing up in the hook's face ahead of its root (s along the hook, from its tip),
-  // on the TTB wheels' train, its face turning back toward them, depth past the hook's face; just
-  // over the wall's top, it reaches FUEL riding round against the hook and FUEL coming down off
-  // the stadium there, and sends them back into the corner (estimate: not in the binder)
-  hookOmni: { s: 0.75, y: 0.2, depth: 0.03 },
 };
 // FUEL's center along the channel, and the bend's center (u, y)
 export const YB = FLOOR + R + 0.002;
 export const BEND = { u: R + FEED.omni.r - FEED.omni.squeeze, y: YB + R + FEED.omni.r - FEED.omni.squeeze };
 export const BORE = { r: R + 0.004, top: 0.345 };
-// the hook: its face curves from its tip, flush with the bowl's wall (sweep rad ahead of the
-// channel), back and in to the channel's mouth (mouth m out along it), then runs straight in along
-// the channel's trailing side to the TTB wheels; from just off the floor to y1, over a FUEL's middle
-// and a little over the wall; its back the Dolphin Fin (finBack m behind its top edge, at the floor)
-export const HOOK = { tipR: STADIUM.r - 0.003, sweep: 1.0, mouth: 0.255, y0: FLOOR + 0.006, y1: FLOOR + 0.1, finBack: 0.09 };
+// the hook: its face curves gradually from its tip, flush with the bowl's wall (tipA rad round from
+// the channel, ahead), back and in to the hub's side on the channel's trailing side, coming in along
+// the channel there (a cubic: lead m on along the wall from the tip, root m out along the channel
+// from the hub); from just off the floor to y1, over a FUEL's middle and a little over the wall; its
+// back the Dolphin Fin (finBack m behind its top edge, at the floor) (estimates: the renders)
+export const HOOK = { tipR: STADIUM.r - 0.003, tipA: 1.0, lead: 0.12, root: 0.1, y0: FLOOR + 0.006, y1: FLOOR + 0.1, finBack: 0.09 };
 // the rotor: the hook, the hub, the feeder wheels and their gears (estimate)
 export const ROTOR = { J: 0.04 };
 
@@ -192,17 +190,15 @@ const chanDir = (u, w) => { const c = Math.cos(CH), s = Math.sin(CH); return [u 
 // the wheels (robot frame; the box's posed with placeIntake, the turret's with placeShooter)
 export function wheels4414(t) {
   const F = FEED, T = F.ttb;
-  const tw = R + T.r - T.squeeze; // the TTB axle's distance behind the channel's middle
+  const tw = R + T.r - T.squeeze; // the stack's shaft's distance ahead of the channel's middle
   // (on the rotor: they turn with it about the axis, and FUEL they touch push back on its motor;
-  // their surfaces facing the channel run in toward the hub)
+  // the stack's face toward the channel runs in toward the hub, the one toward the bowl back
+  // toward the hook)
   const feed = [
-    ...T.us.flatMap((u, j) => T.ys.map((y, i) => new Wheel({ name: `TTB 3in urethane ${j ? 'inner' : 'outer'} ${i + 1}`, shaft: t.ttb, center: chan(u, y, -tw), axis: [0, -1, 0], radius: T.r, width: T.wid, mu: MU.urethane, tread: 15000 }))),
-    new Wheel({ name: 'TTB 3in omni', shaft: t.ttb, kind: 'omni', center: chan(T.us[0], T.omniY, -tw), axis: [0, -1, 0], radius: T.r, width: T.wid, mu: MU.omni, tread: 30000 }),
-    // (the bend's omnis: their shaft across the channel, w)
+    ...T.ys.map((y, i) => new Wheel({ name: `TTB 3in urethane ${i + 1}`, shaft: t.ttb, center: chan(T.u, y, tw), axis: [0, 1, 0], radius: T.r, width: T.wid, mu: MU.urethane, tread: 15000 })),
+    new Wheel({ name: 'TTB 3in omni', shaft: t.ttb, kind: 'omni', center: chan(T.u, T.omniY, tw), axis: [0, 1, 0], radius: T.r, width: T.wid, mu: MU.omni, tread: 30000 }),
+    // (the entrance's omnis: their shaft across the channel, w)
     new Wheel({ name: '1.25in omnis', shaft: t.bend, kind: 'omni', center: chan(BEND.u, BEND.y, 0), axis: chanDir(0, 1), radius: F.omni.r, width: F.omni.wid, mu: MU.omni, tread: 30000 }),
-    // (the omni in the hook's face: the same way round as the TTB wheels, so its face toward the
-    // bowl runs back toward them)
-    new Wheel({ name: 'hook 3in omni', shaft: t.ttb, kind: 'omni', center: hookOmniAt(), axis: [0, -1, 0], radius: T.r, width: T.wid, mu: MU.omni, tread: 30000 }),
   ].map((w) => w.onPivot(t.rotor, [AXIS[0], 0, AXIS[1]], [0, -1, 0]));
   feed.forEach((w) => { w.home = w.center.slice(); w.homeAxis = w.axis.slice(); });
   const intake = [
@@ -211,11 +207,6 @@ export function wheels4414(t) {
   ];
   placeIntake(intake, BOX.ext);
   return { feed, intake };
-}
-// the hook's omni's center (robot frame, the rotor at phi = 0)
-export function hookOmniAt() {
-  const O = FEED.hookOmni, { r, a } = hookCurve(O.s), rc = r + FEED.ttb.r - O.depth;
-  return [AXIS[0] + rc * Math.cos(a), O.y, AXIS[1] + rc * Math.sin(a)];
 }
 // a point (robot frame) turned with the rotor by phi (rad, clockwise from above) about its axis
 export function rotorPoint([x, y, z], phi) {
@@ -328,35 +319,29 @@ function hopperFloor() {
 // The rotor's parts, in its own frame (about the axis, at phi = 0).
 // the hook's face (passive rollers): s 0 at its tip, 1 at its root
 export function hookCurve(s) {
-  const H = HOOK, w = -FEED.w, rootR = Math.hypot(H.mouth, w), aRoot = CH + Math.atan2(w, H.mouth);
-  // (out along the wall most of the way, so FUEL ride round outside the channel's guide, then in,
-  // gently: a wide corner at its root)
-  return { r: lerp(H.tipR, rootR, s * s), a: lerp(aRoot + H.sweep, aRoot, s) };
+  const H = HOOK, ta = H.tipA;
+  // (in the channel's frame (u, w): from the tip on round the wall, the way it goes back, to the hub's
+  // side coming in along the channel; never out past the wall)
+  const P = [[H.tipR * Math.cos(ta), H.tipR * Math.sin(ta)], null, [COLUMN.r + H.root, -FEED.w], [COLUMN.r, -FEED.w]];
+  P[1] = [P[0][0] + H.lead * Math.sin(ta), P[0][1] - H.lead * Math.cos(ta)];
+  const q = 1 - s, k = [q * q * q, 3 * q * q * s, 3 * q * s * s, s * s * s];
+  const u = k.reduce((a, c, i) => a + c * P[i][0], 0), w = k.reduce((a, c, i) => a + c * P[i][1], 0);
+  return { r: Math.min(H.tipR, Math.hypot(u, w)), a: CH + Math.atan2(w, u) };
 }
 const polar = (r, a, y) => [r * Math.cos(a), y, r * Math.sin(a)];
 function hook() {
   const H = HOOK;
-  const face = grid(24, 3, (u, v) => { const { r, a } = hookCurve(u); return polar(r, a, lerp(H.y0, H.y1, v)); });
+  const face = grid(32, 3, (u, v) => { const { r, a } = hookCurve(u); return polar(r, a, lerp(H.y0, H.y1, v)); });
   // the Dolphin Fin: from the face's top edge down behind it to the floor
-  const fin = grid(24, 2, (u, v) => { const { r, a } = hookCurve(u); return polar(r, a - (v * H.finBack) / r, lerp(H.y1, FLOOR + 0.006, v)); });
-  // (the straight run in along the channel's trailing side to the TTB wheels)
-  const run = grid(3, 3, (u, v) => chanL(lerp(H.mouth, FEED.ttb.us[0] + FEED.ttb.r - 0.002, u), lerp(H.y0, H.y1, v), -FEED.w));
-  // (the TTB wheels' housing behind them, from the hub's side round to the hook's root: their backs
-  // run outward, and would drive FUEL caught behind them out against the bowl's wall)
-  const pts = housing(), box = merge(...pts.slice(1).map((p, k) => grid(3, 3, (u, v) => chanL(lerp(pts[k][0], p[0], u), lerp(H.y0, H.y1, v), lerp(pts[k][1], p[1], u)))));
-  return merge(face, fin, run, box);
-}
-// the housing round the TTB wheels' backs: its corners (u, w) in the channel's frame
-export function housing() {
-  const T = FEED.ttb, wb = -(R + 2 * T.r - T.squeeze + 0.006);
-  return [[0.03, -0.1], [T.us[T.us.length - 1] - 0.015, wb], [HOOK.mouth, wb], [HOOK.mouth, -FEED.w]];
+  const fin = grid(32, 2, (u, v) => { const { r, a } = hookCurve(u); return polar(r, a - (v * H.finBack) / r, lerp(H.y1, FLOOR + 0.006, v)); });
+  return merge(face, fin);
 }
 // the channel, the bend and the hub's bore
 function feedPath() {
   const F = FEED, w = F.w, B = BEND, RO = B.u + R + 0.004;
   const parts = [];
-  // the trailing wall in the hub (the TTB wheels' side, out to them)
-  parts.push(grid(6, 4, (u, v) => chanL(lerp(-B.u, F.ttb.us[1] - 0.045, u), lerp(FLOOR, BORE.top, v), -w)));
+  // the trailing wall in the hub (the hook's side, out to its end at the hub's side)
+  parts.push(grid(6, 4, (u, v) => chanL(lerp(-B.u, COLUMN.r, u), lerp(FLOOR, BORE.top, v), -w)));
   // the hub's floor under the channel
   parts.push(grid(4, 2, (u, v) => chanL(lerp(B.u, COLUMN.r + 0.005, u), FLOOR + 0.001, lerp(-w, w, v))));
   // the ramp round the bend: the outside of the bend, from under the channel up to the bore's far side
@@ -366,14 +351,12 @@ function feedPath() {
   }));
   return merge(...parts);
 }
-// the bore up the hub, and the channel's leading side opposite the TTB wheels (plain walls: the
-// sushi feeder and the TTB wheels roll FUEL along them; against free rollers they'd only spin them)
+// the bore up the hub, and the channel's leading side in the hub (plain walls: the sushi feeder rolls
+// FUEL along them; against free rollers it'd only spin them)
 function bore() {
   const B = BEND, w = FEED.w, parts = [cyl(0, 0, BORE.r, B.y, BORE.top)];
-  // the leading wall in the hub (out of it, nothing: FUEL come along the hook from ahead, and the
-  // ones behind them hold them in against the TTB wheels)
+  // (the leading wall in the hub; out of it, the stack)
   parts.push(grid(6, 4, (u, v) => chanL(lerp(-B.u, COLUMN.r, u), lerp(FLOOR, BORE.top, v), w)));
-  parts.push(grid(2, 3, (u, v) => chanL(lerp(COLUMN.r, FEED.guide, u), lerp(HOOK.y0, HOOK.y1, v), w)));
   return merge(...parts);
 }
 // the hub's skin (Shrink Wrap) and the skirt off its top, the channel's slot cut in its side
