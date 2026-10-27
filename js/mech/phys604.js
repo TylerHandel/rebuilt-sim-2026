@@ -92,7 +92,7 @@ export class Physical604 extends PhysicalRobot {
     this.phi = 0;
     this.targetRoller = 0; this.rollerBuf = []; this.targetRotor = 0;
     this.jam = 'NORMAL'; this.jamT = 0;
-    this.compress = false; this.feedingNow = false; this.shots = this.r.stats?.shots ?? 0; this.lastShotT = 0;
+    this.compress = false; this.feedingNow = false;
     this.targetRad = 0;
     this.launching = false; this.ready = false;
     this.fv = null; this.va = null;
@@ -225,13 +225,12 @@ export class Physical604 extends PhysicalRobot {
     const match = r.match;
     // ---- the intake (DeployIntake, RetractIntake, their Quikplan's flags in AUTO)
     const intaking = on && !!r.cmd.intake, unjam = on && !!outtake;
-    // (its driver's RetractIntake: firing with FUEL still in it but none shot for 0.7 s, the last
-    // ones are left on the shelves around the rotor's bucket (its rim, the Ball Bar, the corner
-    // gussets), and stowing slides the hopper in over them; it stays in until the next intake)
-    if (r.stats.shots !== this.shots) { this.shots = r.stats.shots; this.lastShotT = t; }
-    if (!this.feedingNow) this.lastShotT = Math.max(this.lastShotT, t - 0.35);
+    // (its driver's RetractIntake as soon as they're shooting and not intaking: the last FUEL are
+    // left on the shelves around the rotor's bucket (its rim, the Ball Bar, the corner gussets) and
+    // on the hopper box's flat floor, and stowing slides the hopper in over them; it stays in until
+    // the next intake. Their code doesn't do this itself: it's the right bumper, the driver's call)
     if (intaking || unjam) this.compress = false;
-    else if (this.feedingNow && t - this.lastShotT > 0.7 && r.stored.length > 0) this.compress = true;
+    else if (on && feeding) this.compress = true;
     if (intaking || unjam) { this.armGoal = INTAKE.deploy; this.deployedOnce = true; }
     else if (this.deployedOnce) this.armGoal = match?.isAuto || this.compress ? INTAKE.stow : INTAKE.standby;
     const armReady = Math.abs(this.armDeg - this.armGoal) < INTAKE.tol;

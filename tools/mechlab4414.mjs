@@ -437,11 +437,14 @@ function pathRun(seed, { shoot = true, n = 20, sec = 8 } = {}) {
     r.step(live); w.step();
     watch.check(live, k * DT);
     if (k % Math.round(1 / DT) === Math.round(1 / DT) - 1) timeline.push(balls.filter((b) => { const p = b.translation(); return p.y < 3 && p.x < HALF_L && p.y > 0.1; }).length);
+    // (FRAMES=file: every 0.025 s for FRAMES_T s (2), the FUEL and the rotor's angle, for drawing)
+    if (process.env.FRAMES && k % 3 === 0 && k * DT <= Number(process.env.FRAMES_T ?? 2)) (r.frames ??= []).push({ t: k * DT, phi: r.phi, balls: balls.map((b) => { const p = b.translation(); return [p.x, p.y, p.z]; }).filter((p) => p[1] < 3 && p[0] < 2) });
     if (process.env.TRACE && k % 6 === 0) {
       const b = balls[Number(process.env.TRACE)], p = b.translation(), v = b.linvel();
       if (p.y < 3) console.log(`   ${(k * DT).toFixed(2)} s at ${p.x.toFixed(3)},${p.y.toFixed(3)},${p.z.toFixed(3)} v ${v.x.toFixed(2)},${v.y.toFixed(2)},${v.z.toFixed(2)}: ${names(r, b)}`);
     }
   }
+  if (process.env.FRAMES && r.frames) writeFileSync(process.env.FRAMES, JSON.stringify(r.frames));
   const shots = watch.shots.map((s) => s.t);
   const inside = balls.filter((b) => inRobot(b) && b.translation().y < 3);
   if (process.env.BOXED) for (const b of inside) { const p = b.translation(); if (p.x > HALF_L) console.log(`   in the box at ${p.x.toFixed(3)},${p.y.toFixed(3)},${p.z.toFixed(3)}: ${names(r, b)}`); }
