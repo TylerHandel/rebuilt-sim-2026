@@ -503,6 +503,13 @@ function dumpRun(seed = 1) {
         (r.parked ??= []).push(...park);
         if (process.env.PARKED !== '1' && k === Math.round(10 / DT) - 1) writeFileSync(process.env.PARKED, JSON.stringify(r.parked));
       }
+      // (ROTORLOG: the rotor's speed each tenth of a second, its slowest and its current there)
+      if (process.env.ROTORLOG) {
+        const w = r.t.rotor.omega / TAU, rl = (r.rotorLog ??= { min: Infinity, maxA: 0 });
+        if (w < rl.min) { rl.min = w; rl.at = r.t.rotor.motor.current; }
+        rl.maxA = Math.max(rl.maxA, Math.abs(r.t.rotor.motor.current));
+        if (k % 12 === 11) { console.log(`   ${((k + 1) * DT).toFixed(1)} s: rotor ${w.toFixed(2)} rps (slowest ${rl.min.toFixed(2)} at ${rl.at.toFixed(0)} A; up to ${rl.maxA.toFixed(0)} A), ${watch.shots.length} shot`); r.rotorLog = null; }
+      }
       if (process.env.TIMELINE && k % 60 === 59) console.log(`   ${((k + 1) * DT).toFixed(1)} s: ${watch.shots.length} shot; rotor ${(r.t.rotor.omega / TAU).toFixed(2)} rps ${r.t.rotor.motor.current.toFixed(0)} A, rollers ${RPM(r.t.ttb.omega).toFixed(0)} rpm ${r.t.rollers.motor.current.toFixed(0)} A, flywheel ${r.t.fly.omega.toFixed(0)}`);
     }
     if (process.env.STAGES) {

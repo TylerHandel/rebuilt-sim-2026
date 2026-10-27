@@ -187,7 +187,12 @@ export class Physical4414 extends PhysicalRobot {
     const tol = feed ? 6 * DEG : Math.max(0.8 * DEG, Math.atan2(0.15, this.aimDist || 1));
     const atYaw = Math.abs(r.aimErr ?? Infinity) < tol;
     this.ready = launch && atV && atHood && atYaw;
-    this.feedingNow = on && this.ready;
+    // feeding: once ready, it keeps feeding through the flywheel's dip as each shot leaves (2%
+    // is less than a shot takes out of it) and the turret's small swings, up to 0.3 s not ready
+    // (their code isn't public: an estimate). Dropping out at each dip turned the rotor back to its
+    // slow agitation and braked it hard at 80 A between shots
+    this.notReady = this.ready ? 0 : (this.notReady ?? 1) + dt;
+    this.feedingNow = on && launch && (this.ready || (this.feedingNow && this.notReady < 0.3));
     this._rotor(dt, on, unjam);
     // what the robot's aiming and drawing see
     r.hoodDeg = hoodElevation(this.hoodDeg);
