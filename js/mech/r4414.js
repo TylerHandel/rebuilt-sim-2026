@@ -107,10 +107,11 @@ export const RAMP = { RO: BEND.u + R + 0.004, rollers: { n: 9, r: 0.0125, J: 2e-
 // the channel there (a cubic: lead m on along the wall from the tip, root m out along the channel
 // from the hub); from just off the floor to y1, over a FUEL's middle and a little over the wall; its
 // back the Dolphin Fin (finBack m behind its top edge, at the floor) (estimates: the renders)
-// The rollers: n of them standing up along the face, each free on its bearings (r, and its
-// inertia J: a plastic tube; estimates: the renders), their fronts on the curve FUEL ride along
-// (hookCurve) and the plate behind them
-export const HOOK = { tipR: STADIUM.r - 0.003, tipA: 0.6, lead: 0.12, root: 0.1, y0: FLOOR + 0.006, y1: FLOOR + 0.1, finBack: 0.09, rollers: { n: 23, r: 0.011, J: 1e-6 } };
+// The rollers: n of them standing up along the face out to s = end (from the tip), each free on its
+// bearings (r, and its inertia J: a plastic tube; estimates: the renders), their fronts on the
+// curve FUEL ride along (hookCurve) and the plate behind them; past them, where it comes in to the
+// hub, no rollers (the team), the plate itself the face
+export const HOOK = { tipR: STADIUM.r - 0.003, tipA: 0.6, lead: 0.12, root: 0.1, y0: FLOOR + 0.006, y1: FLOOR + 0.1, finBack: 0.09, rollers: { n: 17, end: 0.75, r: 0.011, J: 1e-6 } };
 // the rotor: the hook, the hub, the feeder wheels and their gears (estimate)
 export const ROTOR = { J: 0.04 };
 
@@ -227,7 +228,7 @@ export function wheels4414(t) {
 // the hook's rollers' centers (robot frame, the rotor at phi = 0): their fronts on the curve
 export function hookRollerAt() {
   const n = HOOK.rollers.n, y = (HOOK.y0 + HOOK.y1) / 2;
-  return Array.from({ length: n }, (_, i) => { const { r, a } = hookBack((i + 1) / (n + 1), HOOK.rollers.r); return [AXIS[0] + r * Math.cos(a), y, AXIS[1] + r * Math.sin(a)]; });
+  return Array.from({ length: n }, (_, i) => { const { r, a } = hookBack(((i + 0.5) / n) * HOOK.rollers.end, HOOK.rollers.r); return [AXIS[0] + r * Math.cos(a), y, AXIS[1] + r * Math.sin(a)]; });
 }
 // the ramp's rollers' centers (robot frame, the rotor at phi = 0): their faces where the ramp's face
 // is, from under the bend up to the bore's far side
@@ -365,8 +366,8 @@ export function hookBack(s, d) {
   const bx = x - d * nx, bz = z - d * nz;
   return { r: Math.hypot(bx, bz), a: Math.atan2(bz, bx) };
 }
-// the hook's plate, behind its rollers
-export const hookPlate = (s) => hookBack(s, 2 * HOOK.rollers.r + 0.003);
+// the hook's plate: behind its rollers, then (past them, over 0.05 of its length) the face itself
+export const hookPlate = (s) => { const R0 = HOOK.rollers; return hookBack(s, (2 * R0.r + 0.003) * Math.min(1, Math.max(0, (R0.end + 0.05 - s) / 0.05))); };
 const polar = (r, a, y) => [r * Math.cos(a), y, r * Math.sin(a)];
 function hook() {
   const H = HOOK;
