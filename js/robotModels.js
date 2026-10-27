@@ -1290,7 +1290,7 @@ function build4414(cfg, alliance) {
     leg.scale.set(1, 1, 0.5);
   }
   // the Dye Rotor's moving part (js/mech/r4414.js, the physical model's own geometry): its hook,
-  // lined with passive rollers and backed by the Dolphin Fin, curving in to the hub's side; across
+  // its face a row of fixed standoffs, backed by the Dolphin Fin, curving in to the hub's side; across
   // the way in from its end the stack (the TTB wheels, the 3in omni over them), the 1.25in omnis
   // across the entrance, the channel in through the hub's side, all turning together over the fixed
   // floor
@@ -1301,12 +1301,11 @@ function build4414(cfg, alliance) {
   const hookPts = [];
   for (let i = 0; i <= 24; i++) { const { r, a } = D4.hookCurve(i / 24); hookPts.push([r * Math.cos(a), r * Math.sin(a)]); }
   for (const y of [H4.y0, H4.y1]) flatRibbon(hookPts, 0.02, y, blackAl, rotorParts);
-  const hookRollers = [];
   const rollerMat = std(0x3b3f45, 0.5, 0.1);
   for (let i = 1; i < hookPts.length - 1; i++) {
     const [x, z] = hookPts[i], r = Math.hypot(x, z);
     // (just in front of the face)
-    hookRollers.push(cylY(0.011, H4.y1 - H4.y0 - 0.006, rollerMat, rotorParts, x * (1 - 0.012 / r), (H4.y0 + H4.y1) / 2, z * (1 - 0.012 / r), 10));
+    cylY(0.011, H4.y1 - H4.y0 - 0.006, rollerMat, rotorParts, x * (1 - 0.012 / r), (H4.y0 + H4.y1) / 2, z * (1 - 0.012 / r), 10);
   }
   {
     // the Dolphin Fin: a ramp from the hook's top edge down behind it to the floor
@@ -1349,7 +1348,12 @@ function build4414(cfg, alliance) {
     const spin = new THREE.Group();
     bendAxle.add(spin);
     cylZ(0.004, 2 * F4.w, M.alu, spin, 0, 0, 0, 6);
-    for (let i = 0; i < 5; i++) cylZ(F4.omni.r, 0.018, M.compliant, spin, 0, 0, -F4.w + (i + 0.5) * (2 * F4.w) / 5, 10);
+    // (a row of small omni wheels, each with its rollers round its rim)
+    for (let i = 0; i < 10; i++) {
+      const z = -F4.w + (i + 0.5) * (2 * F4.w) / 10;
+      cylZ(F4.omni.r * 0.7, 0.012, std(0x2a2d33, 0.6, 0.1), spin, 0, 0, z, 10);
+      for (let k = 0; k < 6; k++) { const a = (k * Math.PI) / 3; cylZ(0.0045, 0.01, std(0x8d939b, 0.5, 0.2), spin, Math.cos(a) * F4.omni.r * 0.75, Math.sin(a) * F4.omni.r * 0.75, z, 6).rotation.z = a; }
+    }
     bendAxle.userData.spin = spin;
   }
   for (const [w, u1] of [[F4.w, D4.COLUMN.r], [-F4.w, D4.COLUMN.r]]) {
@@ -1449,7 +1453,6 @@ function build4414(cfg, alliance) {
     // the Dye Rotor's hook and feeder turn over the fixed floor (clockwise from above: its angle
     // from the physical model), the TTB wheels spin while it feeds
     rotorParts.rotation.y = -(st.rotorTurn ?? 0);
-    for (const r of hookRollers) r.rotation.y += st.feeding * dt * 25;
     bendAxle.userData.spin.rotation.z += st.feeding * dt * 30;
     for (const w of ttbSpin) w.rotation.y += st.feeding * dt * 60; // (the stack turns about +y: its face toward the channel runs in)
     turret.rotation.y = st.turretYaw;

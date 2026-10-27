@@ -35,12 +35,13 @@
 // How they're put together here (the renders, and 604's): the Dye Rotor turns (36.4:1, clockwise
 // from above) on the hopper's middle over a fixed floor sunk in a bowl: the stadium pieces funnel
 // FUEL down to a wall standing straight up round the floor's rim (the clear ring in the renders),
-// and the hook's tip runs flush against it. The hook, lined with passive rollers standing up along
-// its face, curves gradually from the rim in to the rotor's hub, its tip leading, and sweeps the
+// and the hook's tip runs flush against it. The hook, its face a row of fixed standoffs standing up
+// (the team: not rollers), curves gradually from the rim in to the rotor's hub, its tip leading, and sweeps the
 // FUEL on the floor along its face in to the hub's side. There, on the inside of its curve across
 // the way in from the hook's end, is the one powered stack (RotorV10's render: the 3in TTB urethane
 // wheels on a shaft standing up, the 3in omni over them, driven through the hub: "rotor wheels"),
-// with the 1.25in omnis on their shaft across the entrance over it: the stack drives FUEL in
+// with the 1.25in omnis on their shaft across the entrance over the FUEL coming in (a row of small
+// omni wheels): the stack drives FUEL in
 // through the hub's side, under the omnis and up the ramp into the hub's bore, each pushing the one
 // ahead up into the turret on the same axis. Nothing else turns at the hook's root. The hook's back
 // is the Dolphin Fin, a ramp FUEL ride up over when the rotor turns back; the hub's skin is the
@@ -53,7 +54,8 @@ import { Motor, Shaft, Surface, Train, Wheel } from './mechanism.js';
 const R = FUEL.radius;
 // what each grips FUEL with (estimates, as 604's and 341's): the TTB urethane wheels, the stealth
 // wheels on the flywheel, the sushi wheels (rubber), the intake's polycarbonate tubes, the omnis'
-// rollers, and the passive rollers (free: almost nothing along them)
+// rollers, the passive rollers (free: almost nothing along them), and plates and the hook's fixed
+// standoffs
 export const MU = { urethane: 1.1, stealth: 1.6, sushi: 1.0, polycarb: 0.5, omni: 0.6, rollers: 0.06, plate: 0.3 };
 
 // ------------------------------------------------------------------ the layout (robot frame)
@@ -428,7 +430,7 @@ export function pathSurfaces4414(t) {
   const netS = s('net', net(), { mu: 0.4, tread: 1500 });
   // (the rotor's: it turns, and FUEL they touch push back on its motor)
   const A = [AXIS[0], 0, AXIS[1]], onRotor = (sf) => sf.onShaft(t.rotor, A, [0, -1, 0]);
-  const hookS = onRotor(s('hook and Dolphin Fin (passive rollers)', hook(), { mu: MU.rollers, pos: A }));
+  const hookS = onRotor(s('hook and Dolphin Fin', hook(), { mu: MU.plate, pos: A }));
   const feedS = onRotor(s('channel and ramp (passive rollers)', feedPath(), { mu: MU.rollers, pos: A }));
   const boreS = onRotor(s('bore', bore(), { pos: A }));
   const columnS = onRotor(s('hub and skirt', column(), { mu: MU.rollers, pos: A }));
