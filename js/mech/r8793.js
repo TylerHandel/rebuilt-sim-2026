@@ -18,7 +18,7 @@
 // mirrored, with 50 A limits (and 40 A from the supply). Then the turret indexer and the shooter,
 // further down.
 import { IN, FUEL } from '../constants.js';
-const FUEL_R = FUEL.radius;
+const FUEL_R = FUEL.radius, DEG = Math.PI / 180;
 import { BUMPER_T, BUMPER_Y0, BUMPER_Y1 } from '../robotConfigs.js';
 import { Motor, Shaft, Surface, Train, Wheel } from './mechanism.js';
 
@@ -96,7 +96,10 @@ export function build8793() {
   const shooter = new Train({ name: 'shooter', motor: new Motor('krakenX60', { statorLimit: 160, supplyLimit: 60 }) });
   const large = shooter.add(new Shaft({ name: 'shooter 4in wheels', inertia: SHOOTER.moi }), -1 / SHOOTER.ratio);
   const small = shooter.add(new Shaft({ name: 'shooter 2in wheels', inertia: 6e-5 }), SHOOTER.smallPerLarge / SHOOTER.ratio);
-  return { horizontal, rollers, x44, vshafts, indexer, ishafts, shooter, large, small };
+  // the intake arm's pivot (positive swings the arm up, toward stowed): its two X60s through 18:1,
+  // the arm and its rollers on it (PIVOT, below)
+  const pivot = new Shaft({ name: 'intake pivot', motor: new Motor('krakenX60', { count: 2, ratio: PIVOT.ratio, statorLimit: PIVOT.stator, supplyLimit: PIVOT.supply }), inertia: PIVOT.J, drag: PIVOT.drag });
+  return { horizontal, rollers, x44, vshafts, indexer, ishafts, shooter, large, small, pivot };
 }
 
 // run the intake as their code does (on = false: everything off; dir -1: reversed, at full, for
@@ -179,17 +182,89 @@ export const ARM = {
   rollers: [[0.0835, -0.0059], [0.1834, -0.0152], [0.2593, -0.0803], [0.2764, -0.1823]],
   halfWidth: 0.31,
 };
-export function armWheels({ rollers }) {
+// (each carried round the pivot by its shaft, pivot: what they touch pushes back on the arm)
+export function armWheels({ rollers, pivot }) {
   const [px, py] = ARM.pivot;
   return ARM.rollers.map(([dx, dy], i) => {
     const s = rollers[3 + i];
-    return new Wheel({ name: s.name, shaft: s, center: [px + dx, py + dy, 0], axis: [0, 0, 1], radius: s.diameter / 2, width: 2 * ARM.halfWidth, mu: s.mu });
+    const w = new Wheel({ name: s.name, shaft: s, center: [px + dx, py + dy, 0], axis: [0, 0, 1], radius: s.diameter / 2, width: 2 * ARM.halfWidth, mu: s.mu });
+    return pivot ? w.onPivot(pivot, [px, py, 0]) : w;
   });
 }
 // swing armWheels' rollers up by roll (rad) about the pivot: folding up to stow
 export function placeArm(wheels, roll) {
   const [px, py] = ARM.pivot, c = Math.cos(roll), s = Math.sin(roll);
   wheels.forEach((w, i) => { const [dx, dy] = ARM.rollers[i]; w.center = [px + dx * c - dy * s, py + dx * s + dy * c, 0]; });
+}
+
+// ------------------------------------------------------------------ the intake arm's pivot
+// From their code (GroundIntakeConstants, GroundIntakeSubsystem): two TalonFXs (CAN 21, and 20
+// following it, opposed) through PIVOT_GEAR_RATIO 18:1 (what their SensorToMechanismRatio is: its
+// comment's 10:1 is out of date), 80 A stator and 40 A supply each, under MotionMagicVoltage in
+// arm rotations: cruise 1 rotation/s, 2 rotations/s² (0.9 s to swing down or up), kP 60 V per
+// rotation, kD 2 V per rotation/s, kV 0.96, kG 1.3 V (Arm_Cosine, at cos 2pi(position + 0.2):
+// horizontal at 0.3, pointing out). Their encoder is zeroed on the upper hard stop (stowed, UP 0)
+// and DOWN, 0.355 rotations (128 deg), is the arm down on its lower stop: here, the CAD's deployed
+// pose. (The CAD folds 145 deg to stow, robotConfigs intake.fold.stowDeg: up goes to the CAD's
+// upper stop.) Krakens: the CAD's intake mount has a Kraken spline MAXPlanetary input; X60s, as
+// everywhere else on it but the indexers.
+// The arm (estimates; not in their CAD's mass properties): four 2in aluminum rollers 0.62 m long
+// on their hex shafts and pulleys (~0.55 kg each), two 1/4in pocketed side plates (~1.2 kg, the
+// fold.hull outline), the breaker bar and belts: ~3.8 kg, its center of mass 0.21 m out at 28 deg
+// below the pivot's horizontal when it's down; 0.215 kg·m² about the pivot (the X60s' rotors add
+// 0.04 through 18:1). Its weight there is ~7 N·m; their kG is 1.3 V, ~31 N·m through two X60s at
+// 18:1 (~25 N·m per volt, stalled): their loop holds the arm up against far more than its weight.
+// With DOWN exactly on the stop, that floats it 6 deg off the stop, the tip roller clears a FUEL on
+// the carpet and only 3 of 12 get in (tools/mechlab.mjs conveyor). The team: it rests on its stop.
+// So the stop is past: 0.02 rotations (their isAtPosition() tolerance) short of DOWN, and their
+// loop's kP presses it down there with ~5 N·m more than kG holds it up, plus its weight. 18:1 isn't
+// much for an arm this long: a FUEL squeezed under the tip roller backdrives it, lifting it off its
+// stop against the loop (kP: ~4 N·m per degree at the arm, ~13 N at the tip roller per degree).
+export const PIVOT = {
+  ratio: 18, stator: 80, supply: 40, drag: 0.5,
+  mass: 3.8, com: 0.207, comDeg: -28, J: 0.215,
+  // their units (arm rotations): DOWN, and how far past the lower stop it is
+  down: 0.355, past: 0.02,
+  mm: { v: 1, a: 2, kP: 60, kD: 2, kV: 0.96, kG: 1.3, gOffset: 0.2 },
+  // their isAtPosition() tolerance (rotations): within it of DOWN is down to their code
+  tol: 0.02,
+};
+// a trapezoidal profile's next setpoint (position p, velocity v) toward goal (Motion Magic)
+function profile(p, v, goal, vmax, amax, dt) {
+  const d = goal - p, dir = Math.sign(d);
+  if (Math.abs(d) < 1e-9 && Math.abs(v) < 1e-9) return [goal, 0];
+  const want = dir * Math.min(vmax, Math.sqrt(2 * amax * Math.abs(d)));
+  const nv = v + Math.max(-amax * dt, Math.min(amax * dt, want - v));
+  const np = p + nv * dt;
+  if ((goal - np) * dir < 0) return [goal, 0];
+  return [np, nv];
+}
+// The arm's state: roll, how far it's swung up from down on its lower stop (rad; placeArm's), and
+// their Motion Magic's setpoint [position, velocity] (their units). stow: the upper stop (rad).
+export function armState(stowRad, roll = stowRad) { return { roll, stow: stowRad, set: null }; }
+// their units: arm rotations from their zero, positive down
+export const armPos = (st) => PIVOT.down - PIVOT.past - st.roll / (2 * Math.PI);
+// Before the mechanisms' step: their loop toward down (or up), in volts to the motors at battery
+// V; the arm's weight on the pivot; its stops. on = false: their StaticBrake (the motors' windings
+// shorted: cmd 0), the profile starting again from where the arm is.
+export function servoArm({ pivot }, st, down, dt, on = true, V = 12) {
+  const M = PIVOT.mm, p = armPos(st), v = -pivot.omega / (2 * Math.PI);
+  if (!on || !st.set) st.set = [p, on ? v : 0];
+  if (on) {
+    st.set = profile(...st.set, down ? PIVOT.down : PIVOT.down - PIVOT.past - st.stow / (2 * Math.PI), M.v, M.a, dt);
+    const volts = M.kV * st.set[1] + M.kP * (st.set[0] - p) + M.kD * (st.set[1] - v) + M.kG * Math.cos(2 * Math.PI * (p + M.gOffset));
+    // (positive volts drive their position up: the arm down, the shaft backward)
+    pivot.cmd = -Math.max(-V, Math.min(V, volts)) / V;
+  } else pivot.cmd = 0;
+  pivot.load = -PIVOT.mass * 9.81 * PIVOT.com * Math.cos(PIVOT.comDeg * DEG + st.roll);
+  pivot.stop(st.roll <= 0 ? 0 : -Infinity, st.roll >= st.stow ? 0 : Infinity);
+}
+// after the mechanisms' step: the arm turns as its shaft did, between its stops
+export function turnArm({ pivot }, st, dt) {
+  st.roll += pivot.omega * dt;
+  if (st.roll <= 0) { st.roll = 0; if (pivot._omega < 0) pivot._omega = 0; }
+  if (st.roll >= st.stow) { st.roll = st.stow; if (pivot._omega > 0) pivot._omega = 0; }
+  return st.roll;
 }
 // Where 8793 holds a preload with its arm stowed (they settle there, tools/mechlab.mjs): two on
 // the indexer's rails, one on the ramp down to them, two on the floor behind the pivot's rollers
@@ -340,14 +415,19 @@ export function guideSurface() {
 // fabric on foam, an estimate), its face and top. 8793's frame: 27.5in. The bumper isn't in their
 // CAD; the team: its foam is stiff (far stiffer than pool noodles: tread, N/m, an estimate) and
 // the arm's bare aluminum rollers compress FUEL against it less than a compliant intake would. So
-// its face is where the arm's tip roller, rolling FUEL up it, compresses one by squeeze: 3/4in
-// (a generic 3.25in bumper would make it 39 mm). Less and FUEL perch on the bumper's corner
-// between the arm's second and third rollers, out of their reach (tools/mechlab.mjs robot: a
-// median 9 of 12 through at 5/8in, 11 at 3/4, 12 at 1-1/8). More and the tip grabs FUEL faster
-// than the neck passes them single file: in play they pile up behind it while it shoots and the
-// path stalls (six seeds of 8793 v 8793: 49 unjams a match at 1-1/8in, 37 at 3/4, and ~8% more
-// points at 3/4).
-export function bumperSurface({ halfL = 13.75 * IN, halfW = 13.75 * IN + BUMPER_T, mu = 0.6, tread = 20000, squeeze = (3 / 4) * IN } = {}) {
+// its face is where the arm's tip roller, rolling FUEL up it, compresses one by squeeze: 1-1/8in
+// with the arm down on its stop (a generic 3.25in bumper would make it 39 mm). Less and FUEL
+// perch on the bumper's corner between the arm's second and third rollers, out of their reach
+// (tools/mechlab.mjs robot, the arm rigid: a median 9 of 12 through at 5/8in, 11 at 3/4, 12 at
+// 1-1/8). With the arm rigid, 1-1/8in let the tip grab FUEL faster than the neck passes them
+// single file (49 unjams a match, 37 at 3/4in). On its backdrivable pivot (PIVOT) the arm kicks
+// up as FUEL go under the tip and takes fewer at a time whatever the squeeze, and 3/4in then
+// leaves 4 cm between the bumper's face and the arm's breaker bar (3 at 1-1/8in): lifted, the arm
+// swings the bar out over a FUEL dropped in front of the bumper and comes down on it, propped up
+// off the carpet for seconds at a time (in one match, more than 8 deg up for 11% of the time it
+// was down, against 1% at 1-1/8in). 16 seeds of 8793 v 8793: 23 unjams a match and 166 points at
+// 1-1/8in, 19 and 153 at 3/4, against 38 and 173 with the arm rigid at 3/4.
+export function bumperSurface({ halfL = 13.75 * IN, halfW = 13.75 * IN + BUMPER_T, mu = 0.6, tread = 20000, squeeze = (9 / 8) * IN } = {}) {
   const [tx, ty] = [ARM.pivot[0] + ARM.rollers[3][0], ARM.pivot[1] + ARM.rollers[3][1]], reach = 1 * IN + FUEL_R * 2 - squeeze;
   const x1 = Math.min(halfL + BUMPER_T, tx - Math.sqrt(reach * reach - (BUMPER_Y1 - ty) ** 2));
   const V = [

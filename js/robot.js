@@ -629,7 +629,10 @@ export class Robot {
     if (ic.latched && this.intakeDeploy >= 1) want = true;
     if (this.forceDeploy) want = true;
     if (this.stored.some((b) => this.worldToLocal(b.pos.x, b.pos.z).x > this.cfg.frame.length / 2)) want = true;
-    this.intakeDeploy = approach(this.intakeDeploy, want ? 1 : 0, dt / (want ? ic.deployTime : ic.retractTime ?? ic.deployTime));
+    // (8793's: its arm's pivot is a motor in its mechanisms, js/mech/phys8793.js, that swings it
+    // toward what's wanted and sets intakeDeploy from where it is)
+    this.intakeWant = want;
+    if (!this.phys.ownsArm) this.intakeDeploy = approach(this.intakeDeploy, want ? 1 : 0, dt / (want ? ic.deployTime : ic.retractTime ?? ic.deployTime));
     this.pivotLoad = 0;
     this.pivotMoving = false;
   }
@@ -1479,7 +1482,7 @@ export class Robot {
     const sh = this.cfg.shooter;
     m.anim({
       intakeDeploy: this.intakeDeploy,
-      // (a physical arm's own turn from its CAD pose, rad: 1678's)
+      // (a physical arm's own turn from its CAD pose, rad: 1678's, 8793's)
       armTurn: this.phys?.armTurn?.(),
       floorSpin: this.phys?.floorSpin?.(),
       intakeSpeed: this.intakeSpeed * (this.intakeSpeed > 0 ? this.rollerSpeed ?? 1 : 1),

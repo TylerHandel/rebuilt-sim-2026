@@ -25,6 +25,10 @@
 //   - Surfaces: the fixed parts FUEL touch (floors, rails, plates, from the team's CAD as triangle
 //     meshes) push through the same foam and friction, so a FUEL squeezes past a tight spot the
 //     way a foam ball does instead of jamming like a rigid one.
+//   - Arms: a surface or a wheel carried on a swinging arm (an intake on its pivot) moves with the
+//     pivot's shaft, and what it touches pushes back on that shaft (its motor, the arm's inertia,
+//     a hard stop it's resting on): a FUEL squeezed under an arm's roller lifts the arm as far as
+//     the pivot's motor and the arm's weight let it.
 import { FUEL } from '../constants.js';
 import { MOTORS } from '../drivetrain.js';
 
@@ -100,7 +104,16 @@ export class Shaft {
     this.cmd = 0;
     this.train = null; // on a Train: it turns at k x the train's speed
     this.k = 1;
+    this.lo = -Infinity; this.hi = Infinity; // (a hard stop it's against: stop())
+    this._free = 0;
+    this.load = 0; // a steady torque on it besides its motor's (N·m: an arm's weight), in integrate
   }
+  // Against a hard stop this step (an arm down on its stop): its speed can't go below lo or above
+  // hi (rad/s; 0 on the stop's side), the stop taking whatever would push it on through. The speed
+  // it would have had without the stop is kept, so what pushes it back off the stop has to undo
+  // what pushed it into it first (a FUEL lifting an arm off its stop lifts its weight and its
+  // motor's push too). Set before each step; stop() with no bounds frees it.
+  stop(lo = -Infinity, hi = Infinity) { this.lo = lo; this.hi = hi; this._free = this._omega; this._omega = Math.min(hi, Math.max(lo, this._omega)); }
   get omega() { return this.train ? this.train.omega * this.k : this._omega; }
   set omega(v) { if (this.train) this.train.omega = v / this.k; else this._omega = v; }
   // the inertia felt turning this shaft (on a train: the whole train's, seen through its ratio)
@@ -108,17 +121,24 @@ export class Shaft {
   // an angular impulse about its axis (N·m·s)
   impulse(L) {
     if (this.train) this.train.omega += (L * this.k) / this.train.J;
-    else this._omega += L / this.J;
+    else if (this.lo === -Infinity && this.hi === Infinity) this._omega += L / this.J;
+    else { this._free += L / this.J; this._omega = Math.min(this.hi, Math.max(this.lo, this._free)); }
   }
   // the motor's step, with back-EMF taken implicitly
   integrate(dt, V = 12) {
     if (this.train) return;
     const J = this.J;
     // (no motor, or one in coast: its windings open, it only drags)
-    if (!this.motor || this.cmd === null) { this._omega /= 1 + (dt * this.drag) / J; if (this.motor) this.motor.current = 0; return; }
-    const { tau, limited } = this.motor.torque(this._omega, this.cmd, V);
-    const kd = limited ? 0 : this.motor.slope;
-    this._omega = (J * this._omega + dt * (tau + kd * this._omega)) / (J + dt * (kd + this.drag));
+    if (!this.motor || this.cmd === null) {
+      this._omega = (this._omega + (dt * this.load) / J) / (1 + (dt * this.drag) / J);
+      if (this.motor) this.motor.current = 0;
+    } else {
+      const { tau, limited } = this.motor.torque(this._omega, this.cmd, V);
+      const kd = limited ? 0 : this.motor.slope;
+      this._omega = (J * this._omega + dt * (tau + this.load + kd * this._omega)) / (J + dt * (kd + this.drag));
+    }
+    // (against a stop: it takes what would drive the shaft on into it)
+    if (this.lo !== -Infinity || this.hi !== Infinity) { this._free = this._omega; this._omega = Math.min(this.hi, Math.max(this.lo, this._omega)); }
   }
 }
 
@@ -168,6 +188,12 @@ export class Wheel {
     const n = Math.hypot(...axis);
     Object.assign(this, { name, shaft, center, axis: axis.map((v) => v / n), radius, width, kind, mecanum, mu, tread });
   }
+  // a wheel on a swinging arm (an intake's roller, the arm on its pivot): it still turns on its
+  // own shaft, and it's carried round the pivot's shaft too. A FUEL it touches feels the wheel's
+  // axle moving with the arm, and pushes back on the pivot (its motor, the arm's inertia, a stop):
+  // squeezed under the roller, it lifts the arm. pivot, axis: a point on the pivot's axis and its
+  // direction, in the frame's coordinates (center stays where the arm is now: pose it each step).
+  onPivot(shaft, pivot, axis = [0, 0, 1]) { Object.assign(this, { pivotShaft: shaft, pivot, pivotAxis: axis }); return this; }
 }
 
 // ------------------------------------------------------------------ small vector helpers
@@ -376,8 +402,12 @@ export class Mechanism {
     for (const t of new Set(this.shafts.map((s) => s.train).filter(Boolean))) t.integrate(dt, this.V);
     const fr = this._frame();
     const frameVel = (x) => add(fr.v, cross(fr.w, sub(x, fr.com)));
-    // wheels in the world
-    const W = this.wheels.map((wh) => ({ wh, c: add(fr.p, qrot(fr.q, wh.center)), a: qrot(fr.q, wh.axis) }));
+    // wheels in the world (and the pivot's axis, for one on an arm)
+    const W = this.wheels.map((wh) => {
+      const w = { wh, c: add(fr.p, qrot(fr.q, wh.center)), a: qrot(fr.q, wh.axis) };
+      if (wh.pivotShaft) { w.p = add(fr.p, qrot(fr.q, wh.pivot)); w.pa = qrot(fr.q, wh.pivotAxis); }
+      return w;
+    });
     const g = this.gravity, n = this.sub, h = dt / n;
     // ball states we work on. In one step (n = 1) a FUEL touching a wheel gets its new velocity
     // and the world moves it. Sub-stepped (n > 1, for contacts too quick for one step: a shooter's
@@ -520,14 +550,19 @@ export class Mechanism {
         } else dirs = [[t1, wh.mu], [t2, wh.mu]];
         const { F, k } = squeeze(depth, side ? Infinity : wh.tread);
         const cdamp = 2 * ZETA * Math.sqrt(k * MB);
-        // effective masses for each friction direction (ball translation + spin, shaft spin)
+        // (on an arm: the contact's arm about the pivot's axis, which moves the wheel there; the
+        // arm's inertia felt there, in every direction, normal too)
+        let piv = null;
+        if (W1.p) { const dp = sub(x, W1.p); piv = { shaft: wh.pivotShaft, a: W1.pa, r: sub(dp, mul(W1.pa, dot(dp, W1.pa))) }; }
+        const pw = (u) => (piv ? dot(cross(piv.r, u), piv.a) ** 2 / piv.shaft.J : 0);
+        // effective masses for each friction direction (ball translation + spin, shaft spin, arm)
         const J = wh.shaft.J;
         const fric = dirs.map(([u, mu]) => {
           const ru = cross(rb, u), wu = dot(cross(rw, u), a);
-          const inv = 1 / MB + dot(ru, ru) / IB + (wu * wu) / J;
+          const inv = 1 / MB + dot(ru, ru) / IB + (wu * wu) / J + pw(u);
           return { u, mu, m: 1 / inv, lam: 0, wu };
         });
-        C.push({ st, W1, n, depth, x, rb, rw, F, k, c: cdamp, lamN: 0, fric, plain: side || wh.kind === 'plain' });
+        C.push({ st, W1, n, depth, x, rb, rw, F, k, c: cdamp, lamN: 0, fric, plain: side || wh.kind === 'plain', piv, im: piv ? 1 / MB + pw(n) : undefined });
       }
     }
     // FUEL against FUEL: squeezed together by d, each dents d/2, as against a plate (foam(d/2));
@@ -558,7 +593,8 @@ export class Mechanism {
       const { st, st2, W1, x, rb, rw } = ct;
       const vb = add(st.v, cross(st.w, rb));
       if (st2) return sub(vb, add(st2.v, cross(st2.w, ct.rb2)));
-      const vw = add(frameVel(x), mul(cross(W1.a, rw), W1.wh.shaft.omega));
+      let vw = add(frameVel(x), mul(cross(W1.a, rw), W1.wh.shaft.omega));
+      if (ct.piv) vw = add(vw, mul(cross(ct.piv.a, ct.piv.r), ct.piv.shaft.omega));
       return sub(vb, vw);
     };
     const apply = (ct, u, lam) => {
@@ -571,6 +607,7 @@ export class Mechanism {
         return;
       }
       W1.wh.shaft.impulse(-lam * dot(cross(rw, u), W1.a));
+      if (ct.piv) ct.piv.shaft.impulse(-lam * dot(cross(ct.piv.r, u), ct.piv.a));
       reaction.push([x, mul(u, -lam)]);
     };
     for (let it = 0; it < this.iterations; it++) {

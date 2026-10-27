@@ -3,13 +3,15 @@
 // (a Mechanism on the robot's own body, so it drives off with them, and every push on them pushes
 // back on it), until its shooter flings them. Its controls are its code's (ShooterMode): the
 // rollers and the vertical rollers always running at their duty cycles, with its automatic jam
-// recovery; the turret indexer while the shot is on; and the flywheel on its velocity loop toward
-// the motor speed that gives the exit speed the aim asks for (SHOT_TABLE).
+// recovery; the turret indexer while the shot is on; the flywheel on its velocity loop toward
+// the motor speed that gives the exit speed the aim asks for (SHOT_TABLE); and the intake arm on
+// its pivot's motors under their position loop, down when the game wants it down (r.intakeWant),
+// where the FUEL squeezed under its rollers can lift it (js/mech/r8793.js PIVOT).
 import { Mechanism } from './mechanism.js';
 import { PhysicalRobot } from './physical.js';
 import {
   build8793, intake8793, conveyorWheels, armWheels, placeArm, indexerWheels, shooterWheels, placeShooter,
-  flywheelDuty, exitSpeed, rpsFor, pathSurfaces, ARM, DUTY, DUTY_INDEXER, PRELOAD, SHOOTER,
+  flywheelDuty, exitSpeed, rpsFor, pathSurfaces, armState, servoArm, turnArm, ARM, DUTY, DUTY_INDEXER, PRELOAD, PIVOT, SHOOTER,
 } from './r8793.js';
 import PATH from './path8793.js';
 
@@ -23,15 +25,18 @@ export const JAM = { amps: 55, rps: 10, debounce: 0.125, reverse: 0.125 };
 export class Physical8793 extends PhysicalRobot {
   constructor(robot) {
     const t = build8793(), s = pathSurfaces(PATH), arm = armWheels(t);
+    // (the arm's side plates swing on the pivot with its rollers)
+    s.arm.onShaft(t.pivot, [ARM.pivot[0], ARM.pivot[1], 0]);
     const wheels = [...conveyorWheels(t), ...indexerWheels(t), ...arm];
     const sw = shooterWheels(t, 60);
     super(robot, {
-      path: new Mechanism({ body: robot.body, substeps: 6, shafts: [...new Set(wheels.map((w) => w.shaft))], wheels, surfaces: Object.values(s) }),
+      path: new Mechanism({ body: robot.body, substeps: 6, shafts: [...new Set(wheels.map((w) => w.shaft)), t.pivot], wheels, surfaces: Object.values(s) }),
       shooter: new Mechanism({ body: robot.body, substeps: 6, sub: 8, shafts: [t.large, t.small], wheels: sw }),
       preload: PRELOAD,
     });
     Object.assign(this, { t, s, arm, shooterWheels: sw });
     this.autoShuttle = true; // (its ShooterMode shuttles whatever it picks up, out of its zone)
+    this.ownsArm = true;     // (the game says whether it wants it down: r.intakeWant)
     this.reset();
   }
 
@@ -41,6 +46,10 @@ export class Physical8793 extends PhysicalRobot {
     this.targetRps = 0;
     this.feed = false;
     for (const tr of [this.t.horizontal, this.t.indexer, this.t.shooter]) { tr.omega = 0; tr.cmd = 0; }
+    // stowed, on its upper stop (the robot starts so)
+    this.armSt = armState(this.r.cfg.intake.fold.stowDeg * DEG);
+    this.t.pivot._omega = 0; this.t.pivot.cmd = 0;
+    this.deploy = 0;
   }
 
   where(x, y, z) {
@@ -61,14 +70,28 @@ export class Physical8793 extends PhysicalRobot {
 
   // before the world's step: put the arm, turret and hood where they are, and run the mechanisms
   preStep(dt, t) {
-    const r = this.r;
-    const roll = (1 - r.intakeDeploy) * r.cfg.intake.fold.stowDeg * DEG;
-    this.s.arm.setPose([ARM.pivot[0], ARM.pivot[1], 0], 0, roll);
-    placeArm(this.arm, roll);
+    const r = this.r, st = this.armSt;
+    // (put somewhere by the game, not by its motors: a staged scene. It's there, at rest)
+    if (Math.abs(r.intakeDeploy - this.deploy) > 1e-6) { st.roll = (1 - r.intakeDeploy) * st.stow; st.set = null; this.t.pivot._omega = 0; }
+    // the arm: their loop toward down or up (whichever the game wants: deploying and stowing
+    // take their profile's 0.9 s), its weight, its stops; posed where it is
+    servoArm(this.t, st, !!r.intakeWant, dt, r.enabled);
+    this.s.arm.setPose([ARM.pivot[0], ARM.pivot[1], 0], 0, st.roll);
+    placeArm(this.arm, st.roll);
     this.s.turret.setPose([TURRET_X, 0, 0], r.turretYaw, 0);
     placeShooter(this.shooterWheels, r.hoodDeg, r.turretYaw, TURRET_X);
     this.stepMechanisms(dt, t);
+    // the arm turns as its shaft did (lifted by the FUEL under it, or swinging to stow)
+    turnArm(this.t, st, dt);
+    // what the game sees: down (1) within their isAtPosition() tolerance of DOWN, stowed (0)
+    // within it of the upper stop, in between as it swings
+    const tol = PIVOT.tol * 2 * Math.PI;
+    r.intakeDeploy = this.deploy = st.roll <= tol ? 1 : st.roll >= st.stow - tol ? 0 : 1 - st.roll / st.stow;
   }
+  // the arm's turn up from down on its stop (rad), for drawing it
+  armTurn() { return this.armSt.roll; }
+  // ...in degrees (how far FUEL under it have lifted it, down)
+  armLift() { return this.armSt.roll / DEG; }
 
   // after the world's step: what got in, what got shot, and the controls for the next
   postStep(dt, t, { on, feeding, outtake, setpoint, mode }) {

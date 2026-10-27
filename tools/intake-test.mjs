@@ -1,8 +1,10 @@
 // Controlled intake check: each robot drives straight through the NEUTRAL ZONE FUEL with its
 // intake running; prints FUEL collected, the count every half second, and when the intake stalled
 // against the load (full).
-//   node --import ./tools/node-env.mjs tools/intake-test.mjs [speed m/s] [--along] [--time s] [--robots 2910,4414]
-// --along drives down the length of the FUEL line (the most FUEL per meter) instead of across it
+//   node --import ./tools/node-env.mjs tools/intake-test.mjs [speed m/s] [--along] [--time s] [--settle s] [--robots 2910,4414]
+// --along drives down the length of the FUEL line (the most FUEL per meter) instead of across it;
+// --settle holds still for s with the intake down first (an arm that takes a while to come down,
+// 8793's, would otherwise land on the FUEL); the times and counts are from when it starts driving
 import { createWorld, mulberry32 } from './headless.mjs';
 import { Robot } from '../js/robot.js';
 import { Match } from '../js/match.js';
@@ -12,7 +14,7 @@ import { PHYSICS_DT, BLUE } from '../js/constants.js';
 const speed = +(process.argv[2] || 1.5);
 const along = process.argv.includes('--along');
 const arg = (name, def) => { const i = process.argv.indexOf(name); return i > 0 ? process.argv[i + 1] : def; };
-const T = +arg('--time', 4);
+const T = +arg('--time', 4), SETTLE = +arg('--settle', 0);
 for (const key of arg('--robots', ROBOT_ORDER.join(',')).split(',')) {
   for (const z of along ? [0] : [-1.5, 0.4]) {
     const world = await createWorld();
@@ -26,6 +28,12 @@ for (const key of arg('--robots', ROBOT_ORDER.join(',')).split(',')) {
     fuel.stage(0);
     r.enabled = true;
     let t = 0, first = null, full = null; const curve = [];
+    for (let i = 0; i < SETTLE / PHYSICS_DT; i++) {
+      Object.assign(r.cmd, { vx: 0, vz: 0, omega: 0, intake: true, shoot: false, pass: false, outtake: false });
+      r.preStep(PHYSICS_DT); fuel.preStep(PHYSICS_DT); physics.step(); t += PHYSICS_DT; fuel.postStep(PHYSICS_DT, t); r.postStep(PHYSICS_DT, t);
+      if (i % 2) fuel.update(2 * PHYSICS_DT, t);
+    }
+    const t0 = t;
     for (let i = 0; i < T / PHYSICS_DT; i++) {
       Object.assign(r.cmd, { vx: along ? 0 : speed, vz: along ? -speed : 0, omega: 0, intake: true, shoot: false, pass: false, outtake: false });
       r.preStep(PHYSICS_DT);
@@ -35,8 +43,8 @@ for (const key of arg('--robots', ROBOT_ORDER.join(',')).split(',')) {
       fuel.postStep(PHYSICS_DT, t);
       r.postStep(PHYSICS_DT, t);
       if (i % 2) fuel.update(2 * PHYSICS_DT, t);
-      if (first === null && r.stored.length) first = t;
-      if (full === null && r.full) full = t;
+      if (first === null && r.stored.length) first = t - t0;
+      if (full === null && r.full) full = t - t0;
       if ((i + 1) % Math.round(0.5 / PHYSICS_DT) === 0) curve.push(r.stored.length);
     }
     console.log(`${key} z=${z}: collected ${r.stored.length}/${r.capacity()} (in rollers ${r.captured?.length}, dropped ${r.stats.dropped}), first after ${first?.toFixed(2)}s, ${full ? `stalled after ${full.toFixed(2)}s` : 'not stalled'}, every 0.5 s ${curve.join(' ')}, ended at x=${r.pos.x.toFixed(2)} z=${r.pos.z.toFixed(2)}`);

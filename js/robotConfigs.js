@@ -272,8 +272,10 @@ export const ROBOTS = {
     // the front of the frame. Stowed, it folds back up inside the frame perimeter and stands
     // 0.69 m tall, too tall for the TRENCH: it has to be down to drive under. fold.hull is the
     // arm's side outline around the pivot (m, x forward, y up) as exported, deployed.
+    // (deployTime: what their pivot's Motion Magic profile takes, 1 rotation/s and 2 rotations/s²
+    // over the fold; js/mech/phys8793.js runs it, this is for the AI's planning)
     intake: {
-      width: 26 * IN, reach: 10 * IN, rate: 14, deployTime: 0.3, side: 'front', latched: false,
+      width: 26 * IN, reach: 10 * IN, rate: 14, deployTime: 0.9, side: 'front', latched: false,
       fold: {
         pivot: [0.292, 0.336], stowDeg: 145,
         hull: [[-0.026, -0.018], [0.161, -0.305], [0.176, -0.306], [0.298, -0.196], [0.328, -0.105], [0.191, 0.009], [0.005, 0.032], [-0.025, 0.02]],
