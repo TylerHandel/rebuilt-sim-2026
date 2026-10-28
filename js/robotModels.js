@@ -1035,8 +1035,11 @@ function rod(parent, a, b, r, mat, segs = 8) {
 //   to an intake). drape(load, ex, at): ex is how far the front has moved out; at { y, yFront, xBack }
 //   moves the pinned heights (a lid that lifts).
 // (inside(x, z): the hopper's outline, for one that isn't a rectangle: the net stops at it; hole.y:
-// the height it's tied on at round the hole, if not the edge's)
-function hopperNet(parent, { x0, x1, x1Out = x1, xFixed = x1, hw, y, yFront = y, hole = null, inside = null, NX = 36, NZ = 28, color = 0x15171a, material = null }) {
+// the height it's tied on at round the hole, if not the edge's; slack { sag, sagOut }: a slack net,
+// not a taut one: with nothing under it, it hangs sag m below its ties at its middle (sagOut with
+// the front all the way out, where it's taken up some of its slack), and it drapes down between
+// the FUEL it lies on instead of spanning them)
+function hopperNet(parent, { x0, x1, x1Out = x1, xFixed = x1, hw, y, yFront = y, hole = null, inside = null, NX = 36, NZ = 28, color = 0x15171a, material = null, slack = null }) {
   const mat = material || new THREE.MeshStandardMaterial({ map: fineNetTexture(), transparent: true, depthWrite: false, side: THREE.DoubleSide, roughness: 0.9, color });
   const nv = (NX + 1) * (NZ + 1);
   const base = new Float32Array(nv), pin = new Uint8Array(nv), hNow = new Float32Array(nv), hMin = new Float32Array(nv);
@@ -1071,6 +1074,24 @@ function hopperNet(parent, { x0, x1, x1Out = x1, xFixed = x1, hw, y, yFront = y,
   m.userData.net = true;
   const R = FUEL.radius;
   const hPin = new Float32Array(nv);
+  // (a slack net: how a sheet pinned at its edges hangs under its own weight, each point dropped
+  // a step below its neighbors' average, to the depth at its middle for a drop of 1; and it starts
+  // hanging so)
+  const hang = new Float32Array(nv);
+  let hangMid = 1;
+  if (slack) {
+    for (let it = 0; it < 400; it++) {
+      for (let i = 1; i < NX; i++) {
+        for (let j = 1; j < NZ; j++) {
+          const k = i * (NZ + 1) + j;
+          if (pin[k]) continue;
+          hang[k] += 1.9 * ((hang[k - 1] + hang[k + 1] + hang[k - NZ - 1] + hang[k + NZ + 1]) / 4 + 1 - hang[k]);
+        }
+      }
+    }
+    hangMid = Math.max(...hang);
+    for (let k = 0; k < nv; k++) hNow[k] = y - (slack.sag * hang[k]) / hangMid;
+  }
   const drape = (load, ex = 0, at = null) => {
     const kx = x1Out > xFixed ? (x1 + ex - xFixed) / (x1Out - xFixed) : 1;
     const yb = at?.y ?? y, yf = at?.yFront ?? yFront, xf = x1 + ex;
@@ -1082,25 +1103,29 @@ function hopperNet(parent, { x0, x1, x1Out = x1, xFixed = x1, hw, y, yFront = y,
       pos[k * 3] = x;
       hPin[k] = yb + (yf - yb) * Math.min(1, Math.max(0, (x - x0) / Math.max(0.01, xf - x0)));
       if (hole && hole.y !== undefined && inHole(x, pos[k * 3 + 2], 0.01)) hPin[k] = hole.y;
-      hMin[k] = hPin[k];
+      hMin[k] = slack ? -Infinity : hPin[k]; // (a slack one hangs below its ties)
     }
-    // held up by the FUEL poking above the pins
+    // (slack: how far it hangs now, and so each point's drop below its neighbors)
+    const sag = slack ? slack.sag + ((slack.sagOut ?? slack.sag) - slack.sag) * Math.min(1, Math.max(0, x1Out > x1 ? ex / (x1Out - x1) : 0)) : 0;
+    const drop = sag / hangMid;
+    // held up by the FUEL poking above the pins (or above where a slack one hangs)
     for (const e of load || []) {
       const p = e.p;
-      if (p.y + R < Math.min(yb, yf)) continue;
+      if (p.y + R < Math.min(yb, yf) - sag) continue;
       for (let k = 0; k < nv; k++) {
         if (pin[k]) continue;
         const dx = pos[k * 3] - p.x, dz = pos[k * 3 + 2] - p.z, d2 = dx * dx + dz * dz;
         if (d2 < R * R) hMin[k] = Math.max(hMin[k], p.y + Math.sqrt(R * R - d2) + 0.004);
       }
     }
-    // a taut sheet: each point sits at its neighbors' average unless the FUEL holds it up
+    // a taut sheet: each point sits at its neighbors' average unless the FUEL holds it up (a slack
+    // one: drop below it)
     for (let it = 0; it < 10; it++) {
       for (let i = 1; i < NX; i++) {
         for (let j = 1; j < NZ; j++) {
           const k = i * (NZ + 1) + j;
           if (pin[k]) continue;
-          hNow[k] = Math.max(hMin[k], (hNow[k - 1] + hNow[k + 1] + hNow[k - NZ - 1] + hNow[k + NZ + 1]) / 4);
+          hNow[k] = Math.max(hMin[k], (hNow[k - 1] + hNow[k + 1] + hNow[k - NZ - 1] + hNow[k + NZ + 1]) / 4 - drop);
         }
       }
     }
@@ -2769,10 +2794,12 @@ function build1706(cfg, alliance) {
     cadPart(cad, `robots/1706-turret-${i ? 'b' : 'a'}.glb`, () => { d.visible = false; });
     return g;
   });
-  // the net over the open top (their CAD doesn't model it; js/mech/r1706.js NET): tied along the
-  // walls' tops, the back panel's top tube and the hopper box's top edges, stretching out with the
-  // box, draped over the load where it bulges it up
-  const net = hopperNet(root, { x0: NET_1706.x0, x1: NET_1706.x1, x1Out: NET_1706.x1 + extLen, xFixed: NET_1706.x0, hw: NET_1706.hw, y: NET_1706.y + 0.004, NX: 30, NZ: 36 });
+  // the net over the open top (their CAD doesn't model it; js/mech/r1706.js NET): slack cord tied
+  // along the walls' tops, the back panel's top tube and the hopper box's top edges, its front
+  // following the box out; empty, it hangs (onto the folded intake's top, 6.5 cm under the walls,
+  // with the box in; less with the box out, which takes up some of its slack), and it drapes over
+  // the load as the load lifts it
+  const net = hopperNet(root, { x0: NET_1706.x0, x1: NET_1706.x1, x1Out: NET_1706.x1 + extLen, xFixed: NET_1706.x0, hw: NET_1706.hw, y: NET_1706.y + 0.004, NX: 30, NZ: 36, slack: NET_1706.hang });
   cadPart(root, 'robots/1706-body.glb', () => { drawn.visible = false; });
   cadPart(root, 'robots/1706-mount.glb', () => {});
   cadPart(box, 'robots/1706-hopper.glb', () => { boxDrawn.visible = false; });

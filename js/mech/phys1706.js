@@ -262,10 +262,10 @@ export class Physical1706 extends PhysicalRobot {
   mechPose() { return { spin: this.phi.map((p, i) => p * SPIN_DIR[i]), hood: this.hood.map((h) => h * DEG), accel: this.t.shooter.map((s) => s.accel.omega) }; }
   // the load's top (for the net and the TRENCH)
   loadTop() { let top = 0; for (const b of this.held) { const y = this._local(b.pos)[1]; if (y + R > top) top = y + R; } return top; }
-  // how many it holds, about, under its net. Only a rating, for the HUD and the AI's plans: it's full
-  // when its intake can't put more in (js/mech/physical.js): at 58-60 through the NEUTRAL ZONE's
-  // FUEL on the bench, the most it held 60-66 (tools/mechlab1706.mjs intakefull); 55-60 and 60-63
-  // driving through them (tools/intake-test.mjs)
-  capacity() { return 60; }
+  // how many it holds, about, under its slack net. Only a rating, for the HUD and the AI's plans:
+  // it's full when its intake can't put more in (js/mech/physical.js): at 57-67 through the NEUTRAL
+  // ZONE's FUEL on the bench (63-65 in most fills), the most it held 64-68 (tools/mechlab1706.mjs
+  // intakefull); 61-63 and 63-66 driving through them (tools/intake-test.mjs)
+  capacity() { return 64; }
 }
 export { NET };

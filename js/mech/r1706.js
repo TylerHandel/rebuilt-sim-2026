@@ -50,9 +50,11 @@ const DEG = Math.PI / 180, R = FUEL.radius;
 // what each grips FUEL with (estimates): the solid 45A urethane wheels (intake's 1in, the kickers'
 // 2in, the shooters' 3in and 1in: grippy and fairly firm), the bare polycarbonate rollers (their BOM:
 // no tubing or tape in the CAD), the polypropylene disc (smooth), the printed hub (PLA), the net's
-// cord (as 4414's net)
-export const MU = { urethane: 1.4, polycarb: 0.6, disc: 0.45, pla: 0.3, net: 0.4 };
-export const TREAD = { urethane: 25000, polycarb: 30000, bowl: Infinity };
+// cord (NET below: slick braided nylon or polyester, round and smooth, slides on FUEL's foam about
+// as their polycarbonate does here, 0.25 (pathSurfaces1706); 4414's net's 0.4 was too grippy for it)
+export const MU = { urethane: 1.4, polycarb: 0.6, disc: 0.45, pla: 0.3, net: 0.25 };
+// (and how far each gives where a FUEL presses it, N/m: the net once its slack is taken up, NET)
+export const TREAD = { urethane: 25000, polycarb: 30000, bowl: Infinity, net: 10000 };
 
 // ------------------------------------------------------------------ the layout (robot frame)
 export const HALF_L = 12.6 * IN, HALF_W = 14.75 * IN; // 25.2 x 29.5in frame (their CAD)
@@ -273,20 +275,28 @@ export function placeTurret(sf, i, yaw, h) {
 }
 // The net over the open top. Their CAD has none, but the robot has one: a coarse net of black
 // cord (cells of ~3-4in, too small for a FUEL) over the hopper, in a photo of it in the St. Louis
-// Regional's finals (thebluealliance.com/team/1706/2026), the intake in, its cords taut over the
-// FUEL in its middle, which stand ~0.05-0.08 m over the walls' tops. Tied where a net is
-// fastened: along the walls' tops (0.548 m), the back panel's top tube (x -0.02 to 0.01, the full
-// width: behind it the turrets' bearing plates, 0.21 m below, and the shooters) and the hopper box's
-// top edges, its front following the box out. It stretches (it must: it reaches the box's front
-// 0.30 m out, and is taut in the photo with the box in), and the load bulges it up into a dome (as
-// 4414's net, js/mech/r4414.js netY): as far as NET.bulge at its middle (0.08 m: what the photo
-// shows; for a full load, an estimate), tapering to its ties. A FUEL under it presses it out to there, past it only as far
-// as its soft tread gives; nothing pushes the load back down. In the robot's frame: x0, the back
-// tie; x1, the front tie with the box in; hw, half its width (the box's walls, inside the fixed
-// ones).
-export const NET = { x0: -0.01, x1: BOX.front, y: 0.548, hw: 0.37, bulge: 0.08 };
-// the net's height at (x, z), stretched all the way, its front tied to the box ext m out; and its
-// slope (d/dx, d/dz)
+// Regional's finals (thebluealliance.com/team/1706/2026), the intake in, lying on the FUEL in its
+// middle, which stand ~0.05-0.08 m over the walls' tops. Tied where a net is fastened: along the
+// walls' tops (0.548 m), the back panel's top tube (x -0.02 to 0.01, the full width: behind it the
+// turrets' bearing plates, 0.21 m below, and the shooters) and the hopper box's top edges, its
+// front following the box out. It's slack cord, not a stretchy net: cord hardly stretches, so to
+// reach the box's front 0.30 m out it has that much more cord than it spans with the box in, and
+// it's tied loose across too. So the load lifts it freely (it weighs next to nothing) until its
+// slack is taken up, as far as NET.bulge over its ties at its middle, tapering to them (the shape
+// a dome of cord takes, as 4414's net's, js/mech/r4414.js netY), and there it goes taut: a FUEL
+// pressing on it then gives only as far as the taut cord does (TREAD.net, 10 kN/m, an estimate:
+// stiffer than 1114's plush blanket, 6 kN/m, softer than a polycarbonate panel, the cords still
+// giving round a FUEL between their ties). NET.bulge, 0.15 m: the photo shows the load lifting it
+// at least 0.08 m with the intake in (and how full it was isn't known); 0.15 m is about 7.5 cm (3in)
+// of slack across its 0.74 m (10%: tied loose by hand), and a full load's top stays ~0.06 m under
+// the 30in height limit (0.762 m), as a team would size it (an estimate). Nothing pushes the load
+// back down below that. In the robot's frame: x0, the back tie; x1, the front tie with the box in;
+// hw, half its width (the box's walls, inside the fixed ones); hang, how far it hangs empty, drawn
+// (js/robotModels.js: onto the folded intake's top, 6.5 cm under the walls, with the box in; with
+// the box out the intake's down and it hangs into the hopper)
+export const NET = { x0: -0.01, x1: BOX.front, y: 0.548, hw: 0.37, bulge: 0.15, hang: { sag: 0.06, sagOut: 0.1 } };
+// the net's height at (x, z), its slack all taken up, its front tied to the box ext m out; and
+// its slope (d/dx, d/dz)
 export function netY(x, z, ext = 0) { return netAt(x, z, ext)[0]; }
 export function netAt(x, z, ext = 0) {
   const L = NET.x1 + ext - NET.x0, W = 2 * NET.hw, B = NET.bulge;
@@ -294,10 +304,10 @@ export function netAt(x, z, ext = 0) {
   const su = Math.sin(Math.PI * u), sv = Math.sin(Math.PI * v);
   return [NET.y + B * su * sv, (B * Math.PI * Math.cos(Math.PI * u) * sv) / L, (B * su * Math.PI * Math.cos(Math.PI * v)) / W];
 }
-// (its cord: MU.net, and a soft tread, as 4414's net)
+// (its cord: MU.net; it gives TREAD.net once taut)
 class Net1706 extends Surface {
   constructor() {
-    super({ name: 'net', vertices: [0, 0, 0, 0.01, 0, 0, 0, 0, 0.01], indices: [0, 1, 2], mu: MU.net, tread: 1500 });
+    super({ name: 'net', vertices: [0, 0, 0, 0.01, 0, 0, 0, 0, 0.01], indices: [0, 1, 2], mu: MU.net, tread: TREAD.net });
     this.place(0);
   }
   place(ext) { this.ext = ext; this.x1 = NET.x1 + ext; }
