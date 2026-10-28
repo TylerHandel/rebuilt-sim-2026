@@ -33,7 +33,7 @@ import { Mechanism, Surface, foam } from '../js/mech/mechanism.js';
 import { sim2D } from '../js/ballistics.js';
 import {
   build4414, wheels4414, shooterWheels, pathSurfaces4414, placeIntake, placeRotor, placeRotorSurfaces, placeBox, placeShooter, placeTurretSurfaces,
-  hoodElevation, chan, rotorPoint, hookCurve, hookBack, stadiumY, netY, AXIS, CH, HOOK, YB, FLY, SHOOTER, FEED, BORE, BOX, HALF_L, HALF_W, BAY, INTAKE, BEND, RAMP, STADIUM, FLOOR,
+  hoodElevation, chan, rotorPoint, hookCurve, hookBack, stadiumY, netY, AXIS, CH, HOOK, YB, FLY, SHOOTER, FEED, BORE, BOX, HALF_L, HALF_W, BAY, INTAKE, BEND, RAMP, STADIUM, FLOOR, COLUMN,
 } from '../js/mech/r4414.js';
 import { velocityDuty } from '../js/mech/phys604.js';
 import { launchFor, shooterFor, rotorLoop } from '../js/mech/phys4414.js';
@@ -186,9 +186,10 @@ function stackWatch(r, firsts) {
         const cs = r.path.contacts.filter((c) => c.ball === b);
         if (!cs.some((c) => c.wheel.name.startsWith('TTB'))) continue;
         seen.add(b);
-        const p = b.translation(), q = rotorPoint([p.x, p.y, p.z], -r.phi);
-        const on = cs.some((c) => c.wheel.name === 'hook rollers') ? 'rollers' : cs.some((c) => c.wheel.name.startsWith('hook and')) ? 'plate' : cs.some((c) => c.wheel.name === 'FUEL') ? 'FUEL' : 'loose';
-        firsts.push({ u: q[2] - AXIS[1], w: -(q[0] - AXIS[0]), y: p.y, on });
+        const p = b.translation(), q = rotorPoint([p.x, p.y, p.z], -r.phi), u = q[2] - AXIS[1], w = -(q[0] - AXIS[0]);
+        const on = cs.some((c) => c.wheel.name === 'hook rollers') ? 'rollers' : cs.some((c) => c.wheel.name.startsWith('hook and')) ? 'plate'
+          : u < COLUMN.r + 0.02 && Math.abs(w) < FEED.w ? 'channel' : 'loose';
+        firsts.push({ u, w, y: p.y, on });
       }
     },
   };
@@ -196,8 +197,8 @@ function stackWatch(r, firsts) {
 function stackReport(firsts) {
   if (!firsts.length) return '  the stack touched none';
   const by = (k) => firsts.filter((f) => f.on === k), u = firsts.map((f) => f.u).sort((a, b) => a - b);
-  const fmt = (k) => { const a = by(k); return a.length ? `${a.length} ${k === 'rollers' ? "on the hook's rollers" : k === 'plate' ? "on the hook's plate past them" : 'loose on the floor'} (u ${Math.min(...a.map((f) => f.u)).toFixed(3)}..${Math.max(...a.map((f) => f.u)).toFixed(3)}, w ${Math.min(...a.map((f) => f.w)).toFixed(3)}..${Math.max(...a.map((f) => f.w)).toFixed(3)})` : ''; };
-  return `  where each FUEL first met the TTB stack (the rotor's frame: u out along the channel, w ahead), of ${firsts.length}: ` + ['rollers', 'plate', 'loose'].map(fmt).filter(Boolean).join('; ') + `; u median ${u[u.length >> 1].toFixed(3)}`;
+  const fmt = (k) => { const a = by(k); return a.length ? `${a.length} ${k === 'rollers' ? "on the hook's rollers" : k === 'plate' ? "on the hook's plate past them" : k === 'channel' ? 'already in the channel, past the hook' : 'loose on the floor, off the hook'} (u ${Math.min(...a.map((f) => f.u)).toFixed(3)}..${Math.max(...a.map((f) => f.u)).toFixed(3)}, w ${Math.min(...a.map((f) => f.w)).toFixed(3)}..${Math.max(...a.map((f) => f.w)).toFixed(3)})` : ''; };
+  return `  where each FUEL first met the TTB stack (the rotor's frame: u out along the channel, w ahead), of ${firsts.length}: ` + ['rollers', 'plate', 'channel', 'loose'].map(fmt).filter(Boolean).join('; ') + `; u median ${u[u.length >> 1].toFixed(3)}`;
 }
 // the rotor at rps (a velocity loop on its X60: kV, kP as 604's), the rollers at a duty
 function feed(r, rps = ROTOR_RPS, rollers = ROLLERS) {

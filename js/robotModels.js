@@ -1532,20 +1532,33 @@ function build4414(cfg, alliance) {
     }
     bendAxle.userData.spin = spin;
   }
-  for (const [w, u1] of [[F4.w, D4.COLUMN.r], [-F4.w, D4.COLUMN.r]]) {
-    const [x0, , z0] = D4.chanL(-D4.BEND.u, 0, w), [x1, , z1] = D4.chanL(u1, 0, w);
+  // (the leading one cut where the stack's wheels reach through it, as js/mech/r4414.js bore())
+  const st4 = D4.stackAt(), cutU = F4.ttb.u - Math.sqrt(F4.ttb.r ** 2 - (st4.w - F4.w) ** 2) - F4.ttb.window.gap, wy4 = F4.ttb.window.y1;
+  for (const [w, u0, u1, y0] of [[F4.w, -D4.BEND.u, cutU, D4.FLOOR], [F4.w, cutU, D4.COLUMN.r, wy4], [-F4.w, -D4.BEND.u, D4.COLUMN.r, D4.FLOOR]]) {
+    const [x0, , z0] = D4.chanL(u0, 0, w), [x1, , z1] = D4.chanL(u1, 0, w);
     const len = Math.hypot(x1 - x0, z1 - z0);
-    const plate = bx(len, D4.BORE.top - D4.FLOOR, 0.004, darkPlate, rotorParts, (x0 + x1) / 2, (D4.BORE.top + D4.FLOOR) / 2, (z0 + z1) / 2);
+    const plate = bx(len, D4.BORE.top - y0, 0.004, darkPlate, rotorParts, (x0 + x1) / 2, (D4.BORE.top + y0) / 2, (z0 + z1) / 2);
     plate.rotation.y = -Math.atan2(z1 - z0, x1 - x0);
   }
-  // the hub's skin (the Shrink Wrap), slotted where the channel comes in
+  // the hub's skin (the Shrink Wrap), slotted where the channel comes in (and closed over it above
+  // the FUEL), with the window the stack's wheels poke out through beside the slot (as
+  // js/mech/r4414.js column())
   {
-    const slot = Math.asin(Math.min(1, (F4.w + 0.005) / D4.COLUMN.r));
-    const g = new THREE.CylinderGeometry(D4.COLUMN.r, D4.COLUMN.r, D4.COLUMN.top - D4.FLOOR, 40, 1, true, 0, Math.PI * 2 - 2 * slot);
-    // (three's cylinder starts at +z, going toward +x; the slot centred on the channel's direction)
-    const wrap = mesh(g, clearSmoke, rotorParts, 0, (D4.COLUMN.top + D4.FLOOR) / 2, 0);
-    wrap.rotation.y = Math.PI / 2 - D4.CH - slot - (Math.PI * 2 - 2 * slot);
-    wrap.castShadow = false;
+    const C = D4.COLUMN, slot = Math.asin(Math.min(1, (F4.w + 0.005) / C.r)), win = D4.stackAt().win, wy = F4.ttb.window.y1;
+    // (an arc from a0 to a1, rad round from +x toward +z as the physics has them; three's cylinder
+    // runs its theta from +z toward +x)
+    const arc = (a0, a1, y0, y1) => {
+      const g = new THREE.CylinderGeometry(C.r, C.r, y1 - y0, Math.max(4, Math.ceil((a1 - a0) * 8)), 1, true, Math.PI / 2 - a1, a1 - a0);
+      mesh(g, clearSmoke, rotorParts, 0, (y0 + y1) / 2, 0).castShadow = false;
+    };
+    arc(D4.CH + win, D4.CH + Math.PI * 2 - slot, D4.FLOOR, C.top);
+    arc(D4.CH + slot, D4.CH + win, wy, C.top);
+    arc(D4.CH - slot, D4.CH + slot, D4.YB + FUEL.radius + 0.01, C.top);
+    // (the window's frame: a thin dark lip round its edges)
+    const [x0, z0] = [C.r * Math.cos(D4.CH + win), C.r * Math.sin(D4.CH + win)];
+    bx(0.006, wy - D4.FLOOR, 0.006, darkPlate, rotorParts, x0, (wy + D4.FLOOR) / 2, z0);
+    const lip = new THREE.CylinderGeometry(C.r + 0.002, C.r + 0.002, 0.006, 8, 1, true, Math.PI / 2 - (D4.CH + win), win - slot);
+    mesh(lip, darkPlate, rotorParts, 0, wy, 0);
   }
 
   // ---- turret: bearing ring in the top plate, the shooter in it where the physical model has it

@@ -126,12 +126,23 @@ export const CH = Math.PI / 2;
 export const FEED = {
   w: 0.078,               // the channel's half width (FUEL's radius and a little)
   // the stack: two 3in TTB urethane wheels on a shaft standing up on the channel's leading side (the
-  // inside of the hook's curve), u out along it, just outside the hub, and the 3in omni over them
-  // ("to allow balls to fall down smoothly into the 3in TTB urethane wheels"), 0.8in into the FUEL
-  // against the hook's end (estimates: the renders). (The dump, six fills: at 0.8in 10.3 FUEL/s
-  // through the middle, its X60s at about 27 A, the stack at 88-97% of its free speed; at 1.1in,
-  // 9.8, 33 A; at 0.5in, slower still)
-  ttb: { u: 0.105, r: 1.5 * IN, ys: [0.16, 0.197], omniY: 0.234, wid: 0.024, squeeze: 0.8 * IN },
+  // inside of the hook's curve), u out along it, and the 3in omni over them ("to allow balls to
+  // fall down smoothly into the 3in TTB urethane wheels"), 0.8in into the FUEL against the hook's
+  // end (estimates: the renders). (The dump, six fills: at 0.8in 10.3 FUEL/s through the middle,
+  // its X60s at about 27 A, the stack at 88-97% of its free speed; at 1.1in, 9.8, 33 A; at 0.5in,
+  // slower still)
+  // It's pushed into the center column (the team: so the wheels don't touch a FUEL until it's held
+  // against the hook's curved side, the side with the rollers, too), at the slot's leading edge,
+  // its axle 0.129 m from the rotor's axis: the wheels reach 14 mm inside the hub's skin, through
+  // a window in it (gap m clear of their rims, up to y1, over the omni). A FUEL coming in along the
+  // hook first meets them on its last rollers, at s 0.77-0.81 (u 0.137-0.145: the ring test); out
+  // at u 0.105 (0.14 m out) it met them from s 0.6 on, and on its whole length the hook was a
+  // channel round them. Further in, at u 0.08, a FUEL first met them past the rollers, on the
+  // hook's plate (u 0.125-0.135), and the dump slowed (9.2 FUEL/s through the middle against 10.2
+  // here). They still stand 6 cm out of the hub's skin (7 at u 0.105), so FUEL loose on the floor
+  // ahead of the hook still run into their outer side: most of the stack's first touches in the
+  // ring test, as before (there's room for one FUEL between hub and rim, no more)
+  ttb: { u: 0.09, r: 1.5 * IN, ys: [0.16, 0.197], omniY: 0.234, wid: 0.024, squeeze: 0.8 * IN, window: { gap: 0.005, y1: 0.255 } },
   // the entrance: under the 1.25in omnis on their shaft across it (driven: their undersides run in),
   // round the bend up into the hub
   omni: { r: 0.625 * IN, squeeze: 0.003, wid: 0.15 },
@@ -498,17 +509,29 @@ function feedPath() {
 // the bore up the hub, and the channel's leading side in the hub (plain walls: the sushi feeder rolls
 // FUEL along them; against free rollers it'd only spin them)
 function bore() {
-  const B = BEND, w = FEED.w, parts = [cyl(0, 0, BORE.r, B.y, BORE.top)];
-  // (the leading wall in the hub; out of it, the stack)
-  parts.push(grid(6, 4, (u, v) => chanL(lerp(-B.u, COLUMN.r, u), lerp(FLOOR, BORE.top, v), w)));
+  const B = BEND, w = FEED.w, T = FEED.ttb, parts = [cyl(0, 0, BORE.r, B.y, BORE.top)];
+  // (the leading wall in the hub, cut where the stack's wheels reach through it into the channel)
+  const u0 = T.u - Math.sqrt(T.r ** 2 - (stackAt().w - w) ** 2) - T.window.gap;
+  parts.push(grid(4, 4, (u, v) => chanL(lerp(-B.u, u0, u), lerp(FLOOR, BORE.top, v), w)));
+  parts.push(grid(3, 2, (u, v) => chanL(lerp(u0, COLUMN.r, u), lerp(T.window.y1, BORE.top, v), w)));
   return merge(...parts);
 }
-// the hub's skin (Shrink Wrap) and the skirt off its top, the channel's slot cut in its side
+// the stack's axle (u, w in the channel's frame), and the window in the hub's skin it pokes out
+// through: from the slot's leading edge (rad round from the channel) to win, up to window.y1
+export function stackAt() {
+  const T = FEED.ttb, tw = R + T.r - T.squeeze, d = Math.hypot(T.u, tw), rw = T.r + T.window.gap;
+  // (where a circle rw round the axle crosses the skin, the far side)
+  const c = (d * d + COLUMN.r ** 2 - rw * rw) / (2 * d * COLUMN.r);
+  return { u: T.u, w: tw, win: Math.atan2(tw, T.u) + Math.acos(Math.max(-1, Math.min(1, c))) };
+}
+// the hub's skin (Shrink Wrap) and the skirt off its top, the channel's slot cut in its side and the
+// stack's window by it
 function column() {
-  const C = COLUMN, slot = Math.asin(Math.min(1, (FEED.w + 0.005) / C.r));
-  const [sr, sy] = C.skirt;
+  const C = COLUMN, T = FEED.ttb, slot = Math.asin(Math.min(1, (FEED.w + 0.005) / C.r));
+  const [sr, sy] = C.skirt, st = stackAt();
   return merge(
-    cyl(0, 0, C.r, FLOOR, C.top, CH + slot, CH + 2 * Math.PI - slot),
+    cyl(0, 0, C.r, FLOOR, C.top, CH + st.win, CH + 2 * Math.PI - slot),
+    cyl(0, 0, C.r, T.window.y1, C.top, CH + slot, CH + st.win),
     cyl(0, 0, C.r, YB + R + 0.01, C.top, CH - slot, CH + slot),
     // the skirt: down and out from the hub's top to over the hook's root
     grid(48, 3, (u, v) => polar(lerp(C.r, sr, v), u * 2 * Math.PI, lerp(C.top, sy, v))),
