@@ -86,6 +86,7 @@ export class Motor {
     const lim = Math.abs(I) > cap;
     const Ic = lim ? Math.sign(I) * cap : I;
     this.current = Ic * this.count;
+    this.limited = lim;
     return { tau: this.count * this.kT * Ic * this.ratio * this.eff, limited: lim };
   }
   // how fast the torque falls with output speed when it's not current limited (N·m per rad/s)
@@ -521,7 +522,8 @@ export class Mechanism {
         const key = ct.W1.wh, m = seen.get(key) || new Map();
         seen.set(key, m);
         const was = m.get(ct.st.b);
-        if (!was || ct.lamN / h > was.force) m.set(ct.st.b, { wheel: ct.W1.wh, ball: ct.st.b, depth: ct.depth, force: ct.lamN / h, x: ct.x, n: ct.n });
+        // (torque: what it gave the wheel's or the surface's shaft about its axis, N·m over the step)
+        if (!was || ct.lamN / h > was.force) m.set(ct.st.b, { wheel: ct.W1.wh, ball: ct.st.b, depth: ct.depth, force: ct.lamN / h, x: ct.x, n: ct.n, torque: -(ct.lamN * dot(cross(ct.rw, ct.n), ct.W1.a) + ct.fric.reduce((s, f) => s + f.lam * dot(cross(ct.rw, f.u), ct.W1.a), 0)) / h });
         if (k === n - 1) this.dents.push({ wheel: ct.W1.wh, ball: ct.st.b, depth: ct.depth, n: ct.n });
       }
     }

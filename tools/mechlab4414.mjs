@@ -18,6 +18,9 @@
 // Env: SEEDS (6), SPEED (1 m/s), STUCK (where the ones left over are), TRACE=i (follow FUEL i;
 // shooter: every TEVERY steps, 3, with its spin), SHOT=rad,hood (one shot of your own), LAYERS
 // (fill), TIMELINE, ROTOR (rps, 2.25), ROLLERS (duty, 1);
+// intake, intakefull, path: INTAKELOG (=1: the primary's and the kick wheel's speed and current
+// and what loads them, tools/intakewatch4414.mjs; =2: each quarter second too); intakefull: FSEEDS
+// (runs, 2), ESCLOG (wallWatch);
 // dump: DSEEDS (fills), NOBOX (none in the box), LOAD (where the load is, each 0.5 s), SNAP=t and
 // SNAPFILE (where the FUEL low round the rotor are, in its frame, nine times from t s), PARKED (the
 // ones that stay put while it feeds; =file writes them), ROTORLOG (the rotor's speed and current
@@ -37,6 +40,7 @@ import {
 } from '../js/mech/r4414.js';
 import { velocityDuty } from '../js/mech/phys604.js';
 import { launchFor, shooterFor, rotorLoop } from '../js/mech/phys4414.js';
+import { intakeWatch } from './intakewatch4414.mjs';
 
 await RAPIER.init();
 const R = FUEL.radius, DT = 1 / 120, SEEDS = Number(process.env.SEEDS ?? 6), SPEED = Number(process.env.SPEED ?? 1);
@@ -238,22 +242,31 @@ const inRobot = (b) => { const p = b.translation(); return p.x > BAY.x0 - 0.05 &
 // BOX.side; WALLS=x0,hw,chamfer,side for others), and the deepest a FUEL dents into the walls (the
 // foam's squeeze against them: hard walls, so all of it in the FUEL). And the FUEL that get out:
 // through the top (the net, the top plate, round the turret: its center over them) or past the
-// walls (its center out past their faces), each counted once
+// walls (its center out past their faces), each counted once: only the ones that were in it first
+// (past the box's front, inside its sides); the ones that never were, ridden up over the FUEL backed
+// up at its mouth and off its front corners, are counted apart (spilled). ESCLOG: each one's path
+// over its last second, and what it touched
 function wallWatch(r) {
   const [x0, hw, ch, side] = process.env.WALLS ? process.env.WALLS.split(',').map(Number) : [BAY.x0, BAY.hw, BAY.chamfer, BOX.side];
   const cover = (x, z) => (x < -0.21 ? BAY.top : netY(x, z));
-  const o = { escaped: new Map() };
+  const o = { escaped: new Map(), spilled: new Map(), wasIn: new Set(), hist: new Map() };
   o.reset = () => Object.assign(o, { out: -Infinity, where: '', dent: 0, dentAt: '', netDent: 0 });
   o.check = (balls) => {
     const atWall = new Set(); // (the ones against the walls: the dents counted are theirs)
     for (const b of balls) {
       const p = b.translation(), z = Math.abs(p.z);
+      if (process.env.ESCLOG) { const h = o.hist.get(b) || []; h.push([p.x, p.y, p.z, r.path.contacts.filter((c) => c.ball === b).map((c) => c.wheel.name).join('/')]); if (h.length > 120) h.shift(); o.hist.set(b, h); }
+      if (p.x < BOX.front - R && z < side) o.wasIn.add(b);
       if (p.y < 0.1 || p.y > 1.2 || p.x < x0 - 0.3 || p.x > BOX.front || z > HALF_W + 0.3) continue;
       const box = p.x > HALF_L, turret = Math.hypot(p.x - AXIS[0], p.z - AXIS[1]) < 0.12 && p.y > 0.3;
       const out = box ? [[z - side, 'box side']] : [[z - hw, 'side wall'], [x0 - p.x, 'back wall'], [(ch - (p.x - x0) - (hw - z)) * Math.SQRT1_2, 'chamfer']];
       const over = p.y - cover(p.x, p.z);
-      if (!o.escaped.has(b) && !turret && (over > 0 || out.some(([d]) => d > 0))) o.escaped.set(b, `${over > 0 ? 'top' : out.find(([d]) => d > 0)[1]} at ${p.x.toFixed(2)},${p.y.toFixed(2)},${p.z.toFixed(2)}`);
-      if (o.escaped.has(b) || over > 0) continue;
+      if (!o.escaped.has(b) && !o.spilled.has(b) && !turret && (over > 0 || out.some(([d]) => d > 0))) {
+        const m = o.wasIn.has(b) ? o.escaped : o.spilled;
+        m.set(b, `${over > 0 ? 'top' : out.find(([d]) => d > 0)[1]} at ${p.x.toFixed(2)},${p.y.toFixed(2)},${p.z.toFixed(2)}`);
+        if (process.env.ESCLOG) console.log(`   ${m === o.escaped ? 'got out' : 'spilled'}: ${m.get(b)}, its last second:\n` + o.hist.get(b).filter((_, i) => i % 6 === 0).map((q) => `     ${q[0].toFixed(3)},${q[1].toFixed(3)},${q[2].toFixed(3)} ${q[3]}`).join('\n'));
+      }
+      if (o.escaped.has(b) || o.spilled.has(b) || over > 0) continue;
       for (const [d, k] of out) if (d + R > o.out) { o.out = d + R; o.where = `${k} at ${p.x.toFixed(3)},${p.y.toFixed(3)},${p.z.toFixed(3)}`; }
       if (out.some(([d]) => d + R > -0.005)) atWall.add(b);
     }
@@ -265,7 +278,7 @@ function wallWatch(r) {
     }
   };
   o.report = () => `FUEL out past the walls' faces at most ${(1000 * o.out).toFixed(1)} mm (${o.where}); dented into them at most ${(1000 * o.dent).toFixed(1)} mm (${o.dentAt}); into the net ${(1000 * o.netDent).toFixed(0)} mm`;
-  o.escapes = () => `${o.escaped.size} got out${o.escaped.size ? ` (${[...o.escaped.values()].slice(0, 4).join('; ')})` : ''}`;
+  o.escapes = () => `${o.escaped.size} got out${o.escaped.size ? ` (${[...o.escaped.values()].slice(0, 4).join('; ')})` : ''}${o.spilled.size ? `, ${o.spilled.size} never in spilled off the box's front corners (${[...o.spilled.values()].slice(0, 4).join('; ')})` : ''}`;
   o.reset();
   return o;
 }
@@ -373,7 +386,7 @@ const tests = {
   // slowly, as many as it takes in before they back up out of the box (the hold test drops them in
   // under the net instead)
   intakefull() {
-    for (let seed = 1; seed <= Math.min(SEEDS, 2); seed++) {
+    for (let seed = 1; seed <= Number(process.env.FSEEDS ?? 2); seed++) {
       const r = pathRun(seed, { shoot: false, n: 120, sec: 16 });
       console.log(`4414 filled through its intake (120 FUEL at ${SPEED} m/s, 16 s): ${r.inside} in it (each second: ${r.timeline.join(', ')}); ${r.walls}`);
     }
@@ -757,11 +770,14 @@ function pathRun(seed, { shoot = true, n = 20, sec = 8 } = {}) {
   const watch = shotWatch(r), walls = wallWatch(r);
   const timeline = [];
   let minPrimary = Infinity, minBar = Infinity;
+  // (INTAKELOG: the primary's speed, current and what loads it: tools/intakewatch4414.mjs)
+  const iw = process.env.INTAKELOG ? intakeWatch({ path: r.path, t: r.t, primary: r.wh.intake[1], local: (b) => { const p = b.translation(); return [p.x, p.y, p.z]; }, onCarpet: (b) => b.translation().y < R + 0.002, count: () => balls.filter((b) => { const p = b.translation(); return p.y < 3 && p.x < HALF_L && p.y > 0.1; }).length }) : null;
   for (let k = 0; k < sec / DT; k++) {
     const live = balls.filter((b) => b.translation().y < 3);
     if (shoot) { launcher(r.t, rad); feed(r); } else feed(r, -0.15, 0);
     r.step(live); w.step();
     watch.check(live, k * DT); walls.check(live);
+    iw?.check(DT, live);
     if (k * DT > 0.3) { minPrimary = Math.min(minPrimary, r.t.primary.omega / r.t.primary.motor.freeSpeed); minBar = Math.min(minBar, r.t.bar.omega / r.t.bar.motor.freeSpeed); }
     if (k === Math.round((sec - 1) / DT)) { walls.filling = walls.report(); walls.reset(); }
     if (k % Math.round(1 / DT) === Math.round(1 / DT) - 1) timeline.push(balls.filter((b) => { const p = b.translation(); return p.y < 3 && p.x < HALF_L && p.y > 0.1; }).length);
@@ -778,7 +794,9 @@ function pathRun(seed, { shoot = true, n = 20, sec = 8 } = {}) {
   if (process.env.BOXED) for (const b of inside) { const p = b.translation(); if (p.x > HALF_L) console.log(`   in the box at ${p.x.toFixed(3)},${p.y.toFixed(3)},${p.z.toFixed(3)}: ${names(r, b)}`); }
   const left = balls.filter((b) => b.translation().y < 3 && b.translation().x < 40 && !inside.includes(b)).map((b) => { const p = b.translation(); return [p.x, p.y, p.z]; });
   w.free();
-  return { minPrimary, minBar, timeline, shots: shots.length, rate: shots.length > 2 ? (shots.length - 1) / (shots[shots.length - 1] - shots[0]) : 0, inside: inside.length, left, walls: `${walls.escapes()}; all the way, ${walls.filling}; its last second, ${walls.report()}` };
+  const log = iw?.report();
+  if (log) { console.log('   ' + log.text); if (process.env.INTAKELOG === '2') console.log(log.series.map((x) => '     ' + x).join('\n')); }
+  return { log, minPrimary, minBar, timeline, shots: shots.length, rate: shots.length > 2 ? (shots.length - 1) / (shots[shots.length - 1] - shots[0]) : 0, inside: inside.length, left, walls: `${walls.escapes()}; all the way, ${walls.filling}; its last second, ${walls.report()}` };
 }
 
 const pick = process.argv.slice(2);

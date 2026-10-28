@@ -5,11 +5,14 @@
 // --along drives down the length of the FUEL line (the most FUEL per meter) instead of across it;
 // --settle holds still for s with the intake down first (an arm that takes a while to come down,
 // 8793's, would otherwise land on the FUEL); the times and counts are from when it starts driving
+// INTAKELOG=1 (4414): its primary roller's and kick wheel's speed, current and what loads them
+// (tools/intakewatch4414.mjs); =2 each quarter second too
 import { createWorld, mulberry32 } from './headless.mjs';
 import { Robot } from '../js/robot.js';
 import { Match } from '../js/match.js';
 import { ROBOTS, ROBOT_ORDER } from '../js/robotConfigs.js';
-import { PHYSICS_DT, BLUE } from '../js/constants.js';
+import { PHYSICS_DT, BLUE, FUEL } from '../js/constants.js';
+import { intakeWatch } from './intakewatch4414.mjs';
 
 const speed = +(process.argv[2] || 1.5);
 const along = process.argv.includes('--along');
@@ -34,6 +37,8 @@ for (const key of arg('--robots', ROBOT_ORDER.join(',')).split(',')) {
       if (i % 2) fuel.update(2 * PHYSICS_DT, t);
     }
     const t0 = t;
+    // (INTAKELOG, 4414: its primary roller's speed, current and what loads it, tools/intakewatch4414.mjs)
+    const ph = r.phys, iw = process.env.INTAKELOG && ph?.t?.primary ? intakeWatch({ path: ph.path, t: ph.t, primary: ph.w.intake[1], local: (b) => ph._local(b.translation()), onCarpet: (b) => b.translation().y < FUEL.radius + 0.002, count: () => r.stored.length }) : null;
     for (let i = 0; i < T / PHYSICS_DT; i++) {
       Object.assign(r.cmd, { vx: along ? 0 : speed, vz: along ? -speed : 0, omega: 0, intake: true, shoot: false, pass: false, outtake: false });
       r.preStep(PHYSICS_DT);
@@ -43,11 +48,13 @@ for (const key of arg('--robots', ROBOT_ORDER.join(',')).split(',')) {
       fuel.postStep(PHYSICS_DT, t);
       r.postStep(PHYSICS_DT, t);
       if (i % 2) fuel.update(2 * PHYSICS_DT, t);
+      iw?.check(PHYSICS_DT, ph.near.map((b) => b.body));
       if (first === null && r.stored.length) first = t - t0;
       if (full === null && r.full) full = t - t0;
       if ((i + 1) % Math.round(0.5 / PHYSICS_DT) === 0) curve.push(r.stored.length);
     }
     console.log(`${key} z=${z}: collected ${r.stored.length}/${r.capacity()} (in rollers ${r.captured?.length}, dropped ${r.stats.dropped}), first after ${first?.toFixed(2)}s, ${full ? `stalled after ${full.toFixed(2)}s` : 'not stalled'}, every 0.5 s ${curve.join(' ')}, ended at x=${r.pos.x.toFixed(2)} z=${r.pos.z.toFixed(2)}`);
+    if (iw) { const o = iw.report(); console.log('   ' + o.text); if (process.env.INTAKELOG === '2') console.log((o.series || []).map((x) => '     ' + x).join('\n')); }
     physics.world.free();
   }
 }
