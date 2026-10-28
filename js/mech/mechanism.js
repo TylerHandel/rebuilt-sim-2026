@@ -18,7 +18,9 @@
 //     to the shaft (about its axis) and to the frame (equal and opposite).
 //   - Motors: torque from voltage, back-EMF and the stator current limit (drivetrain.js MOTORS),
 //     through the gear ratio, against the shaft's inertia (its wheels plus the motor's rotor seen
-//     through the ratio), back-EMF integrated implicitly.
+//     through the ratio), back-EMF integrated implicitly. A motor controller's velocity loop that a
+//     120 Hz step can't hold (one step at the current limit overshoots it) runs at the controller's
+//     own 1 kHz inside the step (velLoop).
 //   - Omni and mecanum wheels (a heuristic for their little rollers): they grip only along one
 //     direction in the contact plane (an omni wheel along its rim, a mecanum wheel at its rollers'
 //     45 degrees) and roll freely across it (a little rolling friction).
@@ -130,25 +132,14 @@ export class Shaft {
     else if (this.lo === -Infinity && this.hi === Infinity) this._omega += L / this.J;
     else { this._free += L / this.J; this._omega = Math.min(this.hi, Math.max(this.lo, this._free)); }
   }
-  // Its motor controller's velocity loop, closed on the controller at its own rate (rate Hz: a
-  // Talon FX's 1 kHz) rather than once a step: vel = { target (rad/s at the output), kV, kP (volts
-  // per motor rps, as CTRE's VelocityVoltage, over 12 V), rate }; null (the default) for the plain
-  // duty in cmd. Closed once a 120 Hz step instead, a stiff motor on a heavy shaft overshoots: 4414's
-  // Dye Rotor (an X60 through 36.4:1, 0.13 kg·m² with its rotor) gains 0.53 rps a step at its 80 A
-  // limit, more than the error that puts it there, so settling from feeding (2.25 rps) to agitating
-  // (-0.15) it chattered +0.08 / -0.45 rps step to step at +-80 A for a second or more.
-  // (cmd is left at the last sub-step's duty)
+  // Its motor controller's velocity loop (vel: velLoop, below) in place of the plain duty in cmd
+  // (null, the default)
   // the motor's step, with back-EMF taken implicitly
   integrate(dt, V = 12) {
     if (this.train) return;
     const J = this.J;
-    if (this.vel && this.motor) {
-      const { target, kV, kP, rate = 1000 } = this.vel, m = this.motor, n = Math.max(1, Math.ceil(dt * rate)), tgt = (target * m.ratio) / TAU;
-      for (let i = 0; i < n; i++) {
-        this.cmd = Math.min(1, Math.max(-1, (kV * tgt + kP * (tgt - (this._omega * m.ratio) / TAU)) / 12));
-        this._drive(dt / n, V, J);
-      }
-    } else this._drive(dt, V, J);
+    if (this.vel && this.motor) velLoop(this, dt, (h) => this._drive(h, V, J));
+    else this._drive(dt, V, J);
     // (against a stop: it takes what would drive the shaft on into it)
     if (this.lo !== -Infinity || this.hi !== Infinity) { this._free = this._omega; this._omega = Math.min(this.hi, Math.max(this.lo, this._omega)); }
     // (its bearings' friction: up to friction x dt of angular impulse against whichever way the
@@ -173,6 +164,34 @@ export class Shaft {
   }
 }
 
+// A motor controller's velocity loop on a Shaft or a Train (its vel), closed on the controller at
+// its own rate (rate Hz: a Talon FX's 1 kHz) rather than once a step: vel = { target (rad/s of the
+// shaft's or the train's own speed), kV, kP, kS (volts per rotation/s of the loop's units, as CTRE's
+// VelocityVoltage: kS x the target's sign), lo, hi (the volts it's held to: lo 0 for a loop that
+// never reverses), per (the loop's rotations per radian of the shaft's or train's turn: its motor
+// rotations by default; a train's loop on one of its rollers, k / 2 pi), rate }. Each of the
+// controller's periods in the step it sets cmd (over 12 V) from the speed then, and drive(h) runs
+// the motor that long (cmd is left at the last one's duty). Closed once a 120 Hz step instead, a
+// stiff motor on a light load overshoots: G = dt x (its torque per volt) x kP (volts per rad/s) /
+// J, the speed a step at the current limit gains over the error band that puts it there; past 1
+// each step's correction overshoots, past 2 it chatters at its limits step to step. 4414's Dye
+// Rotor (an X60 through 36.4:1, 0.13 kg·m² with its rotor; G 2.0) gains 0.53 rps a step at its
+// 80 A limit, so settling from feeding (2.25 rps) to agitating (-0.15) it chattered +0.08 / -0.45
+// rps step to step at +-80 A for a second or more. 1678's tunnel (two X60s on six 1.2in rollers, kP
+// 1.75 V per top-roller rps; G 2.5) swung between driving at ~60 A and braking at 60-120 A every
+// step or two while it fed; 604's serializer rollers (an X60 on a light train; G 1.1), kicked by
+// FUEL, between their 60 A supply limit and braking, up to 13 steps running. (Every other loop on
+// the physical robots is at G 0.7 or under: one a step is as good)
+function velLoop(a, dt, drive) {
+  const { target, kV, kP, kS = 0, lo = -12, hi = 12, per = a.motor.ratio / TAU, rate = 1000 } = a.vel;
+  const n = Math.max(1, Math.ceil(dt * rate)), tgt = target * per;
+  for (let i = 0; i < n; i++) {
+    const volts = kV * tgt + kP * (tgt - a.omega * per) + kS * Math.sign(tgt);
+    a.cmd = Math.min(1, Math.max(-1, Math.min(hi, Math.max(lo, volts)) / 12));
+    drive(dt / n);
+  }
+}
+
 // A gear train: one motor turning several shafts through belts, chain and gears at fixed ratios
 // (8793's conveyor and intake rollers all run off one Kraken X60). It has one speed, the motor's
 // output: each shaft turns at its k times that, the rotor's and every shaft's inertia move
@@ -188,6 +207,7 @@ export class Train {
     this.cmd = 0;
     this.shafts = [];
     this.coupled = [];
+    this.vel = null; // (its controller's velocity loop, in place of cmd: integrate)
     for (const [s, k] of shafts) this.add(s, k);
   }
   add(s, k) { s.train = this; s.k = k; this.shafts.push(s); return s; }
@@ -195,8 +215,13 @@ export class Train {
   couple(motor, k) { const m = { motor, k, cmd: 0 }; this.coupled.push(m); return m; }
   get J() { return this.motor.J + this.coupled.reduce((a, m) => a + m.motor.J * m.k * m.k, 0) + this.shafts.reduce((a, s) => a + s.inertia * s.k * s.k, 0); }
   get drag() { return this.shafts.reduce((a, s) => a + s.drag * s.k * s.k, 0); }
+  // (vel: its main motor's controller's velocity loop in place of cmd, as a Shaft's: velLoop)
   integrate(dt, V = 12) {
     const J = this.J;
+    if (this.vel) velLoop(this, dt, (h) => this._drive(h, V, J));
+    else this._drive(dt, V, J);
+  }
+  _drive(dt, V, J) {
     // each motor's torque at its own speed, seen at the main motor's output; the ones that
     // aren't current limited fall off with speed (taken implicitly); a coasting one does nothing
     let tau = 0, kd = 0;

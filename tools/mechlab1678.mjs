@@ -16,7 +16,7 @@ import {
   INTAKE, SHOOTER, TUNNEL, FEEDER, FLEX, FLOOR, TUNNEL_D, DRUM, PIVOT,
 } from '../js/mech/r1678.js';
 import PATH from '../js/mech/path1678.js';
-import { EXIT_PER_DRUM_SURFACE, servoArm, turnArm, CONTRACT } from '../js/mech/phys1678.js';
+import { EXIT_PER_DRUM_SURFACE, servoArm, turnArm, tunnelLoop, CONTRACT } from '../js/mech/phys1678.js';
 
 await RAPIER.init();
 const R = FUEL.radius, DT = 1 / 120, SEEDS = Number(process.env.SEEDS ?? 6);
@@ -56,15 +56,13 @@ function rig({ deg = Number(process.env.ARM ?? INTAKE.down), hood = SHOOTER.hood
   for (const tr of [t.intake, t.floor, t.tunnel, t.feederT, t.shooter]) tr.cmd = null;
   return { t, wh, s, path, shooter };
 }
-// their velocity loops: the drum toward rpm, the tunnel's top roller toward rpm (max volts)
+// their velocity loops: the drum toward rpm, the tunnel's top roller toward rpm (max volts; phys1678's
+// tunnelLoop, at the Talons' 1 kHz)
 function drum(t, rpm) {
   const rps = t.drum.omega / (2 * Math.PI), tgt = rpm / 60;
   t.shooter.cmd = Math.max(0, Math.min(1, (SHOOTER.kV * tgt + SHOOTER.kP * (tgt - rps) + SHOOTER.kS) / 12));
 }
-function tunnel(t, rpm, max = 12) {
-  const rps = t.back[t.back.length - 1].omega / (2 * Math.PI), tgt = rpm / 60;
-  t.tunnel.cmd = Math.max(0, Math.min(max, TUNNEL.kV * tgt + TUNNEL.kP * (tgt - rps) + TUNNEL.kS)) / 12;
-}
+const tunnel = (t, rpm, max = 12) => tunnelLoop(t, { rpm, max });
 // a FUEL leaving the drum: where it comes down through the HUB's rim height, back from the exit
 function landing(o) {
   const hit = sim2D(o.y, o.v, (o.el * Math.PI) / 180, HUB.rimFront);

@@ -62,6 +62,17 @@ export function servoArm(T, deg, goal, dt) {
   } else T.pivot.cmd = 0;
   T.pivot.impulse(-INTAKE.mass * 9.81 * INTAKE.com * Math.cos(a) * dt);
 }
+// the tunnel's velocity loop on its top roller (their Slot1: kV, kP, kS per top-roller rotation/s;
+// no reverse voltage, held to set.max volts), closed on its Talons at their 1 kHz (Shaft.vel's
+// velLoop): closed once a 120 Hz step, its X60s on the six light rollers overshot every step
+// (kP 1.75 V per rotation/s, G 2.5): while it fed, driving at ~60 A and braking at 60-120 A by
+// turns every step or two (~30 times a second), the top roller 1577 RPM for 1650 on average (1648
+// now). set: { rpm, max }; null: coast
+export function tunnelLoop(T, set) {
+  const top = T.back[T.back.length - 1], per = top.k / (2 * Math.PI);
+  T.tunnel.vel = set ? { target: set.rpm / 60 / per, kV: TUNNEL.kV, kP: TUNNEL.kP, kS: TUNNEL.kS, lo: 0, hi: set.max ?? 12, per } : null;
+  T.tunnel.cmd = set ? 0 : null;
+}
 // after the mechanisms' step: the arm turns as its shaft did (to its hardstops: down on the
 // bumper, up folded)
 export function turnArm(T, deg, dt) {
@@ -108,6 +119,7 @@ export class Physical1678 extends PhysicalRobot {
     this.seq = null; this.contractCool = 0; this.tucked = true; this.nearTrench = false;
     this.hopperT = 0; this.tunnelT = 0;
     for (const tr of [this.t.intake, this.t.floor, this.t.tunnel, this.t.feederT, this.t.shooter]) { tr.omega = 0; tr.cmd = null; }
+    this.t.tunnel.vel = null;
     for (const s of this.t.idlers) s.omega = 0;
     this.t.pivot._omega = 0; this.t.pivot.cmd = 0;
   }
@@ -276,12 +288,8 @@ export class Physical1678 extends PhysicalRobot {
     T.intake.cmd = S.intake;
     T.floor.cmd = S.floor;
     T.feederT.cmd = S.feeder;
-    // the tunnel's velocity loop on its top roller (no reverse voltage)
-    if (S.tunnel) {
-      const rps = T.back[T.back.length - 1].omega / (2 * Math.PI), tgt = S.tunnel.rpm / 60;
-      const volts = TUNNEL.kV * tgt + TUNNEL.kP * (tgt - rps) + TUNNEL.kS;
-      T.tunnel.cmd = clamp(volts, 0, S.tunnel.max ?? 12) / 12;
-    } else T.tunnel.cmd = null;
+    // the tunnel's velocity loop on its top roller (no reverse voltage; at the Talons' 1 kHz)
+    tunnelLoop(T, S.tunnel);
     // the drum's velocity loop (no reverse voltage: it coasts down)
     if (S.shooter) {
       const rps = T.drum.omega / (2 * Math.PI), tgt = S.shooter / 60;

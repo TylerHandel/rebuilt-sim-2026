@@ -22,7 +22,7 @@ import {
   hoodElevation, launchFor, radFor, velocityAt, rollerRad, VELOCITY_MULTIPLIER, LAUNCH, INTAKE, ROTOR, SHOOTER, SERIALIZER, AXIS,
 } from '../js/mech/r604.js';
 import PATH from '../js/mech/path604.js';
-import { profile, velocityDuty, EXIT_PER_MAIN_SURFACE } from '../js/mech/phys604.js';
+import { profile, velocityDuty, velocityLoop, EXIT_PER_MAIN_SURFACE } from '../js/mech/phys604.js';
 
 await RAPIER.init();
 const R = FUEL.radius, DT = 1 / 120, SEEDS = Number(process.env.SEEDS ?? 6), SPEED = Number(process.env.SPEED ?? 1);
@@ -83,12 +83,12 @@ function rig({ arm = INTAKE.deploy, yaw = 0, hood = SHOOTER.hoodMin } = {}) {
   r.pose();
   return r;
 }
-// their serializer: the rollers' velocity loop at a FUEL speed (m/s), the rotor following the
-// rollers' measured speed (10 samples) / 1.2 at its effective radius
+// their serializer: the rollers' velocity loop at a FUEL speed (m/s; on their Talon at its 1 kHz, as
+// phys604's), the rotor following the rollers' measured speed (10 samples) / 1.2 at its effective radius
 function serializer(r, ballV) {
   const t = r.t, Z = SERIALIZER;
-  if (!ballV) { t.roller.cmd = null; t.rotor.cmd = null; r.buf = []; return; }
-  t.roller.cmd = velocityDuty(t.roller.motor, t.roller.omega, rollerRad(ballV) / t.infeed.k, Z.kV, Z.kP);
+  if (!ballV) { velocityLoop(t.roller, null); t.rotor.cmd = null; r.buf = []; return; }
+  velocityLoop(t.roller, rollerRad(ballV) / t.infeed.k, Z.kV, Z.kP);
   r.buf.push(t.infeed.omega * 0.5 * Z.rollerR);
   if (r.buf.length > 10) r.buf.shift();
   const avg = r.buf.reduce((a, b) => a + b, 0) / r.buf.length;

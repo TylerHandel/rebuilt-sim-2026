@@ -67,6 +67,14 @@ export function velocityDuty(motor, w, target, kV, kP) {
   const tgt = (target * motor.ratio) / TAU, rps = (w * motor.ratio) / TAU;
   return clamp((kV * tgt + kP * (tgt - rps)) / 12, -1, 1);
 }
+// ...the same loop closed on the controller at its 1 kHz (Shaft.vel, Train.vel: velLoop in
+// js/mech/mechanism.js) rather than once a 120 Hz step, on a shaft or train toward target (rad/s at
+// its output; null: coast): where a step at the motor's current limit changes its speed by more
+// than the error that puts it there (G over 1: the serializer's rollers, a light train on an X60)
+export function velocityLoop(a, target, kV, kP) {
+  a.vel = target === null ? null : { target, kV, kP };
+  a.cmd = target === null ? null : 0;
+}
 
 export class Physical604 extends PhysicalRobot {
   constructor(robot) {
@@ -97,6 +105,7 @@ export class Physical604 extends PhysicalRobot {
     this.launching = false; this.ready = false;
     this.fv = null; this.va = null;
     for (const tr of [this.t.intake, this.t.roller, this.t.launcher]) { tr.omega = 0; tr.cmd = null; }
+    this.t.roller.vel = null;
     for (const sh of [this.t.pivot, this.t.rotor]) { sh._omega = 0; sh.cmd = 0; }
     this.ext = hopperExt(this.armDeg);
     this.r.turretYaw = SHOOTER.yawStart * DEG;
@@ -286,7 +295,10 @@ export class Physical604 extends PhysicalRobot {
     const target = rollerRad(ballV), active = target !== 0;
     this.targetRoller = target;
     const rollerW = T.infeed.omega; // (their sensor: the roller mechanism's speed)
-    const loop = (v) => velocityDuty(roller.motor, roller.omega, v / T.infeed.k, Z.kV, Z.kP);
+    // (the rollers' loop on their Talon, at its 1 kHz: closed once a step, the X60 on its light train
+    // overshot at its current limit (G 1.1) and FUEL pressing on the rollers set it chattering
+    // between driving at its 60 A supply limit and braking, up to 13 steps running)
+    const loop = (v) => velocityLoop(roller, v === null ? null : v / T.infeed.k, Z.kV, Z.kP);
     // their jam state: the rotor over 40 A and under 2 rad/s, or the rollers over 80 A and under a
     // tenth of their target, for 0.3 s while active: back out at -0.5 m/s, the rotor off, 0.1 s
     const rotorJam = Math.abs(rotor.motor.current) > 40 && rotor.omega < 2;
@@ -298,12 +310,12 @@ export class Physical604 extends PhysicalRobot {
       } else this.jamT = 0;
     } else if ((this.jamT += dt) >= 0.1) { this.jam = 'NORMAL'; this.jamT = 0; }
     if (this.jam === 'JAMMED') {
-      roller.cmd = loop(rollerRad(Z.unjamV));
+      loop(rollerRad(Z.unjamV));
       rotor.cmd = 0; this.targetRotor = 0;
       return;
     }
-    if (!active) { roller.cmd = null; this.rollerBuf = []; rotor.cmd = null; this.targetRotor = 0; return; }
-    roller.cmd = loop(target);
+    if (!active) { loop(null); this.rollerBuf = []; rotor.cmd = null; this.targetRotor = 0; return; }
+    loop(target);
     // the rotor: the rollers' measured FUEL speed (10-sample average) / 1.2 at its effective radius
     this.rollerBuf.push(rollerW * 0.5 * Z.rollerR);
     if (this.rollerBuf.length > 10) this.rollerBuf.shift();
