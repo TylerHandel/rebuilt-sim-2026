@@ -20,7 +20,7 @@
 import { IN, FUEL } from '../constants.js';
 const FUEL_R = FUEL.radius, DEG = Math.PI / 180;
 import { BUMPER_T, BUMPER_Y0, BUMPER_Y1 } from '../robotConfigs.js';
-import { Motor, Shaft, Surface, Train, Wheel } from './mechanism.js';
+import { Motor, Shaft, Surface, Train, Wheel, BUMPER_MU } from './mechanism.js';
 
 // the gear chains: [name, belt/gear ratio from the shaft before (driver:driven teeth), roller
 // diameter (m), friction against FUEL, what's on it]. Conveyor 3 is the intake's pivot shaft (it's
@@ -436,7 +436,7 @@ export function guideSurface() {
 // off the carpet for seconds at a time (in one match, more than 8 deg up for 11% of the time it
 // was down, against 1% at 1-1/8in). 16 seeds of 8793 v 8793: 23 unjams a match and 166 points at
 // 1-1/8in, 19 and 153 at 3/4, against 38 and 173 with the arm rigid at 3/4.
-export function bumperSurface({ halfL = 13.75 * IN, halfW = 13.75 * IN + BUMPER_T, mu = 0.6, tread = 20000, squeeze = (9 / 8) * IN } = {}) {
+export function bumperSurface({ halfL = 13.75 * IN, halfW = 13.75 * IN + BUMPER_T, mu = BUMPER_MU, tread = 20000, squeeze = (9 / 8) * IN } = {}) {
   const [tx, ty] = [ARM.pivot[0] + ARM.rollers[3][0], ARM.pivot[1] + ARM.rollers[3][1]], reach = 1 * IN + FUEL_R * 2 - squeeze;
   const x1 = Math.min(halfL + BUMPER_T, tx - Math.sqrt(reach * reach - (BUMPER_Y1 - ty) ** 2));
   const V = [

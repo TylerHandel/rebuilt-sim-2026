@@ -27,7 +27,7 @@
 //   hood: an X44 through 52:12, 18:12, 146:10, about the drum's axle
 import { IN } from '../constants.js';
 import { BUMPER_T, BUMPER_Y0, BUMPER_Y1 } from '../robotConfigs.js';
-import { Block, Motor, Shaft, Surface, Train, Wheel } from './mechanism.js';
+import { Block, Motor, Shaft, Surface, Train, Wheel, BUMPER_MU } from './mechanism.js';
 
 // what each grips FUEL with (estimates, in the order 8793's team gave: compliant wheels most,
 // grip tape, silicone and rubber, bare aluminum least). Bare aluminum (the floor's back rollers)
@@ -145,7 +145,7 @@ export function wheels2910(t) {
 // there, 10-12% with none). With this and where()'s guard (js/mech/phys2910.js), none. (None ever
 // fell through the floor from the hopper.)
 export function bumper2910() {
-  return new Block({ name: 'bumper', x0: 13.5 * IN + 0.75 * IN, x1: 13.5 * IN + BUMPER_T, y0: BUMPER_Y0, y1: BUMPER_Y1, hw: 13.75 * IN + BUMPER_T, mu: 0.6 });
+  return new Block({ name: 'bumper', x0: 13.5 * IN + 0.75 * IN, x1: 13.5 * IN + BUMPER_T, y0: BUMPER_Y0, y1: BUMPER_Y1, hw: 13.75 * IN + BUMPER_T, mu: BUMPER_MU });
 }
 // rotate a point (x, y) about (cx, cy) by a (rad)
 const rot = ([x, y], [cx, cy], a) => { const c = Math.cos(a), s = Math.sin(a), dx = x - cx, dy = y - cy; return [cx + dx * c - dy * s, cy + dx * s + dy * c]; };

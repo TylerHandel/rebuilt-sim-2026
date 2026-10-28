@@ -24,7 +24,7 @@
 //   hood: an X44 through 44:11, 32:18 and its 188-tooth rack (133.7:1), about the flywheel's axle
 //   turret: an X44 through 40:8 and 92:10 (46:1)
 import { IN } from '../constants.js';
-import { Motor, Shaft, Surface, Train, Wheel } from './mechanism.js';
+import { Motor, Shaft, Surface, Train, Wheel, BUMPER_MU } from './mechanism.js';
 
 // what each grips FUEL with (estimates, as 8793's: compliant wheels most, then urethane and
 // silicone, mecanums' and omnis' rollers, bare polycarbonate least)
@@ -270,7 +270,7 @@ export function hoodElevation(deg) {
 // N/m, an estimate: a FUEL pressed into a 2.5in slab of foam that takes ~0.25 MPa at 25% squeeze
 // sinks in about 5-8 mm at 20-50 N, 13-18 kN/m; far stiffer than the FUEL, which does most of the
 // giving.)
-export function bumperSurface({ mu = 0.6, tread = 20000 } = {}) {
+export function bumperSurface({ mu = BUMPER_MU, tread = 20000 } = {}) {
   // (the CAD's bumper wood: 0.345-0.364 m out, 0.041-0.168 m up; 2.5in of foam on it)
   const x0 = HALF, x1 = 0.364 + 2.5 * IN, hw = x1, y0 = 0.041, y1 = 0.168;
   const V = [x1, y0, -hw, x1, y0, hw, x1, y1, hw, x1, y1, -hw, x0, y1, -hw, x0, y1, hw];

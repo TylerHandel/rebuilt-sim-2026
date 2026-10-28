@@ -45,7 +45,7 @@
 //     Motion Magic (10 rad/s, 50 rad/s^2), 50 to 310 deg (0 is straight ahead: it can't point
 //     within 50 deg of the intake)
 import { IN } from '../constants.js';
-import { Block, Motor, Shaft, Surface, Train, Wheel } from './mechanism.js';
+import { Block, Motor, Shaft, Surface, Train, Wheel, BUMPER_MU } from './mechanism.js';
 
 // what each grips FUEL with (estimates, as 341's and 8793's): the rollers' silicone tubing ("high
 // grip with fuel", their release thread); the up-feed's 60A flex wheel, compliant; the infeed's 80A
@@ -241,7 +241,7 @@ export function shooterWheels(t) {
 // pressed hard by the rollers, lets a FUEL through into the frame, as 2910's did); soft (2.5in of
 // foam: 20 kN/m, as 341's estimate)
 export function bumper604() {
-  return new Block({ name: 'bumper', x0: 0.3699, x1: 0.4334, y0: 0.0381, y1: 0.1651, hw: 0.87 / 2, mu: 0.6, tread: 20000 });
+  return new Block({ name: 'bumper', x0: 0.3699, x1: 0.4334, y0: 0.0381, y1: 0.1651, hw: 0.87 / 2, mu: BUMPER_MU, tread: 20000 });
 }
 
 const rot = ([x, y], [cx, cy], a) => { const c = Math.cos(a), s = Math.sin(a), dx = x - cx, dy = y - cy; return [cx + dx * c - dy * s, cy + dx * s + dy * c]; };

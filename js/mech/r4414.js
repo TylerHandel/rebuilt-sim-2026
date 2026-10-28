@@ -74,7 +74,7 @@
 // omnis and pushes them up into the flywheel, which flings them round under the hood and out past
 // the hood roller.
 import { IN, FUEL } from '../constants.js';
-import { Block, Motor, Shaft, Surface, Train, Wheel } from './mechanism.js';
+import { Block, Motor, Shaft, Surface, Train, Wheel, BUMPER_MU } from './mechanism.js';
 
 const R = FUEL.radius;
 // what each grips FUEL with (estimates, as 604's and 341's): the TTB urethane wheels, the stealth
@@ -291,7 +291,12 @@ export function build4414() {
   // with the black roller on top of the bumper belted to it, 1:1 (positive lifts FUEL off the
   // carpet and takes them in over the bumper)
   const primary = new Shaft({ name: 'intake primary 3in roller', motor: new Motor('krakenX60', { count: 2, ratio: 3.45, statorLimit: 60, supplyLimit: 40 }), inertia: 3e-4 });
-  const bar = new Shaft({ name: 'intake kick wheel and black roller', motor: new Motor('krakenX44', { ratio: 1.5, statorLimit: 40, supplyLimit: 30 }), inertia: 8e-5 });
+  // (its X44's limits: estimates, their code isn't public. At 40 A stator it stalled lifting FUEL up
+  // the bumper's face as soon as a dozen were waiting there (98% of a pickup at its limit, the black
+  // roller stopped with it, the box backing up onto the primary): driving down the NEUTRAL ZONE's
+  // FUEL line it took 45 in 3 s at 1.5 m/s and 65 at 3; at 80 A, with the bumper's face at its
+  // fabric's friction (BUMPER_MU), 67 and 84, as 2910's 73 and 77)
+  const bar = new Shaft({ name: 'intake kick wheel and black roller', motor: new Motor('krakenX44', { ratio: 1.5, statorLimit: 80, supplyLimit: 40 }), inertia: 8e-5 });
   // the rotor (positive turns it clockwise from above, the hook's tip leading)
   const rotor = new Shaft({ name: 'Dye Rotor', motor: new Motor('krakenX60', { ratio: 36.4, statorLimit: 80, supplyLimit: 60 }), inertia: ROTOR.J, drag: 0.02 });
   // the rollers: the TTB wheels and the omni over them (2.5:1; positive feeds FUEL in)
@@ -417,7 +422,7 @@ export function placeShooter([fly, ...rest], yaw, hoodDeg) {
 // the front bumper: solid foam (2.5in on its 3/4in backing, 1.25in to 5in up), across the front and
 // round to the side bumpers' faces; soft (20 kN/m, as 341's)
 export function bumper4414() {
-  return new Block({ name: 'bumper', x0: HALF_L + 0.75 * IN, x1: HALF_L + 3.25 * IN, y0: 0.032, y1: 0.16, hw: HALF_W + 3.25 * IN, mu: 0.6, tread: 20000 });
+  return new Block({ name: 'bumper', x0: HALF_L + 0.75 * IN, x1: HALF_L + 3.25 * IN, y0: 0.032, y1: 0.16, hw: HALF_W + 3.25 * IN, mu: BUMPER_MU, tread: 20000 });
 }
 
 // ------------------------------------------------------------------ the surfaces (built here: no CAD)

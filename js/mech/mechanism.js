@@ -433,6 +433,8 @@ function closestOnTri(px, py, pz, T, o, q) {
   return set(ax + abx * v + acx * w, ay + aby * v + acy * w, az + abz * v + acz * w);
 }
 
+// FUEL's friction on a bumper's face (fabric over foam: FUEL slide up it more easily than on plastic; 0.35, an estimate: at 0.6 4414's intake, rolling FUEL up the face, stalled its kick wheel)
+export const BUMPER_MU = 0.35;
 // A solid block of foam FUEL can touch, fixed to the frame: a bumper (solid, uniform foam under
 // fabric, as teams build them now). Its section is a rectangle in x and y (x0 to x1, y0 to y1),
 // edges rounded r, across z from -hw to hw (the ends rounded too). Solid: a FUEL pressed into it,
