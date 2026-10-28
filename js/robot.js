@@ -17,7 +17,8 @@ import { Physical341 } from './mech/phys341.js';
 import { Physical581 } from './mech/phys581.js';
 import { Physical604 } from './mech/phys604.js';
 import { Physical4414 } from './mech/phys4414.js';
-const PHYSICAL = { 8793: Physical8793, 2910: Physical2910, 1678: Physical1678, 341: Physical341, 581: Physical581, 604: Physical604, 4414: Physical4414 };
+import { Physical1114 } from './mech/phys1114.js';
+const PHYSICAL = { 8793: Physical8793, 2910: Physical2910, 1678: Physical1678, 341: Physical341, 581: Physical581, 604: Physical604, 4414: Physical4414, 1114: Physical1114 };
 import { clamp, wrapAngle, approach, approachAngle, gauss, DEG, rand } from './util.js';
 
 const WHEEL_R = 0.05;

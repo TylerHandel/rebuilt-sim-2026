@@ -7,6 +7,9 @@ import { GRAVITY, IN } from './constants.js';
 export const MOTORS = {
   // FOC commutation: 5800 rpm free, 9.37 N·m / 483 A stall at 12 V
   krakenX60: { free: (5800 / 60) * 2 * Math.PI, stallTorque: 9.37, stallCurrent: 483, freeCurrent: 2, V: 12, rotorInertia: 6.5e-5 },
+  // the same, trapezoidal commutation (a Talon's control request with FOC off: 1114's shooter): 6000
+  // rpm free, 7.09 N·m / 366 A stall at 12 V (WCP's published curve)
+  krakenX60Trap: { free: (6000 / 60) * 2 * Math.PI, stallTorque: 7.09, stallCurrent: 366, freeCurrent: 2, V: 12, rotorInertia: 6.5e-5 },
   // the small Kraken (WCP), FOC: ~7530 rpm free, ~4.1 N·m / ~280 A stall at 12 V (WCP's published
   // curve, approximate); rotor inertias estimated from the motors' size
   krakenX44: { free: (7530 / 60) * 2 * Math.PI, stallTorque: 4.1, stallCurrent: 280, freeCurrent: 1.5, V: 12, rotorInertia: 2.5e-5 },

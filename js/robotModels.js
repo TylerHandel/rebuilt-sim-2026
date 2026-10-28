@@ -2929,7 +2929,32 @@ function build1114(cfg, alliance) {
   blanket.mesh.castShadow = true;
   const xb = L / 2 + BUMPER_T, zc = BUMPER_Y1 + 0.006;
   const shifted = [];
+  // the rollers turning (a dark seam along each one's grip tape, so the CAD's static rollers are
+  // seen to turn): the intake roller on the box, the floor's nine, the elevator's two columns, the
+  // flywheel and the hood's three (positions from js/mech/r1114.js; sign: +1 turns it as it
+  // feeds)
+  const seamMat = std(0x111214, 0.9, 0.0);
+  const spinner = (parent, x, y, r, len, sign) => {
+    const g = new THREE.Group();
+    g.position.set(x, y, 0);
+    parent.add(g);
+    bx(0.006, 0.004, len, seamMat, g, 0, r + 0.0015, 0);
+    bx(0.006, 0.004, len, seamMat, g, 0, -r - 0.0015, 0);
+    g.userData.sign = sign;
+    return g;
+  };
+  const intakeSpin = [spinner(slide, 0.5457 - S1114.slide[0] * 0, 0.1663, 0.0262, 0.63, -1)];
+  const floorSpin = [[0.2857, 0.1668], [0.2276, 0.1457], [0.1696, 0.1246], [0.1116, 0.1034], [0.0536, 0.0823], [-0.0326, 0.0719], [-0.1144, 0.1007], [-0.1751, 0.1626], [-0.2022, 0.2451]].map(([x, y]) => spinner(root, x, y, 0.0167, 0.39, 1));
+  const elevSpin = [...[0.3224, 0.3816, 0.4408, 0.5001].map((y) => spinner(root, -0.2096, y, 0.0167, 0.39, 1)), ...[0.3224, 0.3816, 0.4408, 0.5001].map((y) => spinner(root, -0.0343, y, 0.0167, 0.39, -1))];
+  const flySpin = spinner(root, -0.0176, 0.5715, 0.0402, 0.4, -1);
+  const hoodSpin = [[-0.2024, 0.6137], [-0.1841, 0.6621], [-0.1534, 0.7037]].map(([x, y]) => spinner(hood, x - S1114.hood[0], y - S1114.hood[1], 0.0198, 0.4, 1));
   const anim = (st, dt) => {
+    // (physical: the floor's rollers at st.floorSpin rad/s; the rest at a visible pace)
+    for (const g of intakeSpin) g.rotation.z += g.userData.sign * st.intakeSpeed * dt * 40;
+    for (const g of floorSpin) g.rotation.z += g.userData.sign * (st.floorSpin ?? st.feeding * 30) * dt * 0.25;
+    for (const g of elevSpin) g.rotation.z += g.userData.sign * st.feeding * dt * 60;
+    flySpin.rotation.z -= Math.min(60, (st.flywheel || 0) / 0.0402) * dt * 0.4;
+    for (const g of hoodSpin) g.rotation.z += Math.min(60, (st.flywheel || 0) / 0.0198) * dt * 0.3;
     const s = Math.max(st.intakeDeploy, st.hopperDeploy);
     slide.position.set((1 - s) * S1114.slide[0], (1 - s) * S1114.slide[1], 0);
     // the kicker hangs straight down; coming in, the bumper swings it forward and up (to its stop)

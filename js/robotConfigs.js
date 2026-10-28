@@ -911,6 +911,9 @@ export const ROBOTS = {
     teamName: 'Simbotics',
     robotName: 'Simbot Tim',
     archetype: 'Box dumper',
+    // built of its physical mechanisms (js/mech/r1114.js, phys1114.js): its FUEL go through its
+    // CAD's ball path, moved by its rollers, elevator and flywheel, and its code runs them
+    physical: '1114',
     blurb: 'Archimedes Division finalist, 10-0 in qualifications, and Ontario champion. A tall clear hopper box slides out over the intake on racks, under a red "magic blanket" top cover (after 1124\'s 2008 claw). A belt floor feeds a ball elevator up the tower at the back to a hooded flywheel that fires forward over the hopper. Too tall for the TRENCH, it goes over the BUMPS.',
     // their CAD ("S26-A000"): 24.5 x 30in frame, 30in across the front
     frame: { length: 24.5 * IN, width: 30 * IN },
@@ -949,7 +952,7 @@ export const ROBOTS = {
       // (Statbotics), against 1678's 283 and 2910's 304 at Champs: on the same scale, about 26/s
       bps: 26,
       hoodMin: 42, hoodMax: 74, // their code's hood limits (30deg of travel in their CAD)
-      speedMax: 17,
+      speedMax: 10.5, // (its physical flywheel: FUEL leave at no more than ~10.5 m/s, tools/mechlab1114.mjs shooter)
       spinTau: 0.3,
       shotDrop: 0.003,
       speedSigma: 0.012, angleSigma: 0.55, yawSigma: 0.55, // 95-98% after the grip tape (their thread)
