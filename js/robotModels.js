@@ -1566,19 +1566,27 @@ function build4414(cfg, alliance) {
     const tb = boltSet(turret, std(0xc4c8ce, 0.3, 0.9));
     for (let i = 1; i < 16; i++) { const a = (i / 16) * Math.PI * 2; tb.add(new THREE.Vector3(Math.cos(a) * 0.165, 0.008, Math.sin(a) * 0.165), up); }
     tb.done();
-    // the column's top under the shooter
-    mesh(new THREE.CylinderGeometry(0.118, 0.118, 0.12, 36, 1, true), std(0x23262b, 0.5, 0.4, { side: THREE.DoubleSide }), turret, 0, D4.BORE.top - wallTop - 0.06, 0);
+    // the column under the shooter, down inside the hub's skin to the bore's top (it turns with
+    // the turret, not the rotor): a ring up to the sushi feeder, then open at the front where the
+    // feeder's wheels reach in (js/mech/r4414.js turret())
+    const S4f = D4.SHOOTER.feeder, cr = D4.BORE.r + 0.006, f0 = S4f.ys[0] - S4f.r - 0.003, c1 = D4.COLUMN.top + 0.04;
+    const cm = std(0x23262b, 0.5, 0.4, { side: THREE.DoubleSide });
+    mesh(new THREE.CylinderGeometry(cr, cr, f0 - D4.BORE.top, 32, 1, true), cm, turret, 0, (f0 + D4.BORE.top) / 2 - wallTop, 0);
+    // (three's cylinder: theta from +z toward +x; the window centered on +x, the shot's way)
+    mesh(new THREE.CylinderGeometry(cr, cr, c1 - f0, 32, 1, true, Math.PI / 2 + 0.55, 2 * Math.PI - 1.1), cm, turret, 0, (c1 + f0) / 2 - wallTop, 0);
   }
   const S4 = D4.SHOOTER, F4s = D4.FLY, ax = S4.x, ay = F4s.y - wallTop, pz = S4.plateZ;
   const at = (r, deg) => [ax + r * Math.cos((deg * Math.PI) / 180), ay + r * Math.sin((deg * Math.PI) / 180)];
   const body = new THREE.Group();
   turret.add(body);
-  // side plates (pocketed) carrying the flywheel's axle, down to the column
+  // side plates (pocketed) carrying the flywheel's axle, down to the hub's top (the column goes on
+  // down inside it)
+  const pb = D4.COLUMN.top + 0.01 - wallTop;
   for (const sz of [-1, 1]) {
     const sp = new THREE.Shape();
-    sp.moveTo(-0.11, D4.BORE.top - wallTop); sp.lineTo(ax + 0.06, D4.BORE.top - wallTop); sp.lineTo(ax + 0.06, ay + 0.02);
+    sp.moveTo(-0.11, pb); sp.lineTo(ax + 0.06, pb); sp.lineTo(ax + 0.06, ay + 0.02);
     sp.quadraticCurveTo(ax + 0.06, ay + 0.06, ax, ay + 0.06); sp.lineTo(-0.11, ay + 0.03); sp.closePath();
-    for (const [hx, hy] of [[-0.06, -0.24], [0.0, -0.24], [-0.04, -0.17]]) { const h = new THREE.Path(); h.absarc(hx, hy, 0.018, 0, Math.PI * 2, true); sp.holes.push(h); }
+    for (const [hx, hy] of [[-0.07, -0.125], [0.0, -0.13], [-0.065, -0.06]]) { const h = new THREE.Path(); h.absarc(hx, hy, 0.016, 0, Math.PI * 2, true); sp.holes.push(h); }
     const g = new THREE.ExtrudeGeometry(sp, { depth: 0.005, bevelEnabled: false });
     mesh(g, blackAl, body, 0, 0, sz * (pz + 0.03) - 0.0025);
   }
@@ -1609,9 +1617,15 @@ function build4414(cfg, alliance) {
     b.rotation.x = Math.PI / 2;
     b.rotation.y = Math.PI / 2 + (S4.fixedA[0] * Math.PI) / 180;
   }
-  // the sushi feeder: three 1in wheels up the column's front side under the flywheel
+  // the sushi feeder: three 1in wheels midway up the column's front side, in its window (the
+  // bottom two a softer compound, the top one harder: lighter here), each shaft's gear down the
+  // column's side from the flywheel's
   const fx = -D4.BORE.r + 2 * FUEL.radius - 0.5 * IN + S4.feeder.r;
-  for (const y of S4.feeder.ys) cylZ(S4.feeder.r, S4.feeder.w, M.compliant, body, fx, y - wallTop, 0, 14);
+  S4.feeder.ys.forEach((y, i) => {
+    cylZ(S4.feeder.r, S4.feeder.w, i < 2 ? M.compliant : std(0x6b7380, 0.55, 0.1), body, fx, y - wallTop, 0, 14);
+    cylZ(0.004, S4.feeder.w + 0.03, M.alu, body, fx, y - wallTop, 0, 6);
+    const g = spurGear(0.011, 14, 0.004, M.copper, body); g.rotation.x = Math.PI / 2; g.position.set(fx, y - wallTop, S4.feeder.w / 2 + 0.012);
+  });
   // the hood: built at its stow angle, turning about the flywheel's axle
   const hood = new THREE.Group();
   hood.position.set(ax, ay, 0);

@@ -69,9 +69,10 @@
 // it) into the hub's bore, each pushing the one
 // ahead up into the turret on the same axis. Nothing else turns at the hook's root. The hook's back
 // is the Dolphin Fin, a ramp FUEL ride up over when the rotor turns back; the hub's skin is the
-// Shrink Wrap, a skirt FUEL slide off. In the turret the sushi feeder (geared off the same
-// two X60s: "the main bps regulator") pushes them up into the flywheel, which flings them round
-// under the hood and out past the hood roller.
+// Shrink Wrap, a skirt FUEL slide off. Midway up the turret's column, which comes down inside the
+// hub, the sushi feeder (geared off the flywheel: "the main bps regulator") takes them from the
+// omnis and pushes them up into the flywheel, which flings them round under the hood and out past
+// the hood roller.
 import { IN, FUEL } from '../constants.js';
 import { Block, Motor, Shaft, Surface, Train, Wheel } from './mechanism.js';
 
@@ -138,7 +139,11 @@ export const FEED = {
 // FUEL's center along the channel, and the bend's center (u, y)
 export const YB = FLOOR + R + 0.002;
 export const BEND = { u: R + FEED.omni.r - FEED.omni.squeeze, y: YB + R + FEED.omni.r - FEED.omni.squeeze };
-export const BORE = { r: R + 0.004, top: 0.345 };
+// the hub's bore: up from the bend to top, where the turret's column (it doesn't turn with the
+// rotor) comes down inside the hub to meet it, just over the 1.25in omnis (their tops 0.286), so
+// the sushi feeder midway up it presses FUEL against the turret's own walls, never against the
+// turning bore's (that would drag on the rotor). (It was 0.345, the feeder over it)
+export const BORE = { r: R + 0.004, top: 0.29 };
 // the ramp round the bend: its face (FUEL's side) RO m from the bend's center, a row of n rollers
 // lying across it, each free on its bearings (r, J: estimates, the renders), the plate behind them.
 // A FUEL riding it is BEND.u from the omnis' axle, so they squeeze it FEED.omni.squeeze all the way
@@ -190,9 +195,16 @@ export const SHOOTER = {
   // runs up to the roller)
   roller: { r: 0.5 * IN, n: 3, seg: 1.4 * IN, at: 0, k: 1.5, J: 1e-5, gap: 6 },
   get rollerR() { return this.hoodR + this.roller.r - (SQ.roller - SQ.hood); },
-  // the sushi feeder: three 1in wheels on the column's front side under the flywheel, into the
-  // FUEL against the column's back wall
-  feeder: { r: 0.5 * IN, ys: [0.38, 0.405, 0.43], w: 0.06 },
+  // the sushi feeder: three 1in wheels on the column's front side, midway up it (the team: "feeder
+  // wheels midway up the column not easily seen in the CAD"; Shooter PT's gears down the turret's
+  // column), into the FUEL against the column's back wall. The lowest reaches a FUEL coming up the
+  // bore at 0.288 m, where the 1.25in omnis let go of it (0.293), so between them it's never
+  // without a drive (at 0.38-0.43, under the flywheel, nothing reached it from 0.293 to 0.329: a
+  // FUEL alone fell back onto the omnis), and it carries it the rest of the way, taking the load
+  // off the omnis. The bottom two grip harder (a softer, grippier compound: mu 1.2, the tread
+  // 10 kN/m), the top one is a harder durometer (mu 0.9, 25 kN/m) (the team; the values are
+  // estimates about the generic sushi wheel's 1.0, 15 kN/m). mu, tread: each wheel's, bottom up
+  feeder: { r: 0.5 * IN, ys: [0.32, 0.347, 0.374], w: 0.06, mu: [1.2, 1.2, 0.9], tread: [10000, 10000, 25000] },
   // what turns with the flywheel: four stealth wheels with copper and mass disks between (estimate:
   // six 3in x 1/4in copper disks, 0.26 kg each, and the wheels), the rotors are added
   J: 1.25e-3,
@@ -342,7 +354,7 @@ export function shooterWheels(t) {
     new Wheel({ name: '3in flywheel (stealth wheels)', shaft: t.fly, center: [0, 0, 0], axis: [0, 0, -1], radius: FLY.r, width: FLY.w, mu: MU.stealth, tread: 30000 }),
     // (the hood roller's sushi wheels, side by side across the path on the one shaft)
     ...Array.from({ length: S.roller.n }, (_, i) => new Wheel({ name: `hood 1in sushi roller ${i + 1}`, shaft: t.hoodRoller, center: [0, 0, 0], axis: Z, radius: S.roller.r, width: S.roller.seg - 0.002, mu: MU.sushi, tread: 15000 })),
-    ...S.feeder.ys.map((y, i) => new Wheel({ name: `1in sushi feeder ${i + 1}`, shaft: t.feeder, center: [0, y, 0], axis: [0, 0, -1], radius: S.feeder.r, width: S.feeder.w, mu: MU.sushi, tread: 15000 })),
+    ...S.feeder.ys.map((y, i) => new Wheel({ name: `1in sushi feeder ${i + 1}`, shaft: t.feeder, center: [0, y, 0], axis: [0, 0, -1], radius: S.feeder.r, width: S.feeder.w, mu: S.feeder.mu[i], tread: S.feeder.tread[i] })),
   ];
   w.forEach((x) => { x.home = x.center.slice(); });
   placeShooter(w, 0, S.hoodStow);
@@ -550,14 +562,20 @@ function box() {
     ...[-1, 1].map((k) => grid(6, 4, (u, v) => [lerp(HALF_L - 0.02, xF, u), lerp(0.03, BAY.net + 0.02, v), k * s])),
   );
 }
-// the turret (it turns): the column's top where FUEL come up (its back wall), the fixed backing,
-// the side plates
+// the turret (it turns): its column where FUEL come up, down inside the hub to the bore's top (a
+// ring all round up to the sushi feeder, then its back wall), the fixed backing, the side plates
+// (inside the hub only as far out as the hub's skin lets them)
 function turret() {
-  const S = SHOOTER, B = BORE, F = FLY;
-  const back = grid(3, 4, (u, v) => { const a = lerp(Math.PI / 2 + 0.6, 1.5 * Math.PI - 0.6, v); return [B.r * Math.cos(a), lerp(B.top, F.y - 0.01, u), B.r * Math.sin(a)]; });
+  const S = SHOOTER, B = BORE, F = FLY, f0 = S.feeder.ys[0] - S.feeder.r - 0.003;
+  const ring = cyl(0, 0, B.r, B.top, f0);
+  const back = grid(3, 4, (u, v) => { const a = lerp(Math.PI / 2 + 0.6, 1.5 * Math.PI - 0.6, v); return [B.r * Math.cos(a), lerp(f0, F.y - 0.01, u), B.r * Math.sin(a)]; });
   const fixed = grid(8, 4, (u, v) => { const a = (lerp(S.fixedA[0], S.fixedA[1], u) * Math.PI) / 180; return [S.x + S.fixedR * Math.cos(a), F.y + S.fixedR * Math.sin(a), lerp(-S.plateZ, S.plateZ, v)]; });
-  const plates = [-1, 1].map((k) => grid(8, 6, (u, v) => [lerp(-0.1, 0.32, u), lerp(B.top - 0.01, F.y + 0.24, v), k * S.plateZ]));
-  return merge(back, fixed, ...plates);
+  const xin = Math.sqrt(COLUMN.r ** 2 - S.plateZ ** 2) - 0.01;
+  const plates = [-1, 1].flatMap((k) => [
+    grid(2, 2, (u, v) => [lerp(-xin, xin, u), lerp(f0, COLUMN.top, v), k * S.plateZ]),
+    grid(8, 6, (u, v) => [lerp(-0.1, 0.32, u), lerp(COLUMN.top, F.y + 0.24, v), k * S.plateZ]),
+  ]);
+  return merge(ring, back, fixed, ...plates);
 }
 // the hood's backing (it turns about the flywheel's axle): its local frame there, the end where it
 // lets FUEL go (the roller) at 0 rad (posed with roll = that end's angle); the print from just

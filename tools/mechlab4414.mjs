@@ -174,6 +174,31 @@ function torqueTally(r) {
     },
   };
 }
+// (where each FUEL first meets the TTB stack: in the rotor's frame (u out along the channel, w
+// ahead), and what else it's touching then: on the hook's rollers, its plate, or loose on the floor;
+// into firsts. stackReport sums them up)
+function stackWatch(r, firsts) {
+  const seen = new Set();
+  return {
+    check(balls) {
+      for (const b of balls) {
+        if (seen.has(b)) continue;
+        const cs = r.path.contacts.filter((c) => c.ball === b);
+        if (!cs.some((c) => c.wheel.name.startsWith('TTB'))) continue;
+        seen.add(b);
+        const p = b.translation(), q = rotorPoint([p.x, p.y, p.z], -r.phi);
+        const on = cs.some((c) => c.wheel.name === 'hook rollers') ? 'rollers' : cs.some((c) => c.wheel.name.startsWith('hook and')) ? 'plate' : cs.some((c) => c.wheel.name === 'FUEL') ? 'FUEL' : 'loose';
+        firsts.push({ u: q[2] - AXIS[1], w: -(q[0] - AXIS[0]), y: p.y, on });
+      }
+    },
+  };
+}
+function stackReport(firsts) {
+  if (!firsts.length) return '  the stack touched none';
+  const by = (k) => firsts.filter((f) => f.on === k), u = firsts.map((f) => f.u).sort((a, b) => a - b);
+  const fmt = (k) => { const a = by(k); return a.length ? `${a.length} ${k === 'rollers' ? "on the hook's rollers" : k === 'plate' ? "on the hook's plate past them" : 'loose on the floor'} (u ${Math.min(...a.map((f) => f.u)).toFixed(3)}..${Math.max(...a.map((f) => f.u)).toFixed(3)}, w ${Math.min(...a.map((f) => f.w)).toFixed(3)}..${Math.max(...a.map((f) => f.w)).toFixed(3)})` : ''; };
+  return `  where each FUEL first met the TTB stack (the rotor's frame: u out along the channel, w ahead), of ${firsts.length}: ` + ['rollers', 'plate', 'loose'].map(fmt).filter(Boolean).join('; ') + `; u median ${u[u.length >> 1].toFixed(3)}`;
+}
 // the rotor at rps (a velocity loop on its X60: kV, kP as 604's), the rollers at a duty
 function feed(r, rps = ROTOR_RPS, rollers = ROLLERS) {
   const t = r.t;
@@ -464,16 +489,16 @@ const tests = {
     for (let i = 0; i < 1 / DT; i++) { launcher(r.t, 480); feed(r, 0, ROLLERS); r.t.rotor._omega = 0; r.step([]); }
     const [x, , z] = chan(Number(process.env.U ?? 0.175), 0, Number(process.env.W ?? -0.005));
     const b = ball(w, x, YB + 0.002, z);
-    const watch = shotWatch(r), log = pathLog(r);
+    const watch = shotWatch(r), log = pathLog(r), firsts = [], sw = stackWatch(r, firsts);
     for (let i = 0; i < 1.5 / DT; i++) {
       launcher(r.t, 480); feed(r, 0, ROLLERS); r.t.rotor._omega = 0;
       const live = [b].filter((q) => q.translation().y < 3);
-      r.step(live); log?.rec([b], i * DT); w.step(); watch.check(live, i * DT);
+      r.step(live); log?.rec([b], i * DT); w.step(); watch.check(live, i * DT); sw.check(live);
       if (i % 3 === 0 && live.length) { const p = b.translation(), v = b.linvel(), wv = b.angvel(); console.log(`   ${(i * DT).toFixed(3)} ${(p.x - AXIS[0]).toFixed(3)},${p.y.toFixed(3)},${(p.z - AXIS[1]).toFixed(3)} v ${Math.hypot(v.x, v.y, v.z).toFixed(2)} vy ${v.y.toFixed(2)} spin ${wv.x.toFixed(0)},${wv.y.toFixed(0)},${wv.z.toFixed(0)} feeder ${r.t.feeder.omega.toFixed(0)}: ${process.env.N ? [...r.path.contacts].filter((c) => c.ball === b).map((c) => c.wheel.name + ' n' + c.n.map((q) => q.toFixed(2)).join(',')).join('; ') : names(r, b)}`); }
       if (!live.length) break;
     }
     log?.save();
-    console.log(watch.shots.length ? `shot after ${watch.shots[0].t.toFixed(2)} s` : 'not shot');
+    console.log((watch.shots.length ? `shot after ${watch.shots[0].t.toFixed(2)} s` : 'not shot') + '\n' + stackReport(firsts));
   },
   // the column alone: FUEL set down at the hook's root (U, W in the channel's frame) whenever
   // there's room, the rotor held still: how fast the TTB wheels, the bend, the bore and the shooter
@@ -503,18 +528,19 @@ const tests = {
   // at RING_R m from the axis, 0.19), nothing over them, the rotor feeding from rest: how many it
   // takes in on its first turn, and on its second (the ones it pushed round)
   ring() {
-    const n = Number(process.env.RING ?? 8), rr = Number(process.env.RING_R ?? 0.19), res = [];
+    const n = Number(process.env.RING ?? 8), rr = Number(process.env.RING_R ?? 0.19), res = [], firsts = [];
     for (let seed = 1; seed <= SEEDS; seed++) {
       const r = rig({ hood: 150, yaw: Math.PI });
       const w = world({ carpet: false });
       const a0 = seed * 0.37;
       const balls = Array.from({ length: n }, (_, k) => { const a = a0 + (k / n) * TAU; return ball(w, AXIS[0] + rr * Math.cos(a), YB + 0.001, AXIS[1] + rr * Math.sin(a)); });
-      const turns = [0, 0, 0];
+      const turns = [0, 0, 0], sw = stackWatch(r, firsts);
       for (let k = 0; k < 1.5 / DT; k++) {
         launcher(r.t, 400); feed(r);
         const live = balls.filter((b) => b.translation().y < 3);
         r.step(live); w.step();
         if (process.env.SNAP && seed === 1 && k % 5 === 0 && k * DT >= Number(process.env.SNAP)) snap(r, live, k * DT);
+        sw.check(live);
         const turn = Math.floor(Math.abs(r.t.rotor.omega) > 0 ? (k * DT) / (1 / ROTOR_RPS) : 0);
         for (const b of live) { const p = b.translation(); if (Math.hypot(p.x - AXIS[0], p.z - AXIS[1]) < 0.06 && p.y > 0.26 && !b.up) { b.up = true; turns[Math.min(2, turn)]++; } }
       }
@@ -523,6 +549,7 @@ const tests = {
     }
     const tot = res.map((t) => t[0] + t[1] + t[2]);
     console.log(`4414's hook, ${n} FUEL on the floor ${rr} m out: up the bore in its first 0.44 s ${res.map((t) => t[0]).join(', ')}; by 0.89 s ${res.map((t) => t[0] + t[1]).join(', ')}; by 1.5 s ${tot.join(', ')} (mean ${(tot.reduce((a, b) => a + b, 0) / tot.length).toFixed(1)})`);
+    console.log(stackReport(firsts));
   },
   // the funnel alone: LIP=n FUEL (12) laid on the stadium round the bowl, LIP_R (0.33) m out, the
   // bowl empty, the rotor feeding: how fast they come down into it and are shot
