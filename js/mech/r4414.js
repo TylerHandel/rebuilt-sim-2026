@@ -160,12 +160,19 @@ export const BORE = { r: R + 0.004, top: 0.29 };
 // A FUEL riding it is BEND.u from the omnis' axle, so they squeeze it FEED.omni.squeeze all the way
 // round and up to the bore's middle (4mm more, as the bore's clearance, and they'd miss it by 1mm:
 // a FUEL left on the bend with nothing behind it sat at the stack's last reach, u 0.03).
-// The rollers here and on the hook turn on a pair of small sealed bearings each: friction, their
-// running torque (N·m: an estimate, a few mN·m for a pair of 2RS miniature bearings; about 0.25 N
-// at the rim). It doesn't get a lone FUEL any further (0.5, 3 and 10 mN·m all leave it at the
-// bore's foot, as free rollers do); a stream goes through a little faster at 3 and 10 (column
-// 11.3 and 11.6 FUEL/s against 11.0; dump 11.7-12.8 FUEL/s through the middle against 8.6-12.1)
-export const RAMP = { RO: BEND.u + R, rollers: { n: 9, r: 0.0125, J: 2e-6, friction: 0.003 } };
+// The rollers here and on the hook turn on bearings with quite a bit of resistance (the team: "enough
+// that the ball will not move around on its own but little enough resistance that a ball from
+// behind will push it"): friction, their running torque (N·m, Coulomb: Shaft's). Sized from a
+// FUEL's weight, W = 2.1 N: lying on the ramp at a degrees round the bend its weight pulls along
+// the rollers W sin(a), W r sin(a) on one roller, up to 26 mN·m standing on end at the bore's foot
+// (13 a roller on two); against the hook's rollers (standing up) it pulls nothing along them, and a
+// lone FUEL leans on them with about a newton, so it slides on them (their grip, 0.3) rather than
+// turning them at anything over about 3 mN·m. 10 mN·m holds a FUEL's weight on two rollers to
+// 49 degrees round the bend and on one to 22, and takes 0.8 N at their rims (0.9 on the hook's) to
+// turn: the stack drives a stream with tens of newtons. Tried: at 3 (it was), a lone FUEL the
+// coasting stack pressed onto the hook turned them 3 rad in 3 s, at 10 and 20 not at all; the dump,
+// twelve fills, 9.9 FUEL/s through the middle at 3, 10.1 at 10, 9.3 at 20; column 12.0 at all three
+export const RAMP = { RO: BEND.u + R, rollers: { n: 9, r: 0.0125, J: 2e-6, friction: 0.01 } };
 // the hook: its face curves gradually from its tip, flush with the bowl's wall (tipA rad round from
 // the channel, ahead), back and in to the hub's side on the channel's trailing side, coming in along
 // the channel there (a cubic: lead m on along the wall from the tip, root m out along the channel
@@ -175,7 +182,7 @@ export const RAMP = { RO: BEND.u + R, rollers: { n: 9, r: 0.0125, J: 2e-6, frict
 // bearings (r, and its inertia J: a plastic tube; estimates: the renders; friction as the ramp's), their fronts on the
 // curve FUEL ride along (hookCurve) and the plate behind them; past them, where it comes in to the
 // hub, no rollers (the team), the plate itself the face
-export const HOOK = { tipR: STADIUM.r - 0.003, tipA: 0.45, lead: 0.12, root: 0.1, y0: FLOOR + 0.006, y1: FLOOR + 0.1, finBack: 0.09, rollers: { n: 17, end: 0.75, r: 0.011, J: 1e-6, friction: 0.003 }, edge: 0.002 };
+export const HOOK = { tipR: STADIUM.r - 0.003, tipA: 0.45, lead: 0.12, root: 0.1, y0: FLOOR + 0.006, y1: FLOOR + 0.1, finBack: 0.09, rollers: { n: 17, end: 0.75, r: 0.011, J: 1e-6, friction: 0.01 }, edge: 0.002 };
 // the rotor: the hook, the hub, the feeder wheels and their gears (estimate)
 export const ROTOR = { J: 0.04 };
 
