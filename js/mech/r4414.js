@@ -243,24 +243,42 @@ export const INTAKE = {
   // No ramp, the box's bottom open (the renders, from above; the team): the primary 3in
   // polycarbonate roller low in front of the bumper's face, its back running up it, squeezes a
   // FUEL against the bumper and rolls it up the face (where it is, roughly: the team); the kick
-  // wheel, the binder's bottom 1.5in roller, in the corner where the bumper's face meets the carpet
-  // (a powered breaker bar: the team), its front running up, lifts a FUEL off the carpet into that
-  // pinch; and the black roller sitting on top of the bumper, belted to the kick wheel, its top
-  // running in, takes it over into the hopper (dx back from the box's front at its full extension;
-  // the places are estimates from the renders). The black roller is in short segments in the
-  // renders: compliant, gripping as rubber does (mu, tread); the kick wheel too (an estimate)
-  primary: { dx: -0.046, y: 0.14, r: 1.5 * IN },
-  bar: { dx: -0.23, y: 0.2, r: 0.75 * IN, mu: 1.0, tread: 20000 },
-  kick: { gap: 0.004, y: 0.75 * IN + 0.006, r: 0.75 * IN, mu: 1.0, tread: 20000 },
+  // wheel, the binder's bottom 1.5in roller, just out from the corner where the bumper's face meets
+  // the carpet (a powered breaker bar: the team), its front running up, lifts a FUEL off the carpet
+  // into that pinch; and the black roller sitting on top of the bumper, belted to the kick wheel,
+  // its top running in, takes it over into the hopper (dx back from the box's front at its full
+  // extension; the places are estimates from the renders). The black roller is in short segments
+  // in the renders: compliant, gripping as rubber does (mu, tread); the kick wheel too (an
+  // estimate).
+  // The primary's height: a FUEL taken under it is squeezed 1.2in against the carpet (its bottom
+  // 0.12 m up; FRC intakes squeeze FUEL 0.5-1in). At 0.14 m (1.9in) the FUEL under it wedged
+  // against the carpet and against the one being lifted in the corner (80-160 N each, dented 25-48
+  // mm, 1.5-3 N·m apiece out of it), and driving through FUEL at 3 m/s it sat at its 120 A for two
+  // thirds of the pickup, down to a stall and turning back; meanwhile the FUEL in the corner, the
+  // kick wheel 30 mm into it (140 N) and the bumper's foam behind it (95 N), held the kick wheel's
+  // X44 at its 40 A. The primary reaches a FUEL against the bumper's face only from 0.051 m under
+  // its own center (it's 0.176 m out: a FUEL's radius and its own, less 12 mm), so it can't go
+  // much higher: at 0.165 and up FUEL sat on the kick wheel just under its reach and it filled
+  // 20-30 fewer at 1 m/s. The kick wheel, its back gap out from the bumper's face, holds a FUEL
+  // against the face 0.117 m up, in the primary's reach (4 mm out, in the corner, it held it at
+  // 0.103 m, wedged into the foam)
+  primary: { dx: -0.046, y: 0.158, r: 1.5 * IN },
+  bar: { r: 0.75 * IN, mu: 1.0, tread: 20000 },
+  kick: { gap: 0.035, y: 0.75 * IN + 0.006, r: 0.75 * IN, mu: 1.0, tread: 20000 },
   // two tubes across the box over the primary roller, each free on its bearings (the isolated
   // intake render; the team): FUEL in the box can't pile on the primary's top, which runs forward
-  // and would throw them back out; ahead of the way up the bumper's face (estimates)
+  // and would throw them back out; ahead of the way up the bumper's face (estimates; the lower 26
+  // mm over the primary's top, under a FUEL's width)
   guards: [{ dx: -0.03, y: 0.235 }, { dx: -0.07, y: 0.28 }],
   guardR: 0.5 * IN,
   width: 0.8,
 };
 // the kick wheel's place: just in front of the bumper's face (the box's front is 0.2224 m out from it)
 INTAKE.kick.dx = INTAKE.kick.r + INTAKE.kick.gap - 0.2224;
+// the black roller's: sitting on the bumper's top (0.16, bumper4414), a mm over it, its front flush
+// with the bumper's face (the team; it was 11 mm out past the face and 2 cm over the top)
+INTAKE.bar.dx = -0.2224 - INTAKE.bar.r;
+INTAKE.bar.y = 0.16 + INTAKE.bar.r + 0.001;
 // the preload: eight on the floor round the hub, clear of the hook
 export const PRELOAD = [0, 1, 2, 3, 4, 5, 6, 7].map((k) => {
   const a = CH + 0.65 + (k / 7) * (2 * Math.PI - 1.3);

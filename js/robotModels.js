@@ -1284,9 +1284,9 @@ function build4414(cfg, alliance) {
         const b = bx(bl, 0.004, 0.012, M.polyBelt, ext, (mx + px) / 2 + (k * nx * (r0 + r1)) / 2, (my + py) / 2 + (k * ny * (r0 + r1)) / 2, bz);
         b.rotation.z = ba + k * Math.asin((r1 - r0) / bl);
       }
-      // the black roller on the bumper's top belted down to the kick wheel in the corner of the
-      // bumper and the carpet (the team), a black plate along the belt with a pulley at each end,
-      // the X44 driving them
+      // the black roller sitting on the bumper's top, flush with its face, belted down to the kick
+      // wheel just out from the corner of the bumper and the carpet (the team), a black plate along
+      // the belt with a pulley at each end, the X44 driving them
       const tx = xF + I4.bar.dx, ty = I4.bar.y, kx = xF + I4.kick.dx, ky = I4.kick.y;
       const ll = Math.hypot(tx - kx, ty - ky), la = Math.atan2(ty - ky, tx - kx);
       bx(ll, 0.022, 0.006, blackAl, ext, (kx + tx) / 2, (ky + ty) / 2, s * (sideZ + 0.024)).rotation.z = la;
@@ -1309,14 +1309,15 @@ function build4414(cfg, alliance) {
   cylZ(I4.primary.r, 2 * sideZ - 0.03, clearTube, intakeRoller, 0, 0, 0, 28).castShadow = false;
   cylZ(0.0064, 2 * sideZ - 0.01, M.alu, intakeRoller, 0, 0, 0, 6); // 1/2in hex shaft
   for (const s of [-1, 1]) for (const zz of [0.02, 0.25]) cylZ(I4.primary.r - 0.003, 0.014, plastic, intakeRoller, 0, 0, s * (sideZ - zz), 6);
-  // the small roller on top of the bumper (the renders: dark, in short segments on its shaft)
+  // the small roller sitting on top of the bumper, flush with its face (the renders: dark, in short
+  // segments on its shaft)
   const bottomBar = new THREE.Group();
   bottomBar.position.set(xF + I4.bar.dx, I4.bar.y, 0);
   ext.add(bottomBar);
   cylZ(0.005, 2 * sideZ - 0.01, M.alu, bottomBar, 0, 0, 0, 6);
   for (let i = 0; i < 24; i++) cylZ(I4.bar.r, (2 * sideZ - 0.05) / 24 - 0.004, std(0x2a2d33, 0.7, 0.05), bottomBar, 0, 0, -sideZ + 0.025 + (i + 0.5) * (2 * sideZ - 0.05) / 24, 14);
-  // the kick wheel, a powered breaker bar in the corner of the bumper's face and the carpet (dark
-  // compliant segments, as the black roller's)
+  // the kick wheel, a powered breaker bar just out from the corner of the bumper's face and the
+  // carpet (dark compliant segments, as the black roller's)
   const kickBar = new THREE.Group();
   kickBar.position.set(xF + I4.kick.dx, I4.kick.y, 0);
   ext.add(kickBar);
