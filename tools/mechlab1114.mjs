@@ -8,14 +8,17 @@
 // elevator, flywheel; how many and how fast), intake (their RunIntakeBallevator alone, 24 FUEL at
 // 1 and 3 m/s), intakefull (filled through the intake from the NEUTRAL ZONE's FUEL until it can't
 // put more in: tools/fillbench.mjs), hold (how many it holds, dropped in, everything off), dump (a
-// full one fired at their 3 m shot, with their AgitateIntake pulling the box in).
+// full one fired at their 3 m shot, with their AgitateIntake pulling the box in), feed (what the
+// floor, squish wheels and elevator take with the floor's front kept full: FEEDLOG, FEEDSNAP=t).
 // tune (their LUT's rows re-found by shooting: js/mech/r1114.js SIM_HUB, SIM_PASS).
 // Env: SEEDS (6), SPEED (path's 1 m/s; intake's 1,3), SEC (intakefull's 10 s), STUCK (where the
 // ones left over are), SHOT=rpm,hood (one shot of your own), MAP=1 (shooter: a grid of RPMs and
 // hoods), THEIR_RPM=1 (their LUT's own RPMs), NOAGITATE=1 (the dump without the box coming in),
 // AGITATE_V=v (dump: the box pulled in at v volts, not their 2; their code keeps a commented-out
 // -3.5 V "fast pull"), AGITATE=cycle (dump: the box in and out, their commented-out cycle),
-// FILL=layers (dump: filled as hold does), SPINUP=s (dump: the flywheel's head start, 3 s; 0 from rest), DIST=m (dump: from m, not 3.02), BINS (dump: shots each quarter
+// FILL=layers (dump: filled as hold does; EXT=m with the box m out), SEED=a,b (dump: those fills),
+// NOROLL=1 (dump: the intake roller off while the box comes in), FORCEIN=v (dump: the box driven in
+// at v m/s whatever the load), DUMPTALLY=t0,t1 (dump: what holds the load up, TALLYAT=1 where), SPINUP=s (dump: the flywheel's head start, 3 s; 0 from rest), DIST=m (dump: from m, not 3.02), BINS (dump: shots each quarter
 // second), DUMPLOG (dump: where the load is each quarter second), DUMPSNAP=t (dump: every FUEL
 // and what it touches at t), HOLDFILE / FILLFILE=path (hold / intakefull: where the FUEL are, as
 // JSON), TRACE=i (path)
@@ -148,7 +151,7 @@ const tests = {
     console.log(`  intake X60s ${RPM(t.intake.omega).toFixed(0)} rpm: 2in roller ${surf(t.roller, INTAKE.r).toFixed(2)} m/s at its surface`);
     console.log(`  floor X60s ${RPM(t.floor.omega).toFixed(0)} rpm: 1.25in rollers ${surf(t.rollers[0], FLOOR.r).toFixed(2)} m/s, squish wheels ${surf(t.squish, SQUISH.r).toFixed(2)} m/s`);
     console.log(`  side X44 ${RPM(t.sideT.omega).toFixed(0)} rpm: 2in side rollers ${surf(t.side[0], SIDE.r).toFixed(2)} m/s`);
-    console.log(`  elevator X60 ${RPM(t.elev.omega).toFixed(0)} rpm (their 4500): front column ${surf(t.front[0], ELEV.r).toFixed(2)} m/s, back ${surf(t.back[0], ELEV.r).toFixed(2)} m/s`);
+    console.log(`  elevator X60 ${RPM(t.elev.omega).toFixed(0)} rpm (their 4500): front column ${surf(t.front[0], ELEV.r).toFixed(2)} m/s, back ${surf(t.back[0], ELEV.r).toFixed(2)} m/s; the roller wall's face (down) ${surf(t.wall, ELEV.r).toFixed(2)} m/s`);
     console.log(`  shooter X60s ${RPM(t.shooter.omega).toFixed(0)} rpm: flywheel ${RPM(t.fly.omega).toFixed(0)} rpm, ${surf(t.fly, SHOOTER.fly.r).toFixed(2)} m/s; hood rollers ${surf(t.hood, SHOOTER.hoodR).toFixed(2)} m/s`);
     const r2 = rig(); r2.t.floor.cmd = 3 / 12;
     for (let i = 0; i < 1 / DT; i++) r2.path.step(DT, []);
@@ -266,6 +269,53 @@ const tests = {
     const fullAt = res.map((r) => r.fulls[0]?.n).filter((n) => n !== undefined);
     console.log(`1114 through its intake: the most it held ${res.map((r) => r.most).join(', ')} (mean ${mean(res.map((r) => r.most)).toFixed(1)}); full at ${fullAt.join(', ')}`);
   },
+  // what the floor, squish wheels and elevator can take, fed as fast as they'll take them: FUEL
+  // set on the floor's front (between the tower and the bumper, the box out) wherever there's room
+  // for 4 s, their Shoot firing at their 3 m shot
+  feed() {
+    const keep = 30, want = shotFor('hub', 3.02);
+    const rg = rig({ hood: want.hood }), { t, path, shooter } = rg, w = world(), balls = [];
+    flywheel(t, want.rpm);
+    for (let i = 0; i < 3 / DT; i++) shooter.step(DT, []);
+    const watch = shotWatch(shooter);
+    let sd = 7;
+    const stage = new Map();
+    const rnd = () => ((sd = (sd * 16807) % 2147483647) / 2147483647 - 0.5);
+    const over = (p) => p.x > 0.04 && p.x < 0.31 && p.y > 0.3 && p.y < 0.75 && Math.abs(p.z) < 0.3;
+    for (let k = 0; k < 6 / DT; k++) {
+      const T = k * DT;
+      feed(t, true);
+      for (let tries = 0; T < 4 && tries < 10 && balls.filter((b) => over(b.translation())).length < keep; tries++) {
+        const x = 0.2 + 0.16 * rnd(), z = 0.36 * rnd(), y = 0.3 + 0.1 * rnd();
+        if (balls.some((b) => { const p = b.translation(); return p.y < 3 && Math.hypot(p.x - x, p.y - y, p.z - z) < 2 * R; })) continue;
+        balls.push(ball(w, x, y, z, [0, -1, 0]));
+      }
+      const live = balls.filter((b) => b.translation().y < 3);
+      slide(rg, {}); path.step(DT, live, live); shooter.step(DT, live); w.step(); moveSlide(rg);
+      watch.check(live, T);
+      // (each one's first time on the floor, in the valley, at the elevator's foot, up it)
+      for (const b of live) {
+        const [x, y] = pos(b), st = stage.get(b) ?? {};
+        stage.set(b, st);
+        const at = x >= 0.1 && x < 0.31 && y < 0.3 ? 'floor' : x >= -0.04 && x < 0.1 && y < 0.3 ? 'valley' : x < -0.04 && y <= 0.3 ? 'foot' : x < -0.04 && y > 0.3 && y < 0.8 ? 'elev' : null;
+        if (at && st[at] === undefined) st[at] = T;
+      }
+      for (const o of watch.shots) if (stage.get(o.b) && stage.get(o.b).shot === undefined) stage.get(o.b).shot = o.t;
+      if (process.env.FEEDSNAP && k === Math.round(Number(process.env.FEEDSNAP) / DT)) {
+        for (const b of live) { const p = b.translation(); if (p.x > 40) continue; console.log(`   at ${p.x.toFixed(3)},${p.y.toFixed(3)},${p.z.toFixed(3)} v ${b.linvel().y.toFixed(2)}: ${[...path.contacts, ...shooter.contacts].filter((c) => c.ball === b).map((c) => c.wheel.name + ' ' + c.force.toFixed(0)).join(', ')}`); }
+      }
+      if (process.env.FEEDLOG && k % 30 === 0) {
+        const P = live.map(pos).filter((p) => p[0] < 40), n = (f) => P.filter(f).length;
+        console.log(`   ${T.toFixed(2)} s: shot ${watch.shots.length}; elevator ${n((p) => p[0] < -0.04 && p[0] > -0.2 && p[1] > 0.3)}, foot ${n((p) => p[0] < -0.04 && p[1] <= 0.3)}, valley ${n((p) => p[0] >= -0.04 && p[0] < 0.1 && p[1] < 0.3)}, floor ${n((p) => p[0] >= 0.1 && p[0] < 0.31 && p[1] < 0.3)}, upper ${n((p) => p[0] >= -0.04 && p[0] < 0.31 && p[1] >= 0.3)}, box ${n((p) => p[0] >= 0.31)}; floor ${RPM(t.floor.omega).toFixed(0)} rpm ${t.floor.motor.current.toFixed(0)} A, elevator ${RPM(t.elev.omega).toFixed(0)} rpm ${t.elev.motor.current.toFixed(0)} A, squish ${(Math.abs(t.squish.omega) * SQUISH.r).toFixed(2)} m/s`);
+      }
+    }
+    const s = watch.shots.map((x) => x.t), bins = [];
+    for (const o of s) bins[Math.floor(o)] = (bins[Math.floor(o)] || 0) + 1;
+    console.log(`1114 fed onto the floor's front for 4 s, wherever there's room: ${s.length} shot, each second ${Array.from(bins, (v) => v || 0).join(' ')}; ${balls.filter((b) => b.translation().y < 3 && inIt(b)).length} still in it`);
+    const seq = ['floor', 'valley', 'foot', 'elev', 'shot'], sh = [...stage.values()].filter((st) => st.shot !== undefined);
+    console.log('   median time from stage to stage (s), of those shot: ' + seq.slice(0, -1).map((a, i) => { const d = sh.filter((st) => st[a] !== undefined && st[seq[i + 1]] !== undefined).map((st) => st[seq[i + 1]] - st[a]); return `${a}->${seq[i + 1]} ${d.length ? med(d).toFixed(3) : '-'} (${d.length})`; }).join(', '));
+    w.free();
+  },
   hold() {
     for (const ext of [SLIDE.out, 0]) {
       const { path } = rig({ ext });
@@ -285,7 +335,8 @@ const tests = {
   // 6 V while it's out past 10.8)
   dump() {
     const runs = [];
-    for (let seed = 1; seed <= (process.env.FILL === 'layers' ? 1 : Number(process.env.SEEDS ?? 3)); seed++) runs.push(dumpRun(seed));
+    const seeds = process.env.SEED ? process.env.SEED.split(',').map(Number) : Array.from({ length: process.env.FILL === 'layers' ? 1 : Number(process.env.SEEDS ?? 3) }, (_, i) => i + 1);
+    for (const seed of seeds) runs.push(dumpRun(seed));
     console.log(`1114 dumps (mean of ${runs.length}): ${mean(runs.map((r) => r.n)).toFixed(1)} of ${mean(runs.map((r) => r.n0)).toFixed(1)}, ${mean(runs.map((r) => r.rate)).toFixed(1)} FUEL/s over the whole dump (${runs.map((r) => r.rate.toFixed(1)).join(', ')}), best second ${mean(runs.map((r) => r.best)).toFixed(1)} (${runs.map((r) => r.best).join(', ')}), ${mean(runs.map((r) => r.inHub)).toFixed(1)} in the HUB's opening (${runs.map((r) => r.n - r.inHub).join(', ')} missed)`);
   },
 };
@@ -309,8 +360,9 @@ function dumpRun(seed) {
   const D = Number(process.env.DIST ?? 3.02), want = shotFor('hub', D);
   let rg, w, balls;
   if (process.env.FILL === 'layers') {
-    rg = rig({ hood: want.hood }); w = world(); balls = [];
-    fill(w, balls, (n) => { for (let i = 0; i < n; i++) { rg.path.step(DT, balls, balls); w.step(); } });
+    const ext = process.env.EXT ? Number(process.env.EXT) : SLIDE.out;
+    rg = rig({ hood: want.hood, ext }); w = world(); balls = [];
+    fill(w, balls, (n) => { for (let i = 0; i < n; i++) { rg.path.step(DT, balls, balls); w.step(); } }, { ext });
   } else {
     const f = intakeFull(seed, { keep: true, until: (full) => full, sec: 14 });
     rg = f.rig; w = f.world;
@@ -329,22 +381,35 @@ function dumpRun(seed) {
   flywheel(t, want.rpm);
   const n0 = balls.filter((b) => ownP(pos(b), rg.ext)).length;
   const watch = shotWatch(shooter);
-  let minRpm = Infinity;
+  let minRpm = Infinity, tallyN = 0;
+  const tally = new Map();
   for (let k = 0; k < 8 / DT; k++) {
     const T = k * DT, rpm = RPM(t.shooter.omega);
     const fire = rpm >= want.rpm - 500, aimed = !process.env.NOAGITATE && rpm >= want.rpm - 400 && T > 0.65;
     const agit = aimed && (CYCLE || slideTurns(rg.ext) > SLIDE_POS.agitateMin);
     feed(t, fire);
-    t.intake.cmd = agit && slideTurns(rg.ext) >= SLIDE_POS.rollersOff ? 6 / 12 : null;
+    t.intake.cmd = agit && !process.env.NOROLL && slideTurns(rg.ext) >= SLIDE_POS.rollersOff ? 6 / 12 : null;
     // (AGITATE=cycle: their commented-out last mode, the box's setpoint 6.4 in and 9 in by turns, 240 ms each)
     if (CYCLE && agit) step(() => slide(rg, { turns: Math.floor((T - 0.65) / 0.24) % 2 ? 9 : 6.4 }));
-    else step(() => slide(rg, { volts: agit ? -Number(process.env.AGITATE_V ?? 2) : 0 }));
+    else if (process.env.FORCEIN && agit) step(() => { t.slide.cmd = null; t.slide._omega = -Number(process.env.FORCEIN) / SLIDE.pinion; t.slide.lo = t.slide.hi = t.slide._omega; });
+    else { t.slide.lo = -Infinity; t.slide.hi = Infinity; step(() => slide(rg, { volts: agit ? -Number(process.env.AGITATE_V ?? 2) : 0 })); }
     watch.check(balls, T);
     if (watch.shots.length) minRpm = Math.min(minRpm, RPM(t.shooter.omega));
     // (DUMPLOG=1: where the load is each 0.25 s: up the elevator, at its foot, over the floor's back
     // slope and valley, on the floor, in the box out front, and the elevator's and floor's speeds)
     if (process.env.DUMPSNAP && k === Math.round(Number(process.env.DUMPSNAP) / DT)) {
-      for (const b of balls) { const p = b.translation(); if (p.y > 3 || p.x > 40) continue; console.log(`   at ${p.x.toFixed(2)},${p.y.toFixed(2)},${p.z.toFixed(2)} v ${b.linvel().y.toFixed(2)}: ${[...path.contacts, ...shooter.contacts].filter((c) => c.ball === b).map((c) => c.wheel.name + ' ' + c.force.toFixed(0)).join(', ')}`); }
+      for (const b of balls) { const p = b.translation(); if (p.y > 3 || p.x > 40) continue; console.log(`   at ${p.x.toFixed(3)},${p.y.toFixed(3)},${p.z.toFixed(3)} v ${b.linvel().y.toFixed(2)}: ${[...path.contacts, ...shooter.contacts].filter((c) => c.ball === b).map((c) => c.wheel.name + ' ' + c.force.toFixed(0)).join(', ')}`); }
+      for (const c of path.contacts.filter((q) => q.wheel === rg.s.slide)) { const p = c.ball.translation(); console.log(`   on the box: FUEL at ${p.x.toFixed(2)},${p.y.toFixed(2)},${p.z.toFixed(2)} contact at ${c.x.map((v) => v.toFixed(2)).join(',')} n ${c.n.map((v) => v.toFixed(2)).join(',')} ${c.force.toFixed(0)} N, ${(c.torque / SLIDE.pinion).toFixed(0)} N along its racks`); }
+    }
+    // (DUMPTALLY=t0,t1: what holds the load up from t0 to t1: each wheel's and surface's lift on
+    // the FUEL in it, on average)
+    if (process.env.DUMPTALLY) {
+      const [t0, t1] = process.env.DUMPTALLY.split(',').map(Number);
+      if (T >= t0 && T < t1) {
+        for (const c of [...path.contacts, ...shooter.contacts]) { const k2 = c.wheel.name.replace(/ \d+ /, ' ') + (process.env.TALLYAT && /CAD/.test(c.wheel.name) ? ` @${(Math.round(c.x[0] * 20) / 20).toFixed(2)},${(Math.round(c.x[1] * 20) / 20).toFixed(2)},|z|${(Math.round(Math.abs(c.x[2]) * 10) / 10).toFixed(1)}` : ''); tally.set(k2, (tally.get(k2) ?? 0) + (c.force * c.n[1] * DT) / (t1 - t0)); }
+        tallyN += balls.filter((b) => inIt(b, rg.ext) && b.translation().y < 0.8).length * DT / (t1 - t0);
+      }
+      if (Math.abs(T - t1) < DT / 2) console.log(`   lifting the load (${tallyN.toFixed(1)} in it on average, ${(tallyN * FUEL.mass * 9.81).toFixed(1)} N): ` + [...tally].sort((a, b) => b[1] - a[1]).map(([n, f]) => `${n} ${f.toFixed(1)}`).join(', '));
     }
     if (process.env.DUMPLOG && k % 30 === 0) {
       const P = balls.map(pos).filter((p) => p[1] < 3 && p[0] < 40);

@@ -16,8 +16,10 @@
 // of four 1.25in rollers (grip tape) 0.175 m apart, counter-rotating, two FUEL wide, lifting them
 // to the 3in flywheel at the top (grip tape), which carries them up round its back under the
 // hood's three 1.5in rollers (grip tape, driven off the flywheel the other way) and flings them
-// forward over the hopper. In front of the elevator, three free 1.25in rollers belted together
-// (the "roller wall": the tower's face, so the load leaning on it slides down rolling).
+// forward over the hopper. In front of the elevator, three 1.25in rollers belted together (the
+// "roller wall": the tower's face; the team "added the active wall in front of the shooter tower"
+// after their first event: driven, its face running down, so the load leaning on it is carried
+// down to the elevator's foot).
 // Drives (the CAD's belts and gears, their code's limits; the Phoenix 6 default 70 A supply limit
 // where their config only sets the stator's):
 //   intake: two Kraken X60s on the box (85 A stator), 12t:30T (HTD) to the roller (0.4 of the motor)
@@ -62,7 +64,7 @@ export const SIDE = { x: 0.1129, y: 0.2246, z: 0.2725, r: 0.0254, len: 0.171 };
 // 0.352 to 0.505 m up (their CAD's "Part 2" between its "Part 1" bosses), where the load used to
 // "crystallize" on the hopper's sides (the team)
 export const PASSIVE = { at: [[0.0483, 0.2883], [0.08, 0.3382]], y: 0.4286, r: 0.008, len: 0.153 };
-// the ball elevator: its back and front columns, and the free roller wall in front of it
+// the ball elevator: its back and front columns, and the roller wall in front of it
 export const ELEV = {
   back: [[-0.2096, 0.3224], [-0.2096, 0.3816], [-0.2096, 0.4408], [-0.2096, 0.5001]],
   front: [[-0.0343, 0.3224], [-0.0343, 0.3816], [-0.0343, 0.4408], [-0.0343, 0.5001]],
@@ -183,8 +185,11 @@ export function build1114() {
   const elev = new Train({ name: 'ball elevator', motor: new Motor('krakenX60', { statorLimit: 70, supplyLimit: SUPPLY }) });
   const front = ELEV.front.map((_, i) => elev.add(new Shaft({ name: `elevator front roller ${i + 1}`, inertia: 5e-5 }), -12 / 24));
   const back = ELEV.back.map((_, i) => elev.add(new Shaft({ name: `elevator back roller ${i + 1}`, inertia: 5e-5 }), (12 / 24) * (30 / 26)));
-  // the roller wall: free, belted together (its bearings' running friction an estimate)
-  const wall = new Shaft({ name: 'roller wall (free)', inertia: 1.5e-4, drag: 1e-4, friction: 0.005 });
+  // the roller wall: active (the team), belted together; the CAD shows nothing driving it, so here
+  // a belt off the elevator's front column at half its
+  // speed, its face down at 2.0 m/s while the elevator runs (an estimate: a full box dumps at 16
+  // FUEL/s with its face at 1.6-2.4 m/s, 15 at 1 and 1.2, 14 at 2.9 and 3.9, 13 free)
+  const wall = elev.add(new Shaft({ name: 'roller wall', inertia: 1.5e-4 }), -12 / 24 / 2);
   // the shooter: positive runs the flywheel's back up (FUEL up its back and forward over its top),
   // the hood rollers the other way
   const S = SHOOTER;
