@@ -15,7 +15,7 @@
 // hoods), THEIR_RPM=1 (their LUT's own RPMs), NOAGITATE=1 (the dump without the box coming in),
 // AGITATE_V=v (dump: the box pulled in at v volts, not their 2; their code keeps a commented-out
 // -3.5 V "fast pull"), AGITATE=cycle (dump: the box in and out, their commented-out cycle),
-// FILL=layers (dump: filled as hold does), BINS (dump: shots each quarter
+// FILL=layers (dump: filled as hold does), SPINUP=s (dump: the flywheel's head start, 3 s; 0 from rest), DIST=m (dump: from m, not 3.02), BINS (dump: shots each quarter
 // second), DUMPLOG (dump: where the load is each quarter second), DUMPSNAP=t (dump: every FUEL
 // and what it touches at t), HOLDFILE / FILLFILE=path (hold / intakefull: where the FUEL are, as
 // JSON), TRACE=i (path)
@@ -286,7 +286,7 @@ const tests = {
   dump() {
     const runs = [];
     for (let seed = 1; seed <= (process.env.FILL === 'layers' ? 1 : Number(process.env.SEEDS ?? 3)); seed++) runs.push(dumpRun(seed));
-    console.log(`1114 dumps (mean of ${runs.length}): ${mean(runs.map((r) => r.n)).toFixed(1)} of ${mean(runs.map((r) => r.n0)).toFixed(1)}, ${mean(runs.map((r) => r.rate)).toFixed(1)} FUEL/s over the whole dump (${runs.map((r) => r.rate.toFixed(1)).join(', ')}), best second ${mean(runs.map((r) => r.best)).toFixed(1)} (${runs.map((r) => r.best).join(', ')}), ${mean(runs.map((r) => r.inHub)).toFixed(1)} in the HUB's opening`);
+    console.log(`1114 dumps (mean of ${runs.length}): ${mean(runs.map((r) => r.n)).toFixed(1)} of ${mean(runs.map((r) => r.n0)).toFixed(1)}, ${mean(runs.map((r) => r.rate)).toFixed(1)} FUEL/s over the whole dump (${runs.map((r) => r.rate.toFixed(1)).join(', ')}), best second ${mean(runs.map((r) => r.best)).toFixed(1)} (${runs.map((r) => r.best).join(', ')}), ${mean(runs.map((r) => r.inHub)).toFixed(1)} in the HUB's opening (${runs.map((r) => r.n - r.inHub).join(', ')} missed)`);
   },
 };
 
@@ -306,7 +306,7 @@ function intakeFull(seed, { keep = false, sec = Number(process.env.SEC ?? 10), u
 
 const CYCLE = process.env.AGITATE === 'cycle';
 function dumpRun(seed) {
-  const D = 3.02, want = shotFor('hub', D);
+  const D = Number(process.env.DIST ?? 3.02), want = shotFor('hub', D);
   let rg, w, balls;
   if (process.env.FILL === 'layers') {
     rg = rig({ hood: want.hood }); w = world(); balls = [];
@@ -321,10 +321,12 @@ function dumpRun(seed) {
   }
   const { t, path, shooter } = rg;
   const step = (run) => { run(); path.step(DT, balls, balls); shooter.step(DT, balls); w.step(); moveSlide(rg); };
-  // (the roller let go, the flywheel up to the shot's speed on the way to the HUB: 3 s)
+  // (the roller let go, the flywheel up to the shot's speed on the way to the HUB: 3 s; SPINUP=s
+  // gives it s instead, 0 from rest: their Shoot feeds once it's within 500 RPM)
+  const spin = Number(process.env.SPINUP ?? 3);
   t.intake.cmd = null; t.floor.cmd = null;
+  for (let i = 0; i < 3 / DT; i++) { if (i >= (3 - spin) / DT) flywheel(t, want.rpm); step(() => slide(rg, {})); }
   flywheel(t, want.rpm);
-  for (let i = 0; i < 3 / DT; i++) step(() => slide(rg, {}));
   const n0 = balls.filter((b) => ownP(pos(b), rg.ext)).length;
   const watch = shotWatch(shooter);
   let minRpm = Infinity;
@@ -355,7 +357,7 @@ function dumpRun(seed) {
   const rate = s.length / Math.max(1e-6, s[s.length - 1] - first);
   const left = balls.filter((b) => b.translation().x < 40 && inIt(b, rg.ext));
   if (process.env.STUCK) for (const b of left) { const p = b.translation(); console.log(`   left at ${p.x.toFixed(2)},${p.y.toFixed(2)},${p.z.toFixed(2)}: ${[...path.contacts, ...shooter.contacts].filter((c) => c.ball === b).map((c) => c.wheel.name + ' ' + c.force.toFixed(0)).join(', ')}`); }
-  if (process.env.BINS) { const bins = []; for (const o of s) { const i = Math.floor((o - first) / 0.25); bins[i] = (bins[i] || 0) + 1; } console.log('   shots each 0.25 s: ' + Array.from(bins, (v) => v || 0).join(' ')); }
+  if (process.env.BINS) { const bins = []; for (const o of s) { const i = Math.floor((o - first) / 0.25); bins[i] = (bins[i] || 0) + 1; } console.log('   shots each 0.25 s: ' + Array.from(bins, (v) => v || 0).join(' ')); const miss = []; for (const o of watch.shots) { const d = landing(o); if (!(Math.abs(d - D) < HUB_R)) { const i = Math.floor((o.t - first) / 0.25); miss[i] = (miss[i] || 0) + 1; } } console.log('   missed each 0.25 s: ' + Array.from(miss, (v) => v || 0).join(' ') + '; first shot ' + first.toFixed(2) + ' s in'); }
   const land = watch.shots.map((o) => landing(o)).filter(Number.isFinite).sort((a, b) => a - b);
   const inHub = land.filter((d) => Math.abs(d - D) < HUB_R).length;
   const sh = watch.shots;

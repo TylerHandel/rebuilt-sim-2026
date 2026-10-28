@@ -322,7 +322,7 @@ export class AutoRunner {
     const r = this.robot;
     const cmd = r.cmd;
     cmd.vx = 0; cmd.vz = 0; cmd.omega = 0;
-    cmd.intake = false; cmd.shoot = false; cmd.pass = false; cmd.outtake = false;
+    cmd.intake = false; cmd.shoot = false; cmd.pass = false; cmd.outtake = false; cmd.prespin = false; cmd.spin = undefined;
     // an intake that stows folded up (8793's) comes down on the way under a TRENCH
     // (only a robot that fits under it: the others go over the BUMPS and leave it stowed)
     cmd.lower = !!r.cfg.intake.fold && fitsTrench(r.cfg) && underTrench(r.pos.x, r.pos.z, r.halfL + 1.2);
@@ -333,8 +333,19 @@ export class AutoRunner {
     }
     const s = this.steps[this.i];
     this.stepT += dt;
-    const next = () => { this.i++; this.stepT = 0; this.pi = 0; this.lag = 0; };
+    const next = () => { this.i++; this.stepT = 0; this.pi = 0; this.lag = 0; this.aimT = undefined; };
     if (s.type === 'shoot') {
+      // (a team auto whose flywheel runs only where its code runs it: up for its shot here)
+      if (s.spinPts) cmd.spin = cmd.prespin = true;
+      // aiming first (1114's timedShoot): turned to the HUB and stopped, not shooting, until the
+      // heading's within 2.75 deg and it's stopped, or for at most s.aim; then shooting for its time
+      if (s.aim && this.aimT === undefined) {
+        const h = fw(HUB.fx, HUB.fy, this.alliance);
+        const err = r.aimErr ?? wrapAngle(Math.atan2(-(h.z - r.pos.z), h.x - r.pos.x) - r.yaw - (r.aimOffset || 0));
+        cmd.omega = clamp(5 * err, -r.cfg.drive.maxOmega, r.cfg.drive.maxOmega);
+        if ((Math.abs(err) < (2.75 * Math.PI) / 180 && Math.hypot(r.vel.x, r.vel.z) < 0.05) || this.stepT >= s.aim) { this.aimT = this.stepT; this.stepT = 0; }
+        return;
+      }
       cmd.shoot = true;
       // too close to the HUB for this shooter: back away toward our ALLIANCE WALL
       if (/range/.test(r.status)) cmd.vx = (this.alliance === 'blue' ? -1 : 1) * 1.2;
@@ -367,7 +378,13 @@ export class AutoRunner {
     }
     if (s.type === 'drive') {
       if (this.pi === undefined) this.pi = 0;
-      const pts = s.pts.map(([fx, fy]) => this.P(fx, fy, s.mirror !== false));
+      let pts = s.pts.map(([fx, fy]) => this.P(fx, fy, s.mirror !== false));
+      // (a team's path that runs on into the next drive step without stopping (s.flow: PathPlanner's
+      // event zones start and end beside it): that step's points ahead too, up to the next stop)
+      const n = pts.length;
+      let after = this.i + 1; // (the step after where it stops)
+      for (; s.flow && this.steps[after]?.type === 'drive' && this.steps[after].flow; after++) pts = pts.concat(this.steps[after].pts.map(([fx, fy]) => this.P(fx, fy, this.steps[after].mirror !== false)));
+      const flows = pts.length > n;
       const tgt = pts[this.pi];
       const last = this.pi === pts.length - 1;
       const dx = tgt.x - r.pos.x, dz = tgt.z - r.pos.z;
@@ -397,7 +414,7 @@ export class AutoRunner {
       if (this.left && s.face === undefined) face = Math.atan2(-dz, dx);
       // a chassis-aimed shooter about to stop and shoot turns to its shot over the last 2.5 m, so
       // it arrives aimed (as the teams' autos do) instead of swinging round where it stops
-      const aimAhead = s.face === undefined && r.cfg.shooter.type === 'fixed' && this.steps[this.i + 1]?.type === 'shoot' && remain < 2.5;
+      const aimAhead = s.face === undefined && r.cfg.shooter.type === 'fixed' && this.steps[after]?.type === 'shoot' && remain < 2.5;
       if (aimAhead) { const h = fw(HUB.fx, HUB.fy, this.alliance); face = Math.atan2(-(h.z - r.pos.z), h.x - r.pos.x) - (r.aimOffset || 0); }
       if (d > 0.15 || s.face !== undefined || aimAhead) cmd.omega = clamp(5 * wrapAngle(face - r.yaw), -r.cfg.drive.maxOmega, r.cfg.drive.maxOmega);
       cmd.intake = !!s.intake;
@@ -416,8 +433,13 @@ export class AutoRunner {
       }
       // 'hub' = shoot on the move only once back in our ALLIANCE ZONE (don't pass the FUEL away)
       cmd.shoot = s.shoot === 'hub' ? r.lastInZone : !!s.shoot;
+      // (a team auto whose flywheel runs only where its code runs it: up to the HUB shot on the way
+      // to a point that says so, 1114's AimShooterHub; coasting otherwise, their ShooterStop)
+      if (s.spinPts) cmd.spin = cmd.prespin = !!s.pts[Math.min(this.pi, n - 1)][3];
       if ((last && d < 0.1) || (!last && d < 0.35)) {
         if (last) next();
+        // (flowing on: the next step from its first point once past this one's last)
+        else if (flows && this.pi === n - 1) next();
         else this.pi++;
       }
       if (this.stepT > (s.timeout ?? 8)) next();

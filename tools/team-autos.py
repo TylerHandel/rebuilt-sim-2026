@@ -31,7 +31,9 @@ which are the sim's blue fx, fy.
 - 1114 (PathPlanner): their chooser's first, Right / Left 1-1 Middle Sweep : Greedy Sweep (the
   left mirrored, as their chooser does), and Left Slow Centre Sweep Plus Depot. Each path's Bezier
   waypoints at its max velocity (and constraint zones), intaking over its IntakeDeploy zones; each
-  FullShoot from x = 3.1 m (their autonXShootPose), held for its aiming time plus its timeout.
+  FullShoot from x = 3.1 m (their autonXShootPose): aiming until aimed and stopped (at most its
+  aiming time), then shooting for its timeout; the flywheel spun up from each AimShooterHub
+  marker; no stop where an IntakeDeploy zone starts or ends.
 """
 import argparse, json, math, os, re
 
@@ -41,10 +43,12 @@ W = 8.069  # the field's width (m): the 2026 AprilTag layout's, as all three use
 STEP = 0.35  # spacing of the waypoints along a path (m)
 
 
-def pt(x, y, intake, shoot, v, action='none', t=None):
+def pt(x, y, intake, shoot, v, action='none', t=None, spin=False):
     p = {'fx': round(x, 3), 'fy': round(y, 3), 'intake': intake, 'shoot': shoot, 'v': round(v, 2), 'action': action}
     if t is not None:
         p['t'] = t
+    if spin:
+        p['spin'] = True  # the flywheel up to its HUB shot on the way here (not shooting), intaking or not
     return p
 
 
@@ -67,9 +71,11 @@ def bezier(p0, p1, p2, p3, n=40):
     return [tuple((1 - t) ** 3 * a + 3 * (1 - t) ** 2 * t * b + 3 * (1 - t) * t ** 2 * c + t ** 3 * d for a, b, c, d in zip(p0, p1, p2, p3)) for t in (i / n for i in range(n + 1))]
 
 
-def pp_path(d, name, marker=None):
+def pp_path(d, name, marker=None, onward=None):
     """(point, speed) every STEP along a path; with marker (an event's name), (point, speed, on):
-    whether one of that event's zones (zoned event markers: running from its start to its end) covers it"""
+    whether one of that event's zones (zoned event markers: running from its start to its end) covers it;
+    with onward too (a point event's name), (point, speed, on, past): whether it's past that event
+    (a command started there runs on to the path's end)"""
     p = json.load(open(os.path.join(d, 'paths', name + '.path')))
     wp = p['waypoints']
     xy, rel = [], []  # points, and each one's waypoint-relative position (for constraint zones)
@@ -87,15 +93,18 @@ def pp_path(d, name, marker=None):
         ev = [(e['waypointRelativePos'], e.get('endWaypointRelativePos')) for e in p.get('eventMarkers', []) if e['name'] == marker]
         # (+0.01: zones end to end, as 1114's IntakeDeploys are 0.001 apart, run as one)
         on = [any(hi is not None and lo <= r <= hi + 0.01 for lo, hi in ev) for r in rel]
+    past = [any(e['name'] == onward and r >= e['waypointRelativePos'] for e in p.get('eventMarkers', [])) for r in rel]
     # sample along it, a new point wherever the speed changes too (and the marker)
     out, acc = [(xy[0], speed[0])], 0.0
     for i in range(1, len(xy)):
         acc += math.dist(xy[i - 1], xy[i])
-        if acc >= STEP or speed[i] != out[-1][1] or (marker and on[i] != on[i - 1]) or i == len(xy) - 1:
+        if acc >= STEP or speed[i] != out[-1][1] or (marker and on[i] != on[i - 1]) or past[i] != past[i - 1] or i == len(xy) - 1:
             out.append((xy[i], speed[i]))
             acc = 0.0
             if marker: out[-1] += (on[i],)
+            if onward: out[-1] += (past[i],)
     if marker: out[0] += (on[0],)
+    if onward: out[0] += (past[0],)
     return out
 
 
@@ -142,9 +151,14 @@ def auto_8793(d, file):
 # runs over each zone; AimShooterHub (the flywheel up to the shot, at the end of each path);
 # FullShoot33 / FullShoot4 / FullShoot5, a timedShoot (aimingMilliseconds, timeoutSeconds) of
 # (1000, 3.4) / (750, 2.25) / (750, 3.25) beside aimDriveHubAuto, which drives straight to
-# x = DriveConstants.autonXShootPose (3.1 m) along y and turns to the HUB; it shoots once aimed
-# and stopped (or once the aiming time is up) for the timeout, sitting there all that time;
-# ShooterStop. Their chooser's Left autos are the Right ones mirrored (PathPlannerAuto(name, true)).
+# x = DriveConstants.autonXShootPose (3.1 m) along y and turns to the HUB: its Shoot starts once
+# the heading's within the drive's 2.75 deg and it's stopped (|vx| < 0.05), or once the aiming time
+# is up, and runs for the timeout (it doesn't end when the hopper's empty), sitting there all that
+# time; ShooterStop (the flywheel coasts). AimShooterHub (an AimShooterAuto, on the shooter alone,
+# so it runs beside IntakeDeploy on the intake and indexer) spins the flywheel up to the HUB shot
+# from its marker to the path's end ('spin'). PathPlanner runs the event zones beside the path:
+# it doesn't stop where they start or end ('flow'). Their chooser's Left autos are the Right ones
+# mirrored (PathPlannerAuto(name, true)).
 SHOOT_1114 = {'FullShoot33': (1.0, 3.4), 'FullShoot4': (0.75, 2.25), 'FullShoot5': (0.75, 3.25)}
 SHOOT_X_1114 = 3.1
 
@@ -156,17 +170,17 @@ def auto_1114(d, file, mirror):
     for c in a['command']['data']['commands']:
         t, data = c['type'], c.get('data', {})
         if t == 'path':
-            seg = pp_path(d, data['pathName'], 'IntakeDeploy')
+            seg = pp_path(d, data['pathName'], 'IntakeDeploy', 'AimShooterHub')
             if start is None:
                 start = (seg[0][0][0], ys(seg[0][0][1]))
-            for (x, y), v, on in seg[1:]:
-                pts.append(pt(x, ys(y), on, 'off', v))
+            for (x, y), v, on, spin in seg[1:]:
+                pts.append(pt(x, ys(y), on, 'off', v, spin=spin))
         elif t == 'named' and data['name'] in SHOOT_1114:
             aim, dur = SHOOT_1114[data['name']]
             last = pts[-1]
             if last['fx'] > SHOOT_X_1114:
-                pts.append(pt(SHOOT_X_1114, last['fy'], False, 'off', 1.0))
-            pts[-1].update(action='shoot', t=round(aim + dur, 2), hold=True)
+                pts.append(pt(SHOOT_X_1114, last['fy'], False, 'off', 1.0, spin=True))
+            pts[-1].update(action='shoot', t=dur, aim=aim, hold=True)
     return start, pts
 
 
@@ -480,7 +494,7 @@ def main():
         st, pts = auto_1114(pp, file, mirror)
         slug = re.sub(r'[^a-z0-9]+', '-', name.lower()).strip('-')
         autos.setdefault('1114', []).append({'id': f'1114-{slug}', 'name': name, 'side': side, 'source': f'PathPlanner "{file}"' + (' mirrored' if mirror else ''),
-                                             'startFx': round(st[0], 3), 'startFy': round(st[1], 3), 'shootPreload': False, 'points': pts})
+                                             'startFx': round(st[0], 3), 'startFy': round(st[1], 3), 'shootPreload': False, 'flow': True, 'spinPts': True, 'points': pts})
     out = os.path.join(ROOT, 'js', 'teamAutos.js')
     with open(out, 'w') as f:
         f.write('// The teams\' own AUTOs, from their robot code (tools/team-autos.py writes this file; see its\n')

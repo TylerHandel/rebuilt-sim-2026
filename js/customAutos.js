@@ -86,13 +86,20 @@ export function customSteps(a, mirror, maxSpeed) {
     if (!same) {
       flush();
       cur = { type: 'drive', pts: [], intake: p.intake, shoot, speed, mirror: false, timeout: 3, perPoint: !!p.v };
+      // (a team's path that runs its events beside it, PathPlanner's: it doesn't stop where they
+      // start or end; and one whose flywheel runs only where its code runs it: 1114's)
+      if (a.flow) cur.flow = true;
+      if (a.spinPts) cur.spinPts = true;
     }
-    cur.pts.push(p.v ? [p.fx, fy(p.fy), speed] : [p.fx, fy(p.fy)]);
+    // (its flywheel up to the HUB shot on the way to this point: spin)
+    cur.pts.push(p.v ? (a.spinPts ? [p.fx, fy(p.fy), speed, !!p.spin] : [p.fx, fy(p.fy), speed]) : [p.fx, fy(p.fy)]);
     cur.timeout += (2 * Math.hypot(p.fx - prev.fx, p.fy - prev.fy)) / Math.max(0.5, maxSpeed * speed);
     prev = p;
     // (a team auto's shot that holds its spot for the time it's given, its intake running or not, as
     // 604's Quikplan waits do: hold)
-    if (p.action === 'shoot') { flush(); steps.push(p.hold ? { type: 'shoot', timeout: p.t ?? 3, hold: true, intake: !!p.intake } : { type: 'shoot', timeout: p.t ?? 3 }); }
+    // (aim: it aims, not shooting, until it's aimed and stopped, for at most that long, then shoots
+    // for its time: 1114's timedShoot)
+    if (p.action === 'shoot') { flush(); steps.push(p.hold ? { type: 'shoot', timeout: p.t ?? 3, hold: true, intake: !!p.intake, ...(p.aim ? { aim: p.aim } : {}), ...(a.spinPts ? { spinPts: true } : {}) } : { type: 'shoot', timeout: p.t ?? 3 }); }
     else if (p.action === 'until') { flush(); steps.push({ type: 'wait', until: p.t, intake: p.intake }); }
     else if (p.action !== 'none') { flush(); steps.push({ type: 'wait', t: waitTime(p.action, p.t), intake: p.intake }); }
   }

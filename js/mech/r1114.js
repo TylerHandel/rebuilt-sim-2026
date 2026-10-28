@@ -117,10 +117,14 @@ export const BLANKET = { x0: 0.115, x1: 0.598, y: 0.701, hw: 0.37, bulge: 0.05, 
 // the ballevator until the hood CANrange is triggered"): a FUEL up the elevator within its 0.45 m
 // (its center over 0.33 m up, from the hood's ~0.72)
 export const RANGE = { at: [-0.122, 0.33], half: 0.06 };
-// the preload, eight dropped into the hopper with the box in (robot frame; they settle)
+// the preload, eight with the box in, staged in the indexer as their robot's loaded (robot frame;
+// they settle): two up the elevator side by side, where their RunIntakeBallevator stages FUEL
+// (until the hood CANrange sees one), three in the floor's valley under the squish wheels, three
+// on the floor in front of them
 export const PRELOAD = [
-  [0.2, 0.3, -0.15], [0.2, 0.3, 0], [0.2, 0.3, 0.15], [0.05, 0.28, -0.15], [0.05, 0.28, 0], [0.05, 0.28, 0.15],
-  [-0.1, 0.3, -0.08], [-0.1, 0.3, 0.08],
+  [-0.122, 0.4, -0.1], [-0.122, 0.4, 0.1],
+  [-0.01, 0.18, -0.15], [-0.01, 0.18, 0], [-0.01, 0.18, 0.15],
+  [0.14, 0.22, -0.15], [0.14, 0.22, 0], [0.14, 0.22, 0.15],
 ];
 
 const interp = (t, x) => {

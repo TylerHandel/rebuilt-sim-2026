@@ -158,8 +158,13 @@ export class Physical1114 extends PhysicalRobot {
     const intaking = on && !!r.cmd.intake && !feeding, eject = on && !!outtake;
     // ---- aim (their AimShooter / AimShooterPass): started by a shot to line up, ended by the
     // intake's button
-    if (on && setpoint > 0 && r.shot) { this.aim = true; this.aimMode = pass ? 'pass' : 'hub'; }
-    if (intaking || !on) this.aim = null;
+    // (their AUTO: AimShooterHub, an AimShooterAuto on the shooter alone, spins it up to the HUB
+    // shot beside IntakeDeploy (on the intake and indexer) from its marker to the path's end and
+    // through FullShoot; ShooterStop after each FullShoot coasts it until the next marker. The AUTO
+    // runner says which: spin)
+    const spin = r.match?.isAuto ? r.cmd.spin : undefined;
+    if (on && setpoint > 0 && r.shot) { this.aim = true; this.aimMode = pass && !spin ? 'pass' : 'hub'; }
+    if ((intaking && !spin) || !on || (spin === false && !feeding)) this.aim = null;
     let want = null;
     if (this.aim) {
       const tgt = this.aimMode === 'pass' ? this.passTarget() : Field.hubCenter(r.alliance);
