@@ -114,8 +114,9 @@ export const BUMPER = { x0: 0.3294, x1: 0.3294 + 2.5 * 0.0254, y0: 0.0476, y1: 0
 export const BLANKET = { x0: 0.115, x1: 0.598, y: 0.701, hw: 0.37, bulge: 0.05, tread: 6000 };
 // their hood CANrange (HOOD_CANRANGE: proximity 0.45 m, 10 deg field of view; not in the CAD):
 // at the hood, looking down the elevator (an estimate: their RunIntakeBallevator "stores balls in
-// the ballevator until the hood CANrange is triggered"): a FUEL staged near the elevator's top
-export const RANGE = { at: [-0.122, 0.47], half: 0.06 };
+// the ballevator until the hood CANrange is triggered"): a FUEL up the elevator within its 0.45 m
+// (its center over 0.33 m up, from the hood's ~0.72)
+export const RANGE = { at: [-0.122, 0.33], half: 0.06 };
 // the preload, eight dropped into the hopper with the box in (robot frame; they settle)
 export const PRELOAD = [
   [0.2, 0.3, -0.15], [0.2, 0.3, 0], [0.2, 0.3, 0.15], [0.05, 0.28, -0.15], [0.05, 0.28, 0], [0.05, 0.28, 0.15],

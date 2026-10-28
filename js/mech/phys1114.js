@@ -21,6 +21,8 @@
 //     their hood CANrange sees nothing.
 //   eject (their D-pad down, RunOuttake): the roller at -12 V.
 //   by default the box coasts (0 V) and so does the roller.
+//   what its driver does (emulated): the intake's button also turns the shooter off, so while they
+//   hold the shot they don't intake (the AI here would do both: it shoots).
 import { Mechanism } from './mechanism.js';
 import { PhysicalRobot } from './physical.js';
 import {
@@ -78,6 +80,7 @@ export class Physical1114 extends PhysicalRobot {
     this.t.slide._omega = 0; this.t.slide.cmd = null;
     this.slideMode = { kind: 'volts', v: 0 };
     this.want = null;
+    this.fireT = 0; this.lastShotT = 0; this.shots = 0; this.parked = new Set();
   }
 
   where(x, y, z) {
@@ -145,7 +148,9 @@ export class Physical1114 extends PhysicalRobot {
     const r = this.r, T = this.t;
     this.account(t, mode);
     const turns = slideTurns(this.ext), pass = mode === 'pass';
-    const intaking = on && !!r.cmd.intake, eject = on && !!outtake;
+    // (what its driver does: their intake button is also the shooter's off button, so they don't
+    // intake while they shoot; asked to do both, it shoots)
+    const intaking = on && !!r.cmd.intake && !feeding, eject = on && !!outtake;
     // ---- aim (their AimShooter / AimShooterPass): started by a shot to line up, ended by the
     // intake's button
     if (on && setpoint > 0 && r.shot) { this.aim = true; this.aimMode = pass ? 'pass' : 'hub'; }
@@ -196,6 +201,14 @@ export class Physical1114 extends PhysicalRobot {
       if (agitate && turns >= 1 && t - this.shootT > GATE.agitateWait && turns > SLIDE_POS.agitateMin) { this.slideMode = { kind: 'volts', v: -2 }; roller = 6; }
     }
     if (eject) roller = -12;
+    // (what its driver does: firing, with nothing shot for a second, they see the last few won't
+    // come (FUEL left in the side pockets beside the floor's front, on the box's side ledges) and go
+    // on: those aren't counted as the load until it next intakes, so the AI doesn't wait on them)
+    if (r.stats.shots !== this.shots) { this.shots = r.stats.shots; this.lastShotT = t; }
+    this.fireT = fire ? this.fireT + dt : shooting ? this.fireT : 0;
+    if (fire && this.fireT > 1.5 && t - this.lastShotT > 1.0) for (const b of this.held) this.parked.add(b);
+    if (intaking) this.parked.clear();
+    if (this.parked.size) r.stored = r.stored.filter((b) => !this.parked.has(b));
     // (their IntakeSubsystem cuts the roller's positive voltage with the box inside 10.8in)
     if (roller > 0.1 && turns < SLIDE_POS.rollersOff) roller = 0;
     if (!on) roller = 0;

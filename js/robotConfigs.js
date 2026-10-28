@@ -914,7 +914,7 @@ export const ROBOTS = {
     // built of its physical mechanisms (js/mech/r1114.js, phys1114.js): its FUEL go through its
     // CAD's ball path, moved by its rollers, elevator and flywheel, and its code runs them
     physical: '1114',
-    blurb: 'Archimedes Division finalist, 10-0 in qualifications, and Ontario champion. A tall clear hopper box slides out over the intake on racks, under a red "magic blanket" top cover (after 1124\'s 2008 claw). A belt floor feeds a ball elevator up the tower at the back to a hooded flywheel that fires forward over the hopper. Too tall for the TRENCH, it goes over the BUMPS.',
+    blurb: 'Archimedes Division finalist, 10-0 in qualifications, and Ontario champion. A tall clear hopper box slides out over the intake on racks, under a red "magic blanket" top cover (after 1124\'s 2008 claw). A roller floor feeds a ball elevator up the tower at the back to a hooded flywheel that fires forward over the hopper. Too tall for the TRENCH, it goes over the BUMPS.',
     // their CAD ("S26-A000"): 24.5 x 30in frame, 30in across the front
     frame: { length: 24.5 * IN, width: 30 * IN },
     height: 27.6 * IN, // top of the hopper box (their CAD)
@@ -926,7 +926,7 @@ export const ROBOTS = {
     // rollers on arms that swing up 90deg
     intake: { width: 25 * IN, reach: 0.2, rate: 200, pull: 5, deployTime: 0.35, retractTime: 0.5, side: 'front', latched: false },
     storage: { extLen: 0.2945, extend: 'intake' },
-    // their CAD: the box is the hopper (clear walls to 0.70 m, the blanket over the top); a belt
+    // their CAD: the box is the hopper (clear walls to 0.70 m, the blanket over the top); a roller
     // floor slopes down to the foot of the tower, where rollers and an "active wall" take FUEL
     // into the ball elevator
     bay: {
@@ -958,7 +958,7 @@ export const ROBOTS = {
       speedSigma: 0.012, angleSigma: 0.55, yawSigma: 0.55, // 95-98% after the grip tape (their thread)
     },
     climber: null, // taken off for weight
-    stats: { 'Shot rate': '26 BPS (est.)', Aiming: 'Chassis', 'Top speed': '', Trench: 'No (BUMPS)' },
+    stats: { 'Shot rate': '~14 BPS a full box, ~21 best second (physical)', Aiming: 'Chassis', 'Top speed': '', Trench: 'No (BUMPS)' },
     colors: { frame: 0xb4b9c1, accent: 0xc0272d, trim: 0x2a2c31 },
   },
   604: {

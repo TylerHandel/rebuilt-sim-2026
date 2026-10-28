@@ -22,7 +22,7 @@ import { Mechanism } from '../js/mech/mechanism.js';
 import { sim2D } from '../js/ballistics.js';
 import {
   build1114, wheels1114, pathSurfaces1114, placeSlide, placeIntake, placeHood, hoodRot, hoodElevation, shotFor, slideTurns, kickerRot,
-  HUB_LUT, PASS_LUT, SLIDE, SLIDE_POS, SHOOTER, BALLEVATOR, FLOOR, ELEV, SQUISH, SIDE, INTAKE, FLY,
+  HUB_LUT, PASS_LUT, SLIDE, SLIDE_POS, SHOOTER, BALLEVATOR, FLOOR, ELEV, SQUISH, SIDE, INTAKE, FLY, RANGE,
 } from '../js/mech/r1114.js';
 import PATH from '../js/mech/path1114.js';
 import { EXIT_PER_FLY_SURFACE } from '../js/mech/phys1114.js';
@@ -291,9 +291,9 @@ function intakeFull(seed, { keep = false, sec = Number(process.env.SEC ?? 10), u
   const rg = rig(), { t, path } = rg;
   t.intake.cmd = 1;
   // their RunIntakeBallevator: after 3 s the floor at 3 V while the hood CANrange sees nothing (a
-  // FUEL near the elevator's top)
+  // FUEL up the elevator: js/mech/r1114.js RANGE)
   const control = (time, live) => {
-    const staged = live.some((b) => { const p = b.translation(); return Math.abs(p.x + 0.122) < 0.06 && p.y > 0.47 && p.y < 0.8; });
+    const staged = live.some((b) => { const p = b.translation(); return Math.abs(p.x - RANGE.at[0]) < RANGE.half && p.y > RANGE.at[1] && p.y < 0.8; });
     t.floor.cmd = time > 3 && !staged ? 3 / 12 : null;
     slide(rg, {}); moveSlide(rg);
   };
@@ -380,7 +380,7 @@ function pathRun(seed, { shoot = true, n = 20, sec = 7, speed = SPEED } = {}) {
   const timeline = [];
   for (let k = 0; k < sec / DT; k++) {
     const live = balls.filter((b) => b.translation().y < 3 && b.translation().x > -1);
-    if (!shoot) t.floor.cmd = k * DT > 3 ? 3 / 12 : null;
+    if (!shoot) t.floor.cmd = k * DT > 3 && !live.some((b) => { const p = b.translation(); return Math.abs(p.x - RANGE.at[0]) < RANGE.half && p.y > RANGE.at[1] && p.y < 0.8; }) ? 3 / 12 : null;
     slide(rg, {}); moveSlide(rg);
     path.step(DT, live, live); shooter.step(DT, live); w.step();
     minIntake = Math.min(minIntake, Math.abs(t.intake.omega) / free.intake);
