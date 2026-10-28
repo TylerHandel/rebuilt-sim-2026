@@ -144,10 +144,13 @@ function aluFinish(c) {
 }
 // A CAD part's material as drawn. tools/extract-parts.mjs names a material by the team's bill of
 // materials when it knows the parts' materials ("alu": aluminum parts, "not-alu": parts of another
-// material, so a 3D print or cable carrier in the plates' color stays plastic); the rest (parts
+// material, so a 3D print or cable carrier in the plates' color stays plastic; a recipe's
+// "bomKinds" names some of those finer, drawn as that material in the part's color: see
+// KIND_LOOK); the rest (parts
 // the BOM doesn't place, and GLBs made without it) go by color: js/aluminumColors.js lists which
 // of a team's CAD colors are mostly aluminum.
 function cadMaterial(team, m) {
+  if (KIND_LOOK[m.name] && m.color) return kindMat(m.name, m.color.getHex());
   if (m.name === 'not-alu') return m;
   if (m.name === 'alu') { const f = m.color && aluFinish(m.color.getHex()); return f ? aluMat(m.color.getHex(), f) : m; }
   return aluminumFor(team, m) ?? m;
@@ -159,6 +162,53 @@ function aluminumFor(team, m) {
   const c = m.color.getHex(), r = (c >> 16) & 255, g = (c >> 8) & 255, b = c & 255;
   const hit = list.find((a) => Math.abs(a.rgb[0] - r) <= 2 && Math.abs(a.rgb[1] - g) <= 2 && Math.abs(a.rgb[2] - b) <= 2);
   return hit && hit.finish !== 'colored' ? aluMat(c, hit.finish) : null;
+}
+// The materials a recipe's "bomKinds" names by the team's bill of materials (604's so far), each
+// drawn in its part's CAD color (as the recipe repaints it): coroplast (corrugated polypropylene
+// sheet, satin; its flutes are in the CAD), plywood (birch: matte, with a grain drawn in the
+// shader), print (PETG and TPU prints: plastic), rubber (belts, silicone tubing, wheels) and steel
+// (gears, sprockets, chain; also brass and bronze).
+const KIND_LOOK = {
+  coroplast: { roughness: 0.62, metalness: 0 },
+  plywood: { roughness: 0.82, metalness: 0, grain: true },
+  print: { roughness: 0.5, metalness: 0 },
+  rubber: { roughness: 0.88, metalness: 0 },
+  steel: { roughness: 0.42, metalness: 0.75 },
+};
+const KIND_CACHE = new Map();
+function kindMat(kind, hex) {
+  const k = kind + hex;
+  if (!KIND_CACHE.has(k)) {
+    const m = new THREE.MeshStandardMaterial({ color: hex, roughness: KIND_LOOK[kind].roughness, metalness: KIND_LOOK[kind].metalness });
+    if (KIND_LOOK[kind].grain) woodGrain(m);
+    KIND_CACHE.set(k, m);
+  }
+  return KIND_CACHE.get(k);
+}
+// birch plywood's face grain: long wavering bands (a few mm apart) along one way of each face, in
+// the part's own meters (the GLB's quantized positions times the mesh's scale), lighter and darker
+// by a few percent, faded out where finer than the pixels
+function woodGrain(m) {
+  m.onBeforeCompile = (sh) => {
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vWoodP;\nvarying vec3 vWoodN;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\n  vWoodP = position * vec3(length(modelMatrix[0].xyz), length(modelMatrix[1].xyz), length(modelMatrix[2].xyz)); vWoodN = normal;');
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', `#include <common>
+varying vec3 vWoodP;
+varying vec3 vWoodN;
+float woodHash(float n) { return fract(sin(n) * 43758.5453); }
+float woodNoise(float x) { float i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f); return mix(woodHash(i), woodHash(i + 1.0), f); }
+float woodGrain() {
+  vec3 n = abs(normalize(vWoodN));
+  vec2 uv = (n.y > n.x && n.y > n.z) ? vWoodP.xz : (n.x > n.z ? vWoodP.zy : vWoodP.xy);
+  float line = uv.y * 260.0 + woodNoise(uv.x * 9.0) * 6.0 + woodNoise(uv.x * 37.0) * 1.5;
+  float g = smoothstep(0.35, 0.9, woodNoise(line)) * 0.7 + woodNoise(line * 0.23 + 5.0) * 0.3;
+  return mix(0.4, g, clamp(1.5 - fwidth(line), 0.0, 1.0));
+}`)
+      .replace('#include <color_fragment>', '#include <color_fragment>\n  diffuseColor.rgb *= 1.06 - 0.2 * woodGrain();');
+  };
+  m.customProgramCacheKey = () => 'wood';
 }
 
 const M = {

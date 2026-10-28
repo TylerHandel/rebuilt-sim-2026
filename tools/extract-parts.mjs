@@ -32,6 +32,15 @@
 // and then by placement (the node sits on the part studio's origin where the instance is, 1 mm);
 // a name the BOM lacks (STEP calls some parts "id2590") goes by placement alone. A part matched
 // to rows that still disagree, or to none, or to a row with no material, keeps its color. EXTRACT_LOG=file.json writes each kept part's name, center, color and verdict.
+// "bomKinds" (top level, with a "bom"): finer names for the BOM's other materials, first match
+// wins: [{ "kind": "coroplast", "material": "polypropylene", "recolor": [[[77, 77, 77], [28, 28, 30]]] }]
+// puts the parts whose BOM material matches the regex in a copy of their color's material named
+// for the kind (js/robotModels.js cadMaterial draws coroplast, plywood, print, rubber and steel;
+// cadPart draws "poly" as clear polycarbonate, as for "glass"), repainted where its color (sRGB)
+// is one of recolor's [from, to] pairs' first (a CAD's dark gray for what is black on the robot);
+// the BOM's other non-aluminum parts stay "not-alu". Rows that agree on aluminum but not on the
+// kind make the part "not-alu". An entry with "name" (a regex) instead takes the parts so named,
+// whatever the BOM says (ones it gives no material: a battery in the aluminum's gray).
 // --retag: leave each output's geometry as it is and only split its materials by the BOM, each
 // triangle taking the verdict of the nearest kept part of its color (and each connected piece its
 // triangles' majority): for outputs made from an older state of the CAD than a new export can
@@ -97,11 +106,23 @@ if (recipe.bom) {
     bomRows.get(k).push(r);
   }
 }
-const kind = (r) => (!r.material ? null : AL.test(r.material) ? 'alu' : 'not-alu');
-const agree = (rows) => new Set(rows.map(kind)).size === 1;
+const KINDS = (recipe.bomKinds || []).map((k) => ({ ...k, re: k.material && new RegExp(k.material, 'i'), nameRe: k.name && new RegExp(k.name, 'i') }));
+// the verdicts by code (0: by color, so none; a "bomKinds" entry's is '#' and its index), their
+// materials' names and each code's repaint
+const VERDICTS = [null, 'alu', 'not-alu', ...KINDS.map((_, i) => '#' + i)];
+const NAMES = [null, 'alu', 'not-alu', ...KINDS.map((k) => k.kind)];
+const RECOLOR = [null, null, null, ...KINDS.map((k) => k.recolor || null)];
+const coarse = (r) => (!r.material ? null : AL.test(r.material) ? 'alu' : 'not-alu');
+const kind = (r) => {
+  const i = coarse(r) === 'not-alu' ? KINDS.findIndex((k) => k.re && k.re.test(r.material)) : -1;
+  return i < 0 ? coarse(r) : '#' + i;
+};
+const agree = (rows, f = kind) => new Set(rows.map(f)).size === 1;
 const allRows = [...bomRows.values()].flat();
 const placedAt = (rows, t) => rows.filter((r) => r.at.some((a) => Math.hypot(a[0] - t[0], a[1] - t[1], a[2] - t[2]) < 0.001));
 const verdict = (name, pid, places) => {
+  const byName = KINDS.findIndex((k) => k.nameRe && k.nameRe.test(name));
+  if (byName >= 0) return '#' + byName;
   let rows = bomRows.get(nameKey(name));
   // (a name the BOM doesn't know, like the "id2590" a STEP export gives some parts: the rows of
   // the parts placed there, if they agree)
@@ -113,18 +134,25 @@ const verdict = (name, pid, places) => {
     const f = placedAt(rows, t);
     if (f.length) rows = f;
   }
-  return agree(rows) ? kind(rows[0]) : null;
+  return agree(rows) ? kind(rows[0]) : agree(rows, coarse) ? coarse(rows[0]) : null;
 };
-// splits each primitive by its triangles' verdicts (code(prim, i): 0 by color, 1 aluminum, 2 not;
-// null for a primitive to leave alone) into one per verdict, in the same mesh (so quantize's
-// per-mesh grid is unchanged): aluminum ones get a copy of the color's material named "alu", the
-// BOM's other materials one named "not-alu"
+// splits each primitive by its triangles' verdicts (code(prim, i): 0 by color, 1 aluminum, 2 not,
+// 3 on a "bomKinds" kind; null for a primitive to leave alone) into one per verdict, in the same
+// mesh (so quantize's per-mesh grid is unchanged): aluminum ones get a copy of the color's
+// material named "alu", the BOM's other materials one named "not-alu" or for their kind
+const toLinear = (v) => (v / 255 <= 0.04045 ? v / 255 / 12.92 : ((v / 255 + 0.055) / 1.055) ** 2.4);
 const splitByVerdict = (doc, code) => {
   const copies = new Map();
   const variant = (m, c) => {
     if (!m || !c) return m;
     if (!copies.has(m)) copies.set(m, {});
-    return (copies.get(m)[c] ??= m.clone().setName(c === 1 ? 'alu' : 'not-alu'));
+    if (!copies.get(m)[c]) {
+      const v = m.clone().setName(NAMES[c]), f = m.getBaseColorFactor();
+      const to = (RECOLOR[c] || []).find(([from]) => from.every((x, i) => Math.abs(toSRGB(f[i]) - x) <= 2))?.[1];
+      if (to) v.setBaseColorFactor([...to.map(toLinear), f[3]]);
+      copies.get(m)[c] = v;
+    }
+    return copies.get(m)[c];
   };
   for (const mesh of doc.getRoot().listMeshes()) {
     for (const p of [...mesh.listPrimitives()]) {
@@ -162,7 +190,7 @@ const splitBom = (doc) => {
 // in the output's frame), for when the CAD has moved on since the output was made
 const retag = async (file, parts) => {
   const out = await io.read(file);
-  if (out.getRoot().listMaterials().some((m) => /^(not-)?alu$/.test(m.getName()))) throw new Error(file + ' is tagged already');
+  if (out.getRoot().listMaterials().some((m) => m.getName() !== 'poly' && NAMES.includes(m.getName()))) throw new Error(file + ' is tagged already');
   const ck = (m) => (m ? m.getBaseColorFactor().map((x) => Math.round(x * 255)).join(',') : '-');
   const CELL = 0.01, R = 0.008, grid = new Map();
   for (const { tris, color, c } of parts) {
@@ -176,7 +204,7 @@ const retag = async (file, parts) => {
       }
     }
   }
-  const codes = new Map(), tally = [0, 0, 0];
+  const codes = new Map(), tally = NAMES.map(() => 0);
   let far = 0; // triangles with no kept part of their color near
   for (const n of out.getRoot().listNodes()) {
     if (!n.getMesh()) continue;
@@ -202,7 +230,7 @@ const retag = async (file, parts) => {
       const find = (i) => { while (up[i] !== i) i = up[i] = up[up[i]]; return i; };
       for (let k = 0; k < idx.getCount(); k += 3) { const a = find(idx.getScalar(k)); up[find(idx.getScalar(k + 1))] = a; up[find(idx.getScalar(k + 2))] = a; }
       const votes = new Map();
-      for (let t = 0; t < cs.length; t++) { const r = find(idx.getScalar(3 * t)); if (!votes.has(r)) votes.set(r, [0, 0, 0]); votes.get(r)[cs[t]]++; }
+      for (let t = 0; t < cs.length; t++) { const r = find(idx.getScalar(3 * t)); if (!votes.has(r)) votes.set(r, NAMES.map(() => 0)); votes.get(r)[cs[t]]++; }
       for (let t = 0; t < cs.length; t++) { const v = votes.get(find(idx.getScalar(3 * t))); cs[t] = v.indexOf(Math.max(...v)); tally[cs[t]]++; }
       codes.set(p, cs);
     }
@@ -210,7 +238,7 @@ const retag = async (file, parts) => {
   splitByVerdict(out, (p, t) => (codes.has(p) ? codes.get(p)[t] : null));
   await out.transform(prune());
   await io.write(file, out);
-  console.log(`retagged ${file}: ${tally[1]} triangles aluminum, ${tally[2]} not, ${tally[0]} by color (${far} with no kept part of their color near)`);
+  console.log(`retagged ${file}: ${tally[1]} triangles aluminum, ${tally[2]} not, ${KINDS.map((k, i) => `${tally[3 + i]} ${k.kind}, `).join('')}${tally[0]} by color (${far} with no kept part of their color near)`);
 };
 // distance from p to triangle (a, b, c) (Ericson, Real-Time Collision Detection 5.1.5)
 const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
@@ -280,13 +308,13 @@ for (const part of recipe.parts) {
   }
   if (recipe.bom) {
     // each kept part's verdict rides along as a vertex attribute (_BOM: 0 by color, 1 aluminum,
-    // 2 not), through the welding, joining and simplifying, which go on exactly as without a BOM
+    // 2 not, 3 on a "bomKinds" kind), through the welding, joining and simplifying, which go on exactly as without a BOM
     // (all of a part's vertices carry the same value, and a triangle never spans two parts), and
     // splits the merged meshes by material at the end (splitBom)
     const pid = partIds(src, doc);
-    const code = { alu: 1, 'not-alu': 2 };
+    const code = Object.fromEntries(VERDICTS.map((n, i) => [n, i]).filter(([n]) => n));
     const tagged = new Map(); // mesh -> its verdict
-    const tally = { alu: 0, 'not-alu': 0, null: 0 };
+    const tally = Object.fromEntries(VERDICTS.map((n) => [n, 0]));
     const codeOf = new Map(); // kept node -> its verdict's code
     const tag = (mesh, c) => {
       for (const p of mesh.listPrimitives()) {
@@ -300,7 +328,7 @@ for (const part of recipe.parts) {
       const v = glass.has(n) ? null : verdict(n.getName(), pid.get(n) || ref?.pid, [n.getWorldTranslation(), ...(ref ? [ref.t] : [])]);
       if (!glass.has(n)) tally[v]++;
       const m0 = n.getMesh().listPrimitives()[0]?.getMaterial();
-      if (process.env.EXTRACT_LOG && !glass.has(n)) log.push({ out: part.out, name: n.getName(), at: at.get(n).map((x) => Math.round(x * 1000)), rgb: m0 ? m0.getBaseColorFactor().slice(0, 3).map(toSRGB) : null, bom: v });
+      if (process.env.EXTRACT_LOG && !glass.has(n)) log.push({ out: part.out, name: n.getName(), at: at.get(n).map((x) => Math.round(x * 1000)), rgb: m0 ? m0.getBaseColorFactor().slice(0, 3).map(toSRGB) : null, bom: NAMES[code[v] ?? 0] });
       const c = code[v] ?? 0, mesh = n.getMesh();
       codeOf.set(n, c);
       if (!tagged.has(mesh)) tag(mesh, c);
@@ -312,7 +340,7 @@ for (const part of recipe.parts) {
         tag(own, c);
       }
     }
-    console.log(`  BOM: ${tally.alu} parts aluminum, ${tally['not-alu']} not, ${tally.null} by color`);
+    console.log(`  BOM: ${tally.alu} parts aluminum, ${tally['not-alu']} not, ${KINDS.map((k, i) => `${tally['#' + i]} ${k.kind}, `).join('')}${tally.null} by color`);
     if (RETAG) {
       // each kept part's triangles in the output's frame (model frame less the origin), by color
       const M = AXES[recipe.front], o = part.origin || [0, 0, 0];
