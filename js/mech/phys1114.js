@@ -6,7 +6,9 @@
 //     to the HUB's (or to their pass point: 2 m out from the ALLIANCE WALL, 1.5 m in from the side
 //     wall on the robot's side of the field), the hood to the table's angle (42-74). It runs until
 //     the intake's button (their right bumper, also the shooter's off button) is pressed: then the
-//     flywheel coasts (their setShooterVoltage) and the hood brakes where it is.
+//     hood brakes where it is and, where their code coasts the flywheel (setShooterVoltage 0), it's
+//     kept spinning here at the HUB shot for where the robot is (not their code), so a dump never
+//     waits for it to come up from rest.
 //   shoot (their right trigger, Shoot with AgitateIntake): while the flywheel is within 500 RPM
 //     under its setpoint and the chassis within 7 deg of its heading: the elevator at 4500 RPM
 //     (their velocity loop, at the Talon's 1 kHz), the floor at 12 V and the side rollers at 10
@@ -42,6 +44,8 @@ const GATE = { rpm: 500, aim: 7 * DEG, agitateRpm: 400, agitateAim: 5 * DEG, agi
 // moves it at most 7530 RPM x 2.43 = 305 deg/s at 12 V)
 const HOOD = { kP: SHOOTER.hoodKP / SHOOTER.hoodDegPerRot, free: (7530 / 60) * SHOOTER.hoodDegPerRot };
 const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+// the flywheel kept spinning between shots: at the HUB shot for the distance, held within these (m)
+const IDLE = { near: 1.6, far: 4.5 };
 // a motor's duty cycle for torque current amps (per motor) at its output speed w (their FOC
 // torque current, the battery's 12 V permitting)
 function dutyFor(motor, amps, w, V = 12) {
@@ -155,8 +159,9 @@ export class Physical1114 extends PhysicalRobot {
     // intake's button
     // (their AUTO: AimShooterHub, an AimShooterAuto on the shooter alone, spins it up to the HUB
     // shot beside IntakeDeploy (on the intake and indexer) from its marker to the path's end and
-    // through FullShoot; ShooterStop after each FullShoot coasts it until the next marker. The AUTO
-    // runner says which: spin)
+    // through FullShoot; ShooterStop after each FullShoot ends the aim until the next marker (their
+    // code coasts the flywheel there; here it's kept spinning, below). The AUTO runner says which:
+    // spin)
     const spin = r.match?.isAuto ? r.cmd.spin : undefined;
     if (on && setpoint > 0 && r.shot) { this.aim = true; this.aimMode = pass && !spin ? 'pass' : 'hub'; }
     if ((intaking && !spin) || !on || (spin === false && !feeding)) this.aim = null;
@@ -166,8 +171,14 @@ export class Physical1114 extends PhysicalRobot {
       want = shotFor(this.aimMode, Math.hypot(tgt.x - r.pos.x, tgt.z - r.pos.z));
       this.hoodGoal = want.hood;
     } else this.hoodGoal = null;
-    // the flywheel: their velocity loop (motor RPM), or coasting
-    if (want) T.shooter.vel = { target: (want.rpm / 60) * TAU, kV: SHOOTER.kV, kP: SHOOTER.kP, lo: -12, hi: 12, per: 1 / TAU };
+    // the flywheel: their velocity loop (motor RPM) at the shot. Not aiming, it's kept spinning
+    // (their code coasts it then: their intake button and ShooterStop; its ShooterIdle, 1000 RPM,
+    // is commented out of their bindings): at the HUB shot for where it is, its table's rows from
+    // 1.6 to 4.5 m (2390-3500 RPM), so a dump never waits for it to come up from rest
+    const hub = Field.hubCenter(r.alliance);
+    const idle = shotFor('hub', clamp(Math.hypot(hub.x - r.pos.x, hub.z - r.pos.z), IDLE.near, IDLE.far)).rpm;
+    const loop = want ? want.rpm : on ? idle : 0;
+    if (loop) T.shooter.vel = { target: (loop / 60) * TAU, kV: SHOOTER.kV, kP: SHOOTER.kP, lo: -12, hi: 12, per: 1 / TAU };
     else { T.shooter.vel = null; T.shooter.cmd = null; }
     const rpm = (T.shooter.omega * 60) / TAU, sp = want ? want.rpm : 0;
     const err = Math.abs(r.aimErr ?? Infinity);
@@ -232,6 +243,9 @@ export class Physical1114 extends PhysicalRobot {
     r.hoodDeg = hoodElevation(this.hoodDeg);
     r.flywheel = this.exitSpeed();
     r.ready = !!want && rpm >= sp - GATE.rpm && err <= GATE.aim;
+    // (and its HUD, by its own gates: the shared one compares the exit speed with the generic
+    // shot's to 2.5%, which this flywheel's table never is, so it said 'Spinning up' throughout)
+    if (want && /^(Spinning up|Aiming|Hood|READY)$/.test(r.status)) r.status = rpm < sp - GATE.rpm ? 'Spinning up' : err > GATE.aim ? 'Aiming' : 'READY';
     r.feeding = fire ? 1 : 0;
     r.intakeSpeed = roller > 6 ? 1 : roller < 0 ? -1 : 0;
   }
