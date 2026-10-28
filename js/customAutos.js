@@ -80,19 +80,24 @@ export function customSteps(a, mirror, maxSpeed) {
   const flush = () => { if (cur) { steps.push(cur); cur = null; } };
   for (const p of a.points) {
     const shoot = p.shoot === 'hub' ? 'hub' : p.shoot === 'always';
-    const speed = p.v ? Math.min(1, p.v / maxSpeed) : p.speed;
-    // (a team auto's speed is per point: its path speeds up and slows down without stopping)
-    const same = cur && cur.intake === p.intake && cur.shoot === shoot && (p.v ? cur.perPoint : cur.speed === speed);
+    // (a team auto's speed is per point: its path speeds up and slows down without stopping; on a
+    // profile, PathPlanner's, a point's speed can be 0: where its path comes to a stop)
+    const hasV = a.profile ? p.v !== undefined : !!p.v;
+    const speed = hasV ? Math.min(1, p.v / maxSpeed) : p.speed;
+    const same = cur && cur.intake === p.intake && cur.shoot === shoot && (hasV ? cur.perPoint : cur.speed === speed);
     if (!same) {
       flush();
-      cur = { type: 'drive', pts: [], intake: p.intake, shoot, speed, mirror: false, timeout: 3, perPoint: !!p.v };
+      cur = { type: 'drive', pts: [], intake: p.intake, shoot, speed, mirror: false, timeout: 3, perPoint: hasV };
+      // (its speeds a profile along the path, PathPlanner's: speeding up and slowing down between
+      // the points at its max acceleration, so the robot's speed follows it by where it is)
+      if (a.profile) cur.profile = true;
       // (a team's path that runs its events beside it, PathPlanner's: it doesn't stop where they
       // start or end; and one whose flywheel runs only where its code runs it: 1114's)
       if (a.flow) cur.flow = true;
       if (a.spinPts) cur.spinPts = true;
     }
     // (its flywheel up to the HUB shot on the way to this point: spin)
-    cur.pts.push(p.v ? (a.spinPts ? [p.fx, fy(p.fy), speed, !!p.spin] : [p.fx, fy(p.fy), speed]) : [p.fx, fy(p.fy)]);
+    cur.pts.push(hasV ? (a.spinPts ? [p.fx, fy(p.fy), speed, !!p.spin] : [p.fx, fy(p.fy), speed]) : [p.fx, fy(p.fy)]);
     cur.timeout += (2 * Math.hypot(p.fx - prev.fx, p.fy - prev.fy)) / Math.max(0.5, maxSpeed * speed);
     prev = p;
     // (a team auto's shot that holds its spot for the time it's given, its intake running or not, as
@@ -118,7 +123,7 @@ export function estimateTime(a, cfg, preload = 8) {
   let prev = { fx: a.startFx ?? ALLIANCE_ZONE_DEPTH - 0.4, fy: a.startFy };
   for (const p of a.points) {
     const L = Math.hypot(p.fx - prev.fx, p.fy - prev.fy);
-    const v = p.v ? Math.min(p.v, d.maxSpeed) : d.maxSpeed * p.speed;
+    const v = p.v !== undefined ? Math.max(0.3, Math.min(p.v, d.maxSpeed)) : d.maxSpeed * p.speed;
     t += L < (v * v) / acc ? 2 * Math.sqrt(L / acc) : L / v + v / acc;
     if (p.intake) stored = Math.min(modelCapacity(cfg), stored + Math.round(L * 3));
     if (p.shoot !== 'off' && p.fx < ALLIANCE_ZONE_DEPTH) stored = 0;

@@ -334,6 +334,9 @@ export class AutoRunner {
     const s = this.steps[this.i];
     this.stepT += dt;
     const next = () => { this.i++; this.stepT = 0; this.pi = 0; this.lag = 0; this.aimT = undefined; };
+    // (where a profiled path sets out from: the robot, at its speed then; on into the next drive
+    // step, the last point it reached)
+    if (s.type !== 'drive') this.from = null;
     if (s.type === 'shoot') {
       // (a team auto whose flywheel runs only where its code runs it: up for its shot here)
       if (s.spinPts) cmd.spin = cmd.prespin = true;
@@ -379,11 +382,16 @@ export class AutoRunner {
     if (s.type === 'drive') {
       if (this.pi === undefined) this.pi = 0;
       let pts = s.pts.map(([fx, fy]) => this.P(fx, fy, s.mirror !== false));
+      let spd = s.pts.map((q) => q[2] ?? s.speed ?? 1);
       // (a team's path that runs on into the next drive step without stopping (s.flow: PathPlanner's
       // event zones start and end beside it): that step's points ahead too, up to the next stop)
       const n = pts.length;
       let after = this.i + 1; // (the step after where it stops)
-      for (; s.flow && this.steps[after]?.type === 'drive' && this.steps[after].flow; after++) pts = pts.concat(this.steps[after].pts.map(([fx, fy]) => this.P(fx, fy, this.steps[after].mirror !== false)));
+      for (; s.flow && this.steps[after]?.type === 'drive' && this.steps[after].flow; after++) {
+        const st = this.steps[after];
+        pts = pts.concat(st.pts.map(([fx, fy]) => this.P(fx, fy, st.mirror !== false)));
+        spd = spd.concat(st.pts.map((q) => q[2] ?? st.speed ?? 1));
+      }
       const flows = pts.length > n;
       const tgt = pts[this.pi];
       const last = this.pi === pts.length - 1;
@@ -391,7 +399,29 @@ export class AutoRunner {
       const d = Math.hypot(dx, dz);
       let remain = d;
       for (let k = this.pi; k + 1 < pts.length; k++) remain += Math.hypot(pts[k + 1].x - pts[k].x, pts[k + 1].z - pts[k].z);
-      const vmax = r.cfg.drive.maxSpeed * (s.pts[this.pi][2] ?? s.speed ?? 1);
+      let vmax = r.cfg.drive.maxSpeed * (s.pts[this.pi][2] ?? s.speed ?? 1);
+      // a profiled path (PathPlanner's: s.profile) gives its speed at each point, speeding up and
+      // slowing down between them at its max acceleration: the speed at where the robot is along it
+      // (a little ahead, 5 cm, so it sets off from a stop), v^2 linear in the distance between points
+      if (s.profile) {
+        if (!this.from) this.from = { p: { x: r.pos.x, z: r.pos.z }, v: Math.hypot(r.vel.x, r.vel.z) };
+        const C = [this.from.p, ...pts], V = [this.from.v, ...spd.map((k) => k * r.cfg.drive.maxSpeed)];
+        const S = [0];
+        for (let k = 1; k < C.length; k++) S.push(S[k - 1] + Math.hypot(C[k].x - C[k - 1].x, C[k].z - C[k - 1].z));
+        // (the robot's place: on the nearest of the segments up to the point it's heading for)
+        let best = Infinity, at = 0;
+        for (let k = Math.max(0, this.pi - 2); k <= this.pi; k++) {
+          const a = C[k], b = C[k + 1], L = S[k + 1] - S[k];
+          const u = L > 1e-6 ? clamp(((r.pos.x - a.x) * (b.x - a.x) + (r.pos.z - a.z) * (b.z - a.z)) / (L * L), 0, 1) : 1;
+          const e = Math.hypot(a.x + u * (b.x - a.x) - r.pos.x, a.z + u * (b.z - a.z) - r.pos.z);
+          if (e <= best + 1e-9) { best = e; at = S[k] + u * L; }
+        }
+        const q = Math.min(at + 0.05, S[S.length - 1]);
+        let k = 0;
+        while (k + 2 < S.length && S[k + 1] < q) k++;
+        const w = S[k + 1] - S[k] > 1e-6 ? clamp((q - S[k]) / (S[k + 1] - S[k]), 0, 1) : 1;
+        vmax = Math.min(r.cfg.drive.maxSpeed, Math.sqrt(Math.max(0, V[k] ** 2 + (V[k + 1] ** 2 - V[k] ** 2) * w)));
+      }
       let sp = Math.min(vmax, Math.sqrt(2 * 6 * Math.max(0, remain - 0.02)) + 0.05);
       // slow for the turn at the waypoint ahead (it's left 0.35 m before it): a right angle at
       // half speed, a U-turn at a fifth
@@ -434,15 +464,16 @@ export class AutoRunner {
       // 'hub' = shoot on the move only once back in our ALLIANCE ZONE (don't pass the FUEL away)
       cmd.shoot = s.shoot === 'hub' ? r.lastInZone : !!s.shoot;
       // (a team auto whose flywheel runs only where its code runs it: up to the HUB shot on the way
-      // to a point that says so, 1114's AimShooterHub; coasting otherwise, their ShooterStop)
+      // to a point that says so, 1114's AimShooterHub; not aiming otherwise, their ShooterStop)
       if (s.spinPts) cmd.spin = cmd.prespin = !!s.pts[Math.min(this.pi, n - 1)][3];
       if ((last && d < 0.1) || (!last && d < 0.35)) {
+        if (s.profile && (last || (flows && this.pi === n - 1))) this.from = { p: tgt, v: spd[this.pi] * r.cfg.drive.maxSpeed };
         if (last) next();
         // (flowing on: the next step from its first point once past this one's last)
         else if (flows && this.pi === n - 1) next();
         else this.pi++;
       }
-      if (this.stepT > (s.timeout ?? 8)) next();
+      if (this.stepT > (s.timeout ?? 8)) { this.from = null; next(); }
     }
   }
 }

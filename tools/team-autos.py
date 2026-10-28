@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """The teams' own AUTOs, from their robot code, as waypoints the sim's AutoRunner drives
 (js/customAutos.js's format, plus each one's start, speeds in m/s and timed actions).
-Writes js/teamAutos.js.
+Writes js/teamAutos.js, and prints each PathPlanner path's length and time at its constraints.
 
   python3 tools/team-autos.py [--8793 DIR] [--2910 DIR] [--1678 DIR] [--604 DIR] [--1114 DIR]
 
@@ -11,8 +11,10 @@ DIR: a checkout of the team's code (defaults: ../pumpkin-bots/2026_robot,
 blue-origin field coordinates (x from the blue ALLIANCE WALL, y from the blue drivers' right),
 which are the sim's blue fx, fy.
 
-- 8793 (PathPlanner): each .auto's command tree; each path's Bezier waypoints sampled, at its
-  max velocity (and constraint zones). Their modes: TrenchMode (intake up, not shooting),
+- 8793 (PathPlanner): each .auto's command tree; each path's Bezier waypoints sampled, at the
+  speed PathPlanner's profile has there (pp_path: its max velocity and acceleration, its
+  constraint zones', the settings' defaults where it uses them, from the speed the last path left
+  it at to its goal end velocity), chained paths flowing on without a stop. Their modes: TrenchMode (intake up, not shooting),
   ShuttleMode (intake, shuttling FUEL home from anywhere), ShooterMode (intake; shoots at the HUB
   in the ALLIANCE ZONE, shuttles from anywhere else).
 - 2910 (AutoFactory, driveToPoint / driveToPointWhileIntaking to FieldConstants poses): their
@@ -30,7 +32,7 @@ which are the sim's blue fx, fy.
   holds the robot where it is, launching if the last action left it launching.
 - 1114 (PathPlanner): their chooser's first, Right / Left 1-1 Middle Sweep : Greedy Sweep (the
   left mirrored, as their chooser does), and Left Slow Centre Sweep Plus Depot. Each path's Bezier
-  waypoints at its max velocity (and constraint zones), intaking over its IntakeDeploy zones; each
+  waypoints at the speed of PathPlanner's profile there (as 8793's), intaking over its IntakeDeploy zones; each
   FullShoot from x = 3.1 m (their autonXShootPose): aiming until aimed and stopped (at most its
   aiming time), then shooting for its timeout; the flywheel spun up from each AimShooterHub
   marker; no stop where an IntakeDeploy zone starts or ends.
@@ -71,12 +73,21 @@ def bezier(p0, p1, p2, p3, n=40):
     return [tuple((1 - t) ** 3 * a + 3 * (1 - t) ** 2 * t * b + 3 * (1 - t) * t ** 2 * c + t ** 3 * d for a, b, c, d in zip(p0, p1, p2, p3)) for t in (i / n for i in range(n + 1))]
 
 
-def pp_path(d, name, marker=None, onward=None):
+PATH_TIMES = []  # (team's folder, path, its length and time at its constraints), printed at the end
+
+
+def pp_path(d, name, marker=None, onward=None, v0=0.0):
     """(point, speed) every STEP along a path; with marker (an event's name), (point, speed, on):
     whether one of that event's zones (zoned event markers: running from its start to its end) covers it;
     with onward too (a point event's name), (point, speed, on, past): whether it's past that event
-    (a command started there runs on to the path's end)"""
+    (a command started there runs on to the path's end). The speed is PathPlanner's profile there:
+    the path's constraints (its own, or the settings' defaults where it uses them; a constraint zone's
+    instead where one covers it, the first that does), from v0 (the robot's speed as it starts it,
+    as their FollowPathCommand regenerates it from) to its goal end state's velocity, speeding up and
+    slowing down at the constraints' max acceleration, no faster than the drive's max speed nor than
+    the tires' grip lets it round a curve (wheelCOF x g sideways). Returns (points, end speed)."""
     p = json.load(open(os.path.join(d, 'paths', name + '.path')))
+    cfg = json.load(open(os.path.join(d, 'settings.json')))
     wp = p['waypoints']
     xy, rel = [], []  # points, and each one's waypoint-relative position (for constraint zones)
     for i in range(len(wp) - 1):
@@ -86,26 +97,53 @@ def pp_path(d, name, marker=None, onward=None):
         for k, q in enumerate(seg if i == 0 else seg[1:]):
             xy.append(q)
             rel.append(i + (k if i == 0 else k + 1) / (len(seg) - 1))
-    vmax = p['globalConstraints']['maxVelocity']
-    zones = [(z['minWaypointRelativePos'], z['maxWaypointRelativePos'], z['constraints']['maxVelocity']) for z in p.get('constraintZones', [])]
-    speed = [min([vmax] + [zv for lo, hi, zv in zones if lo <= r <= hi]) for r in rel]
+    gc = p['globalConstraints']
+    if p.get('useDefaultConstraints'):
+        gc = {'maxVelocity': cfg['defaultMaxVel'], 'maxAcceleration': cfg['defaultMaxAccel']}
+    zones = [(z['minWaypointRelativePos'], z['maxWaypointRelativePos'], z['constraints']) for z in p.get('constraintZones', [])]
+    def lim(r):
+        c = next((zc for lo, hi, zc in zones if lo <= r <= hi), gc)
+        return min(c['maxVelocity'], cfg.get('maxDriveSpeed', 99)), c['maxAcceleration']
+    n = len(xy)
+    vlim, alim = zip(*[lim(r) for r in rel])
+    vlim = list(vlim)
+    ds = [math.dist(xy[i], xy[i + 1]) for i in range(n - 1)]
+    alat = cfg.get('wheelCOF', 1.0) * 9.81
+    for i in range(1, n - 1):
+        A, B, C = xy[i - 1], xy[i], xy[i + 1]
+        ab, bc, ac = math.dist(A, B), math.dist(B, C), math.dist(A, C)
+        cross = abs((B[0] - A[0]) * (C[1] - A[1]) - (B[1] - A[1]) * (C[0] - A[0]))
+        k = 2 * cross / (ab * bc * ac) if ab * bc * ac > 1e-12 else 0
+        if k > 1e-6: vlim[i] = min(vlim[i], math.sqrt(alat / k))
+    v = vlim[:]
+    v[0] = min(v[0], v0)
+    v[-1] = min(v[-1], p['goalEndState']['velocity'])
+    for i in range(1, n):
+        v[i] = min(v[i], math.sqrt(v[i - 1] ** 2 + 2 * alim[i - 1] * ds[i - 1]))
+    for i in range(n - 2, -1, -1):
+        v[i] = min(v[i], math.sqrt(v[i + 1] ** 2 + 2 * alim[i] * ds[i]))
+    T = sum(2 * ds[i] / max(1e-6, v[i] + v[i + 1]) for i in range(n - 1))
+    PATH_TIMES.append((d, name, sum(ds), T, v0, v[-1]))
+    # (speeding up, holding or slowing down there: a new point wherever that changes)
+    mode = [0] + [(1 if v[i] > v[i - 1] + 1e-6 else -1 if v[i] < v[i - 1] - 1e-6 else 0) for i in range(1, n)]
     if marker:
         ev = [(e['waypointRelativePos'], e.get('endWaypointRelativePos')) for e in p.get('eventMarkers', []) if e['name'] == marker]
         # (+0.01: zones end to end, as 1114's IntakeDeploys are 0.001 apart, run as one)
         on = [any(hi is not None and lo <= r <= hi + 0.01 for lo, hi in ev) for r in rel]
     past = [any(e['name'] == onward and r >= e['waypointRelativePos'] for e in p.get('eventMarkers', [])) for r in rel]
-    # sample along it, a new point wherever the speed changes too (and the marker)
-    out, acc = [(xy[0], speed[0])], 0.0
+    # sample along it, a new point wherever its profile changes from speeding up to holding to
+    # slowing down, its constraints change, or the marker
+    out, acc = [(xy[0], v[0])], 0.0
     for i in range(1, len(xy)):
         acc += math.dist(xy[i - 1], xy[i])
-        if acc >= STEP or speed[i] != out[-1][1] or (marker and on[i] != on[i - 1]) or past[i] != past[i - 1] or i == len(xy) - 1:
-            out.append((xy[i], speed[i]))
+        if acc >= STEP or (vlim[i] != vlim[i - 1] and acc > 0.05) or (mode[i] != mode[i - 1] and acc > 0.05) or (marker and on[i] != on[i - 1]) or past[i] != past[i - 1] or i == len(xy) - 1:
+            out.append((xy[i], v[i]))
             acc = 0.0
             if marker: out[-1] += (on[i],)
             if onward: out[-1] += (past[i],)
     if marker: out[0] += (on[0],)
     if onward: out[0] += (past[0],)
-    return out
+    return out, v[-1]
 
 
 MODES_8793 = {
@@ -118,7 +156,7 @@ MODES_8793 = {
 
 def auto_8793(d, file):
     a = json.load(open(os.path.join(d, 'autos', file + '.auto')))
-    pts, start = [], None
+    pts, start, vend = [], None, 0.0
     for c in a['command']['data']['commands']:
         t, data = c['type'], c.get('data', {})
         kids = data.get('commands', []) if t in ('race', 'parallel', 'deadline', 'sequential') else [c]
@@ -127,12 +165,16 @@ def auto_8793(d, file):
         wait = next((k['data']['waitTime'] for k in kids if k['type'] == 'wait'), None)
         intake, shoot = MODES_8793[mode]
         if path:
-            seg = pp_path(d, path)
+            # (from the speed the last path left it at, straight on from it: PathPlanner follows each
+            # from the robot's speed as it starts it)
+            seg, vend = pp_path(d, path, v0=vend)
             if start is None:
                 start = seg[0][0]
             for (x, y), v in seg[1:]:
                 pts.append(pt(x, y, intake, shoot, v))
-        elif mode and pts and wait is not None:
+            continue
+        vend = 0.0
+        if mode and pts and wait is not None:
             # a mode on the spot for a while (ShooterMode: shooting what it holds)
             pts[-1].update(action='shoot', t=wait)
         elif mode and wait is not None:
@@ -166,11 +208,11 @@ SHOOT_X_1114 = 3.1
 def auto_1114(d, file, mirror):
     a = json.load(open(os.path.join(d, 'autos', file + '.auto')))
     ys = (lambda y: W - y) if mirror else (lambda y: y)
-    pts, start = [], None
+    pts, start, vend = [], None, 0.0
     for c in a['command']['data']['commands']:
         t, data = c['type'], c.get('data', {})
         if t == 'path':
-            seg = pp_path(d, data['pathName'], 'IntakeDeploy', 'AimShooterHub')
+            seg, vend = pp_path(d, data['pathName'], 'IntakeDeploy', 'AimShooterHub', v0=vend)
             if start is None:
                 start = (seg[0][0][0], ys(seg[0][0][1]))
             for (x, y), v, on, spin in seg[1:]:
@@ -181,6 +223,7 @@ def auto_1114(d, file, mirror):
             if last['fx'] > SHOOT_X_1114:
                 pts.append(pt(SHOOT_X_1114, last['fy'], False, 'off', 1.0, spin=True))
             pts[-1].update(action='shoot', t=dur, aim=aim, hold=True)
+            vend = 0.0
     return start, pts
 
 
@@ -464,7 +507,7 @@ def main():
                              ('center', 'Center + Depot Auto', 'Center + Depot')]:
         start, pts, pre = auto_8793(pp, file)
         autos.setdefault('8793', []).append({'id': f'8793-{side}', 'name': name, 'side': side, 'source': f'PathPlanner "{file}"',
-                                             'startFx': round(start[0], 3), 'startFy': round(start[1], 3), 'shootPreload': pre or False, 'points': pts})
+                                             'startFx': round(start[0], 3), 'startFy': round(start[1], 3), 'shootPreload': pre or False, 'flow': True, 'profile': True, 'points': pts})
     for side, seq, start, mirror, name, src in [
             ('left', LEFT_NZ, 'start', False, 'Left Neutral Zone', 'createLeftNeutralZoneAuto'),
             ('right', RIGHT_NZ, 'start', True, 'Right Neutral Zone', 'createRightNeutralZoneAuto'),
@@ -494,7 +537,7 @@ def main():
         st, pts = auto_1114(pp, file, mirror)
         slug = re.sub(r'[^a-z0-9]+', '-', name.lower()).strip('-')
         autos.setdefault('1114', []).append({'id': f'1114-{slug}', 'name': name, 'side': side, 'source': f'PathPlanner "{file}"' + (' mirrored' if mirror else ''),
-                                             'startFx': round(st[0], 3), 'startFy': round(st[1], 3), 'shootPreload': False, 'flow': True, 'spinPts': True, 'points': pts})
+                                             'startFx': round(st[0], 3), 'startFy': round(st[1], 3), 'shootPreload': False, 'flow': True, 'profile': True, 'spinPts': True, 'points': pts})
     out = os.path.join(ROOT, 'js', 'teamAutos.js')
     with open(out, 'w') as f:
         f.write('// The teams\' own AUTOs, from their robot code (tools/team-autos.py writes this file; see its\n')
@@ -514,6 +557,11 @@ def main():
                 '  if (f & 4) p.hold = true;\n'
                 '  return p;\n'
                 '}\n')
+    seen = set()
+    for d, name, L, T, v0, v1 in PATH_TIMES:
+        if (d, name, v0) in seen: continue
+        seen.add((d, name, v0))
+        print(f'  {d.split("/")[-5]} {name}: {L:.2f} m in {T:.2f} s at its constraints ({v0:.2f} to {v1:.2f} m/s)')
     for k, v in autos.items():
         for x in v:
             print(k, x['id'], 'start', x['startFx'], x['startFy'], len(x['points']), 'points', [p['action'] + ' ' + str(p.get('t')) for p in x['points'] if p['action'] != 'none'])
