@@ -25,6 +25,27 @@ import { clamp, wrapAngle, approach, approachAngle, gauss, DEG, rand } from './u
 const WHEEL_R = 0.05;
 const TIP_RATE = 2.5; // rad/s: the most a robot pitches or rolls (see preStep)
 const TIP_DAMP = 4;   // 1/s: how fast pitching and rolling die down (tires, frame flex)
+// The velocity a moving shot is aimed with (aimVel): the chassis' own, smoothed over AIM_VEL_TAU
+// (s). From one step to the next the chassis jitters by 1-2 cm/s (a dumping load pushing on it,
+// the tires' contact while driving), which has no bearing on where a FUEL goes. Aimed with each
+// step's velocity, a chassis-aimed shot flickered 0.35-0.75 deg a step and the heading's feed-
+// forward (the aim's rate) 1.4 rad/s either way, so the heading loop turned the chassis back and
+// forth at 60 Hz as hard as its drive turns it (~40 rad/s^2). The 10-15 kg load isn't part of the
+// chassis' body (FUEL resting on its surfaces): swung back and forth by the hopper's walls, it
+// pushed the chassis 1-2 cm/s sideways every step, the next step's aim flickered as much again,
+// and the heading drifted 3.5 deg off through a dump standing still (1114's), 9-12 deg weaving
+// (2910's, 1678's, 581's). 0.05 s cuts a step-to-step flicker 11x (that loop's gain to ~0.4),
+// and lags a 2.4 m/s^2 weave by 0.12 m/s (0.12 m at a second's flight, inside the HUB's opening),
+// about the time a FUEL takes up the feed path anyway. Turrets aim with velocityAt (unchanged:
+// their aim doesn't turn the chassis)
+const AIM_VEL_TAU = 0.05;
+// The chassis heading loop's gain near the aim (1/s; a chassis-aimed shooter's, Robot._shooter). The
+// swerve follows a yaw-rate command within a step or two (its modules' velocity loops), up to what
+// its tires turn it at (maxAlpha, ~40 rad/s^2), so the loop can be stiff: at 14/s its time constant is
+// 0.07 s (8.6 steps) and it asks no more than maxAlpha to stop within 11 deg; past 16 deg the time-optimal
+// profile takes over. (It was 7/s: linear to 65 deg, so the profile hardly ever ran, and with the
+// aim's feed-forward a 40 deg turn in took 0.42 s; now 0.28 s, without overshoot.)
+const AIM_GAIN = 14;
 const FLOOR_QUERY = groups(GROUP.WHEEL, GROUP.STATIC | GROUP.TERRAIN); // what the wheels drive on
 const R = FUEL.radius;
 // FUEL the intake has grabbed is held by the rollers: it still hits field structures, but not
@@ -297,6 +318,7 @@ export class Robot {
     this.enabled = false;
     this.cmd = { vx: 0, vz: 0, omega: 0, intake: false, outtake: false, shoot: false, pass: false };
     this.aimOverride = null;
+    this.aimVel = { x: 0, z: 0 };
     this.passTarget = null;
     this.shot = null;
     this.status = 'Idle';
@@ -323,6 +345,7 @@ export class Robot {
     this.pos = new THREE.Vector3(x, 0, z);
     this.vel = new THREE.Vector3();
     this.omega = 0;
+    this.aimVel = { x: 0, z: 0 };
     this.swerve.reset();
     this._syncVisual(0);
   }
@@ -610,6 +633,10 @@ export class Robot {
     const lv = this.body.linvel();
     this.vel.set(lv.x, 0, lv.z);
     this.omega = this.body.angvel().y;
+    // (what a moving shot is aimed with: AIM_VEL_TAU)
+    const ka = 1 - Math.exp(-dt / AIM_VEL_TAU);
+    this.aimVel.x += ka * (lv.x - this.aimVel.x);
+    this.aimVel.z += ka * (lv.z - this.aimVel.z);
 
     const on = this.enabled && this.climbState === 'none';
     this.lastT = t;
@@ -1078,7 +1105,8 @@ export class Robot {
           return new THREE.Vector3(this.pos.x + (dx / dd) * along, this.pos.y + e.y, this.pos.z + (dz / dd) * along);
         };
         exit = exitAt(this.hoodDeg);
-        lv = { x: this.vel.x, z: this.vel.z };
+        // (the chassis' velocity smoothed: AIM_VEL_TAU; its heading follows this aim)
+        lv = { x: this.aimVel.x, z: this.aimVel.z };
       } else {
         // FUEL leaves the hood exitRadius in front of the turret axis, along the shot line
         const c = this._exitPoint(0, 0);
@@ -1108,12 +1136,13 @@ export class Robot {
           aimErr = wrapAngle(sol.psi - this.yaw - this.aimOffset);
           if (wantShoot) {
             // chassis heading controller: time-optimal profile (no overshoot) + feed-forward on
-            // how fast the aim direction moves while driving
+            // how fast the aim direction moves while driving (smooth, as the aim is: AIM_VEL_TAU)
             const d = this.cfg.drive;
-            // (a physical robot whose code has none says so: phys.aimFF false, 1114's)
-            const ff = this._lastPsi !== undefined && this.phys?.aimFF !== false ? clamp(wrapAngle(sol.psi - this._lastPsi) / dt, -3, 3) : 0;
+            const ff = this._lastPsi !== undefined ? clamp(wrapAngle(sol.psi - this._lastPsi) / dt, -3, 3) : 0;
             const a = Math.abs(aimErr);
-            const w = Math.min(d.maxOmega, Math.sqrt(2 * 0.7 * d.maxAlpha * a), 7 * a);
+            // (near the aim, linear at AIM_GAIN: the profile, slowing at 70% of what the tires turn
+            // it at, takes over from 1.4 maxAlpha / AIM_GAIN^2, 16 deg)
+            const w = Math.min(d.maxOmega, Math.sqrt(2 * 0.7 * d.maxAlpha * a), AIM_GAIN * a);
             this.aimOverride = clamp(Math.sign(aimErr) * w + ff, -d.maxOmega, d.maxOmega);
           }
         } else {

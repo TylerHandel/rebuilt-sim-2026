@@ -64,11 +64,6 @@ export class Physical1114 extends PhysicalRobot {
     Object.assign(this, { t, w, s });
     this.ownsIntake = true;
     this.ownsHood = true;
-    // (their DriveAimDrive / DriveAimDriveAuto hold the heading to the HUB on the drive's heading
-    // PID, with no feed-forward on how fast the aim moves: without it, as the load's push shakes
-    // the robot by a couple of cm/s, the moving-shot aim's flicker isn't fed to the heading and
-    // doesn't throw it 11 degrees off while it dumps)
-    this.aimFF = false;
     this.reset();
   }
 
