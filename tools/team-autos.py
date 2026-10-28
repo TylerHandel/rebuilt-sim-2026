@@ -3,12 +3,13 @@
 (js/customAutos.js's format, plus each one's start, speeds in m/s and timed actions).
 Writes js/teamAutos.js.
 
-  python3 tools/team-autos.py [--8793 DIR] [--2910 DIR] [--1678 DIR] [--604 DIR]
+  python3 tools/team-autos.py [--8793 DIR] [--2910 DIR] [--1678 DIR] [--604 DIR] [--1114 DIR]
 
 DIR: a checkout of the team's code (defaults: ../pumpkin-bots/2026_robot,
 ../frcteam2910/2026competitionrobot-public, ../frc1678/C2026-Public,
-../frc604/2026-public/FRC-2026). All of them use WPILib's blue-origin field coordinates (x from
-the blue ALLIANCE WALL, y from the blue drivers' right), which are the sim's blue fx, fy.
+../frc604/2026-public/FRC-2026, ../Simbotics/2026-Simbot-Tim). All of them use WPILib's
+blue-origin field coordinates (x from the blue ALLIANCE WALL, y from the blue drivers' right),
+which are the sim's blue fx, fy.
 
 - 8793 (PathPlanner): each .auto's command tree; each path's Bezier waypoints sampled, at its
   max velocity (and constraint zones). Their modes: TrenchMode (intake up, not shooting),
@@ -27,6 +28,10 @@ the blue ALLIANCE WALL, y from the blue drivers' right), which are the sim's blu
   speed there, with the actions along them: launch on/off, intake down and rolling, stowed),
   waits and RetractIntake, from the right side and mirrored left as their isLeft does. A wait
   holds the robot where it is, launching if the last action left it launching.
+- 1114 (PathPlanner): their chooser's first, Right / Left 1-1 Middle Sweep : Greedy Sweep (the
+  left mirrored, as their chooser does), and Left Slow Centre Sweep Plus Depot. Each path's Bezier
+  waypoints at its max velocity (and constraint zones), intaking over its IntakeDeploy zones; each
+  FullShoot from x = 3.1 m (their autonXShootPose), held for its aiming time plus its timeout.
 """
 import argparse, json, math, os, re
 
@@ -62,7 +67,9 @@ def bezier(p0, p1, p2, p3, n=40):
     return [tuple((1 - t) ** 3 * a + 3 * (1 - t) ** 2 * t * b + 3 * (1 - t) * t ** 2 * c + t ** 3 * d for a, b, c, d in zip(p0, p1, p2, p3)) for t in (i / n for i in range(n + 1))]
 
 
-def pp_path(d, name):
+def pp_path(d, name, marker=None):
+    """(point, speed) every STEP along a path; with marker (an event's name), (point, speed, on):
+    whether one of that event's zones (zoned event markers: running from its start to its end) covers it"""
     p = json.load(open(os.path.join(d, 'paths', name + '.path')))
     wp = p['waypoints']
     xy, rel = [], []  # points, and each one's waypoint-relative position (for constraint zones)
@@ -76,13 +83,19 @@ def pp_path(d, name):
     vmax = p['globalConstraints']['maxVelocity']
     zones = [(z['minWaypointRelativePos'], z['maxWaypointRelativePos'], z['constraints']['maxVelocity']) for z in p.get('constraintZones', [])]
     speed = [min([vmax] + [zv for lo, hi, zv in zones if lo <= r <= hi]) for r in rel]
-    # sample along it, a new point wherever the speed changes too
+    if marker:
+        ev = [(e['waypointRelativePos'], e.get('endWaypointRelativePos')) for e in p.get('eventMarkers', []) if e['name'] == marker]
+        # (+0.01: zones end to end, as 1114's IntakeDeploys are 0.001 apart, run as one)
+        on = [any(hi is not None and lo <= r <= hi + 0.01 for lo, hi in ev) for r in rel]
+    # sample along it, a new point wherever the speed changes too (and the marker)
     out, acc = [(xy[0], speed[0])], 0.0
     for i in range(1, len(xy)):
         acc += math.dist(xy[i - 1], xy[i])
-        if acc >= STEP or speed[i] != out[-1][1] or i == len(xy) - 1:
+        if acc >= STEP or speed[i] != out[-1][1] or (marker and on[i] != on[i - 1]) or i == len(xy) - 1:
             out.append((xy[i], speed[i]))
             acc = 0.0
+            if marker: out[-1] += (on[i],)
+    if marker: out[0] += (on[0],)
     return out
 
 
@@ -121,6 +134,40 @@ def auto_8793(d, file):
     pre = next((p['preload'] for p in pts if 'preload' in p), None)
     pts = [p for p in pts if 'preload' not in p]
     return start, pts, pre
+
+
+# ------------------------------------------------------------------ 1114: PathPlanner
+# Their named commands (RobotContainer.addCommandsToPathPlanner, CommandFactory): IntakeDeploy
+# (lowerIntake then RunIntakeBallevator), as zoned event markers along the paths, so the intake
+# runs over each zone; AimShooterHub (the flywheel up to the shot, at the end of each path);
+# FullShoot33 / FullShoot4 / FullShoot5, a timedShoot (aimingMilliseconds, timeoutSeconds) of
+# (1000, 3.4) / (750, 2.25) / (750, 3.25) beside aimDriveHubAuto, which drives straight to
+# x = DriveConstants.autonXShootPose (3.1 m) along y and turns to the HUB; it shoots once aimed
+# and stopped (or once the aiming time is up) for the timeout, sitting there all that time;
+# ShooterStop. Their chooser's Left autos are the Right ones mirrored (PathPlannerAuto(name, true)).
+SHOOT_1114 = {'FullShoot33': (1.0, 3.4), 'FullShoot4': (0.75, 2.25), 'FullShoot5': (0.75, 3.25)}
+SHOOT_X_1114 = 3.1
+
+
+def auto_1114(d, file, mirror):
+    a = json.load(open(os.path.join(d, 'autos', file + '.auto')))
+    ys = (lambda y: W - y) if mirror else (lambda y: y)
+    pts, start = [], None
+    for c in a['command']['data']['commands']:
+        t, data = c['type'], c.get('data', {})
+        if t == 'path':
+            seg = pp_path(d, data['pathName'], 'IntakeDeploy')
+            if start is None:
+                start = (seg[0][0][0], ys(seg[0][0][1]))
+            for (x, y), v, on in seg[1:]:
+                pts.append(pt(x, ys(y), on, 'off', v))
+        elif t == 'named' and data['name'] in SHOOT_1114:
+            aim, dur = SHOOT_1114[data['name']]
+            last = pts[-1]
+            if last['fx'] > SHOOT_X_1114:
+                pts.append(pt(SHOOT_X_1114, last['fy'], False, 'off', 1.0))
+            pts[-1].update(action='shoot', t=round(aim + dur, 2), hold=True)
+    return start, pts
 
 
 # ------------------------------------------------------------------ 2910: drive to point
@@ -394,6 +441,7 @@ def main():
     ap.add_argument('--2910', dest='t2910', default=os.path.join(up, 'frcteam2910/2026competitionrobot-public'))
     ap.add_argument('--1678', dest='t1678', default=os.path.join(up, 'frc1678/C2026-Public'))
     ap.add_argument('--604', dest='t604', default=os.path.join(up, 'frc604/2026-public/FRC-2026'))
+    ap.add_argument('--1114', dest='t1114', default=os.path.join(up, 'Simbotics/2026-Simbot-Tim'))
     a = ap.parse_args()
     autos = {}
     pp = os.path.join(a.t8793, 'src/main/deploy/pathplanner')
@@ -425,6 +473,14 @@ def main():
             autos.setdefault('604', []).append({'id': f'604-{slug}-{side}', 'name': f"{au['name']} {side.upper()}", 'side': side,
                                                 'source': f'commands/autos/{cls}: {files}' + ('' if au['champs'] else ' (not in their Champs chooser)'),
                                                 'startFx': round(st[0], 3), 'startFy': round(st[1], 3), 'shootPreload': False, 'points': pts})
+    pp = os.path.join(a.t1114, 'src/main/deploy/pathplanner')
+    for side, file, mirror, name in [('right', 'RightSideMiddleGreedySweep', False, 'Right 1-1 Middle Sweep : Greedy Sweep'),
+                                     ('left', 'RightSideMiddleGreedySweep', True, 'Left 1-1 Middle Sweep : Greedy Sweep'),
+                                     ('left', 'LeftCenterSweep254', False, 'Left Slow Centre Sweep Plus Depot')]:
+        st, pts = auto_1114(pp, file, mirror)
+        slug = re.sub(r'[^a-z0-9]+', '-', name.lower()).strip('-')
+        autos.setdefault('1114', []).append({'id': f'1114-{slug}', 'name': name, 'side': side, 'source': f'PathPlanner "{file}"' + (' mirrored' if mirror else ''),
+                                             'startFx': round(st[0], 3), 'startFy': round(st[1], 3), 'shootPreload': False, 'points': pts})
     out = os.path.join(ROOT, 'js', 'teamAutos.js')
     with open(out, 'w') as f:
         f.write('// The teams\' own AUTOs, from their robot code (tools/team-autos.py writes this file; see its\n')

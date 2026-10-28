@@ -1109,7 +1109,8 @@ export class Robot {
             // chassis heading controller: time-optimal profile (no overshoot) + feed-forward on
             // how fast the aim direction moves while driving
             const d = this.cfg.drive;
-            const ff = this._lastPsi !== undefined ? clamp(wrapAngle(sol.psi - this._lastPsi) / dt, -3, 3) : 0;
+            // (a physical robot whose code has none says so: phys.aimFF false, 1114's)
+            const ff = this._lastPsi !== undefined && this.phys?.aimFF !== false ? clamp(wrapAngle(sol.psi - this._lastPsi) / dt, -3, 3) : 0;
             const a = Math.abs(aimErr);
             const w = Math.min(d.maxOmega, Math.sqrt(2 * 0.7 * d.maxAlpha * a), 7 * a);
             this.aimOverride = clamp(Math.sign(aimErr) * w + ff, -d.maxOmega, d.maxOmega);

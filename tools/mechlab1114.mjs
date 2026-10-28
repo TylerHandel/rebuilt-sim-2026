@@ -13,9 +13,12 @@
 // Env: SEEDS (6), SPEED (path's 1 m/s; intake's 1,3), SEC (intakefull's 10 s), STUCK (where the
 // ones left over are), SHOT=rpm,hood (one shot of your own), MAP=1 (shooter: a grid of RPMs and
 // hoods), THEIR_RPM=1 (their LUT's own RPMs), NOAGITATE=1 (the dump without the box coming in),
-// FILL=layers (dump: filled as hold does), BINS (dump: shots each quarter second), DUMPLOG (dump:
-// where the load is each quarter second), DUMPSNAP=t (dump: every FUEL and what it touches at t),
-// HOLDFILE / FILLFILE=path (hold / intakefull: where the FUEL are, as JSON), TRACE=i (path)
+// AGITATE_V=v (dump: the box pulled in at v volts, not their 2; their code keeps a commented-out
+// -3.5 V "fast pull"), AGITATE=cycle (dump: the box in and out, their commented-out cycle),
+// FILL=layers (dump: filled as hold does), BINS (dump: shots each quarter
+// second), DUMPLOG (dump: where the load is each quarter second), DUMPSNAP=t (dump: every FUEL
+// and what it touches at t), HOLDFILE / FILLFILE=path (hold / intakefull: where the FUEL are, as
+// JSON), TRACE=i (path)
 import { RAPIER } from '../js/physics.js';
 import { FUEL, GROUP, groups, HUB } from '../js/constants.js';
 import { Mechanism } from '../js/mech/mechanism.js';
@@ -301,6 +304,7 @@ function intakeFull(seed, { keep = false, sec = Number(process.env.SEC ?? 10), u
   return { ...r, rig: rg };
 }
 
+const CYCLE = process.env.AGITATE === 'cycle';
 function dumpRun(seed) {
   const D = 3.02, want = shotFor('hub', D);
   let rg, w, balls;
@@ -326,10 +330,13 @@ function dumpRun(seed) {
   let minRpm = Infinity;
   for (let k = 0; k < 8 / DT; k++) {
     const T = k * DT, rpm = RPM(t.shooter.omega);
-    const fire = rpm >= want.rpm - 500, agit = !process.env.NOAGITATE && rpm >= want.rpm - 400 && T > 0.65 && slideTurns(rg.ext) > SLIDE_POS.agitateMin;
+    const fire = rpm >= want.rpm - 500, aimed = !process.env.NOAGITATE && rpm >= want.rpm - 400 && T > 0.65;
+    const agit = aimed && (CYCLE || slideTurns(rg.ext) > SLIDE_POS.agitateMin);
     feed(t, fire);
     t.intake.cmd = agit && slideTurns(rg.ext) >= SLIDE_POS.rollersOff ? 6 / 12 : null;
-    step(() => slide(rg, { volts: agit ? -2 : 0 }));
+    // (AGITATE=cycle: their commented-out last mode, the box's setpoint 6.4 in and 9 in by turns, 240 ms each)
+    if (CYCLE && agit) step(() => slide(rg, { turns: Math.floor((T - 0.65) / 0.24) % 2 ? 9 : 6.4 }));
+    else step(() => slide(rg, { volts: agit ? -Number(process.env.AGITATE_V ?? 2) : 0 }));
     watch.check(balls, T);
     if (watch.shots.length) minRpm = Math.min(minRpm, RPM(t.shooter.omega));
     // (DUMPLOG=1: where the load is each 0.25 s: up the elevator, at its foot, over the floor's back
