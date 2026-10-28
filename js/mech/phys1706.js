@@ -5,8 +5,10 @@
 //   - intake (held): the arm out and down (113.4 deg, its Motion Magic), the rollers at 100% once
 //     within 20 deg of it; let go, the arm folds back in (the team: pulling the intake in), the
 //     rollers off, sweeping what's out over it back into the hopper and pulling the box in with it;
-//     it stalls against a load that won't squeeze any further (its X60 at its 50 A), and holds
-//     there.
+//     it stalls against a load that won't squeeze any further (its X60 at its 80 A), and holds
+//     there. Shooting and not intaking, its rollers run while it folds, until it's at 30 deg (what a
+//     driver does, emulated: the FUEL in its mouth go up the sloped plate instead of wedging there,
+//     which their thread says the plate is for).
 //   - shooting (held: the AI's shot; out of its zone, a pass): each turret aims itself: the
 //     robot's turret model turns it to the heading this gives, and it fires when it's there. Its
 //     shot is the sim's shot table for the distance from its exit to the HUB's center (or the pass
@@ -208,7 +210,11 @@ export class Physical1706 extends PhysicalRobot {
     const intaking = on && !!r.cmd.intake, unjam = on && !!outtake;
     this.armGoal = intaking || unjam ? INTAKE.out : 0;
     const armReady = Math.abs(this.armDeg - INTAKE.out) < INTAKE.tol;
-    T.intake.cmd = !on ? 0 : unjam ? -0.5 : intaking && armReady ? 1 : null;
+    // (what its driver does, emulated: shooting and not intaking, the intake folds in with its rollers
+    // running until it's most of the way in (30 deg), pushing what's in its mouth up the sloped plate
+    // and sweeping the box back, so the load comes back over the bowls' rims)
+    const sweep = on && feeding && !!r.shot && !intaking && this.armDeg > 30;
+    T.intake.cmd = !on ? 0 : unjam ? -0.5 : (intaking && armReady) || sweep ? 1 : null;
 
     // ---- the turrets: aiming and spinning up while the robot has a shot (r.shot: its target)
     const tgt = r.shot?.target, pass = tgt?.mode === 'pass';

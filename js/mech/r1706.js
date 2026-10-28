@@ -126,10 +126,11 @@ export const PRELOAD = [0, 1].flatMap((s) => [0, 1, 2, 3].map((k) => {
 }));
 
 // ------------------------------------------------------------------ the drives
-// (current limits: their 2025 code's, rr1706/konshu: its intake's 80 A stator and 40 A supply on the
-// intake's rollers, the spindexers, the kickers and the shooters; its arm's 50 A and 30 A on the
-// intake's arm. At its funnel's 40 A the spindexers stalled under a full bowl: a FUEL squeezed
-// between the cone and the bowl's wall drags ~1.7 N m on the disc, and 40 A gives it 3.8)
+// (current limits: their 2025 code's, rr1706/konshu: its intake's (an X60 on a pivot) 80 A stator and
+// 40 A supply on everything here: the intake's arm and rollers, the spindexers, the kickers and the
+// shooters. At its funnel's 40 A the spindexers stalled under a full bowl (a FUEL squeezed between
+// the cone and the bowl's wall drags ~1.7 N m on the disc, and 40 A gives it 3.8); at its coral
+// arm's 50 A and 30 A the intake's arm folded in more slowly against a full box)
 export function build1706() {
   // the intake's rollers: positive takes FUEL in (the rollers' backs and the 1in wheels' fronts
   // running up, deployed)
@@ -138,7 +139,7 @@ export function build1706() {
   const bottom = intake.add(new Shaft({ name: 'intake bottom roller', inertia: 1.2e-4 }), -(10 / 14) * (14 / 24));
   const wheels = intake.add(new Shaft({ name: 'intake 1in wheels', inertia: 4e-5 }), (10 / 14) * (14 / 24) * (18 / 16) * (24 / 20));
   // the arm's pivot (positive swings it out and down)
-  const pivot = new Shaft({ name: 'intake arm', motor: new Motor('krakenX60', { ratio: 16 * (32 / 22), statorLimit: 50, supplyLimit: 30 }), inertia: INTAKE.J, drag: 0.3 });
+  const pivot = new Shaft({ name: 'intake arm', motor: new Motor('krakenX60', { ratio: 16 * (32 / 22), statorLimit: 80, supplyLimit: 40 }), inertia: INTAKE.J, drag: 0.3 });
   // the spindexers (positive carries FUEL round to the bowl's back the way it feeds: SPIN_DIR)
   const spin = [0, 1].map((i) => new Shaft({ name: `spindexer ${i ? 'left' : 'right'}`, motor: new Motor('krakenX44', { ratio: SPIN.ratio, statorLimit: 80, supplyLimit: 40 }), inertia: SPIN.J, drag: 0.01 }));
   // the kickers (positive lifts FUEL up the throat)
@@ -234,8 +235,11 @@ export function placeShooter(i, [accel, upper, lower], yaw, h) {
 // pivot; the hopper box (it slides with the arm); each spindexer's disc and hubs (they turn, and FUEL
 // they touch push back on their motors); each turret and its hood (posed each step); the bumper's
 // foam; the net over the top
-// (FUEL's foam on the CAD's polycarbonate, aluminum and printed parts: 0.3, an estimate, as 604's)
-export function pathSurfaces1706(mesh, t, { mu = 0.3 } = {}) {
+// (FUEL's foam on the CAD's polycarbonate and aluminum: 0.25, an estimate, as 2910's panels and
+// lids and 604's ball path have it; 0.3 on the turrets' and hoods' plates and prints, where the
+// shots were measured. At 0.3 throughout, the load came into the bowls more slowly: a full hopper
+// dumped at 5.8 FUEL/s through the middle, against 6.8 at 0.25 and 8.2 at 0.2)
+export function pathSurfaces1706(mesh, t, { mu = 0.25, muShooter = 0.3 } = {}) {
   const s = (k, pos, m = mu) => new Surface({ name: `${k} (CAD)`, vertices: mesh[k].v.map((x) => x / 1000), indices: mesh[k].i, mu: m, pos });
   const body = s('body', [0, 0, 0]);
   // (the spindexers' bowls: 1/8in polycarbonate bands, TREAD.bowl: how far they give where a FUEL
@@ -253,8 +257,8 @@ export function pathSurfaces1706(mesh, t, { mu = 0.3 } = {}) {
     sf.name = `spindexer ${i ? 'left' : 'right'} (CAD)`;
     return sf;
   });
-  const turret = [0, 1].map((i) => s('turret', [TURRET[i][0], 0, TURRET[i][1]]));
-  const hood = [0, 1].map((i) => s('hood', [TURRET[i][0], 0, TURRET[i][1]]));
+  const turret = [0, 1].map((i) => s('turret', [TURRET[i][0], 0, TURRET[i][1]], muShooter));
+  const hood = [0, 1].map((i) => s('hood', [TURRET[i][0], 0, TURRET[i][1]], muShooter));
   return { body, bowl, intake, hopper, spin, turret, hood, bumper: bumper1706(), net: new Net1706() };
 }
 export function placeBox(sf, ext, deg) {
