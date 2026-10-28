@@ -5,23 +5,28 @@
 // their regressions' drum and tunnel speeds and hood angles: how fast and how steep they leave,
 // and whether that reaches the HUB from the regression's distance), path (FUEL on a treadmill
 // carpet, the robot driving into them at 1 m/s: intake, floor, tunnel, drum; how many and how
-// fast), hold (how many it holds, everything off), dump (a full one fired at their 3.2 m shot).
-// Env: SEEDS (6), STUCK (where the ones left over are)
+// fast), intake (their intake() alone, 24 FUEL), intakefull (filled through the intake from the
+// NEUTRAL ZONE's FUEL until it can't take more: tools/fillbench.mjs), hold (how many it holds,
+// everything off, set in a layer at a time), dump (a full one fired at their 3.2 m shot).
+// Env: SEEDS (6), STUCK (where the ones left over are), SPEED (1 m/s), SEC (intakefull's 12 s),
+// FILLSEED (hold and dump: each FUEL set a few mm off its spot, another fill), BINS (dump's shots
+// each quarter second)
 import { RAPIER } from '../js/physics.js';
 import { FUEL, GROUP, groups, HUB } from '../js/constants.js';
 import { Mechanism } from '../js/mech/mechanism.js';
 import { sim2D } from '../js/ballistics.js';
 import {
   build1678, wheels1678, pathSurfaces1678, placeIntake, placeHood, placeNet, intakeRot, slotExt, slotRate, SLOT, hoodRot, hoodElevation, shotFor, REGRESSIONS,
-  INTAKE, SHOOTER, TUNNEL, FEEDER, FLEX, FLOOR, TUNNEL_D, DRUM, PIVOT,
+  INTAKE, SHOOTER, TUNNEL, FEEDER, FLEX, FLOOR, TUNNEL_D, DRUM, PIVOT, RANGES,
 } from '../js/mech/r1678.js';
 import PATH from '../js/mech/path1678.js';
 import { EXIT_PER_DRUM_SURFACE, servoArm, turnArm, tunnelLoop, CONTRACT } from '../js/mech/phys1678.js';
+import { fillRun, fillReport } from './fillbench.mjs';
 
 await RAPIER.init();
 const R = FUEL.radius, DT = 1 / 120, SEEDS = Number(process.env.SEEDS ?? 6);
 const HELD = groups(GROUP.HELD, 0xffff & ~GROUP.HELD);
-const EXT = slotExt(INTAKE.down), LIFT = 0.2, SPEED = Number(process.env.SPEED ?? 1);
+const EXT = slotExt(INTAKE.down), LIFT = 8.5 * 0.0254 /* their climber's kMaxPosition */, SPEED = Number(process.env.SPEED ?? 1);
 if (process.env.INTAKE_D) INTAKE.main.d = Number(process.env.INTAKE_D); // (to try other roller sizes)
 
 function world({ carpet = true } = {}) {
@@ -87,10 +92,13 @@ function shotWatch(shooter) {
 }
 const inHopper = (b) => { const p = b.translation(); return p.x > -0.36 && p.x < 0.66 && Math.abs(p.z) < 0.36 && p.y > 0.1 && p.y < 0.8; };
 // fill it a layer at a time (FUEL set into the space over the ones already in, let settle)
+// (FILLSEED: each FUEL set a few mm off its spot, seeded: another fill of the same hopper)
 function fill(w, balls, step, layers = 8, y = 0.62, x1 = 0.76) {
+  let sd = Number(process.env.FILLSEED ?? 0);
+  const rnd = () => (sd ? ((sd = (sd * 16807) % 2147483647) / 2147483647 - 0.5) * 0.008 : 0);
   for (let layer = 0; layer < layers; layer++) {
     for (let i = 0; i < 6; i++) for (let k = 0; k < 4; k++) {
-      const x = -0.02 + 0.155 * i, z = -0.233 + 0.155 * k;
+      const x = -0.02 + 0.155 * i + rnd(), z = -0.233 + 0.155 * k + rnd();
       if (x > x1) continue;
       if (balls.some((b) => { const p = b.translation(); return Math.hypot(p.x - x, p.y - y, p.z - z) < 2 * R; })) continue;
       balls.push(ball(w, x, y, z));
@@ -163,6 +171,22 @@ const tests = {
       if (process.env.STUCK) console.log('   left', r.left.map((p) => p.map((v) => v.toFixed(2)).join(',')).join(' | '));
     }
   },
+  // filled through the intake until it can't take more: driving at SPEED (1 m/s) into the NEUTRAL
+  // ZONE's FUEL, their intake() (roller 12 V, the rest idle) and its prefill, the extension out
+  // and the lid up (tools/fillbench.mjs)
+  intakefull() {
+    const runs = [];
+    for (let seed = 1; seed <= Number(process.env.SEEDS ?? 3); seed++) {
+      const { t, path } = rig();
+      t.intake.cmd = 1;
+      const fill = intakeFill(t);
+      const r = fillRun(RAPIER, { world: () => world({ carpet: false }), ball, path, DT, held: held1678, own: own1678, top: TOP1678, control: fill, speed: SPEED, sec: Number(process.env.SEC ?? 12), seed, front: 0.4 });
+      console.log(fillReport(`1678 intaking at ${SPEED} m/s, seed ${seed}`, r));
+      runs.push(r);
+    }
+    const f = runs.map((r) => r.fulls[0]?.n).filter((n) => n !== undefined);
+    console.log(`1678 through its intake (${runs.length} fills): the most it held ${Math.min(...runs.map((r) => r.most))}-${Math.max(...runs.map((r) => r.most))} (mean ${(runs.reduce((a, r) => a + r.most, 0) / runs.length).toFixed(1)}), full at ${f.length ? `${Math.min(...f)}-${Math.max(...f)}` : '-'} (${f.length} of ${runs.length})`);
+  },
   hold() {
     const { path } = rig();
     const w = world();
@@ -226,6 +250,8 @@ const tests = {
       if (watch.shots.length) minRpm = Math.min(minRpm, RPM(t.drum.omega));
     }
     const s = watch.shots.map((x) => x.t), first = s[0] ?? 0, in1 = s.filter((x) => x - first < 1).length;
+    // (BINS=1: shots each quarter second from the first; and when the 50th went)
+    if (process.env.BINS) { const bins = []; for (const x of s) { const i = Math.floor((x - first) / 0.25); bins[i] = (bins[i] || 0) + 1; } console.log(`   shots each 0.25 s: ${Array.from(bins, (v) => v || 0).join(' ')}; the 50th ${(s[49] - first).toFixed(2)} s after the first`); }
     const left = balls.filter((b) => b.translation().y < 3 && b.translation().x < 40 && inHopper(b));
     if (process.env.STUCK) for (const b of left) { const p = b.translation(); console.log(`   left at ${p.x.toFixed(2)},${p.y.toFixed(2)},${p.z.toFixed(2)}: ${[...path.contacts, ...shooter.contacts].filter((c) => c.ball === b).map((c) => c.wheel.name + ' ' + c.force.toFixed(0)).join(', ')}`); }
     const out = watch.shots;
@@ -234,6 +260,31 @@ const tests = {
     console.log(`1678 dumps ${s.length} of ${n0}: ${in1} in the first second, ${((s.length - 1) / (s[s.length - 1] - first)).toFixed(1)} FUEL/s over the whole dump`);
   },
 };
+
+// where a FUEL is (robot frame), as js/mech/phys1678.js where() has it: in it (not one on the carpet
+// the intake's reaching for), and the intake's
+const HALF = 0.343;
+const inFrame1678 = ([x, y, z]) => Math.abs(x) < HALF && Math.abs(z) < HALF && y > 0.105 && y < 0.8;
+const inFront1678 = ([x, y, z]) => x >= HALF && x < 0.72 && Math.abs(z) < HALF && y < 0.8;
+const held1678 = (p) => inFrame1678(p) || (inFront1678(p) && p[1] > 0.2 && p[0] < 0.6);
+const own1678 = (p) => inFrame1678(p) || inFront1678(p);
+const TOP1678 = { topX: 0.1, topN: 10 }; // (js/mech/phys1678.js naturalFull)
+// their intake()'s prefill, once: once the hopper's CANrange has seen FUEL 0.75 s and the tunnel's
+// sees none, the tunnel at 250 RPM and the floor and feeder at 3 V until the tunnel's sees one
+// (js/mech/phys1678.js)
+function intakeFill(t) {
+  let hopperT = 0, tunnelT = 0, state = 'armed';
+  const tunnelSees = (ps) => ps.some(([x, y, z]) => Math.hypot(x - RANGES.tunnel.at[0], y - RANGES.tunnel.at[1]) < R * 0.8 && Math.abs(z - RANGES.tunnel.z) < RANGES.tunnel.reach + R);
+  const hopperSees = (ps) => ps.some(([x, y, z]) => { const dx = x - RANGES.hopper.at[0]; return dx > 0 && dx < RANGES.hopper.reach + R && Math.abs(y - RANGES.hopper.at[1]) < R * 0.8 && Math.abs(z - RANGES.hopper.z) < R + dx * Math.tan((RANGES.hopper.half * Math.PI) / 180); });
+  return (_, balls) => {
+    const ps = balls.map((b) => { const p = b.translation(); return [p.x, p.y, p.z]; }).filter(held1678);
+    hopperT = hopperSees(ps) ? hopperT + DT : 0;
+    tunnelT = tunnelSees(ps) ? tunnelT + DT : 0;
+    if (state === 'armed' && hopperT >= 0.75 && tunnelT < 0.06) { state = 'running'; t.floor.cmd = 3 / 12; t.feederT.cmd = 3 / 12; }
+    if (state === 'running' && tunnelT >= 0.06) { state = 'done'; t.floor.cmd = null; t.feederT.cmd = null; }
+    tunnelLoop(t, state === 'running' ? { rpm: TUNNEL.preload } : null);
+  };
+}
 
 function pathRun(seed, { shoot = true, n = 18, sec = 7 } = {}) {
   let sd = seed;

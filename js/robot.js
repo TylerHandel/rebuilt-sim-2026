@@ -619,7 +619,9 @@ export class Robot {
         on, feeding: this.wantShoot,
         outtake: on && this.cmd.outtake, setpoint: this.shotSetpoint, mode: this.shot ? this.shot.mode : this.lastMode,
       });
-      this.full = this.stored.length >= this.capacity();
+      // full: at its rated count; or (naturalFull: 2910, 1678) once its intake can't put more in,
+      // its rollers running on as its code runs them (js/mech/physical.js watchFull)
+      this.full = this.phys.naturalFull ? this.phys.watchFull(dt, on && !!this.cmd.intake) : this.stored.length >= this.capacity();
     }
   }
 

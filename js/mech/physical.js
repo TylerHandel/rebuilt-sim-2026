@@ -5,13 +5,67 @@
 // FUEL it has hold of, what got in, and what got shot. Each robot (js/mech/phys8793.js,
 // js/mech/phys2910.js) adds its mechanisms, where its ball path is, and its code's controls.
 import { FUEL } from '../constants.js';
+import { Wheel } from './mechanism.js';
+
+const R = FUEL.radius;
+// A robot whose hopper is full when its intake can't put more in (naturalFull: 2910's and 1678's;
+// the rest are full at their rated count), from what its mechanisms are doing, its rollers
+// running on as its code runs them:
+//  - packed: its rollers running inward with a FUEL in its mouth pressed against the load, and
+//    the load up against the hopper's top over the half the intake feeds (topN of the FUEL there
+//    pressed against the lid or net from below: about two thirds of a layer, naturalFull.topN),
+//    for PACKED_T. Every FUEL that gets in past that squeezes the load (2910's 120 A rollers can
+//    cram ~20 more into the NEUTRAL ZONE's FUEL, and the squeezed load pushes them back out of the
+//    mouth when they let go: tools/mechlab2910.mjs intakefull).
+//  - stuck: FUEL waiting in its mouth pressed against the load and fewer than 2 more getting in,
+//    for STUCK_T of that (packed or not: an intake that can't put more in, or only one now and
+//    then: 1678's last few creep in over seconds, a FUEL every half second or so, its mouth
+//    jamming for up to a second or two with room left, tools/intake-test.mjs).
+// Then it's full until FULL_DROP of them have gone (shot, or spilled back out of the mouth); full
+// when stuck, also once FULL_DROP more get in after all.
+export const PACKED_T = 0.4, STUCK_T = 2.0, FULL_DROP = 3;
+export class FullWatch {
+  constructor() { Object.assign(this, { full: false, by: null, base: 0, waitT: 0, packT: 0, fullAt: 0 }); }
+  // n: how many it holds; waiting: its rollers running inward with a FUEL in its mouth pressed
+  // against the load; packed: the load up against the top over the intake's half
+  step(dt, n, waiting, packed = false) {
+    // (2 more in than when it last started waiting: getting in; FUEL gone, shot or spilled: the
+    // count to beat comes down with them)
+    if (n >= this.base + 2 || n < this.base - FULL_DROP) { this.base = n; this.waitT = 0; }
+    if (this.full && (n <= this.fullAt - FULL_DROP || (this.by === 'stuck' && n >= this.fullAt + FULL_DROP))) this.full = false;
+    this.packT = packed ? this.packT + (waiting ? dt : 0) : 0;
+    if (waiting && !this.full) this.waitT += dt;
+    const by = this.packT >= PACKED_T ? 'packed' : this.waitT >= STUCK_T ? 'stuck' : null;
+    if (!this.full && by) Object.assign(this, { full: true, by, fullAt: n, base: n, waitT: 0, packT: 0 });
+    return this.full;
+  }
+}
+// any FUEL in the mouth (centers, robot frame) pressed against one of the load's
+export function mouthPressed(mouth, load) {
+  return mouth.some(([x, y, z]) => load.some(([u, v, w]) => (u - x) ** 2 + (v - y) ** 2 + (w - z) ** 2 < (2 * R + 0.01) ** 2));
+}
+// how many of the load's FUEL forward of x0 (robot frame) something above presses down on (a
+// surface's contact, not a roller's, pushing it down: the lid, the net, the hopper's top).
+// contacts: a Mechanism's; up: the robot's up (world); held(body), x(body): one of the load, and
+// where it is along the robot
+export function topCount(contacts, up, held, x, x0) {
+  const pressed = new Set();
+  for (const c of contacts) {
+    if (c.wheel instanceof Wheel) continue; // (a roller)
+    if (c.n[0] * up[0] + c.n[1] * up[1] + c.n[2] * up[2] > -0.5 || !held(c.ball)) continue;
+    if (x(c.ball) > x0) pressed.add(c.ball);
+  }
+  return pressed.size;
+}
 
 export class PhysicalRobot {
   // path: the Mechanism of its ball path (FUEL in it touch each other there, foam on foam);
   // shooter: the Mechanism whose wheels shoot (a FUEL leaving them fast and upward is a shot);
-  // preload: where its preload sits (robot frame)
-  constructor(robot, { path, shooter, preload }) {
-    Object.assign(this, { r: robot, path, shooter, preload });
+  // preload: where its preload sits (robot frame); naturalFull: full when its intake can't take
+  // more (watchFull), not at its rated count: { topX, topN }, the load up against the top forward
+  // of topX (robot frame) is topN FUEL pressed against it
+  constructor(robot, { path, shooter, preload, naturalFull = null }) {
+    Object.assign(this, { r: robot, path, shooter, preload, naturalFull });
   }
 
   reset() {
@@ -23,6 +77,28 @@ export class PhysicalRobot {
     this.counted = new Set(); // FUEL counted as intaked, until shot or gone from around it
     for (const b of this.squashed || []) b.squash = null;
     this.squashed = new Set(); // FUEL drawn flattened where it presses them (_squash)
+    this.full = false;
+    this.fullWatch = new FullWatch();
+  }
+
+  // full yet? (naturalFull; once a step, after account; intaking: its rollers running inward)
+  watchFull(dt, intaking) {
+    const waiting = intaking && this._mouthPressed();
+    this.full = this.fullWatch.step(dt, this.held.length, waiting, waiting && this._packed());
+    return this.full;
+  }
+  // the load up against the top over the intake's half
+  _packed() {
+    const { topX, topN } = this.naturalFull, q = this.r.body.rotation();
+    // (the robot's up in the world)
+    const up = [2 * (q.x * q.y - q.w * q.z), 1 - 2 * (q.x * q.x + q.z * q.z), 2 * (q.y * q.z + q.w * q.x)];
+    const byBody = new Map(this.held.map((b) => [b.body, b]));
+    return topCount(this.path.contacts, up, (body) => byBody.has(body), (body) => this._local(byBody.get(body).pos)[0], topX) >= topN;
+  }
+  // a FUEL in the intake's mouth (its, not yet in) pressed against one in the load
+  _mouthPressed() {
+    const held = new Set(this.held);
+    return mouthPressed([...this.owned].filter((b) => !held.has(b)).map((b) => this._local(b.pos)), this.held.map((b) => this._local(b.pos)));
   }
 
   // the robot's frame <-> the world (x forward, y up, z right, origin on the carpet at its center)

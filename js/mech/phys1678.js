@@ -93,7 +93,11 @@ export class Physical1678 extends PhysicalRobot {
     super(robot, {
       path: new Mechanism({ body: robot.body, substeps: 6, shafts: [...new Set(pathWheels.map((x) => x.shaft)), t.pivot], wheels: pathWheels, surfaces: Object.values(s) }),
       shooter: new Mechanism({ body: robot.body, substeps: 6, sub: 8, shafts: [t.drum, t.hood], wheels: [w.drum, ...w.hood] }),
-      preload: PRELOAD,
+      // (full when its intake can't put more in: js/mech/physical.js. Over the front of the
+      // hopper, from 0.1 m under the lid to its front edge and on under the net to the extension's
+      // front, 0.54 m by 0.68: a layer of ~16 FUEL under them, packed against them when two thirds
+      // of them are)
+      preload: PRELOAD, naturalFull: { topX: 0.1, topN: 10 },
     });
     Object.assign(this, { t, w, s });
     // the extension, driven by the arm through its pin and slot (FUEL in it push back on the arm)
@@ -127,10 +131,13 @@ export class Physical1678 extends PhysicalRobot {
   where(x, y, z) {
     const inFrame = Math.abs(x) < HALF && Math.abs(z) < HALF && y > 0.105 && y < 0.8;
     // out front: the intake and the extension over it
-    const inFront = x >= HALF && x < 0.72 && Math.abs(z) < HALF && y < 0.62;
+    // (up to the net, bulged up over the extension)
+    const inFront = x >= HALF && x < 0.72 && Math.abs(z) < HALF && y < 0.8;
     return {
       own: inFrame || inFront,
-      held: inFrame || (inFront && y > 0.2),
+      // (not one piled up on the FUEL in front of the extension's front panel, 0.64 m out: in it, a
+      // FUEL's center is 0.56 at most)
+      held: inFrame || (inFront && y > 0.2 && x < 0.6),
       near: x > -HALF - 0.1 && x < 0.76 && Math.abs(z) < HALF + 0.08 && y < 0.85,
     };
   }
@@ -339,10 +346,11 @@ export class Physical1678 extends PhysicalRobot {
   // about how fast a FUEL leaves at the drum's speed now (m/s; tools/mechlab1678.mjs shooter)
   exitSpeed() { return EXIT_PER_DRUM_SURFACE * Math.abs(this.t.drum.omega) * SHOOTER.drum.d / 2; }
 
-  // how many it holds: what it gets to in matches, intaking with the extension out and the lid up
-  // (a layer at a time it holds 62: tools/mechlab1678.mjs hold; the last few in from the front
-  // take far longer than the rest)
-  capacity() { return 52; }
+  // how many it holds, about: the team's 75-80 with the extension out. Only a rating, for the HUD
+  // and the AI's plans: it's full when its intake can't put more in (js/mech/physical.js): 70-88
+  // through its intake on the bench, 77 on average (tools/mechlab1678.mjs intakefull), the last
+  // few creeping in; its mouth can jam with room left (55-68)
+  capacity() { return 78; }
 }
 // a FUEL's exit speed over the drum's surface speed (tools/mechlab1678.mjs shooter measures it)
 export const EXIT_PER_DRUM_SURFACE = 0.71;

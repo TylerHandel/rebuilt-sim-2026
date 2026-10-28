@@ -12,7 +12,8 @@
 // wheels and lifted into the pinch between the drum (4in, grip tape) and the hood's two 1.5in
 // rollers (grip tape), which flings them up and back over the drum. All four FUEL wide.
 // Drives (the CAD's gears, belts and chain):
-//   intake: two Kraken X60s (IntakeLeft/RightRoller, 120 A stator, 100 A supply), each 11t:~30t
+//   intake: two Kraken X60s (IntakeLeft/RightRoller, 120 A stator, 100 A supply; in teleop 100 A
+//     and 40 A), each 11t:~30t
 //     (HTD 5mm) to the 2in roller; the left one also 24t:48t and 12t:12t (#25) to the 1in rollers
 //   hopper floor: four X60s (80 A stator, 40 A supply), 40t:40t onto one roller, the rest chained
 //     12t:12t (#25) to it (their code: HOPPER_GEAR_RATIO 1.0); the compliant wheels' shaft
@@ -29,8 +30,10 @@ import { BUMPER_T, BUMPER_Y0, BUMPER_Y1 } from '../robotConfigs.js';
 import { Block, Motor, Shaft, Surface, Train, Wheel } from './mechanism.js';
 
 // what each grips FUEL with (estimates, in the order 8793's team gave: compliant wheels most,
-// grip tape, silicone and rubber, bare aluminum least)
-export const MU = { compliant: 1.6, gripTape: 1.5, silicone: 1.0, aluminum: 0.45 };
+// grip tape, silicone and rubber, bare aluminum least). Bare aluminum (the floor's back rollers)
+// 0.6, not 0.45: with the hopper's walls at 0.25 (pathSurfaces2910) a full hopper dumps at 31-32
+// FUEL/s on average, as the team says it does, not 29 (tools/mechlab2910.mjs dump); an estimate
+export const MU = { compliant: 1.6, gripTape: 1.5, silicone: 1.0, aluminum: 0.6 };
 
 // ------------------------------------------------------------------ the layout (robot frame)
 export const PIVOT = [0.273, 0.17];   // the intake's pivot (its bearings)
@@ -85,10 +88,14 @@ export const PRELOAD = [
 ];
 
 // ------------------------------------------------------------------ the drives
+// the intake rollers' current limits (A, per motor): ReBlitz.java's for AUTO, and from teleop on
+// what Robot.configureTeleopCurrentLimits sets (IntakeSubsystem.setCurrentLimits(100, 40))
+export const INTAKE_LIMITS = { auto: { statorLimit: 120, supplyLimit: 100 }, teleop: { statorLimit: 100, supplyLimit: 40 } };
+export function intakeLimits(t, teleop) { Object.assign(t.intake.motor, INTAKE_LIMITS[teleop ? 'teleop' : 'auto']); }
 export function build2910() {
   // the intake's rollers: positive turns them inward (the 2in roller's bottom and the 1in rollers'
   // tops run rearward)
-  const intake = new Train({ name: 'intake rollers', motor: new Motor('krakenX60', { count: 2, statorLimit: 120, supplyLimit: 100 }) });
+  const intake = new Train({ name: 'intake rollers', motor: new Motor('krakenX60', { count: 2, ...INTAKE_LIMITS.auto }) });
   const main = intake.add(new Shaft({ name: 'intake 2in roller', inertia: 3e-4 }), -11 / 30);
   const lower = INTAKE.lower.map((_, i) => intake.add(new Shaft({ name: `intake 1in roller ${i + 1}`, inertia: 5e-5 }), (24 / 48) * (12 / 12)));
   // the hopper's floor, up the back, and the indexer's compliant wheels: positive carries FUEL
@@ -161,8 +168,11 @@ export function hoodElevation(deg) {
 }
 
 // the ball path's surfaces from their CAD (js/mech/path2910.js): the body, the intake on its pivot
-// (it swings, on the pivot's shaft) and the hood on the drum's axle
-export function pathSurfaces2910(mesh, t, { mu = 0.35 } = {}) {
+// (it swings, on the pivot's shaft) and the hood on the drum's axle. FUEL slide on them at 0.25
+// (an estimate: their hopper is polycarbonate panels and lids on an aluminum frame, the FUEL's
+// urethane skin slick on them; at the 0.35 every other robot's CAD gets, a full hopper dumps at 29
+// FUEL/s on average, at 0.25 with the floor's aluminum rollers at 0.6, 31-32: the team's 32)
+export function pathSurfaces2910(mesh, t, { mu = 0.25 } = {}) {
   const s = (k, pos) => new Surface({ name: `${k} (CAD)`, vertices: mesh[k].v.map((x) => x / 1000), indices: mesh[k].i, mu, pos });
   const body = s('body', [0, 0, 0]);
   const intake = s('intake', [PIVOT[0], PIVOT[1], 0]).onShaft(t.pivot, [PIVOT[0], PIVOT[1], 0]);

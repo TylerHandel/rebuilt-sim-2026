@@ -5,23 +5,33 @@
 // speeds and hood angles: how fast and how steep they leave, and whether that reaches the HUB from
 // the table's distance), path (FUEL on a treadmill carpet, the robot driving into them at 1 m/s:
 // intake, floor, lift, drum; how many and how fast), hold (how many it holds: filled a layer at a
-// time, the lift staged as their PRELOADING does), dump (a full one fired, staged first).
-// Env: SEEDS (6), DRUM (the drum's turns per motor turn, to try others than the CAD's ~24:42)
+// time, the lift staged as their PRELOADING does), intakefull (filled through the intake from the
+// NEUTRAL ZONE's FUEL until it can't take more: tools/fillbench.mjs), dump (a full one fired,
+// staged first).
+// Env: SEEDS (6; dump's 3), SPEED (intakefull's 1 m/s), SEC (its 10 s), AUTO (intakefull and dump
+// with the intake rollers' AUTO current limits, not teleop's), dump's FILL=layers, NOSTAGE,
+// NORETRACT, NOGATE (the floor feeding whatever the drum's speed), BINS (shots each quarter
+// second), TRACE (the drum, floor and arm), LIFTLOG (how many FUEL are up the lift), DRUM (the drum's turns per motor turn, to try others than the CAD's ~24:42)
 import { RAPIER } from '../js/physics.js';
 import { FUEL, GROUP, groups, HUB } from '../js/constants.js';
 import { Mechanism } from '../js/mech/mechanism.js';
 import { sim2D } from '../js/ballistics.js';
 import {
-  build2910, wheels2910, pathSurfaces2910, placeIntake, placeHood, hoodElevation, shotFor, SHOT_TABLE, PASS_TABLE, passFor,
+  build2910, wheels2910, pathSurfaces2910, placeIntake, placeHood, hoodElevation, shotFor, SHOT_TABLE, PASS_TABLE, passFor, intakeLimits,
   INTAKE, SHOOTER, FLOOR, DRUM, PIVOT, RANGES,
 } from '../js/mech/r2910.js';
 import PATH from '../js/mech/path2910.js';
 import { profile, PIVOT_MM } from '../js/mech/phys2910.js';
+import { BUMPER_Y0 } from '../js/robotConfigs.js';
+import { fillRun, fillReport } from './fillbench.mjs';
 
 await RAPIER.init();
-const R = FUEL.radius, DT = 1 / 120, SEEDS = Number(process.env.SEEDS ?? 6);
+const R = FUEL.radius, DT = 1 / 120, SEEDS = Number(process.env.SEEDS ?? 6), SPEED = Number(process.env.SPEED ?? 1);
 if (process.env.DRUM) SHOOTER.drumPerMotor = Number(process.env.DRUM);
 const HELD = groups(GROUP.HELD, 0xffff & ~GROUP.HELD);
+// (a FUEL comes down through the HUB's hexagonal opening when its center's within the opening's
+// inradius less its own radius of the HUB's center, along the line of the shot)
+const HUB_R = HUB.hexR * Math.cos(Math.PI / 6) - R;
 
 function world({ carpet = true } = {}) {
   const w = new RAPIER.World({ x: 0, y: -9.81, z: 0 });
@@ -133,6 +143,21 @@ const tests = {
       `${med(runs.map((r) => r.rate)).toFixed(1)} FUEL/s once they're coming; ${med(runs.map((r) => r.inside))} in it at the end; intake X60s down to ${med(runs.map((r) => r.minIntake)).toFixed(0)}%, hopper X60s to ${med(runs.map((r) => r.minFloor)).toFixed(0)}%`);
     if (process.env.STUCK) for (const r of runs) console.log('   left', r.left.map((p) => p.map((v) => v.toFixed(2)).join(',')).join(' | '));
   },
+  // filled through the intake until it can't take more: driving at SPEED (1 m/s) into the NEUTRAL
+  // ZONE's FUEL, their INTAKE (its rollers at full) with the floor staging FUEL up the lift as
+  // their PRELOADING does (tools/fillbench.mjs)
+  intakefull() {
+    for (let seed = 1; seed <= Math.min(SEEDS, 3); seed++) {
+      const r = intakeFull(seed, { keep: !!process.env.STUCK });
+      console.log(fillReport(`2910 intaking at ${SPEED} m/s, seed ${seed}`, r));
+      // (STUCK=1: where they are)
+      if (process.env.STUCK) {
+        const ps = r.balls.map((b) => { const p = b.translation(); return [p.x, p.y, p.z]; }).filter(held2910).sort((a, b) => a[0] - b[0]);
+        console.log('   ' + ps.map((p) => p.map((v) => v.toFixed(2)).join(',')).join(' | '));
+        r.world.free();
+      }
+    }
+  },
   // how many it holds: the hopper filled a layer at a time (FUEL set into the space over the
   // ones already in, let settle), the floor off, until no more fit
   hold() {
@@ -165,57 +190,141 @@ const tests = {
     console.log(`  (its mechanisms with them all in: ${ms.toFixed(2)} ms a step)`);
     console.log(`2910 holds ${inside().length} with the intake down, filled a layer at a time and the lift staged as their PRELOADING does (the team: 50-58, the ones staged in the shooter included)`);
   },
-  // a full hopper dumped: filled as hold does, then the floor and the shooter at their 3 m shot
+  // a full hopper dumped at their 3 m shot (2400 RPM, hood 17): filled through the intake until
+  // it's full (intakefull), its rollers let go (coasting) and the lift staged as their PRELOADING
+  // does while it drives to the HUB (1.5 s), then fired as their code feeds a shot, the intake
+  // retracting on the load (FILL=layers: filled as hold does instead)
   dump() {
-    const { t, wh, s: surf, path, shooter } = rig({ hood: 17 });
-    const w = world();
-    const balls = [];
-    const step = (n, run) => { for (let i = 0; i < n; i++) { if (run) run(); path.step(DT, balls, balls); shooter.step(DT, balls); w.step(); } };
-    // (their code retracts the intake while it shoots, its rollers at 15%: the pivot's X60 under
-    // their Motion Magic, as js/mech/phys2910.js runs it, pushing on the load)
-    let deg = INTAKE.deploy, set = [deg, 0], armT = 0;
-    const armAt = {};
-    const retract = () => {
-      flywheel(t, 2400);
-      set = profile(...set, INTAKE.retract, PIVOT_MM.v, PIVOT_MM.a, DT);
-      const volts = PIVOT_MM.kV * set[1] + PIVOT_MM.kP * (set[0] - deg);
-      t.pivot.cmd = Math.max(-1, Math.min(1, -volts / 12));
-      const ang = INTAKE.cadDeg * Math.PI / 180 + ((INTAKE.deploy - deg) * Math.PI) / 180;
-      t.pivot.impulse(-INTAKE.mass * 9.81 * INTAKE.com * Math.cos(ang) * DT);
-      deg -= (t.pivot.omega * DT * 180) / Math.PI;
-      deg = Math.min(INTAKE.deploy, deg);
-      armT += DT; for (const [a, k] of [[80, 'to80'], [40, 'to40'], [12, 'to12']]) if (deg <= a && armAt[k] === undefined) armAt[k] = armT;
-      if (process.env.ARMLOG && Math.round(armT / DT) % 6 === 0) console.log(`   arm ${armT.toFixed(2)} s: ${deg.toFixed(1)} deg, pivot X60 ${t.pivot.motor.current.toFixed(0)} A`);
-      placeIntake(wh.intake, deg);
-      surf.intake.setPose([PIVOT[0], PIVOT[1], 0], 0, ((INTAKE.deploy - deg) * Math.PI) / 180);
-    };
+    const runs = [];
+    for (let seed = 1; seed <= (process.env.FILL === 'layers' ? 1 : Number(process.env.SEEDS ?? 3)); seed++) runs.push(dumpRun(seed));
+    const mean = (f) => runs.reduce((a, r) => a + f(r), 0) / runs.length;
+    if (runs.length > 1) console.log(`2910 dumps (mean of ${runs.length}): ${mean((r) => r.n).toFixed(1)} of ${mean((r) => r.n0).toFixed(1)}, ${mean((r) => r.rate).toFixed(1)} FUEL/s over the whole dump (${runs.map((r) => r.rate.toFixed(1)).join(', ')}), best second ${mean((r) => r.best).toFixed(1)}`);
+  },
+};
+
+// a full one dumped (dump)
+function dumpRun(seed) {
+  const RPM = 2400, HOOD = 17, D = 3.0; // their table's 3 m shot
+  let rg, w, balls;
+  if (process.env.FILL === 'layers') {
+    rg = rig({ hood: HOOD }); w = world(); balls = [];
+  } else {
+    const f = intakeFull(seed, { keep: true, hood: HOOD, until: (full) => full, sec: 12 });
+    rg = f.rig; w = f.world;
+    f.carpet.setLinvel({ x: 0, y: 0, z: 0 }, true);
+    // (what it didn't take in stays behind on the carpet: gone)
+    balls = [];
+    for (const b of f.balls) { const p = b.translation(); if (own2910([p.x, p.y, p.z])) balls.push(b); else b.setEnabled(false); }
+  }
+  const { t, wh, s: surf, path, shooter } = rg;
+  const step = (n, run) => { for (let i = 0; i < n; i++) { if (run) run(); path.step(DT, balls, balls); shooter.step(DT, balls); w.step(); } };
+  // (their code retracts the intake while it shoots, its rollers at 15%: the pivot's X60 under
+  // their Motion Magic, as js/mech/phys2910.js runs it, pushing on the load)
+  let deg = INTAKE.deploy, set = [deg, 0], armT = 0;
+  const armAt = {};
+  const retract = () => {
+    flywheel(t, RPM);
+    set = profile(...set, INTAKE.retract, PIVOT_MM.v, PIVOT_MM.a, DT);
+    const volts = PIVOT_MM.kV * set[1] + PIVOT_MM.kP * (set[0] - deg);
+    t.pivot.cmd = Math.max(-1, Math.min(1, -volts / 12));
+    const ang = INTAKE.cadDeg * Math.PI / 180 + ((INTAKE.deploy - deg) * Math.PI) / 180;
+    t.pivot.impulse(-INTAKE.mass * 9.81 * INTAKE.com * Math.cos(ang) * DT);
+    deg -= (t.pivot.omega * DT * 180) / Math.PI;
+    deg = Math.min(INTAKE.deploy, deg);
+    armT += DT; for (const [a, k] of [[80, 'to80'], [40, 'to40'], [12, 'to12']]) if (deg <= a && armAt[k] === undefined) armAt[k] = armT;
+    if (process.env.ARMLOG && Math.round(armT / DT) % 6 === 0) console.log(`   arm ${armT.toFixed(2)} s: ${deg.toFixed(1)} deg, pivot X60 ${t.pivot.motor.current.toFixed(0)} A`);
+    placeIntake(wh.intake, deg);
+    surf.intake.setPose([PIVOT[0], PIVOT[1], 0], 0, ((INTAKE.deploy - deg) * Math.PI) / 180);
+  };
+  if (process.env.FILL === 'layers') {
     for (let layer = 0; layer < 8; layer++) {
       for (let i = 0; i < 5; i++) for (let k = 0; k < 4; k++) {
         const x = -0.1 + 0.155 * i, z = -0.233 + 0.155 * k, y = 0.47;
         if (balls.some((b) => { const p = b.translation(); return Math.hypot(p.x - x, p.y - y, p.z - z) < 2 * R; })) continue;
         balls.push(ball(w, x, y, z));
       }
-      step(1.5 / DT, () => flywheel(t, 2400));
+      step(1.5 / DT, () => flywheel(t, RPM));
     }
-    // (staged up the lift first, as it would be between shots: NOSTAGE=1 skips it)
-    if (!process.env.NOSTAGE) console.log(`  (${stage(t, balls, (n) => step(n, () => flywheel(t, 2400)))} staged up the lift before it fires)`);
-    const n0 = balls.length, touched = new Set(), shots = [];
-    t.floor.cmd = 1; t.intake.cmd = 0.15;
-    for (let k = 0; k < 6 / DT; k++) {
-      step(1, process.env.NORETRACT ? () => flywheel(t, 2400) : retract);
-      for (const b of balls) {
-        if (shooter.contacts.some((c) => c.ball === b)) touched.add(b);
-        else if (touched.has(b)) { touched.delete(b); if (b.linvel().y > 2) { shots.push(k * DT); b.setTranslation({ x: 50 + shots.length, y: 5, z: 0 }, true); } }
+  }
+  // (driving to the HUB, 3 s: the drum idling at 82% of the shot's speed as it does between shots,
+  // the intake's rollers coasting, the lift staged as their PRELOADING does: NOSTAGE=1 skips that;
+  // then the drum up to the shot's speed, the floor waiting on it as below)
+  t.intake.cmd = null;
+  const idle = () => flywheel(t, 0.82 * RPM);
+  const staged = process.env.NOSTAGE ? (step(3 / DT, idle), 0) : stage(t, balls, (n) => step(n, idle), 3);
+  const inIt = () => balls.filter((b) => { const p = b.translation(); return held2910([p.x, p.y, p.z]); });
+  const n0 = balls.filter((b) => { const p = b.translation(); return own2910([p.x, p.y, p.z]); }).length, touched = new Set(), shots = [];
+  t.floor.cmd = 1; t.intake.cmd = 0.15;
+  let minRpm = Infinity, gated = 0, feedT = null;
+  const trace = [];
+  for (let k = 0; k < 6 / DT; k++) {
+    // (as in play the floor feeds only while the drum's within 5% of the shot's speed: its
+    // ready, js/mech/phys2910.js; NOGATE=1 feeds regardless)
+    const spunUp = Math.abs(t.shooter.omega * 9.549 - RPM) <= 0.05 * RPM;
+    t.floor.cmd = spunUp || process.env.NOGATE ? 1 : 0;
+    if (t.floor.cmd && feedT === null) feedT = k * DT;
+    if (!spunUp && shots.length) gated += DT;
+    if (process.env.TRACE && k % 6 === 0) trace.push(`${(k * DT).toFixed(2)}:${(t.shooter.omega * 9.549).toFixed(0)}/${shots.length} floor ${(t.floor.omega * 9.549).toFixed(0)} ${t.floor.motor.current.toFixed(0)}A arm ${deg.toFixed(0)} ${t.intake.motor.current.toFixed(0)}A`);
+    step(1, process.env.NORETRACT ? () => flywheel(t, RPM) : retract);
+    if (shots.length) minRpm = Math.min(minRpm, t.shooter.omega * 9.549);
+    if (process.env.LIFTLOG && k % 6 === 0 && shots.length > 5 && shots.length < n0 - 10) {
+      const lift = balls.filter((b) => { const p = b.translation(); return p.x < -0.17 && p.y > 0.2 && p.y < 0.47; });
+      const base = balls.filter((b) => { const p = b.translation(); return p.x < -0.1 && p.x > -0.3 && p.y <= 0.2; });
+      console.log(`   ${(k * DT).toFixed(2)} lift ${lift.length} (up at ${(lift.reduce((a, b) => a + b.linvel().y, 0) / Math.max(1, lift.length)).toFixed(2)} m/s; by lane ${[-0.19, -0.063, 0.063, 0.19].map((z) => lift.filter((b) => Math.abs(b.translation().z - z) < 0.065).length).join('')}), at its foot ${base.length}, floor ${(t.floor.omega * 9.549).toFixed(0)} RPM`);
+    }
+    for (const b of balls) {
+      if (shooter.contacts.some((c) => c.ball === b)) touched.add(b);
+      else if (touched.has(b)) {
+        touched.delete(b);
+        const v = b.linvel(), p = b.translation();
+        if (v.y > 2) { shots.push({ t: k * DT, v: Math.hypot(v.x, v.y, v.z), el: (Math.atan2(v.y, -v.x) * 180) / Math.PI, x: p.x, y: p.y }); b.setTranslation({ x: 50 + shots.length, y: 5, z: 0 }, true); }
       }
     }
-    const first = shots[0] ?? 0, in1 = shots.filter((x) => x - first < 1).length;
-    const left = balls.filter((b) => b.translation().y < 3 && b.translation().x < 40);
-    const inHopper = left.filter((b) => { const p = b.translation(); return p.x > -0.36 && p.x < 0.66 && Math.abs(p.z) < 0.35 && p.y > 0.1 && p.y < 0.6; });
-    if (process.env.STUCK) for (const b of inHopper) { const p = b.translation(); console.log(`   left at ${p.x.toFixed(2)},${p.y.toFixed(2)},${p.z.toFixed(2)}: ${[...path.contacts, ...shooter.contacts].filter((c) => c.ball === b).map((c) => c.wheel.name + ' ' + c.force.toFixed(0)).join(', ')}`); }
-    console.log(`  (${inHopper.length} still in it, ${left.length - inHopper.length} out of it; the arm got to ${deg.toFixed(0)} deg of its 10: to 80 deg in ${armAt.to80?.toFixed(2)} s, 40 in ${armAt.to40?.toFixed(2)} s, 12 in ${armAt.to12?.toFixed(2)} s)`);
-    console.log(`2910 dumps ${shots.length} of ${n0}: ${in1} in the first second, ${((shots.length - 1) / (shots[shots.length - 1] - first)).toFixed(1)} FUEL/s over the whole dump (the team: 23-25 typical, 30+ in short volleys, "34bps"); the flywheel down to ${(t.shooter.omega * 9.549).toFixed(0)} RPM at the end`);
-  },
-};
+  }
+  if (process.env.TRACE) console.log('   ' + trace.join(' '));
+  // (BINS=1: shots each quarter second from the first)
+  if (process.env.BINS) { const f0 = shots[0]?.t ?? 0, bins = []; for (const o of shots) { const i = Math.floor((o.t - f0) / 0.25); bins[i] = (bins[i] || 0) + 1; } console.log('   shots each 0.25 s: ' + Array.from(bins, (v) => v || 0).join(' ')); }
+  // (a FUEL the staging pushed up into the idling drum goes before the feed starts, short: not
+  // the dump's)
+  const strays = shots.filter((o) => feedT === null || o.t < feedT).length;
+  const ts = shots.filter((o) => o.t >= feedT).map((o) => o.t), first = ts[0] ?? 0, in1 = ts.filter((x) => x - first < 1).length;
+  const best = Math.max(0, ...ts.map((a) => ts.filter((b) => b >= a && b < a + 1).length));
+  // (FUEL fired over the time from the first to the last)
+  const rate = ts.length / (ts[ts.length - 1] - first);
+  const left = inIt();
+  if (process.env.STUCK) for (const b of left) { const p = b.translation(); console.log(`   left at ${p.x.toFixed(2)},${p.y.toFixed(2)},${p.z.toFixed(2)}: ${[...path.contacts, ...shooter.contacts].filter((c) => c.ball === b).map((c) => c.wheel.name + ' ' + c.force.toFixed(0)).join(', ')}`); }
+  // (where they come down at the HUB's rim height, back from the robot's center: their table's
+  // shot is for the HUB's center D m away)
+  const land = shots.map((o) => landing(o) - o.x).filter(Number.isFinite).sort((a, b) => a - b);
+  const inHub = land.filter((d) => Math.abs(d - D) < HUB_R).length;
+  console.log(`  (${staged} staged up the lift before it fires; ${left.length} still in it; the arm got to ${deg.toFixed(0)} deg of its 10: to 80 deg in ${armAt.to80?.toFixed(2)} s, 40 in ${armAt.to40?.toFixed(2)} s, 12 in ${armAt.to12?.toFixed(2)} s; the drum's motors down to ${minRpm.toFixed(0)} RPM of ${RPM}, the floor waiting on it ${gated.toFixed(2)} s; shots come down at the rim ${land[land.length >> 1]?.toFixed(2)} m back (median; ${land[0]?.toFixed(2)}..${land[land.length - 1]?.toFixed(2)}), ${inHub} of ${land.length} within the HUB's opening of its center ${D} m)`);
+  console.log(`2910 dumps ${ts.length} of ${n0}${strays ? ` (and ${strays} launched by the idling drum before)` : ''}${process.env.FILL === 'layers' ? ' (filled a layer at a time)' : ` (filled through its intake, seed ${seed})`}: ${in1} in the first second, best second ${best}, ${rate.toFixed(1)} FUEL/s over the whole dump (the team: 23-25 typical, 30+ in short volleys, "34bps")`);
+  w.free();
+  return { n: ts.length, n0, rate, best, in1 };
+}
+
+// where a FUEL is (robot frame), as js/mech/phys2910.js where() has it: in it (not one on the carpet
+// the intake's reaching for), and the intake's
+const inFrame2910 = ([x, y, z]) => Math.abs(x) < 0.343 && Math.abs(z) < 0.349 && y > 0.105 && y < 0.62;
+const inFront2910 = ([x, y, z]) => x >= 0.343 && x < 0.72 && Math.abs(z) < 0.349 && y > BUMPER_Y0 && y < 0.6;
+const held2910 = (p) => inFrame2910(p) || (inFront2910(p) && p[1] > 0.17 && p[0] < 0.6);
+const own2910 = (p) => inFrame2910(p) || inFront2910(p);
+const TOP2910 = { topX: 0.1, topN: 10 }; // (js/mech/phys2910.js naturalFull)
+// a fill through the intake (intakefull), returning the rig with the FUEL in it as well (dump)
+function intakeFull(seed, { keep = false, sec = Number(process.env.SEC ?? 10), until = null, hood = 0 } = {}) {
+  const rg = rig({ hood }), { t, path } = rg;
+  // (the intake rollers' teleop current limits, as most intaking is in teleop; AUTO=1: AUTO's)
+  intakeLimits(t, !process.env.AUTO);
+  t.intake.cmd = 1;
+  let fullT = 0, balls = null;
+  const control = (_, live) => {
+    balls = live;
+    fullT = beam(RANGES.hopper, live) ? fullT + DT : 0;
+    t.floor.cmd = fullT > 0.25 && !beam(RANGES.feeder, live) ? 0.07 : 0;
+  };
+  const r = fillRun(RAPIER, { world: () => world({ carpet: false }), ball, path, DT, held: held2910, own: own2910, top: TOP2910, control, speed: SPEED, sec, seed, front: 0.45, keep, until });
+  return { ...r, rig: rg, balls };
+}
 
 function pathRun(seed, { rpm = 2400, hood = 17, sec = 6 } = {}) {
   let sd = seed;

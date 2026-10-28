@@ -449,7 +449,9 @@ export const ROBOTS = {
     // ceiling is the diagonal net
     bay: {
       x0: -0.09, x1: 0.33, hw: 0.34, top: 0.545, // walls at +-0.35 m, under the lid (their CAD)
-      lift: { h: 0.2 },
+      // (their climber's kMaxPosition, where expandHopper takes it: 8.5in on the robot they ran,
+      // isEpsilon; ClimberConstants)
+      lift: { h: 8.5 * IN },
       // the net from the lid's front edge down to the front of the extension
       slope: { x: 0.335, y: 0.5 },
       // and it stretches: the load bulges it up and out over the extension

@@ -24,9 +24,10 @@
 //     1:1, geared 28t:28t to the hood rollers (turning the other way)
 //   intake pivot: an X60 through 62:8, 68:18 and 15:9 (#35 chain); 48.8:1
 //   hood: an X44 through 48:8, 18:15 and 175:10, about the drum's axle
-import { IN } from '../constants.js';
+import { IN, FUEL } from '../constants.js';
 import { Motor, Shaft, Surface, Train, Wheel } from './mechanism.js';
 
+const R = FUEL.radius;
 // what each grips FUEL with (estimates; the order 8793's team gave: compliant wheels most,
 // silicone and rubber, bare polycarbonate least)
 export const MU = { compliant: 1.6, silicone: 1.0, polycarb: 0.5 };
@@ -201,7 +202,7 @@ export function hoodElevation(deg) { return 74 - interp(SHOOTER.hoodTurn, deg); 
 // the ball path's surfaces from their CAD (js/mech/path1678.js): the body; the intake on its pivot
 // (it swings, on the pivot's shaft); the hood on the drum's axle; the extension's sides and front
 // (they slide out); the lid on the climber (it rises); and the net from the lid's front edge to
-// the extension's front (a plane, placed with placeNet)
+// the extension's front (it stretches: Net1678, placed with placeNet)
 export function pathSurfaces1678(mesh, t, { mu = 0.35 } = {}) {
   const s = (k, pos) => new Surface({ name: `${k} (CAD)`, vertices: mesh[k].v.map((x) => x / 1000), indices: mesh[k].i, mu, pos });
   const body = s('body', [0, 0, 0]);
@@ -209,13 +210,12 @@ export function pathSurfaces1678(mesh, t, { mu = 0.35 } = {}) {
   const hood = s('hood', [DRUM[0], DRUM[1], 0]);
   const slide = s('slide', [0, 0, 0]);
   const lid = s('lid', [0, 0, 0]);
-  // the net: 0.45 m back from its front edge (the front edge on the extension's front panel)
-  const net = new Surface({ name: 'net', vertices: [0, 0, -0.34, 0, 0, 0.34, -0.45, 0, 0.34, -0.45, 0, -0.34], indices: [0, 1, 2, 0, 2, 3], mu: 0.3, pos: [0, -10, 0] });
+  const net = new Net1678();
   return { body, intake, hood, slide, lid, net };
 }
 // the net between the lid's front edge (lid raised lift) and the top of the extension's front
-// panel (out ext); folded away while the extension's in
-export const NET = { lidX: 0.335, lidY: 0.545, frontX: 0.335, frontY: 0.505 };
+// panel (out ext), across hw either side; folded away while the extension's in
+export const NET = { lidX: 0.335, lidY: 0.545, frontX: 0.335, frontY: 0.505, hw: 0.34, bulge: 0.12 };
 // The extension rides on the intake: a pin on the arm's side plate, 0.173 m from the pivot, runs
 // in an angled slot in the extension's side plate (which slides fore and aft on its rail), so the
 // arm's angle sets how far out it is: all the way (0.30 m) with the arm down, in with it folded,
@@ -233,8 +233,34 @@ const SLOT0 = SLOT.pin[0] - slotX(SLOT.pin[1]);
 export function slotExt(deg) { const [x, y] = slotPin(deg); return Math.max(0, x - slotX(y) - SLOT0); }
 // d(extension)/d(arm angle), m per radian (the arm's angle up)
 export function slotRate(deg) { return ((slotExt(deg + 0.5) - slotExt(deg - 0.5)) * 180) / Math.PI; }
-export function placeNet(net, ext, lift) {
-  if (ext < 0.05) { net.setPose([0, -10, 0]); return; }
-  const fx = NET.frontX + ext, dy = NET.lidY + lift - NET.frontY;
-  net.setPose([fx, NET.frontY, 0], 0, -Math.atan2(dy, ext));
+export function placeNet(net, ext, lift) { net.place(ext, lift); }
+// The net: tied along the lid's front edge, the top of the extension's front panel and its side
+// plates' (the diagonal), it stretches, and the load bulges it (the team), up to NET.bulge at its
+// middle, tapering to its ties (as 4414's net dome does, js/mech/r4414.js netY): 0.12 m, about up
+// to the lid's height there (the diagonal's 0.13 under it), an estimate. A FUEL under it presses
+// it out to there, past it only as far as its soft tread gives (as 4414's); nothing pushes the load
+// back down. In the robot's frame, so its pose stays put.
+class Net1678 extends Surface {
+  constructor() {
+    super({ name: 'net', vertices: [0, 0, 0, 0.01, 0, 0, 0, 0, 0.01], indices: [0, 1, 2], mu: 0.3, tread: 1500 });
+    this.place(0, 0);
+  }
+  place(ext, lift) {
+    Object.assign(this, { ext, x0: NET.lidX, x1: NET.frontX + ext, y0: NET.lidY + lift, y1: NET.frontY });
+  }
+  // the stretched net's height at (x, z), and its slope along x and z
+  at(x, z) {
+    const L = this.x1 - this.x0, u = (x - this.x0) / L, v = (z + NET.hw) / (2 * NET.hw), B = NET.bulge;
+    const su = Math.sin(Math.PI * u), sv = Math.sin(Math.PI * v);
+    return [this.y0 + (this.y1 - this.y0) * u + B * su * sv, (this.y1 - this.y0) / L + (B * Math.PI * Math.cos(Math.PI * u) * sv) / L, (B * su * Math.PI * Math.cos(Math.PI * v)) / (2 * NET.hw)];
+  }
+  touches(p) {
+    if (this.ext < 0.05) return [];
+    const [x, y, z] = p;
+    if (x <= this.x0 || x >= this.x1 || Math.abs(z) >= NET.hw) return [];
+    const [h, hx, hz] = this.at(x, z), l = Math.hypot(hx, 1, hz), dist = (h - y) / l;
+    // (under it, or pushed a little way through: not one that's got out over it)
+    if (dist >= R || dist < -0.03) return [];
+    return [{ depth: R - dist, n: [hx / l, -1 / l, hz / l] }];
+  }
 }

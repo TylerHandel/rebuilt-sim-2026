@@ -1,10 +1,11 @@
 // 2910's Re•Blitz in play, built of its physical mechanisms (js/mech/r2910.js; the shared part:
 // js/mech/physical.js). Its controls are its code's (SuperStructure and the intake, hopper and
 // shooter subsystems):
-//   intake: down (DEPLOY, rollers off) by default; INTAKE runs its rollers at full; while a shot
-//     is being fed it RETRACTs (to 10 deg, its rollers at 15%) unless it's intaking, pushing the
-//     load back toward the shooter. The pivot is a Kraken X60 under their Motion Magic profile
-//     and gains, so the FUEL in its way push back on it.
+//   intake: down (DEPLOY, its rollers off, coasting as their neutral mode has them) by default;
+//     INTAKE runs its rollers at full; while a shot is being fed it RETRACTs (to 10 deg, its
+//     rollers at 15%) unless it's intaking, pushing the load back toward the shooter. The pivot
+//     is a Kraken X60 under their Motion Magic profile and gains, so the FUEL in its way push
+//     back on it.
 //   hopper floor: full (SHOOT) while a shot is being fed; otherwise off, or 7% (PRELOADING) when
 //     its hopper CANrange says it's full and its feeder CANrange sees nothing waiting.
 //   shooter: the drum's motors on their velocity loop at their table's RPM for the distance to
@@ -16,7 +17,7 @@
 import { Mechanism } from './mechanism.js';
 import { PhysicalRobot } from './physical.js';
 import {
-  build2910, wheels2910, pathSurfaces2910, placeIntake, placeHood, intakeRot, hoodElevation, shotFor, passFor,
+  build2910, wheels2910, pathSurfaces2910, placeIntake, placeHood, intakeRot, hoodElevation, shotFor, passFor, intakeLimits,
   INTAKE, SHOOTER, RANGES, PRELOAD, PIVOT, DRUM,
 } from './r2910.js';
 import PATH from './path2910.js';
@@ -55,7 +56,10 @@ export class Physical2910 extends PhysicalRobot {
     super(robot, {
       path: new Mechanism({ body: robot.body, substeps: 6, shafts: [...new Set(pathWheels.map((x) => x.shaft)), t.pivot], wheels: pathWheels, surfaces: Object.values(s) }),
       shooter: new Mechanism({ body: robot.body, substeps: 6, sub: 8, shafts: [t.drum, t.hood], wheels: [w.drum, ...w.hood] }),
-      preload: PRELOAD,
+      // (full when its intake can't put more in: js/mech/physical.js. Over the front of the
+      // hopper, from 0.1 m to its front panel's bevel at 0.64, the lid's 0.7 m wide: a layer of
+      // ~15 FUEL under it, packed against it when two thirds of them are)
+      preload: PRELOAD, naturalFull: { topX: 0.1, topN: 10 },
     });
     Object.assign(this, { t, w, s });
     this.ownsIntake = true;
@@ -86,8 +90,10 @@ export class Physical2910 extends PhysicalRobot {
     const inFront = x >= HALF_L && x < 0.72 && Math.abs(z) < HALF_W && y > BUMPER_Y0 && y < 0.6;
     return {
       own: inFrame || inFront,
-      // (held: in the hopper; not one on the carpet the intake's still reaching for)
-      held: inFrame || (inFront && y > 0.17),
+      // (held: in the hopper; not one on the carpet the intake's still reaching for, nor one piled
+      // up on the FUEL in front of the hopper's front panel, 0.64 m out: in it, a FUEL's center is
+      // 0.56 at most)
+      held: inFrame || (inFront && y > 0.17 && x < 0.6),
       near: x > -HALF_L - 0.08 && x < 0.76 && Math.abs(z) < HALF_W + 0.08 && y < 0.66,
     };
   }
@@ -98,6 +104,8 @@ export class Physical2910 extends PhysicalRobot {
 
   preStep(dt, t) {
     const r = this.r, T = this.t, on = r.enabled;
+    // (the intake rollers' current limits: lower from teleop on, as their teleopInit sets them)
+    intakeLimits(T, !!r.match?.isTeleop);
     // the intake's pivot: their Motion Magic toward the goal, the X60 doing what it can against
     // the arm's weight and the FUEL in its way (positive turns the arm up, toward stowed)
     this.armSet = profile(...this.armSet, this.armGoal, PIVOT_MM.v, PIVOT_MM.a, dt);
@@ -172,14 +180,16 @@ export class Physical2910 extends PhysicalRobot {
     const intaking = on && r.cmd.intake;
     if (intaking) { this.armGoal = INTAKE.deploy; T.intake.cmd = 1; }
     else if (this.feed) { this.armGoal = INTAKE.retract; T.intake.cmd = 0.15; }
-    else { this.armGoal = on ? INTAKE.deploy : this.armGoal; T.intake.cmd = 0; }
+    // (their rollers' duty cycle 0 is neutral, and their IntakeLeft/RightRoller configs coast in
+    // neutral, ReBlitz.java: FUEL pushing on them turn them freely)
+    else { this.armGoal = on ? INTAKE.deploy : this.armGoal; T.intake.cmd = null; }
     if (on && outtake) T.intake.cmd = -1;
     // what the robot's aiming and drawing see
     r.hoodDeg = hoodElevation(this.hoodDeg);
     r.flywheel = this.exitSpeed();
     r.ready = ready;
     r.feeding = this.feed ? 1 : 0;
-    r.intakeSpeed = T.intake.cmd > 0.5 ? 1 : T.intake.cmd < 0 ? -1 : 0;
+    r.intakeSpeed = (T.intake.cmd ?? 0) > 0.5 ? 1 : (T.intake.cmd ?? 0) < 0 ? -1 : 0;
   }
 
   // where its passes go (their FieldConstants: 4 m out from the ALLIANCE WALL, 2.5 m in from a
@@ -192,9 +202,11 @@ export class Physical2910 extends PhysicalRobot {
   // about how fast a FUEL leaves at the drum's speed now (m/s; tools/mechlab.mjs shooter2910)
   exitSpeed() { return EXIT_PER_DRUM_SURFACE * Math.abs(this.t.drum.omega) * SHOOTER.drum.d / 2; }
 
-  // how many it holds: about 60 or more, the FUEL squashed together (the team; its hopper takes
-  // 45 set in a layer at a time, tools/mechlab2910.mjs hold, and the intake packs it to 58-60 in
-  // matches)
+  // how many it holds, about: 60 with the hopper out (the team: 60 or more, the FUEL squashed
+  // together; 40 in). Only a rating, for the HUD and the AI's plans: it's full when its intake
+  // can't put more in (js/mech/physical.js): packed to the lid over the front at 56-66 through the
+  // NEUTRAL ZONE's FUEL (tools/intake-test.mjs); its rollers can cram ~10-20 more, which push back
+  // out of the mouth once they let go (tools/mechlab2910.mjs intakefull, dump)
   capacity() { return 60; }
   // the floor rollers' spin (rad/s; positive carries FUEL back), for drawing them
   floorSpin() { return this.t.floor.omega; }

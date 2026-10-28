@@ -135,6 +135,20 @@ export class OpponentAI {
     // a full-skill scorer fills its hopper all the way before a trip (it leaves with less only when
     // time runs short); the handicapped skills (Rookie, Regional) make smaller trips
     this.fillTarget = cap < 20 || this.skill.load >= 1 ? this.maxLoad : Math.min(this.maxLoad, Math.max(8, Math.round(this.brain.fill * cap)));
+    // a robot whose hopper is full when its intake can't put more in (robot.full; 2910, 1678:
+    // js/mech/physical.js): at full skill it collects until it's full, however many that is (its
+    // capacity is only its rating, for the plans), not up to the count
+    this.natural = !!robot.phys?.naturalFull;
+    if (this.natural && this.skill.load >= 1) this.stopAt = this.fillTarget = Infinity;
+    else this.stopAt = this.maxLoad;
+    this.lastGainT = 0; this.intakedSeen = 0;
+  }
+
+  // room for more: under the load it stops at (and, for one that fills until its intake can't
+  // put more in, not full)
+  _hasRoom() {
+    const r = this.robot;
+    return r.stored.length < this.stopAt && !(this.natural && r.full);
   }
 
   get own() { return this.robot.alliance; }
@@ -352,6 +366,8 @@ export class OpponentAI {
   _score(dt) {
     const r = this.robot, m = this.match, B = this.brain;
     const stored = r.stored.length, cap = this.maxLoad;
+    // (when the last FUEL got in, or it started collecting)
+    if (r.stats.intaked !== this.intakedSeen || this.state !== 'collect') { this.intakedSeen = r.stats.intaked; this.lastGainT = this.t; }
     const active = m.hubActive(this.own);
     const nc = m.hubNextChange(this.own);
     const untilActive = active ? 0 : nc ?? Infinity;
@@ -380,21 +396,26 @@ export class OpponentAI {
         const windowLeft = active ? (nc ?? left) + 1.5 : Infinity;
         const shootTime = (n) => 0.8 + n / r.cfg.shooter.bps;
         const lastCall = active && stored >= 3 && windowLeft <= travel + shootTime(stored) + 1;
-        const go = stored >= cap || (r.full && stored >= 0.5 * cap)
+        // (one that fills until its intake can't put more in: past its rating with nothing more
+        // getting in for 2 s, or three quarters of it and nothing for 3 s, it's as full as it'll
+        // get here)
+        const stale = this.t - this.lastGainT;
+        const go = stored >= this.stopAt || (r.full && stored >= 0.5 * cap)
+          || (this.natural && ((stored >= cap && stale > 2) || (stored >= 0.75 * cap && stale > 3)))
           || (stored >= this.fillTarget && active)
           || lastCall
           || (stored >= 3 && !active && untilActive <= travel + B.stageMargin)
           || (stored > 0 && left < travel + 4);
         // a turret already in its zone just keeps collecting there and shoots as it goes
-        if (go && !(this.turret && r.lastInZone && canShoot && this._zoneWorthIt() && stored < cap)) {
+        if (go && !(this.turret && r.lastInZone && canShoot && this._zoneWorthIt() && this._hasRoom())) {
           this.state = 'score'; this.path = null; this.progress = null;
         }
       } else if (stored === 0) {
         this.state = 'collect'; this.collectT = 0; this.path = null;
         this.hesitateT = this.skill.hesitate;
-      } else if (!canShoot && untilActive > travel + B.topUp && stored < cap) {
+      } else if (!canShoot && untilActive > travel + B.topUp && this._hasRoom()) {
         this.state = 'collect'; this.path = null; // plenty of time: top up first
-      } else if (this.turret && canShoot && r.lastInZone && this._zoneWorthIt() && stored < cap) {
+      } else if (this.turret && canShoot && r.lastInZone && this._zoneWorthIt() && this._hasRoom()) {
         this.state = 'collect'; this.path = null; // shoot while picking up the stockpile
       }
     }
@@ -444,7 +465,7 @@ export class OpponentAI {
     const settled = this.skill.sotm || (remain < 0.3 && Math.hypot(r.vel.x, r.vel.z) < 0.3);
     r.cmd.shoot = canShoot && r.lastInZone && settled;
     // pick up what's on the way (2910 keeps it up: retracting while it shoots compacts its load)
-    if (!r.cfg.intake.compacts && stored < this.maxLoad && !this._foeAhead() && !this._hubFuelNear()) r.cmd.intake = true;
+    if (!r.cfg.intake.compacts && this._hasRoom() && !this._foeAhead() && !this._hubFuelNear()) r.cmd.intake = true;
     this.label = r.cmd.shoot ? (r.ready ? 'Shooting' : 'Aiming') : bully ? 'Pushing through' : remain > 0.3 ? 'Returning to score' : 'Staged — waiting for HUB';
   }
 
@@ -485,7 +506,7 @@ export class OpponentAI {
     this.shootingMode = !!this.passing;
     // nearly there: spin the flywheel up (and aim a turret) ahead of the dump
     r.cmd.prespin = canPass && stored >= 0.7 * batch;
-    const b = stored >= this.maxLoad || r.full ? null : this.ball; // full: stop chasing FUEL, go pass it
+    const b = !this._hasRoom() || r.full ? null : this.ball; // full: stop chasing FUEL, go pass it
     if (this.passing && !this.turret) {
       // chassis-aimed: ease off while the chassis turns and dumps the batch
       if (b) this._drive(b.pos.x, b.pos.z, { speed: 0.3, avoid: true });
@@ -619,7 +640,7 @@ export class OpponentAI {
     if (r.loadNearTrench()) this.tallHold = true;
     else if (r.loadTop < TRENCH.clearHeight - 0.08) this.tallHold = false;
     const wedge = near && (this.tallHold || r.deployRaisesTop);
-    return this.intakeDown && r.stored.length < this.maxLoad && !wedge && !this._foeAhead() && !this._hubFuelNear();
+    return this.intakeDown && this._hasRoom() && !wedge && !this._foeAhead() && !this._hubFuelNear();
   }
 
   _collect(dt) {
