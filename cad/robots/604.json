@@ -1,6 +1,16 @@
 {
-  "source": "604 Quixilver, \"Toploader\" (Onshape 0baaf96036e07596972c4d48, workspace 7236f4fc3d9cbd0caa07ab6c, element e54d06e7bb840dd08bd9d927), STEP through tools/step2glb.py",
+  "source": "604 Quixilver, \"Toploader\" (Onshape 0baaf96036e07596972c4d48, workspace 7236f4fc3d9cbd0caa07ab6c, element e54d06e7bb840dd08bd9d927), STEP through tools/step2glb.py; materials (\"bom\", \"bomKinds\") put on these GLBs with tools/extract-parts.mjs --retag on 28 Oct, from a fresh STEP translation (1 mm, 0.4 rad, hardware skipped), the GLBs' geometry unchanged",
   "front": "-y",
+  "bom": "604-materials.json",
+  "bomKinds": [
+    { "kind": "print", "name": "^(Robot Battery|Pigeon Mount|Front Cover|Back Cover)$", "recolor": [[[230, 230, 230], [32, 32, 34]], [[250, 182, 4], [240, 196, 30]]] },
+    { "kind": "coroplast", "material": "polypropylene", "recolor": [[[77, 77, 77], [28, 28, 30]], [[255, 255, 255], [238, 240, 242]]] },
+    { "kind": "plywood", "material": "birch|plywood|wood", "recolor": [[[240, 223, 173], [216, 184, 136]]] },
+    { "kind": "print", "material": "PETG|PLA|polyurethane|TPU|ABS|acetal|delrin|nylon", "recolor": [[[250, 182, 4], [240, 196, 30]], [[77, 77, 77], [34, 34, 36]]] },
+    { "kind": "rubber", "material": "neoprene|silicone|rubber" },
+    { "kind": "steel", "material": "steel|brass|bronze|iron" },
+    { "kind": "poly", "material": "polycarbonate" }
+  ],
   "parts": [
     {
       "out": "cad/robots/604-body.glb",
