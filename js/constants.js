@@ -70,11 +70,16 @@ export const HUB = {
   size: 47 * IN,                    // 47in x 47in rectangular prism
   fx: 158.6 * IN + (47 * IN) / 2,   // center, 158.6in from ALLIANCE WALL to near face
   fy: HALF_W,
-  rimFront: 72 * IN,                // front edge of the opening is 72in off the carpet
-  rimBack: 80 * IN,                 // "extended opening" rises toward the back
-  hexR: (41.7 * IN) / 2,            // 41.7in hexagonal opening (circumradius)
-  funnelBottomY: 1.42,
-  funnelBottomR: 0.36,
+  // The top (field CAD): a polycarbonate hexagonal funnel standing proud of the box. Its rim is
+  // level at 72in, 41.7in across the flats, corners toward the ALLIANCE WALL and the NEUTRAL ZONE
+  // (just past the 47in faces); its walls slope in (0.68 out per 1 up) to a level hexagon 1.52m
+  // off the carpet. The box's alliance-colored deck round it slopes down toward the NEUTRAL ZONE.
+  rimFront: 72 * IN,                // the rim, 72in off the carpet all round
+  hexR: (41.7 * IN) / (2 * Math.cos(Math.PI / 6)), // circumradius of the 41.7in opening
+  funnelSlope: 0.68,                // funnel wall: radius lost per meter down
+  funnelLowY: 1.52,                 // the funnel's bottom edge
+  deckY0: 1.52, deckY1: 1.415,      // deck at the ALLIANCE WALL and NEUTRAL ZONE faces
+  funnelBottomY: 1.40,              // FUEL below this inside the box has dropped through the funnel
   // NET behind the HUB (GE-26300 sheet 4): 58.41in wide, 49.75in to 120.36in off the carpet,
   // 10.26in behind the HUB's NEUTRAL ZONE face
   netTop: 120.36 * IN,

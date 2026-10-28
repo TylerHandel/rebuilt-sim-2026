@@ -277,7 +277,7 @@ Sources:
 
 **Field** (2026 Game Manual section 5, the official AprilTag layout and the official field CAD):
 - 651.2 × 317.7 in field.
-- HUBS: 47 in, with a 41.7 in hex opening at 72 in and a 58.4 in wide net 10.3 in behind them (from the GE-26300 drawing). FUEL leaves through a 35.6 in wide opening in the NEUTRAL ZONE face, 30.1 in off the carpet, and drops onto the field.
+- HUBS: 47 in, with a 58.4 in wide net 10.3 in behind them (from the GE-26300 drawing). Their tops follow the field CAD: a polycarbonate hexagonal funnel, 41.7 in across the flats at its level 72 in rim, with its corners toward the ALLIANCE WALL and the NEUTRAL ZONE. Its walls slope in to a level hexagon 1.52 m up, standing above the box's alliance-colored deck. That deck slopes down toward the NEUTRAL ZONE, from 1.52 m to 1.415 m, so FUEL that lands on it outside the funnel mostly rolls off. FUEL leaves through a 35.6 in wide opening in the NEUTRAL ZONE face, 30.1 in off the carpet, and drops onto the field.
 - BUMPS: 73 × 44.4 × 6.5 in with 15° ramps.
 - TRENCHES: 22.25 in clearance.
 - TOWERS: rungs at 27, 45 and 63 in. Behind the uprights, the support tubes back to the TOWER WALL are 35 to 37 in up, as in the field CAD, so any robot under the 30 in height limit can drive behind the TOWER.

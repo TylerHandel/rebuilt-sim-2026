@@ -100,12 +100,12 @@ function cyl(r, len, mat, parent, segs = 16) {
   return m;
 }
 
-// Geometry of the hexagonal rim (flat sides facing the ALLIANCE WALL and the NEUTRAL ZONE).
-// u = local axis toward the NEUTRAL ZONE, v = lateral axis.
+// Geometry of the hexagonal rim (corners toward the ALLIANCE WALL and the NEUTRAL ZONE, as in the
+// field CAD). u = local axis toward the NEUTRAL ZONE, v = lateral axis.
 function hexVerts(r) {
   const out = [];
   for (let k = 0; k < 6; k++) {
-    const a = Math.PI / 2 + (k * Math.PI) / 3;
+    const a = (k * Math.PI) / 3;
     out.push({ u: r * Math.cos(a), v: r * Math.sin(a) });
   }
   return out;
@@ -302,14 +302,16 @@ export class Field {
     // ================================================================ HUB
     const hx = HUB.fx - HALF_L;
     const hs = HUB.size / 2;
-    const deckY = HUB.rimFront;
+    const rimY = HUB.rimFront;
+    // the box's deck, sloping down toward the NEUTRAL ZONE (u = local axis toward it)
+    const deckAt = (u) => (HUB.deckY0 + HUB.deckY1) / 2 + ((HUB.deckY1 - HUB.deckY0) * u) / HUB.size;
     {
       const hub = new THREE.Group();
       hub.position.set(hx, 0, 0);
       grp.add(hub);
       // body: solid below the exit, then walls round the inside (FUEL drops out of the funnel
       // onto a ramp that rolls it out through the exit in the NEUTRAL ZONE face), then thin side
-      // panels up to the deck so the funnel stays visible
+      // panels up to the deck
       const eh = HUB.exitHeight, fb = HUB.funnelBottomY, ew = HUB.exitWidth / 2;
       box(HUB.size, eh, HUB.size, mats.black, 0, eh / 2, 0, hub);
       box(0.03, fb - eh, HUB.size, mats.black, -hs + 0.015, (eh + fb) / 2, 0, hub);
@@ -321,12 +323,21 @@ export class Field {
       // the ramp inside, down to the exit's HDPE lip
       const ramp = box(Math.hypot(2 * hs + 0.1, HUB.rampRise), 0.02, 2 * ew, mats.dark, 0.05, eh + HUB.rampRise / 2 - 0.01, 0, hub, false);
       ramp.rotation.z = -Math.atan2(HUB.rampRise, 2 * hs + 0.1);
-      const sideH = deckY - HUB.funnelBottomY - 0.004;
-      const sideY = HUB.funnelBottomY + sideH / 2;
-      box(0.03, sideH, HUB.size, mats.black, hs - 0.015, sideY, 0, hub);
-      box(0.03, sideH, HUB.size, mats.black, -hs + 0.015, sideY, 0, hub);
-      box(HUB.size, sideH, 0.03, mats.black, 0, sideY, hs - 0.015, hub);
-      box(HUB.size, sideH, 0.03, mats.black, 0, sideY, -hs + 0.015, hub);
+      for (const su of [-1, 1]) {
+        const sideH = deckAt(su * hs) - HUB.funnelBottomY - 0.004;
+        box(0.03, sideH, HUB.size, mats.black, su * (hs - 0.015), HUB.funnelBottomY + sideH / 2, 0, hub);
+      }
+      for (const sz of [-1, 1]) {
+        // the side panels' tops follow the deck's slope
+        const g = new THREE.BufferGeometry();
+        const yb = HUB.funnelBottomY, z = sz * (hs - 0.002);
+        g.setAttribute('position', new THREE.Float32BufferAttribute([-hs, yb, z, hs, yb, z, hs, deckAt(hs) - 0.004, z, -hs, deckAt(-hs) - 0.004, z], 3));
+        g.setIndex(sz > 0 ? [0, 1, 2, 0, 2, 3] : [0, 2, 1, 0, 3, 2]);
+        g.computeVertexNormals();
+        const m = new THREE.Mesh(g, mats.black);
+        m.castShadow = m.receiveShadow = true;
+        hub.add(m);
+      }
       // alliance-colored lower trim and REBUILT panels
       for (const [px, pz, ry] of [[-hs - 0.002, 0, -Math.PI / 2], [0, hs + 0.002, 0], [0, -hs - 0.002, Math.PI]]) {
         const p = new THREE.Mesh(new THREE.PlaneGeometry(HUB.size * 0.8, 0.55), new THREE.MeshStandardMaterial({ color: 0x3f7fa8, roughness: 0.6 }));
@@ -352,72 +363,71 @@ export class Field {
       for (const sz of [-1, 1]) box(0.03, exH + 0.03, 0.03, mats.alu, hs + 0.01, HUB.exitHeight + exH / 2, sz * (HUB.exitWidth / 2 + 0.015), hub, false);
       box(0.03, 0.03, HUB.exitWidth + 0.06, mats.alu, hs + 0.01, HUB.exitTop + 0.015, 0, hub, false);
 
-      // ---- funnel / deck (trimesh used for both rendering and collision)
+      // ---- funnel and deck (trimeshes used for both rendering and collision): the polycarbonate
+      // funnel from its level rim down to a level hexagon, a short skirt from there to the
+      // sloping deck, and the deck between that and the 47in square
       const rim = hexVerts(HUB.hexR);
-      const bot = hexVerts(HUB.funnelBottomR);
-      const inr = HUB.hexR * Math.cos(Math.PI / 6);
-      const rimY = (u) => HUB.rimFront + ((HUB.rimBack - HUB.rimFront) * (u + inr)) / (2 * inr);
-      const verts = [];
-      const idx = [];
-      const addV = (u, y, v) => (verts.push(u, y, v), verts.length / 3 - 1);
-      const rimI = rim.map((p) => addV(p.u, rimY(p.u), p.v));
-      const deckI = rim.map((p) => addV(p.u, deckY, p.v));
-      const botI = bot.map((p) => addV(p.u, HUB.funnelBottomY, p.v));
-      for (let k = 0; k < 6; k++) {
-        const k2 = (k + 1) % 6;
-        idx.push(rimI[k], botI[k], botI[k2], rimI[k], botI[k2], rimI[k2]); // funnel wall
-        idx.push(deckI[k], rimI[k], rimI[k2], deckI[k], rimI[k2], deckI[k2]); // lip
-      }
-      // deck ring between the hexagon and the 47in square
-      const sq = [[hs, hs], [-hs, hs], [-hs, -hs], [hs, -hs]].map(([u, v]) => ({ u, v, a: Math.atan2(v, u) }));
-      const proj = rim.map((p) => {
-        const a = Math.atan2(p.v, p.u);
-        const t = hs / Math.max(Math.abs(Math.cos(a)), Math.abs(Math.sin(a)));
-        return { u: t * Math.cos(a), v: t * Math.sin(a), a };
-      });
-      const projI = proj.map((p) => addV(p.u, deckY, p.v));
-      const sqI = sq.map((p) => addV(p.u, deckY, p.v));
-      const norm = (a) => (a < 0 ? a + 2 * Math.PI : a);
-      for (let k = 0; k < 6; k++) {
-        const k2 = (k + 1) % 6;
-        let a0 = norm(proj[k].a), a1 = norm(proj[k2].a);
-        if (a1 <= a0) a1 += 2 * Math.PI;
-        const poly = [deckI[k], deckI[k2], projI[k2]];
-        const corners = [];
-        for (let c = 0; c < 4; c++) {
-          let ac = norm(sq[c].a);
-          if (ac < a0) ac += 2 * Math.PI;
-          if (ac > a0 && ac < a1) corners.push({ i: sqI[c], a: ac });
+      const low = hexVerts(HUB.hexR - HUB.funnelSlope * (rimY - HUB.funnelLowY));
+      const surface = (build, mat, opts) => {
+        const verts = [], idx = [];
+        const addV = (u, y, v) => (verts.push(u, y, v), verts.length / 3 - 1);
+        build(addV, idx);
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+        geo.setIndex(idx);
+        geo.computeVertexNormals();
+        const m = new THREE.Mesh(geo, mat);
+        m.castShadow = true;
+        m.receiveShadow = true;
+        hub.add(m);
+        // physics trimesh in alliance world coords
+        const wv = [];
+        for (let i = 0; i < verts.length; i += 3) {
+          const p = T(hx + verts[i], verts[i + 2]);
+          wv.push(p.x, verts[i + 1], p.z);
         }
-        corners.sort((p, q) => q.a - p.a);
-        for (const c of corners) poly.push(c.i);
-        poly.push(projI[k]);
-        for (let j = 1; j < poly.length - 1; j++) idx.push(poly[0], poly[j], poly[j + 1]);
-      }
-      // drop zero-area triangles (the lip has no height along the front edge)
-      const clean = [];
-      for (let i = 0; i < idx.length; i += 3) {
-        const [a, b, c] = [idx[i] * 3, idx[i + 1] * 3, idx[i + 2] * 3];
-        const e1 = new THREE.Vector3(verts[b] - verts[a], verts[b + 1] - verts[a + 1], verts[b + 2] - verts[a + 2]);
-        const e2 = new THREE.Vector3(verts[c] - verts[a], verts[c + 1] - verts[a + 1], verts[c + 2] - verts[a + 2]);
-        if (e1.cross(e2).length() > 1e-6) clean.push(idx[i], idx[i + 1], idx[i + 2]);
-      }
-      idx.length = 0;
-      idx.push(...clean);
-      const geo = new THREE.BufferGeometry();
-      geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
-      geo.setIndex(idx);
-      geo.computeVertexNormals();
-      const top = new THREE.Mesh(geo, mats.funnel);
-      top.castShadow = true;
-      hub.add(top);
-      // physics trimesh in alliance world coords
-      const wv = [];
-      for (let i = 0; i < verts.length; i += 3) {
-        const p = T(hx + verts[i], verts[i + 2]);
-        wv.push(p.x, verts[i + 1], p.z);
-      }
-      P.trimesh(wv, idx, { restitution: 0.35, friction: 0.35 });
+        P.trimesh(wv, idx, opts);
+        return m;
+      };
+      surface((addV, idx) => {
+        const rimI = rim.map((p) => addV(p.u, rimY, p.v));
+        const lowI = low.map((p) => addV(p.u, HUB.funnelLowY, p.v));
+        const footI = low.map((p) => addV(p.u, deckAt(p.u), p.v));
+        for (let k = 0; k < 6; k++) {
+          const k2 = (k + 1) % 6;
+          idx.push(rimI[k], lowI[k], lowI[k2], rimI[k], lowI[k2], rimI[k2]); // funnel wall
+          idx.push(lowI[k], footI[k], footI[k2], lowI[k], footI[k2], lowI[k2]); // skirt
+        }
+      }, mats.funnel, { restitution: 0.35, friction: 0.35 });
+      surface((addV, idx) => {
+        // deck ring between the funnel's foot and the 47in square
+        const deckI = low.map((p) => addV(p.u, deckAt(p.u), p.v));
+        const sq = [[hs, hs], [-hs, hs], [-hs, -hs], [hs, -hs]].map(([u, v]) => ({ u, v, a: Math.atan2(v, u) }));
+        const proj = low.map((p) => {
+          const a = Math.atan2(p.v, p.u);
+          const t = hs / Math.max(Math.abs(Math.cos(a)), Math.abs(Math.sin(a)));
+          return { u: t * Math.cos(a), v: t * Math.sin(a), a };
+        });
+        const projI = proj.map((p) => addV(p.u, deckAt(p.u), p.v));
+        const sqI = sq.map((p) => addV(p.u, deckAt(p.u), p.v));
+        const norm = (a) => (a < 0 ? a + 2 * Math.PI : a);
+        for (let k = 0; k < 6; k++) {
+          const k2 = (k + 1) % 6;
+          let a0 = norm(proj[k].a), a1 = norm(proj[k2].a);
+          if (a1 <= a0) a1 += 2 * Math.PI;
+          const poly = [deckI[k], deckI[k2], projI[k2]];
+          const corners = [];
+          for (let c = 0; c < 4; c++) {
+            let ac = norm(sq[c].a);
+            if (ac < a0) ac += 2 * Math.PI;
+            if (ac > a0 && ac < a1) corners.push({ i: sqI[c], a: ac });
+          }
+          corners.sort((p, q) => q.a - p.a);
+          for (const c of corners) poly.push(c.i);
+          poly.push(projI[k]);
+          for (let j = 1; j < poly.length - 1; j++) idx.push(poly[0], poly[j], poly[j + 1]);
+        }
+      }, col, { restitution: 0.35, friction: 0.35 });
 
       // lower solid body, the ramp inside and the walls round it (with the exit opening), then
       // perimeter walls up to the deck
@@ -450,17 +460,22 @@ export class Field {
         }
         hullC(pts, slick);
       }
-      const wallH = (deckY - HUB.funnelBottomY) / 2;
-      const wy = HUB.funnelBottomY + wallH;
-      boxC(hx + hs - 0.03, wy, 0, 0.03, wallH, hs, {});
-      boxC(hx - hs + 0.03, wy, 0, 0.03, wallH, hs, {});
-      boxC(hx, wy, hs - 0.03, hs, wallH, 0.03, {});
-      boxC(hx, wy, -hs + 0.03, hs, wallH, 0.03, {});
+      {
+        // walls up to the deck (their tops just under it)
+        const fb = HUB.funnelBottomY, top = (u) => deckAt(u) - 0.01;
+        for (const su of [-1, 1]) boxC(hx + su * (hs - 0.03), (fb + top(su * hs)) / 2, 0, 0.03, (top(su * hs) - fb) / 2, hs, {});
+        for (const sz of [-1, 1]) {
+          const pts = [];
+          for (const u of [-hs, hs]) for (const z of [sz * hs, sz * (hs - 0.06)]) pts.push(hx + u, fb, z, hx + u, top(u), z);
+          hullC(pts, {});
+        }
+      }
 
       // light bars along the top edges
       const lightMat = new THREE.MeshStandardMaterial({ color: 0x222222, emissive: ALLIANCE_COLOR[alliance], emissiveIntensity: 0, roughness: 0.4 });
       for (const [w, d, px, pz] of [[HUB.size, 0.04, 0, hs], [HUB.size, 0.04, 0, -hs], [0.04, HUB.size, hs, 0], [0.04, HUB.size, -hs, 0]]) {
-        box(w + 0.01, 0.05, d + 0.01, lightMat, px, deckY - 0.03, pz, hub, false);
+        const m = box(w + 0.01, 0.05, d + 0.01, lightMat, px, deckAt(px) - 0.03, pz, hub, false);
+        if (d < w) m.rotation.z = Math.atan2(HUB.deckY1 - HUB.deckY0, HUB.size);
       }
       // the real LED diffusers wrap the HUB below its roof (GE-26309/10/11); with the field CAD
       // shown these glow on top of it
@@ -474,8 +489,8 @@ export class Field {
       // angled top light bars following the rim
       for (let k = 0; k < 6; k++) {
         const p0 = rim[k], p1 = rim[(k + 1) % 6];
-        const a = new THREE.Vector3(p0.u, rimY(p0.u) + 0.01, p0.v);
-        const b = new THREE.Vector3(p1.u, rimY(p1.u) + 0.01, p1.v);
+        const a = new THREE.Vector3(p0.u, rimY + 0.01, p0.v);
+        const b = new THREE.Vector3(p1.u, rimY + 0.01, p1.v);
         const len = a.distanceTo(b);
         const bar = new THREE.Mesh(new THREE.BoxGeometry(len, 0.025, 0.025), lightMat);
         bar.position.copy(a).add(b).multiplyScalar(0.5);
@@ -504,7 +519,7 @@ export class Field {
         const z = sz * nw;
         tube(V(nx, HUB.netBottom, z), V(nx, HUB.netTop, z));
         tube(V(0, HUB.netBottom, z), V(nx, HUB.netBottom, z)); // U frame
-        tube(V(-hs * 0.3, deckY, sz * (hs - 0.05)), V(nx, HUB.netTop, z)); // leaning pole
+        tube(V(-hs * 0.3, deckAt(-hs * 0.3), sz * (hs - 0.05)), V(nx, HUB.netTop, z)); // leaning pole
         const g = new THREE.BufferGeometry().setFromPoints([V(0, HUB.netBottom, z), V(nx, HUB.netBottom, z), V(nx, HUB.netTop, z)]);
         g.setAttribute('uv', new THREE.Float32BufferAttribute([0, 0, 1, 0, 1, 1], 2));
         g.computeVertexNormals();
