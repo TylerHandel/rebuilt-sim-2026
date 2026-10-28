@@ -1255,7 +1255,8 @@ export class Robot {
   // More than one turret (971): each is its own shooter, with its own flywheel and hood, solving
   // its own shot from where it sits and turning within its own travel. Any turret that's on target
   // can fire (the feed takes turns among them). If none can reach the target, the chassis turns
-  // to bring the nearest one into range.
+  // to bring the nearest one into range (on the chassis heading loop: AIM_GAIN, the profile); while
+  // one can, the chassis is left alone.
   _twinTurrets(dt, t, tgt, active, wantShoot, status) {
     const sh = this.cfg.shooter, on = this.enabled && this.climbState === 'none';
     const lim = sh.turretRange * DEG, margin = 8 * DEG, pass = tgt.mode === 'pass';
@@ -1304,7 +1305,7 @@ export class Robot {
     });
     if (active && wantShoot && !anyReach && Number.isFinite(need) && need) {
       const d = this.cfg.drive, a = Math.abs(need);
-      this.aimOverride = Math.sign(need) * Math.min(d.maxOmega, Math.sqrt(2 * 0.7 * d.maxAlpha * a), 7 * a);
+      this.aimOverride = Math.sign(need) * Math.min(d.maxOmega, Math.sqrt(2 * 0.7 * d.maxAlpha * a), AIM_GAIN * a);
     }
     // what the HUD, the preview and the anims show: the turret that's firing (or about to)
     const k = show >= 0 ? show : 0, w = this.tws[k];
