@@ -18,7 +18,8 @@ import { Physical581 } from './mech/phys581.js';
 import { Physical604 } from './mech/phys604.js';
 import { Physical4414 } from './mech/phys4414.js';
 import { Physical1114 } from './mech/phys1114.js';
-const PHYSICAL = { 8793: Physical8793, 2910: Physical2910, 1678: Physical1678, 341: Physical341, 581: Physical581, 604: Physical604, 4414: Physical4414, 1114: Physical1114 };
+import { Physical1706 } from './mech/phys1706.js';
+const PHYSICAL = { 8793: Physical8793, 2910: Physical2910, 1678: Physical1678, 341: Physical341, 581: Physical581, 604: Physical604, 4414: Physical4414, 1114: Physical1114, 1706: Physical1706 };
 import { clamp, wrapAngle, approach, approachAngle, gauss, DEG, rand } from './util.js';
 
 const WHEEL_R = 0.05;
@@ -1246,7 +1247,9 @@ export class Robot {
           anySol = true;
           // measured from the middle of this turret's travel (its hard stops are +-lim from there)
           const mid = (tt.center ?? 0) * DEG;
-          const rel = wrapAngle(sol.psi - this.yaw - mid);
+          // (a physical robot that aims each turret its own way, 1706's, says where: phys.aimPsis)
+          const psi = this.phys?.aimPsis?.[i] ?? sol.psi;
+          const rel = wrapAngle(psi - this.yaw - mid);
           const cands = [rel, rel + 2 * Math.PI, rel - 2 * Math.PI].filter((a) => Math.abs(a) <= lim);
           const cur = this.turretYaws[i] - mid;
           const goal = cands.length ? cands.reduce((a, b) => (Math.abs(b - cur) < Math.abs(a - cur) ? b : a)) : clamp(rel, -lim, lim);
@@ -1256,9 +1259,9 @@ export class Robot {
           if (cands.length) {
             anyReach = true;
             setpoint = sol.v;
-            w.hood = approach(w.hood, sol.theta / DEG, 260 * dt);
+            if (!this.phys?.ownsHood) w.hood = approach(w.hood, sol.theta / DEG, 260 * dt);
             w.sol = { ...sol, exit, lv };
-            const err = Math.abs(wrapAngle(sol.psi - (this.yaw + this.turretYaws[i])));
+            const err = Math.abs(wrapAngle(psi - (this.yaw + this.turretYaws[i])));
             const tol = pass ? 4 * DEG : Math.max(0.6 * DEG, Math.atan2(0.14, sol.dist));
             const spinOk = pass ? w.fly > 0.75 * sol.v : Math.abs(w.fly - sol.v) / sol.v < 0.025;
             const hoodOk = Math.abs(w.hood - sol.theta / DEG) < 1.5;
@@ -1268,7 +1271,7 @@ export class Robot {
           }
         }
       }
-      this._spin(w, dt, t, on, setpoint);
+      if (!this.phys?.ownsFlywheel) this._spin(w, dt, t, on, setpoint);
     });
     if (active && wantShoot && !anyReach && Number.isFinite(need) && need) {
       const d = this.cfg.drive, a = Math.abs(need);
@@ -1503,6 +1506,8 @@ export class Robot {
       hoodTurn: this.phys?.hoodTurn?.(),
       // (a physical rotor's turn, rad, clockwise from above: 604's)
       rotorTurn: this.phys?.rotorTurn?.(),
+      // (a physical robot's other moving parts: 1706's spindexers, hoods and wheels)
+      mech: this.phys?.mechPose?.(),
       intakeSpeed: this.intakeSpeed * (this.intakeSpeed > 0 ? this.rollerSpeed ?? 1 : 1),
       hopperDeploy: this.hopperDeploy,
       flywheel: this.flywheel,

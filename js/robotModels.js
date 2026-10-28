@@ -2711,10 +2711,13 @@ const clamp01 = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 // shooters (origins on their turret axes). The team's front is the turret end; this model's +x is
 // the intake end, like every other robot here.
 // The arm turns on the hex shaft through its plates (0.262, 0.168), not on the frame's cross tube
-// where the export puts its origin (0.149, 0.127); 104deg down takes its end block to 2 cm off the
-// carpet, 12in past the frame (the extension limit)
-const INTAKE_1706 = { pivot: [0.262, 0.168], origin: [0.149, 0.127], swing: -104 * Math.PI / 180 };
-const TURRET_1706_YAW = 27.8 * Math.PI / 180; // where the CAD's shooters point as exported
+// where the export puts its origin (0.149, 0.127); its mate's 113.4deg takes its 1in wheels down to
+// the bumper's face, 12in past the frame (the extension limit). Physical (js/mech/phys1706.js), the
+// arm, the box, the spindexers and the turrets go where its mechanisms put them.
+const INTAKE_1706 = { pivot: [0.262, 0.168], origin: [0.149, 0.127], swing: -113.4 * Math.PI / 180 };
+// where the CAD's shooters fire as exported (the right one, the left: their shots' headings, out over
+// their 3in accelerator wheels; tools/path-mesh-1706.py)
+const TURRET_1706_YAW = [160.2 * Math.PI / 180, 152.0 * Math.PI / 180];
 function build1706(cfg, alliance) {
   const root = new THREE.Group();
   const L = cfg.frame.length, W = cfg.frame.width, bay = cfg.bay, sh = cfg.shooter;
@@ -2760,7 +2763,7 @@ function build1706(cfg, alliance) {
     for (const s of [-1, 1]) pocketPlate(d, 0.24, 0.15, 0.006, M.alu, [[-0.05, 0, 0.03], [0.05, 0.02, 0.03]], 0, 0.43, s * 0.06);
     wheelStack(d, 0.1, 0.063, 1, M.black, 0.1, 0.45, 0, 0.05);
     const cad = new THREE.Group();
-    cad.rotation.y = -TURRET_1706_YAW;
+    cad.rotation.y = -TURRET_1706_YAW[i];
     g.add(cad);
     cadPart(cad, `robots/1706-turret-${i ? 'b' : 'a'}.glb`, () => { d.visible = false; });
     return g;
@@ -2784,9 +2787,9 @@ function build1706(cfg, alliance) {
   const anim = (st, dt) => {
     box.position.x = st.hopperDeploy * extLen; // exported in
     net.drape(st.load, st.hopperDeploy * extLen);
-    arm.rotation.z = st.intakeDeploy * INTAKE_1706.swing;
+    arm.rotation.z = st.armTurn ?? st.intakeDeploy * INTAKE_1706.swing;
     for (const r of rollers) r.rotation.z -= st.intakeSpeed * dt * 40;
-    for (const s of spins) s.g.rotation.y = (st.rotorAngle ?? 0) * (s.r.dir ?? 1);
+    spins.forEach((s, i) => { s.g.rotation.y = st.mech ? st.mech.spin[i] : (st.rotorAngle ?? 0) * (s.r.dir ?? 1); });
     turrets.forEach((g, i) => { g.rotation.y = st.turretYaws ? st.turretYaws[i] : st.turretYaw; });
   };
   return { root, anim, stored: [], modules, extLen };

@@ -768,6 +768,9 @@ export const ROBOTS = {
     robotName: 'Mirage',
     archetype: 'Twin spindexers',
     blurb: 'Seeing double: two spindexers side by side under a deep hopper, each feeding its own turret. The intake folds up inside the hopper and pushes it out as it deploys, and a net over the top stretches as the load grows. 45-2 in 2026.',
+    // built of its physical mechanisms (js/mech/r1706.js, phys1706.js): its FUEL go through its
+    // CAD's ball path, moved by its rollers, spindexers, kickers and shooters
+    physical: '1706',
     // their CAD: frame 0.64 x 0.75 m (25.2 x 29.5in), bumpers 0.797 x 0.914 m. The team calls the
     // turret end the front; the sim's front is the intake end.
     frame: { length: 25.2 * IN, width: 29.5 * IN },
@@ -827,20 +830,23 @@ export const ROBOTS = {
       type: 'turret',
       // on the turret rings behind the hopper (their CAD); each one's travel is centered pointing out
       // to its own side, so they can't shoot across each other
-      turrets: [{ x: -0.165, z: -0.2225, center: 90 }, { x: -0.165, z: 0.2225, center: -90 }],
-      turretPos: { x: -0.165, z: -0.2225 },
-      exitRadius: 0.12, // the 5in front wheel (their CAD)
-      exitY: 0.52,
+      turrets: [{ x: -0.1651, z: -0.222, center: 90 }, { x: -0.1651, z: 0.222, center: -90 }],
+      turretPos: { x: -0.1651, z: -0.222 },
+      // where FUEL leave over the 3in accelerator wheels, and how steep and fast: the hood swings
+      // 45 deg about the accelerators' axle (their CAD's mates), FUEL leaving at 84 to 38 deg, at up
+      // to ~8.6 m/s (tools/mechlab1706.mjs shooter)
+      exitRadius: 0.06,
+      exitY: 0.62,
       turretRange: 170, turretRate: 600,
-      bps: 16, // both turrets together, 8 each (an estimate: no published rate)
-      hoodMin: 40, hoodMax: 80,
-      speedMax: 17,
+      bps: 12.5, // both turrets together: "about 12-13 bps" (the team, their CAD release thread); its physical ball path sets the rate
+      hoodMin: 38, hoodMax: 84,
+      speedMax: 8.5,
       spinTau: 0.3,
       shotDrop: 0.004,
       speedSigma: 0.013, angleSigma: 0.6, yawSigma: 0.6,
     },
     climber: null, // taken off (remnants in the CAD)
-    stats: { 'Shot rate': '2 x 8 BPS (est.)', Aiming: 'Twin turrets', 'Top speed': '', Trench: 'Yes' },
+    stats: { 'Shot rate': '12-13 BPS (2 turrets)', Aiming: 'Twin turrets', 'Top speed': '', Trench: 'Yes' },
     colors: { frame: 0xc3c8ce, accent: 0x2a4fb5, trim: 0x2a2d33 },
   },
   581: {
