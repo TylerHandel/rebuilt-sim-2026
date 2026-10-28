@@ -10,16 +10,16 @@
 // (filled through the intake from the NEUTRAL ZONE's FUEL until it can't put more in:
 // tools/fillbench.mjs), hold (filled a layer at a time, everything off), path (carpet to shot:
 // intaking and both turrets firing), dump (a full one fired at 3 m: FUEL/s per turret and in all).
-// Env: SEEDS, SPEED (1 m/s), STUCK (where the ones left over are), TRACE=i (follow FUEL i), SPIN_RPS
+// Env: SEEDS, SPEED (1 m/s), BULGE (the net's, m), GRIP_net (its cord's friction), STUCK (where the ones left over are), TRACE=i (follow FUEL i), SPIN_RPS
 // and KICK_RPM (phys1706's setpoints), FILL=layers (dump: filled a layer at a time instead of
 // through the intake), LAYERS, SEC, MAP=1 (shooter: the full sweep)
 import { RAPIER } from '../js/physics.js';
-import { FUEL, GROUP, groups, HUB } from '../js/constants.js';
+import { FUEL, GROUP, groups, HUB, TRENCH } from '../js/constants.js';
 import { Mechanism } from '../js/mech/mechanism.js';
 import { sim2D, ShotTable } from '../js/ballistics.js';
 import {
-  build1706, wheels1706, shooterWheels, pathSurfaces1706, placeIntake, placeBox, placeSpin, placeTurret, placeShooter, armRot, boxExt, hoodElevation, turretPoint,
-  INTAKE, SPIN, TURRET, SHOOTER, PIVOT, HALF_L, HALF_W, BOX, SPIN_DIR, MU as GRIP, TREAD,
+  build1706, wheels1706, shooterWheels, pathSurfaces1706, placeIntake, placeBox, placeSpin, placeTurret, placeShooter, armRot, boxExt, hoodElevation, turretPoint, netY,
+  INTAKE, SPIN, TURRET, SHOOTER, PIVOT, HALF_L, HALF_W, BOX, NET, SPIN_DIR, MU as GRIP, TREAD,
 } from '../js/mech/r1706.js';
 import PATH from '../js/mech/path1706.js';
 import { servoArm, turnArm, speedLoop, profile, accelFor, exitAt, hoodFor, elevationAt, SPIN_RPS, KICK_RPM, EXIT } from '../js/mech/phys1706.js';
@@ -30,6 +30,8 @@ await RAPIER.init();
 // (GRIP_<material>=mu, TREAD_<material>=N/m: try another estimate)
 for (const k of Object.keys(GRIP)) if (process.env['GRIP_' + k]) GRIP[k] = Number(process.env['GRIP_' + k]);
 for (const k of Object.keys(TREAD)) if (process.env['TREAD_' + k]) TREAD[k] = Number(process.env['TREAD_' + k]);
+// (BULGE=m: the net's, js/mech/r1706.js NET)
+if (process.env.BULGE) NET.bulge = Number(process.env.BULGE);
 const R = FUEL.radius, DT = 1 / 120, SEEDS = Number(process.env.SEEDS ?? 4), SPEED = Number(process.env.SPEED ?? 1);
 const HELD = groups(GROUP.HELD, 0xffff & ~GROUP.HELD);
 const DEG = Math.PI / 180, TAU = 2 * Math.PI;
@@ -127,17 +129,62 @@ const inRobot = (b) => { const [x, y, z] = P(b); return x > -HALF_L - 0.02 && x 
 const held1706 = (ext) => ([x, y, z]) => (Math.abs(x) < HALF_L && Math.abs(z) < HALF_W && y > 0.09 && y < 0.8) || (x >= HALF_L && x < HALF_L + ext + 0.01 && Math.abs(z) < BOX.side && y > 0.16 && y < 0.78) || (x >= HALF_L && x < 0.56 && Math.abs(z) < 0.37 && y > 0.24 && y < 0.45);
 const own1706 = (ext) => (p) => held1706(ext)(p) || (p[0] >= HALF_L && p[0] < 0.66 && Math.abs(p[2]) < 0.37 && p[1] > 0.03 && p[1] < 0.45);
 const TOP1706 = { topX: 0.12, topN: 10 }; // (js/mech/phys1706.js naturalFull)
-// fill it a layer at a time (FUEL set into the space over the ones already in, let settle)
+// FUEL that got out over the top, not as shots (each once it's been in the hopper): over a wall, the
+// back panel or the box's front (its center over the walls' tops, outside the net's ties), up
+// through the net (its center 3 cm over it: past where the net holds it, js/mech/r1706.js), or onto the turrets' bearing plates behind the back
+// panel (not up a turret's throat); and how high the load pushes the net (the top of the FUEL
+// under it, the most it got), and how many it held when the load first stood taller than a TRENCH
+// arm's underside (22.25in) for a quarter second
+function escapeWatch(r) {
+  const seen = new Set(), out = new Map();
+  let top = 0, tallT = 0, tallAt = null;
+  return {
+    out,
+    get top() { return top; },
+    get tallAt() { return tallAt; },
+    check(balls) {
+      const n = r.s.net, ext = n.x1 - BOX.front;
+      let now = 0, held = 0;
+      for (const b of balls) {
+        const p = P(b), [x, y, z] = p, under = x > NET.x0 && x < n.x1 && Math.abs(z) < NET.hw;
+        if (held1706(ext)(p)) { held++; if (under) now = Math.max(now, y + R); }
+        if (out.has(b)) continue;
+        if (!seen.has(b)) { if (held1706(ext)(p)) seen.add(b); else continue; }
+        if (under && y + R > top) top = y + R;
+        // (not one going up a turret's throat into its shooter, or shot: on its way out, or set aside)
+        if (TURRET.some(([tx, tz]) => Math.hypot(x - tx, z - tz) < 0.11) || x > 40 || b.linvel().y > 2) continue;
+        const why = y > NET.y && !under ? 'over' : under && y > n.at(x, z)[0] + 0.03 ? 'through' : x < NET.x0 - 0.03 && y > 0.40 ? 'turrets' : null;
+        if (why) out.set(b, why);
+        if (why && process.env.ESC) { const v = b.linvel(); console.log(`   escaped (${why}) at ${x.toFixed(3)},${y.toFixed(3)},${z.toFixed(3)} v ${v.x.toFixed(1)},${v.y.toFixed(1)},${v.z.toFixed(1)}; the net there ${under ? n.at(x, z)[0].toFixed(3) : '-'}, its front ${n.x1.toFixed(3)}; the arm at ${r.deg.toFixed(1)} deg`); }
+      }
+      tallT = now > TRENCH.clearHeight ? tallT + DT : 0;
+      if (tallAt === null && tallT >= 0.25) tallAt = held;
+    },
+    report() {
+      const c = { over: 0, through: 0, turrets: 0 };
+      for (const w of out.values()) c[w]++;
+      return `${out.size} escaped (over the walls, back panel or box: ${c.over}, through the net: ${c.through}, onto the turrets' plates: ${c.turrets}); the load's top under the net ${top.toFixed(3)} m${tallAt !== null ? `, taller than the TRENCH from ${tallAt} in it` : ''}`;
+    },
+  };
+}
+// fill it a layer at a time (FUEL set into the space over the ones already in, under the net, let
+// settle), the net held up out of the way (bulge 0.2 m), then let down onto the load over a second
+// (tied down over it)
 function fill(w, balls, step, layers = 8, y = 0.62, x1 = HALF_L + 0.3) {
+  const B = NET.bulge;
+  NET.bulge = 0.2;
   for (let layer = 0; layer < layers; layer++) {
     for (let i = 0; i < 6; i++) for (let k = 0; k < 5; k++) {
       const x = -0.0 + 0.155 * i, z = -0.31 + 0.155 * k;
       if (x > x1 - 0.06) continue;
-      if (balls.some((b) => { const p = b.translation(); return Math.hypot(p.x - x, p.y - y, p.z - z) < 2 * R; })) continue;
-      balls.push(ball(w, x, y, z));
+      const yy = Math.min(y, netY(x, z, BOX.out) - R - 0.005);
+      if (balls.some((b) => { const p = b.translation(); return Math.hypot(p.x - x, p.y - yy, p.z - z) < 2 * R; })) continue;
+      balls.push(ball(w, x, yy, z));
     }
     step(1.0 / DT);
   }
+  for (let k = 1; k <= 1 / DT; k++) { NET.bulge = 0.2 + (B - 0.2) * k * DT; step(1); }
+  NET.bulge = B;
 }
 
 const tests = {
@@ -253,24 +300,27 @@ const tests = {
   },
   // filled through the intake until it can't put more in (tools/fillbench.mjs): the NEUTRAL ZONE's
   // FUEL, five abreast, at SPEED; the arm out, the rollers at 100%, the spindexers still
-  intakefull() {
+  async intakefull() {
     const runs = [];
     for (let seed = 1; seed <= SEEDS; seed++) {
       const r = rig();
       r.t.intake.cmd = 1;
-      const ext = boxExt(PATH.ext, r.deg);
-      const res = fillRun(RAPIER, { world: () => world({ carpet: false }), ball, path: { step: (dt, l) => r.step(l), get contacts() { return r.path.contacts; } }, DT, held: held1706(ext), own: own1706(ext), top: TOP1706, speed: SPEED, sec: env('SEC', 12), seed, front: 0.398 });
-      console.log(fillReport(`1706 intaking at ${SPEED} m/s, seed ${seed}`, res));
-      runs.push(res);
+      const ext = boxExt(PATH.ext, r.deg), esc = escapeWatch(r);
+      const res = fillRun(RAPIER, { world: () => world({ carpet: false }), ball, path: { step: (dt, l) => { r.step(l); esc.check(l); }, get contacts() { return r.path.contacts; } }, DT, held: held1706(ext), own: own1706(ext), top: TOP1706, speed: SPEED, sec: env('SEC', 12), seed, front: 0.398, keep: !!process.env.SNAP });
+      // (SNAP=file: where the FUEL in it are at the end (the first fill's), for a picture)
+      if (process.env.SNAP && seed === 1) (await import('node:fs')).writeFileSync(process.env.SNAP, JSON.stringify({ deg: r.deg, ext, load: res.balls.map(P).filter(held1706(ext)) }));
+      if (res.world) res.world.free();
+      console.log(fillReport(`1706 intaking at ${SPEED} m/s, seed ${seed}`, res) + `; ${esc.report()}`);
+      runs.push({ ...res, esc: esc.out.size, loadTop: esc.top, tallAt: esc.tallAt });
     }
     const f = runs.map((x) => x.fulls[0]?.n).filter((n) => n !== undefined);
-    console.log(`1706 through its intake (${runs.length} fills): the most it held ${Math.min(...runs.map((x) => x.most))}-${Math.max(...runs.map((x) => x.most))} (mean ${(runs.reduce((a, x) => a + x.most, 0) / runs.length).toFixed(1)}), full at ${f.length ? `${Math.min(...f)}-${Math.max(...f)}` : '-'} (${f.length} of ${runs.length})`);
+    console.log(`1706 through its intake (${runs.length} fills): the most it held ${Math.min(...runs.map((x) => x.most))}-${Math.max(...runs.map((x) => x.most))} (mean ${(runs.reduce((a, x) => a + x.most, 0) / runs.length).toFixed(1)}), full at ${f.length ? `${Math.min(...f)}-${Math.max(...f)}` : '-'} (${f.length} of ${runs.length}); ${runs.reduce((a, x) => a + x.esc, 0)} escaped in all; the load's top under the net ${Math.min(...runs.map((x) => x.loadTop)).toFixed(3)}-${Math.max(...runs.map((x) => x.loadTop)).toFixed(3)} m, taller than the TRENCH from ${runs.map((x) => x.tallAt ?? '-').join(', ')} in it`);
   },
   hold() {
     const r = rig();
     const w = world();
-    const balls = [];
-    const step = (n) => { for (let i = 0; i < n; i++) { r.step(live(balls)); w.step(); } };
+    const balls = [], esc = escapeWatch(r);
+    const step = (n) => { for (let i = 0; i < n; i++) { const l = live(balls); r.step(l); w.step(); esc.check(l); } };
     fill(w, balls, step, env('LAYERS', 9));
     step(2 / DT);
     const t0 = performance.now();
@@ -278,7 +328,7 @@ const tests = {
     const ms = (performance.now() - t0) / (1 / DT);
     console.log(`  (its mechanisms with them all in: ${ms.toFixed(2)} ms a step)`);
     const n = balls.filter(inRobot).length, top = Math.max(...balls.filter(inRobot).map((b) => b.translation().y + R));
-    console.log(`1706 holds ${n} with everything off, the intake out and the box out (a layer at a time), the load's top ${top.toFixed(2)} m`);
+    console.log(`1706 holds ${n} of the ${balls.length} dropped in with everything off, the intake out and the box out (a layer at a time, under the net), the load's top ${top.toFixed(2)} m; ${esc.report()}`);
     if (process.env.STUCK) for (const b of balls.filter((q) => !inRobot(q))) { const [x, y, z] = P(b); console.log(`   out at ${x.toFixed(2)},${y.toFixed(2)},${z.toFixed(2)}`); }
   },
   // carpet to shot: FUEL in front, the robot driving into them, intaking and both turrets firing
@@ -292,22 +342,22 @@ const tests = {
     const { hub } = tables(), row = hub.lookup(3 - EXIT.x), h = hoodFor(row.theta / DEG);
     const res = [];
     for (let seed = 1; seed <= SEEDS; seed++) {
-      let r, w, balls;
+      let r, w, balls, esc;
       if (process.env.FILL === 'layers') {
-        r = rig({ hood: [h, h] }); w = world(); balls = [];
-        fill(w, balls, (n) => { for (let i = 0; i < n; i++) { r.step(live(balls)); w.step(); } }, env('LAYERS', 9));
+        r = rig({ hood: [h, h] }); w = world(); balls = []; esc = escapeWatch(r);
+        fill(w, balls, (n) => { for (let i = 0; i < n; i++) { const l = live(balls); r.step(l); w.step(); esc.check(l); } }, env('LAYERS', 9));
       } else {
         // filled through the intake until it's full (intakefull), its rollers let go, the arm folding in
-        r = rig({ hood: [h, h] }); r.t.intake.cmd = 1;
+        r = rig({ hood: [h, h] }); r.t.intake.cmd = 1; esc = escapeWatch(r);
         const ext = boxExt(PATH.ext, r.deg);
-        const f = fillRun(RAPIER, { world: () => world({ carpet: false }), ball, path: { step: (dt, l) => r.step(l), get contacts() { return r.path.contacts; } }, DT, held: held1706(ext), own: own1706(ext), top: TOP1706, speed: SPEED, sec: env('SEC', 12), seed, front: 0.398, keep: true, until: (full, t) => full || t > env('SEC', 12) - DT });
+        const f = fillRun(RAPIER, { world: () => world({ carpet: false }), ball, path: { step: (dt, l) => { r.step(l); esc.check(l); }, get contacts() { return r.path.contacts; } }, DT, held: held1706(ext), own: own1706(ext), top: TOP1706, speed: SPEED, sec: env('SEC', 12), seed, front: 0.398, keep: true, until: (full, t) => full || t > env('SEC', 12) - DT });
         w = f.world; balls = f.balls; f.carpet.setLinvel({ x: 0, y: 0, z: 0 }, true);
         r.t.intake.cmd = null;
         for (const b of balls) { const [x, y] = P(b); if (x > 0.66 || y < 0.03) b.setTranslation({ x: 50, y: -5, z: 0 }, true); }
       }
       // (spun up and settled for a second with the arm folding in, as it would driving to the HUB)
       r.servo = !process.env.NOFOLD; r.goal = 0;
-      for (let i = 0; i < 1 / DT; i++) { for (let k = 0; k < 2; k++) r.fire(k, row.v, false); r.step(live(balls)); w.step(); }
+      for (let i = 0; i < 1 / DT; i++) { for (let k = 0; k < 2; k++) r.fire(k, row.v, false); const l = live(balls); r.step(l); w.step(); esc.check(l); }
       // (what it holds: in it, not ones in the intake's mouth on the carpet)
       const n0 = balls.filter((b) => held1706(boxExt(PATH.ext, r.deg))(P(b))).length;
       const watch = shotWatch(r);
@@ -327,7 +377,7 @@ const tests = {
         const l = live(balls);
         // (ESC=1: each FUEL that leaves it other than as a shot: where, how fast, what it last touched)
         const was = process.env.ESC ? new Map(l.map((b) => [b, inRobot(b) ? [...r.path.contacts, ...r.shooter.contacts].filter((c) => c.ball === b).map((c) => c.wheel.name + ' ' + c.force.toFixed(0)).join(', ') || '-' : null])) : null;
-        r.step(l); w.step(); watch.check(l, k * DT);
+        r.step(l); w.step(); watch.check(l, k * DT); esc.check(l);
         if (was) for (const b of l) if (was.get(b) && !inRobot(b) && b.translation().x < 40) { const [x, y, z] = P(b), v = b.linvel(); console.log(`   ${(k * DT).toFixed(2)} s out at ${x.toFixed(2)},${y.toFixed(2)},${z.toFixed(2)} v ${v.x.toFixed(1)},${v.y.toFixed(1)},${v.z.toFixed(1)}; touching ${was.get(b)}`); }
         // (TALLY=1: every half second, where the FUEL in it are: each bowl (on its disc), over the
         // bowls, on the shelf in front of them, in the box out over the intake, on the ramps and up
@@ -359,14 +409,14 @@ const tests = {
       const best = s.reduce((m, x, i) => Math.max(m, s.slice(i).filter((y) => y.t < x.t + 1).length), 0);
       const per = [0, 1].map((i) => s.filter((x) => x.i === i));
       const land = s.map((o) => landing(o) - 3);
-      res.push({ n0, n: s.length, rate: rate(s), mid: mid(s), midPer: [0, 1].map((i) => mid(s.filter((x) => x.i === i))), best, bestPer: [0, 1].map((i) => { const q = s.filter((x) => x.i === i); return q.reduce((m, x, j) => Math.max(m, q.slice(j).filter((y) => y.t < x.t + 1).length), 0); }), per: per.map((q) => [q.length, rate(q)]), first: s.filter((x) => x.t - (s[0]?.t ?? 0) < 1).length, land: med(land), left: balls.filter(inRobot).length });
-      console.log(`  fill ${seed}: ${s.length} of ${n0} out in ${env('SEC2', 10)} s, ${res.at(-1).first} in the first second, ${best} in its best (right ${res.at(-1).bestPer[0]}, left ${res.at(-1).bestPer[1]}), ${rate(s).toFixed(1)} FUEL/s over the dump, ${mid(s).toFixed(1)} through the middle (right ${per[0].length} at ${rate(per[0]).toFixed(1)}/s, left ${per[1].length} at ${rate(per[1]).toFixed(1)}/s); down at the rim ${med(land) >= 0 ? '+' : ''}${med(land).toFixed(2)} m from the HUB's center (median); ${res.at(-1).left} left in it`);
+      res.push({ esc: esc.out.size, n0, n: s.length, rate: rate(s), mid: mid(s), midPer: [0, 1].map((i) => mid(s.filter((x) => x.i === i))), best, bestPer: [0, 1].map((i) => { const q = s.filter((x) => x.i === i); return q.reduce((m, x, j) => Math.max(m, q.slice(j).filter((y) => y.t < x.t + 1).length), 0); }), per: per.map((q) => [q.length, rate(q)]), first: s.filter((x) => x.t - (s[0]?.t ?? 0) < 1).length, land: med(land), left: balls.filter(inRobot).length });
+      console.log(`  fill ${seed}: ${s.length} of ${n0} out in ${env('SEC2', 10)} s, ${res.at(-1).first} in the first second, ${best} in its best (right ${res.at(-1).bestPer[0]}, left ${res.at(-1).bestPer[1]}), ${rate(s).toFixed(1)} FUEL/s over the dump, ${mid(s).toFixed(1)} through the middle (right ${per[0].length} at ${rate(per[0]).toFixed(1)}/s, left ${per[1].length} at ${rate(per[1]).toFixed(1)}/s); down at the rim ${med(land) >= 0 ? '+' : ''}${med(land).toFixed(2)} m from the HUB's center (median); ${res.at(-1).left} left in it; ${esc.report()}`);
       if (process.env.STUCK) console.log(`   the arm at ${r.deg.toFixed(1)} deg (the box ${boxExt(PATH.ext, r.deg).toFixed(3)} m out); out of it: ${balls.filter((b) => !inRobot(b) && b.translation().y < 3 && b.translation().y > -1).map((b) => P(b).map((v) => v.toFixed(2)).join(',')).join(' | ')}`);
       if (process.env.STUCK) for (const b of balls.filter(inRobot)) { const [x, y, z] = P(b); console.log(`   left at ${x.toFixed(2)},${y.toFixed(2)},${z.toFixed(2)}: ${r.path.contacts.filter((c) => c.ball === b).map((c) => c.wheel.name + ' ' + c.force.toFixed(0)).join(', ')}`); }
       w.free();
     }
     const m = (f) => med(res.map(f));
-    console.log(`1706 dumps a full hopper at 3 m (the spindexers at ${SPIN_RPS} rps, the kickers at ${KICK_RPM} rpm), ${res.length} fills: ${m((x) => x.n)} of ${m((x) => x.n0)} (median), ${m((x) => x.rate).toFixed(1)} FUEL/s over the dump (${Math.min(...res.map((x) => x.rate)).toFixed(1)}..${Math.max(...res.map((x) => x.rate)).toFixed(1)}), ${m((x) => x.best)} in its best second (per turret ${m((x) => x.bestPer[0])} and ${m((x) => x.bestPer[1])}), ${m((x) => x.mid).toFixed(1)} through the middle (${Math.min(...res.map((x) => x.mid)).toFixed(1)}..${Math.max(...res.map((x) => x.mid)).toFixed(1)}; per turret ${m((x) => x.midPer[0]).toFixed(1)} and ${m((x) => x.midPer[1]).toFixed(1)}); over the whole dump per turret ${m((x) => x.per[0][1]).toFixed(1)} and ${m((x) => x.per[1][1]).toFixed(1)} FUEL/s`);
+    console.log(`1706 dumps a full hopper at 3 m (the spindexers at ${SPIN_RPS} rps, the kickers at ${KICK_RPM} rpm), ${res.length} fills: ${m((x) => x.n)} of ${m((x) => x.n0)} (median), ${m((x) => x.rate).toFixed(1)} FUEL/s over the dump (${Math.min(...res.map((x) => x.rate)).toFixed(1)}..${Math.max(...res.map((x) => x.rate)).toFixed(1)}), ${m((x) => x.best)} in its best second (per turret ${m((x) => x.bestPer[0])} and ${m((x) => x.bestPer[1])}), ${m((x) => x.mid).toFixed(1)} through the middle (${Math.min(...res.map((x) => x.mid)).toFixed(1)}..${Math.max(...res.map((x) => x.mid)).toFixed(1)}; per turret ${m((x) => x.midPer[0]).toFixed(1)} and ${m((x) => x.midPer[1]).toFixed(1)}); over the whole dump per turret ${m((x) => x.per[0][1]).toFixed(1)} and ${m((x) => x.per[1][1]).toFixed(1)} FUEL/s; ${res.reduce((a, x) => a + x.esc, 0)} escaped in all`);
   },
 };
 

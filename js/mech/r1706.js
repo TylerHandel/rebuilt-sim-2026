@@ -43,14 +43,15 @@
 //   hood: a Kraken X44 (8t onto a 34t, then belts; the rest isn't modeled: a profile, an estimate)
 //   turrets: a Kraken X44 each through a printed 8DP ring gear (their thread; the aim follows the
 //     robot's turret model)
-import { IN } from '../constants.js';
+import { IN, FUEL } from '../constants.js';
 import { Block, Motor, Shaft, Surface, Train, Wheel, BUMPER_MU } from './mechanism.js';
 
-const DEG = Math.PI / 180;
+const DEG = Math.PI / 180, R = FUEL.radius;
 // what each grips FUEL with (estimates): the solid 45A urethane wheels (intake's 1in, the kickers'
 // 2in, the shooters' 3in and 1in: grippy and fairly firm), the bare polycarbonate rollers (their BOM:
-// no tubing or tape in the CAD), the polypropylene disc (smooth), the printed hub (PLA)
-export const MU = { urethane: 1.4, polycarb: 0.6, disc: 0.45, pla: 0.3 };
+// no tubing or tape in the CAD), the polypropylene disc (smooth), the printed hub (PLA), the net's
+// cord (as 4414's net)
+export const MU = { urethane: 1.4, polycarb: 0.6, disc: 0.45, pla: 0.3, net: 0.4 };
 export const TREAD = { urethane: 25000, polycarb: 30000, bowl: Infinity };
 
 // ------------------------------------------------------------------ the layout (robot frame)
@@ -270,29 +271,43 @@ export function placeTurret(sf, i, yaw, h) {
   sf.turret[i].setPose([TURRET[i][0], 0, TURRET[i][1]], yaw, 0);
   sf.hood[i].setPose(turretPoint(i, [...SHOOTER.accel.at, 0], yaw), yaw, -h * DEG);
 }
-// The net over the open top (their CAD doesn't model one: the simplified model's, js/robotConfigs.js
-// bay.dome): pinned along the walls' tops (0.548 m), the back panel's top edge and the box's front,
-// it stretches, and the load bulges it (as 4414's net dome, js/mech/r4414.js netY): up to NET.bulge at
-// its middle, tapering to its ties. A FUEL under it presses it out to there, past it only as far as
-// its soft tread gives; nothing pushes the load back down. In the robot's frame.
-export const NET = { x0: -0.01, y: 0.548, hw: 0.374, bulge: 0.15 };
+// The net over the open top. Their CAD has none, but the robot has one: a coarse net of black
+// cord (cells of ~3-4in, too small for a FUEL) over the hopper, in a photo of it in the St. Louis
+// Regional's finals (thebluealliance.com/team/1706/2026), the intake in, its cords taut over the
+// FUEL in its middle, which stand ~0.05-0.08 m over the walls' tops. Tied where a net is
+// fastened: along the walls' tops (0.548 m), the back panel's top tube (x -0.02 to 0.01, the full
+// width: behind it the turrets' bearing plates, 0.21 m below, and the shooters) and the hopper box's
+// top edges, its front following the box out. It stretches (it must: it reaches the box's front
+// 0.30 m out, and is taut in the photo with the box in), and the load bulges it up into a dome (as
+// 4414's net, js/mech/r4414.js netY): as far as NET.bulge at its middle (0.08 m: what the photo
+// shows; for a full load, an estimate), tapering to its ties. A FUEL under it presses it out to there, past it only as far
+// as its soft tread gives; nothing pushes the load back down. In the robot's frame: x0, the back
+// tie; x1, the front tie with the box in; hw, half its width (the box's walls, inside the fixed
+// ones).
+export const NET = { x0: -0.01, x1: BOX.front, y: 0.548, hw: 0.37, bulge: 0.08 };
+// the net's height at (x, z), stretched all the way, its front tied to the box ext m out; and its
+// slope (d/dx, d/dz)
+export function netY(x, z, ext = 0) { return netAt(x, z, ext)[0]; }
+export function netAt(x, z, ext = 0) {
+  const L = NET.x1 + ext - NET.x0, W = 2 * NET.hw, B = NET.bulge;
+  const u = Math.min(1, Math.max(0, (x - NET.x0) / L)), v = Math.min(1, Math.max(0, (z + NET.hw) / W));
+  const su = Math.sin(Math.PI * u), sv = Math.sin(Math.PI * v);
+  return [NET.y + B * su * sv, (B * Math.PI * Math.cos(Math.PI * u) * sv) / L, (B * su * Math.PI * Math.cos(Math.PI * v)) / W];
+}
+// (its cord: MU.net, and a soft tread, as 4414's net)
 class Net1706 extends Surface {
   constructor() {
-    super({ name: 'net', vertices: [0, 0, 0, 0.01, 0, 0, 0, 0, 0.01], indices: [0, 1, 2], mu: 0.3, tread: 1500 });
+    super({ name: 'net', vertices: [0, 0, 0, 0.01, 0, 0, 0, 0, 0.01], indices: [0, 1, 2], mu: MU.net, tread: 1500 });
     this.place(0);
   }
-  place(ext) { this.x1 = BOX.front + ext; }
-  at(x, z) {
-    const L = this.x1 - NET.x0, u = (x - NET.x0) / L, v = (z + NET.hw) / (2 * NET.hw), B = NET.bulge;
-    const su = Math.sin(Math.PI * u), sv = Math.sin(Math.PI * v);
-    return [NET.y + B * su * sv, (B * Math.PI * Math.cos(Math.PI * u) * sv) / L, (B * su * Math.PI * Math.cos(Math.PI * v)) / (2 * NET.hw)];
-  }
+  place(ext) { this.ext = ext; this.x1 = NET.x1 + ext; }
+  at(x, z) { return netAt(x, z, this.ext); }
   touches(p) {
     const [x, y, z] = p;
     if (x <= NET.x0 || x >= this.x1 || Math.abs(z) >= NET.hw) return [];
     const [h, hx, hz] = this.at(x, z), l = Math.hypot(hx, 1, hz), dist = (h - y) / l;
-    if (dist >= 0.075 || dist < -0.03) return [];
-    return [{ depth: 0.075 - dist, n: [hx / l, -1 / l, hz / l] }];
+    if (dist >= R || dist < -0.03) return [];
+    return [{ depth: R - dist, n: [hx / l, -1 / l, hz / l] }];
   }
 }
 export { Net1706 };

@@ -798,9 +798,10 @@ export const ROBOTS = {
     // carries FUEL round to its back edge, where a ramp takes it up into the turret behind it.
     bay: {
       x0: -0.14, x1: 0.318, hw: 0.37, top: 0.548,
-      // a net over the open top (their CAD doesn't model it), pinned to the wall tops and riding out
-      // with the hopper box; the load bulges it up (the turrets are behind the hopper, no hole)
-      dome: { h: 0.15, x0: -0.025, cx: 0, cz: 0, rHole: -1 },
+      // a net over the open top (their CAD doesn't model it; the robot has one: js/mech/r1706.js
+      // NET), tied to the walls' tops, the back panel's top tube and the hopper box's top edges,
+      // riding out with the box; the load bulges it up (the turrets are behind the back panel, no hole)
+      dome: { h: 0.08, x0: -0.01, cx: 0, cz: 0, rHole: -1 },
       floor: { a: 0.16, b: 0, lo: 0.16, hi: 0.16 },
       funnel: { slope: 0.45, cap: 0.2 },
       obstacles: [

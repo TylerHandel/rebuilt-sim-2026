@@ -14,6 +14,7 @@ import { ALLIANCE_COLOR_CSS } from './field.js';
 import { build8793 as trains8793, conveyorWheels as conveyorWheels8793 } from './mech/r8793.js';
 import { FLOOR as FLOOR_2910 } from './mech/r2910.js';
 import * as D4 from './mech/r4414.js';
+import { NET as NET_1706 } from './mech/r1706.js';
 import { fuelTexture, squashable } from './fuelSkin.js';
 import { ALUMINUM_COLORS } from './aluminumColors.js';
 
@@ -2768,9 +2769,10 @@ function build1706(cfg, alliance) {
     cadPart(cad, `robots/1706-turret-${i ? 'b' : 'a'}.glb`, () => { d.visible = false; });
     return g;
   });
-  // net over the open top (their CAD doesn't model it): pinned to the wall tops, stretching out with
-  // the hopper box, bulged up by the load
-  const net = hopperNet(root, { x0: bay.x0, x1: bay.x1, x1Out: bay.x1 + extLen, xFixed: bay.x0, hw: bay.hw, y: bay.top + 0.004 });
+  // the net over the open top (their CAD doesn't model it; js/mech/r1706.js NET): tied along the
+  // walls' tops, the back panel's top tube and the hopper box's top edges, stretching out with the
+  // box, draped over the load where it bulges it up
+  const net = hopperNet(root, { x0: NET_1706.x0, x1: NET_1706.x1, x1Out: NET_1706.x1 + extLen, xFixed: NET_1706.x0, hw: NET_1706.hw, y: NET_1706.y + 0.004, NX: 30, NZ: 36 });
   cadPart(root, 'robots/1706-body.glb', () => { drawn.visible = false; });
   cadPart(root, 'robots/1706-mount.glb', () => {});
   cadPart(box, 'robots/1706-hopper.glb', () => { boxDrawn.visible = false; });
