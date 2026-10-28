@@ -126,8 +126,10 @@ export const PRELOAD = [0, 1].flatMap((s) => [0, 1, 2, 3].map((k) => {
 }));
 
 // ------------------------------------------------------------------ the drives
-// (current limits: their 2025 code's, rr1706/konshu: the intake 80 A stator, 40 A supply; the funnel's
-// rollers 40 A, 40 A; the arm 50 A, 30 A. The shooters' X60s: 80 A, 40 A, as their intake's)
+// (current limits: their 2025 code's, rr1706/konshu: its intake's 80 A stator and 40 A supply on the
+// intake's rollers, the spindexers, the kickers and the shooters; its arm's 50 A and 30 A on the
+// intake's arm. At its funnel's 40 A the spindexers stalled under a full bowl: a FUEL squeezed
+// between the cone and the bowl's wall drags ~1.7 N m on the disc, and 40 A gives it 3.8)
 export function build1706() {
   // the intake's rollers: positive takes FUEL in (the rollers' backs and the 1in wheels' fronts
   // running up, deployed)
@@ -138,10 +140,10 @@ export function build1706() {
   // the arm's pivot (positive swings it out and down)
   const pivot = new Shaft({ name: 'intake arm', motor: new Motor('krakenX60', { ratio: 16 * (32 / 22), statorLimit: 50, supplyLimit: 30 }), inertia: INTAKE.J, drag: 0.3 });
   // the spindexers (positive carries FUEL round to the bowl's back the way it feeds: SPIN_DIR)
-  const spin = [0, 1].map((i) => new Shaft({ name: `spindexer ${i ? 'left' : 'right'}`, motor: new Motor('krakenX44', { ratio: SPIN.ratio, statorLimit: 40, supplyLimit: 40 }), inertia: SPIN.J, drag: 0.01 }));
+  const spin = [0, 1].map((i) => new Shaft({ name: `spindexer ${i ? 'left' : 'right'}`, motor: new Motor('krakenX44', { ratio: SPIN.ratio, statorLimit: 80, supplyLimit: 40 }), inertia: SPIN.J, drag: 0.01 }));
   // the kickers (positive lifts FUEL up the throat)
   const kicker = [0, 1].map((i) => {
-    const tr = new Train({ name: `kicker ${i ? 'left' : 'right'}`, motor: new Motor('krakenX44', { ratio: KICKER.ratio, statorLimit: 40, supplyLimit: 40 }) });
+    const tr = new Train({ name: `kicker ${i ? 'left' : 'right'}`, motor: new Motor('krakenX44', { ratio: KICKER.ratio, statorLimit: 80, supplyLimit: 40 }) });
     return { train: tr, front: tr.add(new Shaft({ name: 'kicker front wheels', inertia: 3e-5 }), 1), back: tr.add(new Shaft({ name: 'kicker back wheels', inertia: 3e-5 }), 1) };
   });
   // the shooters (positive flings FUEL up between the wheels)

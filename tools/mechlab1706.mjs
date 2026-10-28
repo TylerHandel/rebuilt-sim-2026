@@ -144,15 +144,15 @@ const tests = {
   rollers() {
     const r = rig(), t = r.t;
     t.intake.cmd = 1;
-    for (let i = 0; i < 2; i++) r.fire(i, 10);
+    for (let i = 0; i < 2; i++) r.fire(i, 8);
     for (let i = 0; i < 2 / DT; i++) r.step([]);
     const surf = (sh, rr) => Math.abs(sh.omega) * rr;
-    console.log(`1706's rollers, free (intake 100%, the spindexers at ${SPIN_RPS} rps, the kickers at ${KICK_RPM} rpm, the shooters at a 10 m/s shot):`);
+    console.log(`1706's rollers, free (intake 100%, the spindexers at ${SPIN_RPS} rps, the kickers at ${KICK_RPM} rpm, the shooters at an 8 m/s shot):`);
     console.log(`  intake X60s ${RPM(t.intake.omega).toFixed(0)} rpm: top roller ${surf(t.top, INTAKE.top.r).toFixed(2)} m/s at its surface, bottom ${surf(t.bottom, INTAKE.bottom.r).toFixed(2)}, 1in wheels ${surf(t.wheels, INTAKE.wheels.r).toFixed(2)}`);
     console.log(`  spindexers ${(t.spin[0].omega / TAU).toFixed(2)} / ${(t.spin[1].omega / TAU).toFixed(2)} rps (free ${(t.spin[0].motor.freeSpeed / TAU).toFixed(1)}): ${(t.spin[0].omega * 0.115).toFixed(2)} m/s at a FUEL's center by the wall (0.115 m out)`);
     console.log(`  kickers ${RPM(t.kicker[0].train.omega).toFixed(0)} rpm (free ${RPM(t.kicker[0].train.motor.freeSpeed).toFixed(0)}): ${surf(t.kicker[0].front, 0.0254).toFixed(2)} m/s at the 2in wheels' surface`);
     console.log(`  shooters: accelerators ${surf(t.shooter[0].accel, SHOOTER.accel.r).toFixed(2)} m/s (${RPM(t.shooter[0].accel.omega).toFixed(0)} rpm), 1in hood wheels ${surf(t.shooter[0].hood, SHOOTER.hood[0].r).toFixed(2)} m/s; free: accelerators ${(t.shooter[0].train.motor.freeSpeed * SHOOTER.kAccel * SHOOTER.accel.r).toFixed(1)} m/s`);
-    for (const v of [6, 8, 10, 12]) {
+    for (const v of [6, 7, 8, 8.4]) {
       const r2 = rig();
       let T = 0;
       for (; T < 4; T += DT) { r2.fire(0, v, false); r2.shooter.step(DT, []); if (Math.abs(exitAt(r2.t.shooter[0].accel.omega) - v) < SHOOTER.tolV) break; }
@@ -169,7 +169,7 @@ const tests = {
   shooter() {
     const list = (k) => process.env[k]?.split(',').map(Number);
     const hs = list('HS') ?? (process.env.MAP ? [0, 5, 10, 15, 20, 25, 30, 35, 40, 45] : [0, 15, 30, 45]);
-    const vs = list('VS') ?? (process.env.MAP ? [5, 6, 7, 8, 9, 10, 11, 12] : [6, 8, 10]);
+    const vs = list('VS') ?? (process.env.MAP ? [5, 6, 7, 8, 9, 10, 11, 12] : [6, 7, 8]);
     console.log(`1706's shooter: FUEL set into the right turret's kicker (at ${KICK_RPM} rpm) (the turret facing out to its side), the accelerators at the speed js/mech/phys1706.js's EXIT_MAP gives a shot ("asked"), the hood at a swing:`);
     const ratios = [], els = [];
     for (const h of hs) for (const v of vs) {
@@ -285,7 +285,7 @@ const tests = {
   path() {
     const runs = [];
     for (let seed = 1; seed <= SEEDS; seed++) runs.push(pathRun(seed, { n: 20, sec: 8, speed: SPEED }));
-    console.log(`1706 carpet to shot (20 FUEL, four abreast, at ${SPEED} m/s, the intake at 100%, both turrets firing a 10 m/s shot): ${runs.map((x) => x.shots).join(', ')} shot (median ${med(runs.map((x) => x.shots))}), ${runs.map((x) => x.rate.toFixed(1)).join(', ')} FUEL/s once they're coming; ${runs.map((x) => x.inside).join(', ')} in it at the end`);
+    console.log(`1706 carpet to shot (20 FUEL, four abreast, at ${SPEED} m/s, the intake at 100%, both turrets firing their 3 m shot, 7.2 m/s): ${runs.map((x) => x.shots).join(', ')} shot (median ${med(runs.map((x) => x.shots))}), ${runs.map((x) => x.rate.toFixed(1)).join(', ')} FUEL/s once they're coming; ${runs.map((x) => x.inside).join(', ')} in it at the end`);
   },
   // a full one fired at 3 m: both turrets, each its own side's spindexer and kicker
   async dump() {
@@ -375,7 +375,7 @@ function pathRun(seed, { shoot = true, n = 20, sec = 7, speed = SPEED } = {}) {
   w.createCollider(RAPIER.ColliderDesc.cuboid(15, 0.01, 1).setTranslation(0.4 + 15, -0.01, 0).setFriction(0.3).setRestitution(0.2), carpet);
   w.createCollider(RAPIER.ColliderDesc.cuboid(0.4, 0.01, 1).setTranslation(0, -0.01, 0).setFriction(0.3), w.createRigidBody(RAPIER.RigidBodyDesc.fixed()));
   r.t.intake.cmd = 1;
-  for (let i = 0; i < 1 / DT; i++) { if (shoot) for (let k = 0; k < 2; k++) r.fire(k, 10, false); r.step([]); }
+  for (let i = 0; i < 1 / DT; i++) { if (shoot) for (let k = 0; k < 2; k++) r.fire(k, 7.2, false); r.step([]); }
   const free = Math.abs(r.t.intake.omega) || 1;
   const balls = [];
   for (let i = 0; i < n; i++) balls.push(ball(w, 0.9 + 0.17 * Math.floor(i / 4) + 0.02 * rnd(), R + 0.003, ((i % 4) - 1.5) * 0.16 + 0.02 * rnd(), [-speed, 0, 0]));
@@ -384,7 +384,7 @@ function pathRun(seed, { shoot = true, n = 20, sec = 7, speed = SPEED } = {}) {
   const timeline = [];
   for (let k = 0; k < sec / DT; k++) {
     const l = balls.filter((b) => b.translation().y < 3 && b.translation().y > -1);
-    if (shoot) for (let i = 0; i < 2; i++) r.fire(i, 10);
+    if (shoot) for (let i = 0; i < 2; i++) r.fire(i, 7.2);
     r.step(l); w.step();
     watch.check(l, k * DT);
     minIntake = Math.min(minIntake, Math.abs(r.t.intake.omega) / free);
