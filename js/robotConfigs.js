@@ -231,9 +231,9 @@ export const ROBOTS = {
     // plate carries the turret; a net covers the rest of the top, and it stretches: past the
     // stated 88 the load bulges it up (dome: its height at the middle; pinned at the edges, the
     // top plate from x0 back, and round the turret), as far as there's room over the robot.
-    // (the walls are the bumper backing: their faces on the frame perimeter, js/mech/r4414.js BAY)
+    // (the walls are the bumper backing: their faces 1in out past the frame perimeter, js/mech/r4414.js BAY)
     bay: {
-      x0: -12.5 * IN, x1: 0.317, hw: 16 * IN, top: 0.53, chamfer: (4 / (2 * (2 - Math.SQRT2))) * IN, wallTop: 0.53,
+      x0: -13.5 * IN, x1: 0.317, hw: 17 * IN, top: 0.53, chamfer: (4 / (2 * (2 - Math.SQRT2)) + 2 - Math.SQRT2) * IN, wallTop: 0.53,
       dome: { h: 0.27, x0: -0.165, cx: -0.02, cz: 0, rHole: 0.2 },
       floor: { a: 0.105, b: 0, lo: 0.105, hi: 0.105 },
       // the intake box's ramp: up from the main floor to a ridge over the front bumper, then down

@@ -90,10 +90,10 @@ export const FLOOR = 0.105;      // the hopper's floor under the rotor (the rend
 export const BUCKET = { r: 0.285 }; // the floor's round middle the rotor sweeps
 // the hopper: the bumper backing as walls, chamfered at the back corners, open at the front into
 // the box; the top plate over the back (to the turret's bearing) and the net over the rest
-// (the bumper backing is the hopper's wall: "~1in extra hopper space per side", the binder, against
-// walls inside the frame's 1in tubes. So the walls' faces are the frame perimeter, where the
-// bumpers' backing sits (the renders: the walls stand right on the bumpers' inner edge), its back
-// corners cut 3.41in each way, as little as keeps it within 110in; robotModels draws them here)
+// (the bumper backing is the hopper's wall: "Bumper backing used as hopper walls to gain ~1in" of
+// hopper space per side, the binder; the team: the walls' faces are the backing, 1in out past the
+// frame perimeter. Its back corners cut parallel to the frame's 3.41in chamfer, 1in out;
+// robotModels draws them here)
 // The net stretches: pinned along the walls, the top plate's front edge, the box's front and round
 // the turret's ring, the load can push it up into a dome as far as dome m over the hopper's top at
 // its middle (robotConfigs' bay.dome: as far as there's room over the robot), and nothing presses
@@ -102,7 +102,7 @@ export const BUCKET = { r: 0.285 }; // the floor's round middle the rotor sweeps
 // round it, from ring[0] out to ring[1]), the net pinned at its edge (hole), and the shooter down
 // inside the ring (a shroud, r from shroud[0] up: robotConfigs' bay.obstacles), so the load can't
 // come up round the turret and out over the top
-export const BAY = { x0: -HALF_L, hw: HALF_W, chamfer: (4 / (2 * (2 - Math.SQRT2))) * IN, top: 0.535, net: 0.565, hole: 0.2, dome: 0.235, ring: [0.155, 0.225], shroud: [0.42, 0.16] };
+export const BAY = { x0: -(HALF_L + IN), hw: HALF_W + IN, chamfer: (4 / (2 * (2 - Math.SQRT2)) + 2 - Math.SQRT2) * IN, top: 0.535, net: 0.565, hole: 0.2, dome: 0.235, ring: [0.155, 0.225], shroud: [0.42, 0.16] };
 // the bowl round the rotor and the printed "stadium" pieces that funnel FUEL into it: the floor
 // out to r, a wall standing straight up round its rim, the hook's tip running flush against it
 // (wall high at the back and sides, fading to wallF at the front, where the stadium has to stay
@@ -208,7 +208,7 @@ export const HOOD = SHOOTER;
 // the intake, at the box's full extension (it slides out BOX.ext on its racks); xF its front; side
 // its side panels' inner faces, outboard of the hopper's walls, the pinion strips on them and the
 // racks (robotModels draws them here)
-export const BOX = { ext: 0.27, front: HALF_L + 3.25 * IN + 0.2224, side: HALF_W + 0.018, chin: 0.31 };
+export const BOX = { ext: 0.27, front: HALF_L + 3.25 * IN + 0.2224, side: HALF_W + IN + 0.005, chin: 0.31 }; // (its sides just outside the hopper's walls, BAY.hw, sliding along them)
 export const INTAKE = {
   // No ramp, the box's bottom open (the renders, from above; the team): the primary 3in
   // polycarbonate roller low in front of the bumper's face, its back running up it, squeezes a
