@@ -11,14 +11,18 @@
 // bend (one FUEL from the hook's root to the shot), column (FUEL fed at the hook's root as fast as
 // there's room), pillar (one FUEL set down still round the bend and up the bore: does it get to the
 // shot alone, or where does it stop), ring (a ring of FUEL on the floor: what the hook takes in a
-// turn), lip (FUEL on the stadium round an empty bowl: how fast they come down into it).
+// turn), lip (FUEL on the stadium round an empty bowl: how fast they come down into it), hit (one
+// FUEL on the floor in the turning rotor's way, then the rotor turning back: its speed, and what
+// holds it back), rest (one FUEL set down still against the hook's rollers, the rotor agitating:
+// does it stay put along them).
 // Env: SEEDS (6), SPEED (1 m/s), STUCK (where the ones left over are), TRACE=i (follow FUEL i;
 // shooter: every TEVERY steps, 3, with its spin), SHOT=rad,hood (one shot of your own), LAYERS
 // (fill), TIMELINE, ROTOR (rps, 2.25), ROLLERS (duty, 1);
 // dump: DSEEDS (fills), NOBOX (none in the box), LOAD (where the load is, each 0.5 s), SNAP=t and
 // SNAPFILE (where the FUEL low round the rotor are, in its frame, nine times from t s), PARKED (the
 // ones that stay put while it feeds; =file writes them), ROTORLOG (the rotor's speed and current
-// each tenth of a second); hold: HSEEDS, HOLDFILE (where the first fill's FUEL are at the end, and
+// each tenth of a second, and the torque each part on it takes from the FUEL it touches: torqueTally;
+// ROTORLOG=n lists n of them); hold: HSEEDS, HOLDFILE (where the first fill's FUEL are at the end, and
 // where they're pressed, for drawing); hold, intakefull: WALLS (wallWatch); bend, column, pillar:
 // PATHLOG=file (each step, each FUEL's place and everything touching it, and the surfaces and
 // wheels round the path, for drawing; pillar: PILLAR=tag picks the run it logs)
@@ -29,16 +33,16 @@ import { Mechanism, Surface, foam } from '../js/mech/mechanism.js';
 import { sim2D } from '../js/ballistics.js';
 import {
   build4414, wheels4414, shooterWheels, pathSurfaces4414, placeIntake, placeRotor, placeRotorSurfaces, placeBox, placeShooter, placeTurretSurfaces,
-  hoodElevation, chan, rotorPoint, stadiumY, netY, AXIS, HOOK, YB, FLY, SHOOTER, FEED, BORE, BOX, HALF_L, HALF_W, BAY, INTAKE, BEND, RAMP, STADIUM, FLOOR,
+  hoodElevation, chan, rotorPoint, hookCurve, hookBack, stadiumY, netY, AXIS, CH, HOOK, YB, FLY, SHOOTER, FEED, BORE, BOX, HALF_L, HALF_W, BAY, INTAKE, BEND, RAMP, STADIUM, FLOOR,
 } from '../js/mech/r4414.js';
 import { velocityDuty } from '../js/mech/phys604.js';
-import { launchFor, shooterFor } from '../js/mech/phys4414.js';
+import { launchFor, shooterFor, rotorLoop } from '../js/mech/phys4414.js';
 
 await RAPIER.init();
 const R = FUEL.radius, DT = 1 / 120, SEEDS = Number(process.env.SEEDS ?? 6), SPEED = Number(process.env.SPEED ?? 1);
 const HELD = groups(GROUP.HELD, 0xffff & ~GROUP.HELD);
 const TAU = 2 * Math.PI;
-const ROTOR_RPS = Number(process.env.ROTOR ?? 2.25), ROLLERS = Number(process.env.ROLLERS ?? 1), NSHOT = Number(process.env.NSHOT ?? 4);
+const ROTOR_RPS = Number(process.env.ROTOR ?? 2.25), AGITATE = -0.15, ROLLERS = Number(process.env.ROLLERS ?? 1), NSHOT = Number(process.env.NSHOT ?? 4);
 
 function world({ carpet = true } = {}) {
   const w = new RAPIER.World({ x: 0, y: -9.81, z: 0 });
@@ -134,10 +138,46 @@ function rig({ yaw = 0, hood = 140, ext = BOX.ext } = {}) {
   r.pose();
   return r;
 }
+// (TORQUE: what holds the rotor back. Each contact's angular impulse on the rotor's shaft about its
+// axis (r.path.tally, js/mech/mechanism.js), from a wheel or surface on it itself or through the
+// pivot a wheel rides (the stack, the hook's rollers, the omnis: their drive's reaction too), by
+// that wheel or surface and what else the FUEL touches then (FUEL: another FUEL), summed over a
+// window: report() gives each one's mean torque over it (N·m, + turning it forward, the way it feeds)
+// and the mean upward share of its contact's normal on the FUEL (- pushing it down), the biggest
+// first, and clears it)
+function torqueTally(r) {
+  r.path.tally = { shaft: r.t.rotor };
+  const sums = new Map(), short = (n) => n.replace(/ \(.*\)$/, '').replace(/ \d+$/, '');
+  let T = 0;
+  return {
+    add(balls) {
+      T += DT;
+      const step = r.path.tally.step;
+      if (!step) return;
+      for (const [wh, byB] of step) for (const [b, e] of byB) {
+        const p = b.translation();
+        const with_ = new Set([...r.path.contacts, ...r.shooter.contacts].filter((c) => c.ball === b && c.wheel !== wh).map((c) => short(c.wheel.name)));
+        if (balls.some((q) => q !== b && q.translation().y < 3 && Math.hypot(q.translation().x - p.x, q.translation().y - p.y, q.translation().z - p.z) < 2 * R)) with_.add('FUEL');
+        for (const [L, tag] of [[e.L, ''], [e.Lp, ' (its pivot)']]) {
+          if (!L) continue;
+          const k = `${short(wh.name)}${tag} | ${[...with_].sort().join(' + ') || 'nothing else'}`, o = sums.get(k) ?? { L: 0, ny: 0, w: 0 };
+          o.L += L; o.ny += e.n[1] * Math.abs(L); o.w += Math.abs(L);
+          sums.set(k, o);
+        }
+      }
+    },
+    report(n = 6, min = 0.05) {
+      const out = [...sums.entries()].map(([k, o]) => [k, o.L / T, o.ny / (o.w || 1)]).filter((q) => Math.abs(q[1]) >= min).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1])).slice(0, n);
+      const tot = [...sums.values()].reduce((a, o) => a + o.L, 0) / T;
+      sums.clear(); T = 0;
+      return `all ${tot.toFixed(1)} N·m` + out.map(([k, t, ny]) => `\n       ${t.toFixed(1)} N·m (n up ${ny.toFixed(2)}) ${k}`).join('');
+    },
+  };
+}
 // the rotor at rps (a velocity loop on its X60: kV, kP as 604's), the rollers at a duty
 function feed(r, rps = ROTOR_RPS, rollers = ROLLERS) {
   const t = r.t;
-  t.rotor.cmd = rps ? velocityDuty(t.rotor.motor, t.rotor.omega, rps * TAU, 0.12, 0.2) : null;
+  rotorLoop(t.rotor, rps || null);
   t.rollers.cmd = rollers || null;
 }
 const launcher = (t, rad) => { t.launcher.cmd = rad > 0 ? velocityDuty(t.launcher.motor, t.fly.omega, rad, 12 / (t.launcher.motor.m.free / TAU), 0.3) : null; };
@@ -374,6 +414,49 @@ const tests = {
       w.free();
     }
   },
+  // one FUEL on the floor in the hook's way (HIT_R m out from the axis, 0.19; HIT_A rad round from
+  // the channel, 1.5, ahead of it), the rotor turning from rest at ROT rps (2.25, feeding: the
+  // rollers and the flywheel on; -0.15 or any other under 0: turning back as it does when it isn't
+  // feeding, the rollers coasting, the FUEL put HIT_A behind the channel instead), for HIT_T s (2.5): each
+  // 0.05 s the rotor's speed and current, where the FUEL is (the rotor's frame: u out along its
+  // channel, w ahead; y) and what holds the rotor back (torqueTally). HIT_SW=t: at t s it stops
+  // feeding and turns back to agitate (AGITATE rps, -0.15), as it does in play once it's shot
+  hit() {
+    const rps = Number(process.env.ROT ?? ROTOR_RPS), rr = Number(process.env.HIT_R ?? 0.19), ah = Number(process.env.HIT_A ?? 1.5), SW = Number(process.env.HIT_SW ?? Infinity);
+    const r = rig({ hood: 150, yaw: Math.PI });
+    const w = world({ carpet: false });
+    const a = CH + Math.sign(rps) * ah;
+    const b = ball(w, AXIS[0] + rr * Math.cos(a), YB + 0.001, AXIS[1] + rr * Math.sin(a));
+    const watch = shotWatch(r), tq = torqueTally(r);
+    let slow = Infinity, at = 0, win = { turn: 0, lo: Infinity, hi: -Infinity, A: 0 };
+    console.log(`4414's rotor at ${rps} rps from rest, one FUEL on the floor ${rr} m out, ${ah} rad ${rps > 0 ? 'ahead of' : 'behind'} the channel:`);
+    for (let k = 0; k < Number(process.env.HIT_T ?? 2.5) / DT; k++) {
+      const now = k * DT >= SW ? AGITATE : rps;
+      launcher(r.t, now > 0 ? 400 : 0);
+      feed(r, now, now > 0 ? ROLLERS : 0);
+      const live = [b].filter((q) => q.translation().y < 3);
+      r.step(live); w.step(); watch.check(live, k * DT); tq.add(live);
+      const om = r.t.rotor.omega / TAU;
+      if (k * DT > 0.3 && Math.abs(om) < Math.abs(slow)) { slow = om; at = k * DT; }
+      win.turn += om * DT; win.lo = Math.min(win.lo, om); win.hi = Math.max(win.hi, om); win.A = Math.max(win.A, Math.abs(r.t.rotor.motor.current));
+      if (k % 6 === 5) {
+        const p = b.translation(), q = rotorPoint([p.x, p.y, p.z], -r.phi), u = q[2] - AXIS[1], ww = -(q[0] - AXIS[0]);
+        console.log(`   ${((k + 1) * DT).toFixed(2)} s: rotor ${(win.turn / (6 * DT)).toFixed(2)} rps (${win.lo.toFixed(2)}..${win.hi.toFixed(2)}; up to ${win.A.toFixed(0)} A); ${live.length ? `FUEL u ${u.toFixed(3)} w ${ww.toFixed(3)} y ${p.y.toFixed(3)}: ${names(r, b) || 'nothing'}` : 'shot'}; ${tq.report(4)}`);
+        win = { turn: 0, lo: Infinity, hi: -Infinity, A: 0 };
+      }
+    }
+    console.log(`  slowest after 0.3 s: ${slow.toFixed(2)} rps at ${at.toFixed(2)} s; ${watch.shots.length ? `shot at ${watch.shots[0].t.toFixed(2)} s` : 'not shot'}`);
+    w.free();
+  },
+  // one FUEL set down still against the hook's rollers (s along it from the tip: REST=s,s,...), the
+  // rotor turning slowly, back as it does when it isn't feeding and forward as slowly (AGITATE=rps,
+  // ...: -0.15,0.15), the TTB stack coasting: how far it goes along the hook's face in 3 s (in the
+  // rotor's frame), how much of the time it's on the rollers and how far they turn. Free rollers
+  // let it drift along the face; held by their bearings it should go round with the hook
+  rest() {
+    const ss = (process.env.REST ?? '0.15,0.3,0.45,0.6,0.7').split(',').map(Number);
+    for (const rps of (process.env.AGITATE ?? '-0.15,0.15').split(',').map(Number)) restRun(ss, rps);
+  },
   // one FUEL at the hook's root, the rotor held still, the rollers on: in, round the bend, up
   bend() {
     const r = rig({ hood: 140, yaw: Math.PI });
@@ -471,6 +554,33 @@ const tests = {
   },
 };
 
+// (rest: its FUEL one at a time, the rotor at rps)
+function restRun(ss, rps) {
+  // (the face's length from the tip to s, and the s nearest a point in the rotor's frame)
+  const pts = Array.from({ length: 401 }, (_, i) => { const { r, a } = hookCurve(i / 400); return [AXIS[0] + r * Math.cos(a), AXIS[1] + r * Math.sin(a)]; });
+  const arc = [0]; for (let i = 1; i < pts.length; i++) arc.push(arc[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
+  const nearest = (x, z) => { let k = 0, d = Infinity; pts.forEach((p, i) => { const e = Math.hypot(p[0] - x, p[1] - z); if (e < d) { d = e; k = i; } }); return { s: k / 400, at: arc[k], d }; };
+  const out = [];
+  for (const s0 of ss) {
+    const r = rig({ hood: 150, yaw: Math.PI });
+    const w = world({ carpet: false });
+    const { r: rr, a } = hookBack(s0, -(R + 0.001)), b = ball(w, AXIS[0] + rr * Math.cos(a), YB + 0.001, AXIS[1] + rr * Math.sin(a));
+    const hr = r.wh.feed.filter((x) => x.name === 'hook rollers'), turned = hr.map(() => 0);
+    const n0 = nearest(b.translation().x, b.translation().z);
+    let onHook = 0, k = 0;
+    for (; k < 3 / DT; k++) {
+      feed(r, rps, 0);
+      r.step([b]); w.step();
+      hr.forEach((x, i) => { turned[i] += Math.abs(x.shaft.omega) * DT; });
+      if (r.path.contacts.some((c) => c.ball === b && c.wheel.name === 'hook rollers')) onHook++;
+    }
+    const q = b.translation(), p = rotorPoint([q.x, q.y, q.z], -r.phi), n1 = nearest(p[0], p[2]);
+    out.push(`  from s ${s0}: ${(100 * (n1.at - n0.at)).toFixed(1)} cm along the face (to s ${n1.s.toFixed(2)}), ${(100 * (n1.d - n0.d)).toFixed(1)} cm off it; on the rollers ${((100 * onHook) / k).toFixed(0)}% of the time, its rollers turned ${Math.max(...turned).toFixed(1)} rad at most; at the end ${names(r, b) || 'touching nothing on the rotor'}`);
+    w.free();
+  }
+  console.log(`4414's hook: a lone FUEL set down against its rollers, the rotor at ${rps} rps for 3 s, the TTB stack coasting (the rollers' bearings ${(HOOK.rollers.friction * 1000).toFixed(0)} mN·m):\n${out.join('\n')}`);
+}
+
 // FUEL low round the rotor in its frame (u, w, height, speed), into SNAPFILE: nine frames from SNAP s
 function snap(r, balls, t) {
   if ((r.snaps ??= []).length >= 9) return;
@@ -490,10 +600,11 @@ function dumpRun(seed = 1) {
     const step = (n, run) => { for (let i = 0; i < n; i++) { if (run) run(); const live = balls.filter((b) => b.translation().y < 3); r.step(live); w.step(); } };
     fill(w, balls, (n) => step(n, () => { launcher(r.t, rad); feed(r, -0.15, 0); }), Number(process.env.LAYERS ?? 8), 0.47, seed);
     const n0 = balls.filter(inRobot).length;
-    const watch = shotWatch(r);
+    const watch = shotWatch(r), tq = process.env.ROTORLOG ? torqueTally(r) : null;
     let minFly = Infinity;
     for (let k = 0; k < 10 / DT; k++) {
       step(1, () => { launcher(r.t, rad); feed(r); r.t.primary.cmd = r.t.bar.cmd = process.env.INTAKE === '0' ? null : 1; });
+      tq?.add(balls);
       watch.check(balls, k * DT);
       if (watch.shots.length) minFly = Math.min(minFly, r.t.fly.omega);
       if (process.env.COLUMN && k % 30 === 29) {
@@ -561,7 +672,7 @@ function dumpRun(seed = 1) {
         if (w < rl.min) { rl.min = w; rl.at = r.t.rotor.motor.current; }
         rl.maxA = Math.max(rl.maxA, Math.abs(r.t.rotor.motor.current));
         (r.rollLog ??= []).push([RPM(r.t.ttb.omega), Math.abs(r.t.rollers.motor.current) / r.t.rollers.motor.count, watch.shots.length]);
-        if (k % 12 === 11) { console.log(`   ${((k + 1) * DT).toFixed(1)} s: rotor ${w.toFixed(2)} rps (slowest ${rl.min.toFixed(2)} at ${rl.at.toFixed(0)} A; up to ${rl.maxA.toFixed(0)} A), ${watch.shots.length} shot`); r.rotorLog = null; }
+        if (k % 12 === 11) { const q = tq.report(Number(process.env.ROTORLOG) > 1 ? Number(process.env.ROTORLOG) : 3, 0.5); console.log(`   ${((k + 1) * DT).toFixed(1)} s: rotor ${w.toFixed(2)} rps (slowest ${rl.min.toFixed(2)} at ${rl.at.toFixed(0)} A; up to ${rl.maxA.toFixed(0)} A), ${watch.shots.length} shot; on it, ${q}`); r.rotorLog = null; }
       }
       if (process.env.TIMELINE && k % 60 === 59) console.log(`   ${((k + 1) * DT).toFixed(1)} s: ${watch.shots.length} shot; rotor ${(r.t.rotor.omega / TAU).toFixed(2)} rps ${r.t.rotor.motor.current.toFixed(0)} A, rollers ${RPM(r.t.ttb.omega).toFixed(0)} rpm ${r.t.rollers.motor.current.toFixed(0)} A, flywheel ${r.t.fly.omega.toFixed(0)}`);
     }

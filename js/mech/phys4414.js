@@ -58,6 +58,13 @@ export function launchFor(d) {
   return { v: e[3], el: e[4] };
 }
 
+// the rotor's velocity loop, on its Talon (kV, kP as 604's; closed at the controller's 1 kHz, in
+// Shaft.integrate: once a 120 Hz step it chattered at its current limit), at rps; null: coast
+export function rotorLoop(shaft, rps) {
+  shaft.vel = rps === null ? null : { target: rps * TAU, kV: 0.12, kP: 0.2 };
+  shaft.cmd = rps === null ? null : 0;
+}
+
 export class Physical4414 extends PhysicalRobot {
   constructor(robot) {
     const t = build4414(), w = wheels4414(t), s = pathSurfaces4414(t), sw = shooterWheels(t);
@@ -86,6 +93,7 @@ export class Physical4414 extends PhysicalRobot {
     this.va = null;
     for (const tr of [this.t.rollers, this.t.launcher]) { tr.omega = 0; tr.cmd = null; }
     for (const sh of [this.t.rotor, this.t.primary, this.t.bar]) { sh._omega = 0; sh.cmd = 0; }
+    this.t.rotor.vel = null;
   }
 
   // the box's front now
@@ -206,8 +214,7 @@ export class Physical4414 extends PhysicalRobot {
   // turning back slowly; a stall backs either out
   _rotor(dt, on, unjam) {
     const T = this.t, rotor = T.rotor, rollers = T.rollers;
-    if (!on) { rotor.cmd = 0; rollers.cmd = 0; return; }
-    const loop = (rps) => velocityDuty(rotor.motor, rotor.omega, rps * TAU, 0.12, 0.2);
+    if (!on) { rotorLoop(rotor, null); rotor.cmd = 0; rollers.cmd = 0; return; }
     // (stalls: the rotor over 70 A under 2 rad/s, the rollers over 50 A a motor under a fifth of
     // their speed, for 0.3 s)
     if (this.feedingNow && Math.abs(rotor.motor.current) > 70 && Math.abs(rotor.omega) < 2) this.rotorJam += dt; else this.rotorJam = 0;
@@ -216,8 +223,8 @@ export class Physical4414 extends PhysicalRobot {
     if (this.feedingNow && Math.abs(rollers.motor.current) / rollers.motor.count > 50 && rollers.omega < 0.2 * free) this.rollerJam += dt; else this.rollerJam = 0;
     if (this.rollerJam > 0.3) { this.rollerBack = 0.15; this.rollerJam = 0; this.r.stats.unjams = (this.r.stats.unjams || 0) + 1; }
     this.rotorBack = Math.max(0, this.rotorBack - dt); this.rollerBack = Math.max(0, this.rollerBack - dt);
-    if (unjam) { rotor.cmd = loop(-0.5); rollers.cmd = -0.5; return; }
-    rotor.cmd = loop(this.rotorBack > 0 ? -1 : this.feedingNow ? ROTOR_RPS : AGITATE_RPS);
+    if (unjam) { rotorLoop(rotor, -0.5); rollers.cmd = -0.5; return; }
+    rotorLoop(rotor, this.rotorBack > 0 ? -1 : this.feedingNow ? ROTOR_RPS : AGITATE_RPS);
     rollers.cmd = this.rollerBack > 0 ? -0.6 : this.feedingNow ? 1 : null;
   }
 

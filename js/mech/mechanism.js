@@ -32,7 +32,7 @@
 import { FUEL } from '../constants.js';
 import { MOTORS } from '../drivetrain.js';
 
-const R = FUEL.radius, MB = FUEL.mass;
+const R = FUEL.radius, MB = FUEL.mass, TAU = 2 * Math.PI;
 const IB = 0.4 * MB * R * R;         // solid foam sphere
 const ZETA = 0.25;                    // foam damping ratio (a free FUEL bounces back ~45%)
 const MU_FREE = 0.04;                 // an omni/mecanum wheel's rollers across their free direction
@@ -110,6 +110,7 @@ export class Shaft {
     this.lo = -Infinity; this.hi = Infinity; // (a hard stop it's against: stop())
     this._free = 0;
     this.load = 0; // a steady torque on it besides its motor's (N·m: an arm's weight), in integrate
+    this.vel = null; // (its controller's velocity loop, in place of cmd: integrate)
   }
   // Against a hard stop this step (an arm down on its stop): its speed can't go below lo or above
   // hi (rad/s; 0 on the stop's side), the stop taking whatever would push it on through. The speed
@@ -128,19 +129,25 @@ export class Shaft {
     else if (this.lo === -Infinity && this.hi === Infinity) this._omega += L / this.J;
     else { this._free += L / this.J; this._omega = Math.min(this.hi, Math.max(this.lo, this._free)); }
   }
+  // Its motor controller's velocity loop, closed on the controller at its own rate (rate Hz: a
+  // Talon FX's 1 kHz) rather than once a step: vel = { target (rad/s at the output), kV, kP (volts
+  // per motor rps, as CTRE's VelocityVoltage, over 12 V), rate }; null (the default) for the plain
+  // duty in cmd. Closed once a 120 Hz step instead, a stiff motor on a heavy shaft overshoots: 4414's
+  // Dye Rotor (an X60 through 36.4:1, 0.13 kg·m² with its rotor) gains 0.53 rps a step at its 80 A
+  // limit, more than the error that puts it there, so settling from feeding (2.25 rps) to agitating
+  // (-0.15) it chattered +0.08 / -0.45 rps step to step at +-80 A for a second or more.
+  // (cmd is left at the last sub-step's duty)
   // the motor's step, with back-EMF taken implicitly
   integrate(dt, V = 12) {
     if (this.train) return;
     const J = this.J;
-    // (no motor, or one in coast: its windings open, it only drags)
-    if (!this.motor || this.cmd === null) {
-      this._omega = (this._omega + (dt * this.load) / J) / (1 + (dt * this.drag) / J);
-      if (this.motor) this.motor.current = 0;
-    } else {
-      const { tau, limited } = this.motor.torque(this._omega, this.cmd, V);
-      const kd = limited ? 0 : this.motor.slope;
-      this._omega = (J * this._omega + dt * (tau + this.load + kd * this._omega)) / (J + dt * (kd + this.drag));
-    }
+    if (this.vel && this.motor) {
+      const { target, kV, kP, rate = 1000 } = this.vel, m = this.motor, n = Math.max(1, Math.ceil(dt * rate)), tgt = (target * m.ratio) / TAU;
+      for (let i = 0; i < n; i++) {
+        this.cmd = Math.min(1, Math.max(-1, (kV * tgt + kP * (tgt - (this._omega * m.ratio) / TAU)) / 12));
+        this._drive(dt / n, V, J);
+      }
+    } else this._drive(dt, V, J);
     // (against a stop: it takes what would drive the shaft on into it)
     if (this.lo !== -Infinity || this.hi !== Infinity) { this._free = this._omega; this._omega = Math.min(this.hi, Math.max(this.lo, this._omega)); }
     // (its bearings' friction: up to friction x dt of angular impulse against whichever way the
@@ -152,6 +159,17 @@ export class Shaft {
     } else this._B = 0;
   }
   _fric(acc) { const p = this._p0 + acc; this._omega = (Math.sign(p) * Math.max(0, Math.abs(p) - this._B)) / this.J; }
+  _drive(dt, V, J) {
+    // (no motor, or one in coast: its windings open, it only drags)
+    if (!this.motor || this.cmd === null) {
+      this._omega = (this._omega + (dt * this.load) / J) / (1 + (dt * this.drag) / J);
+      if (this.motor) this.motor.current = 0;
+    } else {
+      const { tau, limited } = this.motor.torque(this._omega, this.cmd, V);
+      const kd = limited ? 0 : this.motor.slope;
+      this._omega = (J * this._omega + dt * (tau + this.load + kd * this._omega)) / (J + dt * (kd + this.drag));
+    }
+  }
 }
 
 // A gear train: one motor turning several shafts through belts, chain and gears at fixed ratios
@@ -452,6 +470,7 @@ export class Mechanism {
   // the world mustn't also collide them with each other)
   step(dt, balls, together = null) {
     this.together = together ? new Set(together) : null;
+    if (this.tally) this.tally.step = new Map();
     for (const s of this.shafts) s.integrate(dt, this.V);
     for (const t of new Set(this.shafts.map((s) => s.train).filter(Boolean))) t.integrate(dt, this.V);
     const fr = this._frame();
@@ -644,6 +663,18 @@ export class Mechanism {
     return C;
   }
 
+  // (a diagnostic, off unless set: tally = { shaft }, and each step's angular impulse (N·m·s) about
+  // that shaft's axis from each contact, by the wheel or surface and the FUEL, its own (L) and
+  // through a pivot it rides (Lp), in tally.step: what holds a rotor back, read by a bench)
+  _tally(ct, L, Lp) {
+    if (!L && !Lp) return;
+    const m = (this.tally.step ??= new Map()), k = ct.W1.wh, byB = m.get(k) ?? new Map();
+    m.set(k, byB);
+    const e = byB.get(ct.st.b) ?? { L: 0, Lp: 0, n: ct.n };
+    e.L += L; e.Lp += Lp; e.n = ct.n;
+    byB.set(ct.st.b, e);
+  }
+
   // the contacts' impulses over a step of h (projected Gauss-Seidel)
   _solve(C, h, frameVel, reaction) {
     // relative velocity of the ball's surface over the wheel's at the contact
@@ -664,8 +695,10 @@ export class Mechanism {
         st2.w = add(st2.w, mul(cross(ct.rb2, u), -lam / IB));
         return;
       }
-      W1.wh.shaft.impulse(-lam * dot(cross(rw, u), W1.a));
+      const L = -lam * dot(cross(rw, u), W1.a);
+      W1.wh.shaft.impulse(L);
       if (ct.piv) ct.piv.shaft.impulse(-lam * dot(cross(ct.piv.r, u), ct.piv.a));
+      if (this.tally) this._tally(ct, W1.wh.shaft === this.tally.shaft ? L : 0, ct.piv && ct.piv.shaft === this.tally.shaft ? -lam * dot(cross(ct.piv.r, u), ct.piv.a) : 0);
       reaction.push([x, mul(u, -lam)]);
     };
     for (let it = 0; it < this.iterations; it++) {
