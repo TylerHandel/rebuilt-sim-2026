@@ -127,8 +127,10 @@ export const FEED = {
   // the stack: two 3in TTB urethane wheels on a shaft standing up on the channel's leading side (the
   // inside of the hook's curve), u out along it, just outside the hub, and the 3in omni over them
   // ("to allow balls to fall down smoothly into the 3in TTB urethane wheels"), 0.8in into the FUEL
-  // against the hook's end (estimates: the renders)
-  ttb: { u: 0.105, r: 1.5 * IN, ys: [0.16, 0.197], omniY: 0.234, wid: 0.024, squeeze: 0.028 },
+  // against the hook's end (estimates: the renders). (The dump, six fills: at 0.8in 10.3 FUEL/s
+  // through the middle, its X60s at about 27 A, the stack at 88-97% of its free speed; at 1.1in,
+  // 9.8, 33 A; at 0.5in, slower still)
+  ttb: { u: 0.105, r: 1.5 * IN, ys: [0.16, 0.197], omniY: 0.234, wid: 0.024, squeeze: 0.8 * IN },
   // the entrance: under the 1.25in omnis on their shaft across it (driven: their undersides run in),
   // round the bend up into the hub
   omni: { r: 0.625 * IN, squeeze: 0.003, wid: 0.15 },

@@ -466,7 +466,7 @@ const tests = {
   },
   dump() {
     const res = [];
-    for (let seed = 1; seed <= Number(process.env.DSEEDS ?? 1); seed++) res.push(dumpRun(seed));
+    for (let seed = 1 + Number(process.env.SEED0 ?? 0); seed <= Number(process.env.SEED0 ?? 0) + Number(process.env.DSEEDS ?? 1); seed++) res.push(dumpRun(seed));
     if (res.length > 1) console.log(`  over ${res.length} fills: through the middle ${res.map((x) => x.mid.toFixed(1)).join(', ')} (median ${med(res.map((x) => x.mid)).toFixed(1)}); its best second ${res.map((x) => x.best).join(', ')} (median ${med(res.map((x) => x.best))}); dumped ${res.map((x) => x.n + '/' + x.n0).join(', ')}`);
   },
 };
@@ -560,6 +560,7 @@ function dumpRun(seed = 1) {
         const w = r.t.rotor.omega / TAU, rl = (r.rotorLog ??= { min: Infinity, maxA: 0 });
         if (w < rl.min) { rl.min = w; rl.at = r.t.rotor.motor.current; }
         rl.maxA = Math.max(rl.maxA, Math.abs(r.t.rotor.motor.current));
+        (r.rollLog ??= []).push([RPM(r.t.ttb.omega), Math.abs(r.t.rollers.motor.current) / r.t.rollers.motor.count, watch.shots.length]);
         if (k % 12 === 11) { console.log(`   ${((k + 1) * DT).toFixed(1)} s: rotor ${w.toFixed(2)} rps (slowest ${rl.min.toFixed(2)} at ${rl.at.toFixed(0)} A; up to ${rl.maxA.toFixed(0)} A), ${watch.shots.length} shot`); r.rotorLog = null; }
       }
       if (process.env.TIMELINE && k % 60 === 59) console.log(`   ${((k + 1) * DT).toFixed(1)} s: ${watch.shots.length} shot; rotor ${(r.t.rotor.omega / TAU).toFixed(2)} rps ${r.t.rotor.motor.current.toFixed(0)} A, rollers ${RPM(r.t.ttb.omega).toFixed(0)} rpm ${r.t.rollers.motor.current.toFixed(0)} A, flywheel ${r.t.fly.omega.toFixed(0)}`);
@@ -592,6 +593,12 @@ function dumpRun(seed = 1) {
     // (and its best second: as many shot in any one second as it manages, the load still coming)
     const best = s.reduce((m, x, i) => Math.max(m, s.slice(i).filter((y) => y < x + 1).length), 0);
     console.log(`4414 dumps ${s.length} of ${n0}: ${in1} in the first second, ${best} in its best, ${span ? ((s.length - 1) / span).toFixed(1) : 0} FUEL/s over the whole dump, ${midRate.toFixed(1)} through its middle (their gap-free 12-14 BPS)`);
+    // (ROTORLOG: the TTB stack's speed against its free speed while it feeds, and its X60s' current)
+    if (process.env.ROTORLOG && r.rollLog?.length) {
+      const L = r.rollLog.filter((q) => q[2] > 0 && q[2] < s.length), q = (a, f) => [...a].sort((x, y) => x - y)[Math.floor(f * (a.length - 1))];
+      const rpm = L.map((x) => x[0]), A = L.map((x) => x[1]), free = RPM(r.t.rollers.motor.freeSpeed * r.t.ttb.k);
+      console.log(`   the TTB stack while it feeds: free ${free.toFixed(0)} rpm; median ${q(rpm, 0.5).toFixed(0)} (${(100 * q(rpm, 0.5) / free).toFixed(0)}%), 10th percentile ${q(rpm, 0.1).toFixed(0)} rpm (${(100 * q(rpm, 0.1) / free).toFixed(0)}%); its X60s median ${q(A, 0.5).toFixed(0)} A, 90th ${q(A, 0.9).toFixed(0)} A, at 60 A ${(100 * A.filter((x) => x > 59).length / A.length).toFixed(0)}% of the time`);
+    }
     return { n: s.length, n0, mid: midRate, best };
 }
 
