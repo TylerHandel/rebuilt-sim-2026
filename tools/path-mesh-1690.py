@@ -99,8 +99,8 @@ TURNS = re.compile(r'^1690-26-321-(0[67]|1[0-5])|^1690-26-315-0[3-7]|^1690-26-31
                    r'^Part 156$|^1690-26-432-|^1690-26-443-08A|^Part 70$|^1690-26-313-09A')
 CARRIAGE = re.compile(r'^1690-26-25[12]-|X60 Brushless Motor \(5\)|^Part 10[4-8]$|^Part 153$|^Part 157|^12-18-4|^motor pulley')
 KICK = re.compile(r'^Part 15[49]$')
-HOOD = re.compile(r'^1690-26-44\d|^1690-26-451-05A')
-TURRET_RX = re.compile(r'^1690-26-43\d|^1690-26-451|Kraken X60 Brushless Motor \(3\)|X60 Brushless Motor-Mirrored|X44 Brushless Motor-Mirrored|'
+HOOD = re.compile(r'^1690-26-44\d|^1690-26-451-05A|X44 Brushless Motor-Mirrored')   # (the hood's actuator rides on its arm)
+TURRET_RX = re.compile(r'^1690-26-43\d|^1690-26-451|Kraken X60 Brushless Motor \(3\)|X60 Brushless Motor-Mirrored|'
                        r'^Part 1(1[7-9]|2\d)(-Mirrored)?$|^1690-26-423-0[67]A')
 # (and the two 411-10A spacers up on the turret, over its bearing; the third is under it, on the deck)
 ON_TURRET = lambda n0, T: TURRET_RX.search(n0) or (n0.startswith('1690-26-411-10A') and T[..., 1].mean() > 0.4)

@@ -2217,7 +2217,9 @@ function build1678(cfg, alliance) {
 // energy chain's tray and spring, the electronics box), the hopper's polycarbonate side and back
 // panels (1690-panels: clear; their aluminum corner brackets stay in the body) and its polycarbonate
 // lattice top plate (1690-top, bowed by the load), the turret (its base and plates, the two X60s), the
-// hood (its lattice arms and printed "hollow hood", turning about the 4in wheel's axle), the intake's
+// hood (its lattice arms and printed "hollow hood" and its actuator riding on them: the X44, its
+// VersaPlanetary and bevel pair; turning about the 4in wheel's axle), the actuator's two 12T pinions
+// (1690-pinions: they walk the racks on the turret's side plates as the hood turns), the intake's
 // carriage (its polycarbonate lattice U-frame, clear; the black side bars, the rollers' motor and
 // belts) and the kicker bar's arms. The
 // X_T has no mates: the carriage slides out and down 12 deg (js/mech/r1690.js INTAKE.slide), the
@@ -2307,6 +2309,14 @@ function build1690(cfg, alliance) {
   const hoodCad = new THREE.Group();
   hoodCad.rotation.y = -D.YAW0;
   hood.add(hoodCad);
+  // (the hood's actuator rides on its arm: its X44, VersaPlanetary and bevel pair are in the hood's
+  // CAD; the cross shaft's two 12T pinions (1690-pinions, origin on their axis, the 2in roller's) walk
+  // the racks on the turret's side plates as the hood turns, turning on its arm the hood's turn times
+  // the racks' pitch radius over theirs: SHOOTER.hoodRatio's 19.333 after the 4:1)
+  const pinions = new THREE.Group();
+  pinions.position.set(-0.2552 + 0.0701, 0.4235 - 0.464, -0.2412 + 0.1587);
+  hoodCad.add(pinions);
+  const pinionAxis = new THREE.Vector3(Math.sin(D.YAW0), 0, Math.cos(D.YAW0));
   const hoodArm = new THREE.Group();
   hoodArm.rotation.z = (D.HOOD0 * Math.PI) / 180;
   hood.add(hoodArm);
@@ -2388,6 +2398,7 @@ function build1690(cfg, alliance) {
   cadPart(root, 'robots/1690-body.glb', () => { drawn.visible = false; });
   cadPart(turretCad, 'robots/1690-turret.glb', () => { tDrawn.visible = false; });
   cadPart(hoodCad, 'robots/1690-hood.glb', () => { hDrawn.visible = false; hoodArm.remove(hDrawn); });
+  cadPart(pinions, 'robots/1690-pinions.glb', () => {});
   cadPart(carriage, 'robots/1690-carriage.glb', () => { cDrawn.visible = false; });
   cadPart(kick, 'robots/1690-kick.glb', () => { kDrawn.visible = false; });
 
@@ -2414,6 +2425,7 @@ function build1690(cfg, alliance) {
     wheel.rotation.z -= (mp ? mp.wheel : st.flywheel * 9) * dt;
     const h = mp ? mp.hood : ((st.hoodDeg + 90) * Math.PI) / 180;
     hood.rotation.z = h - (D.HOOD0 * Math.PI) / 180;
+    pinions.quaternion.setFromAxisAngle(pinionAxis, hood.rotation.z * (S.hoodRatio / 4));
     for (const w of feeder) w.rotation.z += (mp ? mp.feeder : st.flywheel * 6) * dt;
     const bow = mp?.bow ?? 0;
     bowPlate(bow);
