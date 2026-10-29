@@ -64,6 +64,7 @@ Flywheels stay spun up for 1.5 s after you release the trigger, so stop-and-go s
 - With your BUMPERS in your ALLIANCE ZONE, it targets your HUB.
 - Anywhere else it lobs FUEL into the nearest corner of your ALLIANCE ZONE, because scoring from outside is a MAJOR FOUL (G407).
 - Passes don't wait for a perfect shot: they go as soon as the FUEL would come down on your half of the FIELD, clear of the walls and the HUBS.
+- A pass lobs at 55° where that reaches, and flatter (down toward the angle that carries farthest, about 41-44° in the sim's drag model) where it doesn't. A pass from out of reach still goes: flat out at the robot's longest throw, aimed along the line to the pass point, and the FUEL come down short. It waits for the flywheel to be flat out and the hood at that angle, and it may come down short anywhere on the FIELD (no rule says where a pass lands), still clear of the walls and of both HUBS. A robot built of its own mechanisms (2910, 1678, 604, 4414, 1114, 581, 1690, 1706, 8793, 341) sets the speed and hood itself, from its own pass table (past its last row: that row). Where that asks more of its flywheel than its motors give (2910's 6000 RPM row, 604's 600 rad/s ceiling), it fires once the flywheel is as fast as it gets (`FlatOut` in `js/mech/physical.js`). How far each robot's passes go from 10, 13 and 15 m out: `tools/pass-range.mjs`.
 
 Every robot shoots on the move: the solver leads the target by the robot's velocity, including air drag.
 
@@ -96,7 +97,7 @@ In **1 v 1** an AI robot plays the other ALLIANCE (in **3 v 3**, up to five of t
 
 | Strategy | What it does |
 |---|---|
-| Scorer | Runs its own cycles. It collects FUEL, and **steals** from your ALLIANCE ZONE when it's worth it (every FUEL taken counts twice: one fewer for you, one more for it), then shoots on the move once back in its zone. **Off shifts:** it has one goal, to get as much FUEL onto its side as possible. It collects in the NEUTRAL ZONE and passes everything into its own zone, never over its HUB. It passes in big batches (it collects a load, spins the flywheel up as the load nears the batch size, then dumps it all at once), so a drum robot turns once and any shooter spins up once per batch instead of once per FUEL. Near the end of the shift it fills its hopper and heads home, then works through that stockpile when its HUB turns on. |
+| Scorer | Runs its own cycles. It collects FUEL, and **steals** from your ALLIANCE ZONE when it's worth it (every FUEL taken counts twice: one fewer for you, one more for it), then shoots on the move once back in its zone. **Off shifts:** it has one goal, to get as much FUEL onto its side as possible. It collects in the NEUTRAL ZONE and passes everything into its own zone from wherever it is, never over its HUB (from out of its robot's reach the FUEL fall short, still closer to home). It passes in big batches (it collects a load, spins the flywheel up as the load nears the batch size, then dumps it all at once), so a drum robot turns once and any shooter spins up once per batch instead of once per FUEL. Near the end of the shift it fills its hopper and heads home, then works through that stockpile when its HUB turns on. |
 | Defense | Tries to **keep you out of your zone**. It guards the BUMP or TRENCH lane you'd use to get in and **rams** you back when you come close. If you get in, it shoves you off your shot. It backs off 72 in before a PIN becomes a foul, and leaves you alone at your TOWER in END GAME. |
 | Hybrid | Shift-aware. It defends during the SHIFTS when only your HUB is active and scores the rest of the time. |
 
@@ -837,6 +838,7 @@ tools/train.mjs             self-play trainer (Node); tools/match.mjs runs one h
 tools/headless.mjs          headless match runner; tools/node-env.mjs + resolve-hook.mjs load the game in Node
 tools/auto-search.mjs       finds each robot's best AUTO (tools/auto-eval.mjs, auto-worker.mjs)
 tools/bench.mjs, tools/intake-test.mjs   regression checks: AI matches, and a straight-line intake run
+tools/pass-range.mjs        long passes: each robot from 10, 13 and 15 m out, where its FUEL come down
 tools/ai-trips.mjs          how full the scripted Scorers are when they head in, and their points
 js/nn/                      neural-net driver: observations, policy (plain-JS MLP), in-game driver, recorder
 tools/nn/                   neural-net trainer (train.py, PyTorch) and its simulation worker (worker.mjs)
