@@ -144,6 +144,11 @@ export const INTAKE = {
   frame: { front: 0.617, sides: 0.362, top: 0.482 },
   kick: { pivot: [0.2723, 0.1703], tube: [0.1499, 0.3283, 0.0127], fall: -163.0, width: 0.675 },
 };
+// the carriage's drive: its X44 through a MAXPlanetary 4:1 and 18T:28T (45T 5M) to a cross shaft
+// whose 28T 20 DP pinions (0.7in pitch radius) run in the side bars' racks; what it moves (the
+// carriage, its rollers, their X60 and the U-frame: ~4 kg, an estimate from its parts' volumes); its
+// travel (Closed -> Open)
+export const SLIDE = { pinion: 0.7 * IN, ratio: (4 * 28) / 18, mass: 4, travel: Math.hypot(...INTAKE.slide), dir: [INTAKE.slide[0] / Math.hypot(...INTAKE.slide), INTAKE.slide[1] / Math.hypot(...INTAKE.slide), 0] };
 export const PRELOAD = [0, 1, 2, 3, 4, 5, 6, 7].map((k) => [0.21 - 0.155 * Math.floor(k / 4), 0.36, -0.24 + 0.155 * (k % 4)]);
 
 // ------------------------------------------------------------------ the drives
@@ -154,6 +159,8 @@ export function build1690() {
   const intake = new Train({ name: 'intake rollers', motor: new Motor('krakenX60', { ratio: INTAKE.ratio, ...lim }) });
   const rollers = INTAKE.rollers.map((_, i) => intake.add(new Shaft({ name: `intake roller ${i ? 'top' : 'bottom'}`, inertia: 1.5e-4 }), -1));
   const tube = new Shaft({ name: 'kicker bar (free)', inertia: 4e-5, drag: 2e-4 });
+  // (the carriage on its racks: + out; the bars' rollers' friction, an estimate)
+  const slide = new Shaft({ name: 'carriage racks (pinions)', motor: new Motor('krakenX44', { ratio: SLIDE.ratio, statorLimit: 40, supplyLimit: 30 }), inertia: SLIDE.mass * SLIDE.pinion ** 2, drag: 0.005, friction: 0.05 });
   const floor = new Train({ name: 'roller floor', motor: new Motor('krakenX60', { ratio: FLOOR.ratio, ...lim }) });
   FLOOR.at.forEach((_, i) => floor.add(new Shaft({ name: `floor roller ${i + 1}`, inertia: 1.2e-4 }), FLOOR.k[i]));
   const top = TOP.at.map((_, i) => floor.add(new Shaft({ name: `top roller ${i + 1}`, inertia: 1.2e-4 }), TOP.k[i]));
@@ -165,7 +172,7 @@ export function build1690() {
   const wheel = shooter.add(new Shaft({ name: '4in shooter wheel', inertia: SHOOTER.J, drag: 2e-4 }), 1);
   // (the hood's wheels on the shooter's train: geared to its wheel)
   const hoodWheels = ['upper', 'lower'].map((k) => shooter.add(new Shaft({ name: `hood wheel ${k}`, inertia: 4e-5, drag: 1e-4 }), SHOOTER.feeder.k));
-  return { intake, rollers, tube, floor, top, belts, vkick, feed, feedShafts, shooter, wheel, hoodWheels };
+  return { intake, rollers, tube, slide, floor, top, belts, vkick, feed, feedShafts, shooter, wheel, hoodWheels };
 }
 
 const Z = [0, 0, 1];
@@ -252,7 +259,9 @@ export function pathSurfaces1690(t, mesh = PATH) {
   // the belts: their runs slide along -z as their shafts turn (the 24T pulleys' pitch radius, a radian)
   const belt = (k, m) => { const sf = s(`${k} belt`, m, { mu: MU.belt, tread: TREAD.belt }).onSlide(t.belts[k === 'bottom' ? 0 : 1], [0, 0, -1]); sf.slideK = BELT.pitch; return sf; };
   const bottom = belt('bottom', beltRun(BELT.bottom.y, ...BELT.bottom.z, true)), top = belt('top', beltRun(BELT.top.y, ...BELT.top.z, false));
-  const carriage = cad('carriage');
+  // (the carriage on its racks: what FUEL push on its U-frame pushes back on its X44)
+  const carriage = cad('carriage').onSlide(t.slide, SLIDE.dir);
+  carriage.slideK = SLIDE.pinion;
   const kick = cad('kick', { pos: [...INTAKE.kick.pivot, 0] });
   const turret = cad('turret', { mu: MU.pla, pos: [TURRET.at[0], 0, TURRET.at[1]] });
   const hood = cad('hood', { mu: MU.pla });

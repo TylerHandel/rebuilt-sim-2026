@@ -10,20 +10,22 @@
 // running and the shooter firing: how fast they come out), intake (24 FUEL at SPEED m/s, intaking
 // alone), intakefull (filled through the intake from the NEUTRAL ZONE's FUEL until it can't put more
 // in: tools/fillbench.mjs), hold (filled a layer at a time, everything off), dump (a full one fired
-// at 3 m: FUEL/s).
+// at 3 m: FUEL/s; the carriage agitating while it does, as phys1690 has it when it shoots and isn't
+// intaking), strokes (the carriage's agitation, empty: its stroke and its X44's current).
 // Env: SEEDS, SPEED (1 m/s), BULGE (the net's, m), GRIP_<material>, TREAD_<material>, STUCK (where the
 // ones left over are), MAP=1 (shooter: the full sweep), LAYERS, SEC, SEC2, PASS=1 (dump: the passing
-// speeds), FILL=layers (dump: filled a layer at a time)
+// speeds), FILL=layers (dump: filled a layer at a time), AGITATE=0 (dump: the carriage held out),
+// DEPTH, HZ (the carriage's strokes: m in, a second)
 import { RAPIER } from '../js/physics.js';
 import { FUEL, GROUP, groups, HUB, TRENCH } from '../js/constants.js';
 import { Mechanism } from '../js/mech/mechanism.js';
 import { sim2D, ShotTable } from '../js/ballistics.js';
 import {
   build1690, wheels1690, shooterWheel, feederWheels, pathSurfaces1690, placeIntake, placeTurret, turretPoint, netY, hoodElevation,
-  HALF_L, HALF_W, INTAKE, FLOOR, TOP, BELT, BACK, VKICK, FEED, SHOOTER, TURRET, NET, WALL, MU as GRIP, TREAD,
+  HALF_L, HALF_W, INTAKE, FLOOR, TOP, BELT, BACK, VKICK, FEED, SHOOTER, TURRET, NET, WALL, SLIDE, MU as GRIP, TREAD,
 } from '../js/mech/r1690.js';
 import { speedLoop } from '../js/mech/phys1706.js';
-import { RPS, FEED_SHARE, FEED_MIN, EXIT, hoodFor, elevationAt, surfFor, exitAt, HOOD_STOW } from '../js/mech/phys1690.js';
+import { RPS, FEED_SHARE, FEED_MIN, EXIT, hoodFor, elevationAt, surfFor, exitAt, HOOD_STOW, STROKE, driveCarriage, moveCarriage } from '../js/mech/phys1690.js';
 import { ROBOTS } from '../js/robotConfigs.js';
 import { fillRun, fillReport } from './fillbench.mjs';
 
@@ -36,6 +38,10 @@ if (process.env.TOPY) BELT.top.y = Number(process.env.TOPY);
 if (process.env.BOTY) BELT.bottom.y = Number(process.env.BOTY);
 if (process.env.BACKX) BACK.x = Number(process.env.BACKX);
 if (process.env.FLOORR) FLOOR.ratio = Number(process.env.FLOORR);
+// (AGITATE=0: the carriage held out while it dumps; DEPTH (m), HZ: its strokes')
+if (process.env.AGITATE === '0') STROKE.on = false;
+if (process.env.DEPTH) STROKE.depth = Number(process.env.DEPTH);
+if (process.env.HZ) STROKE.hz = Number(process.env.HZ);
 const R = FUEL.radius, DT = 1 / 120, SEEDS = Number(process.env.SEEDS ?? 4), SPEED = Number(process.env.SPEED ?? 1);
 const HELD = groups(GROUP.HELD, 0xffff & ~GROUP.HELD);
 const DEG = Math.PI / 180, TAU = 2 * Math.PI;
@@ -59,18 +65,23 @@ const P = (b) => { const p = b.translation(); return [p.x, p.y, p.z]; };
 const rps = (n, sh) => (n * TAU) / sh.motor.ratio;
 
 // the robot's mechanisms, fixed in the world: the intake ext of the way out (1: out), the turret at
-// yaw (rad: 0 shoots forward), the hood at angle h (deg about the axle)
+// yaw (rad: 0 shoots forward), the hood at angle h (deg about the axle). The carriage on its racks,
+// its X44 holding it there (driveCarriage); r.agitate: stroking (phys1690's STROKE)
 function rig({ ext = 1, yaw = 0, hood = HOOD_STOW } = {}) {
   const t = build1690(), wh = wheels1690(t), s = pathSurfaces1690(t), sw = shooterWheel(t), fw = feederWheels(t);
   const pathW = [...wh.intake, ...wh.floor, wh.vkick, ...wh.feed];
-  const path = new Mechanism({ substeps: 6, shafts: [...new Set(pathW.map((x) => x.shaft)), ...t.belts], wheels: pathW, surfaces: [s.body, s.bodyFine, s.ptfe, s.bottom, s.top, s.carriage, s.kick, s.bumper, s.net] });
+  const path = new Mechanism({ substeps: 6, shafts: [...new Set(pathW.map((x) => x.shaft)), ...t.belts, t.slide], wheels: pathW, surfaces: [s.body, s.bodyFine, s.ptfe, s.bottom, s.top, s.carriage, s.kick, s.bumper, s.net] });
   const shooter = new Mechanism({ substeps: 6, sub: Number(process.env.SUB ?? 8), shafts: [t.wheel, ...t.hoodWheels], wheels: [sw, ...fw], surfaces: [s.turret, s.hood] });
   for (const a of [t.intake, t.floor, t.feed, t.shooter, t.vkick, ...t.belts]) a.cmd = null;
-  const r = { t, wh, s, sw, fw, path, shooter, ext, yaw, hood };
+  const r = { t, wh, s, sw, fw, path, shooter, ext, yaw, hood, agitate: false, cs: { pos: ext * SLIDE.travel }, slideAmps: 0 };
   r.pose = () => { placeIntake(s, wh.intake, r.ext); placeTurret(s, { wheel: sw, feeder: fw }, r.yaw, r.hood); };
   r.step = (balls, together = balls) => {
+    driveCarriage(r.cs, t.slide, DT, { on: ext > 0.5, agitate: r.agitate });
     r.pose();
     path.step(DT, balls, together);
+    moveCarriage(r.cs, t.slide, DT);
+    r.ext = r.cs.pos / SLIDE.travel;
+    r.slideAmps = Math.max(r.slideAmps, Math.abs(t.slide.motor.current || 0));
     shooter.step(DT, balls.filter((b) => { const [x, y, z] = P(b); return y > TURRET.bore.y[0] && Math.hypot(x - TURRET.at[0], z - TURRET.at[1]) < 0.25; }));
   };
   // the shooter at a wheel surface speed (m/s; null: coast; the hood's wheels geared to it); the
@@ -181,6 +192,21 @@ function fill(w, balls, step, layers = 6, y = WALL.top - R - 0.01) {
 }
 
 const tests = {
+  // the carriage's strokes, empty: where it is through two of them (every 0.02 s), how deep they get
+  // and its X44's current
+  strokes() {
+    const r = rig();
+    for (let i = 0; i < 0.3 / DT; i++) r.step([]);
+    r.agitate = true; r.slideAmps = 0;
+    const per = 1 / STROKE.hz, tr = [];
+    let lo = Infinity, hi = -Infinity;
+    for (let k = 0; k < (1 + 2 * per) / DT; k++) {
+      r.step([]);
+      if (k * DT >= 1) { tr.push(r.cs.pos); lo = Math.min(lo, r.cs.pos); hi = Math.max(hi, r.cs.pos); }
+    }
+    console.log(`1690's carriage agitating (${STROKE.depth} m in, ${STROKE.hz} Hz, empty): in ${((SLIDE.travel - lo) * 1000).toFixed(0)} mm at most, back out to ${((SLIDE.travel - hi) * 1000).toFixed(0)} mm from all the way out; its X44 up to ${r.slideAmps.toFixed(0)} A`);
+    console.log(`  mm in from all the way out, every 0.02 s over two strokes: ${tr.filter((_, i) => i % Math.round(0.02 / DT) === 0).map((x) => ((SLIDE.travel - x) * 1000).toFixed(0)).join(' ')}`);
+  },
   rollers() {
     const r = rig(), t = r.t;
     t.intake.cmd = 1; r.spin(16); r.index(true);
@@ -331,11 +357,14 @@ const tests = {
       for (let i = 0; i < 1 / DT; i++) { r.spin(surf); const l = live(balls); r.step(l); w.step(); esc.check(l); }
       const n0 = balls.filter((b) => held1690(P(b))).length;
       const watch = shotWatch(r);
-      let minSurf = Infinity, gates = null;
+      let minSurf = Infinity, gates = null, lo = Infinity;
+      r.slideAmps = 0; r.cs.strokes = 0;
       for (let k = 0; k < env('SEC2', 8) / DT; k++) {
         r.spin(surf); r.index(true, pass); r.t.intake.cmd = process.env.NOINTAKE ? null : 1;
+        r.agitate = STROKE.on;
         const l = live(balls);
         r.step(l); w.step(); watch.check(l, k * DT); esc.check(l);
+        lo = Math.min(lo, r.cs.pos);
         // (GATES=1: when each FUEL first gets into the belts' channel, the corridor, the turret's bore)
         // (SNAPAT=s with SNAP=file: where the FUEL in it are s into the dump, the first fill's, for a picture)
         if (process.env.SNAPAT && seed === 1 && k === Math.round(Number(process.env.SNAPAT) / DT)) (await import('node:fs')).writeFileSync(process.env.SNAP, JSON.stringify(balls.filter(inRobot).map(P)));
@@ -374,12 +403,12 @@ const tests = {
       const land = s.map((o) => landing(o) - 3), hits = land.filter((d) => Math.abs(d) < 0.45).length;
       const first = s.filter((x) => x.t - (s[0]?.t ?? 0) < 1).length;
       res.push({ esc: esc.out.size, n0, n: s.length, rate: rate(s), mid: mid(s), best, first, land: med(land), left: balls.filter(inRobot).length, minSurf });
-      console.log(`  fill ${seed}: ${s.length} of ${n0} out in ${env("SEC2", 8)} s, ${first} in the second from the first shot, ${best} in its best second, ${rate(s).toFixed(1)} FUEL/s over the dump, ${mid(s).toFixed(1)} through the middle; down at the rim ${med(land) >= 0 ? "+" : ""}${med(land).toFixed(2)} m from the HUB's center (median), ${hits} of ${s.length} within 0.45 m of it; the wheel ${surf.toFixed(1)} m/s dipped to ${minSurf.toFixed(1)}; ${res.at(-1).left} left in it; ${esc.report()}`);
+      console.log(`  fill ${seed}: ${s.length} of ${n0} out in ${env("SEC2", 8)} s, ${first} in the second from the first shot, ${best} in its best second, ${rate(s).toFixed(1)} FUEL/s over the dump, ${mid(s).toFixed(1)} through the middle; down at the rim ${med(land) >= 0 ? "+" : ""}${med(land).toFixed(2)} m from the HUB's center (median), ${hits} of ${s.length} within 0.45 m of it; the wheel ${surf.toFixed(1)} m/s dipped to ${minSurf.toFixed(1)}; ${res.at(-1).left} left in it; ${STROKE.on ? `the carriage ${r.cs.strokes} strokes, in ${((SLIDE.travel - lo) * 1000).toFixed(0)} mm at most, its X44 up to ${r.slideAmps.toFixed(0)} A; ` : ''}${esc.report()}`);
       if (process.env.STUCK) for (const b of balls.filter(inRobot)) { const [x, y, z] = P(b); console.log(`   left at ${x.toFixed(2)},${y.toFixed(2)},${z.toFixed(2)}: ${r.path.contacts.filter((c) => c.ball === b).map((c) => c.wheel.name + ' ' + c.force.toFixed(0)).join(', ')}`); }
       w.free();
     }
     const m = (f) => med(res.map(f));
-    console.log(`1690 dumps a full hopper at 3 m (${pass ? 'the passing' : 'the scoring'} speeds), ${res.length} fills: ${m((x) => x.n)} of ${m((x) => x.n0)} (median), ${m((x) => x.rate).toFixed(1)} FUEL/s over the dump (${Math.min(...res.map((x) => x.rate)).toFixed(1)}..${Math.max(...res.map((x) => x.rate)).toFixed(1)}), ${m((x) => x.first)} in the second from the first shot (${res.map((x) => x.first).join(", ")}), ${m((x) => x.best)} in its best second, ${m((x) => x.mid).toFixed(1)} through the middle (${Math.min(...res.map((x) => x.mid)).toFixed(1)}..${Math.max(...res.map((x) => x.mid)).toFixed(1)}); ${res.reduce((a, x) => a + x.esc, 0)} escaped in all`);
+    console.log(`1690 dumps a full hopper${STROKE.on ? ` (the carriage agitating: ${STROKE.depth} m at ${STROKE.hz} Hz)` : ' (the carriage held out)'} at 3 m (${pass ? 'the passing' : 'the scoring'} speeds), ${res.length} fills: ${m((x) => x.n)} of ${m((x) => x.n0)} (median), ${m((x) => x.rate).toFixed(1)} FUEL/s over the dump (${Math.min(...res.map((x) => x.rate)).toFixed(1)}..${Math.max(...res.map((x) => x.rate)).toFixed(1)}), ${m((x) => x.first)} in the second from the first shot (${res.map((x) => x.first).join(", ")}), ${m((x) => x.best)} in its best second, ${m((x) => x.mid).toFixed(1)} through the middle (${Math.min(...res.map((x) => x.mid)).toFixed(1)}..${Math.max(...res.map((x) => x.mid)).toFixed(1)}); ${res.reduce((a, x) => a + x.esc, 0)} escaped in all`);
   },
 };
 
