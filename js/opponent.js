@@ -420,7 +420,7 @@ export class OpponentAI {
       }
     }
 
-    if (this.state !== this.intakeState) { this.intakeState = this.state; this.intakeDown = false; }
+    if (this.state !== this.intakeState) { this.intakeState = this.state; this.intakeDown = false; this.shotIntake = null; }
     if (this.state === 'feed') { this._feed(dt); return; }
     if (this.state === 'collect') {
       if (this.hesitateT > 0) { this.hesitateT -= dt; this.label = 'Deciding…'; return; }
@@ -469,6 +469,22 @@ export class OpponentAI {
     r.cmd.shoot = canShoot && r.lastInZone && settled;
     // pick up what's on the way (2910 keeps it up: retracting while it shoots compacts its load)
     if (!r.cfg.intake.compacts && this._hasRoom() && !this._foeAhead() && !this._hubFuelNear()) r.cmd.intake = true;
+    // a robot whose shot compacts its load only with its intake let go (1114's AgitateIntake pulls
+    // its box in): it goes on intaking as it starts shooting (the first 0.65 s, their AgitateIntake's
+    // wait, costs it nothing) and while there's FUEL in front of its intake and it's still taking
+    // some in (one in the last second), then lets go for the rest of the shot, so the box comes in
+    // behind the load
+    if (r.phys?.shotCompacts) {
+      // (shotIntake: until when it keeps intaking; false once it's let go, until the shot ends)
+      if (!r.cmd.shoot) this.shotIntake = null;
+      else if (r.cmd.intake) {
+        if (this.shotIntake == null) { this.shotIntake = this.t + 0.65; this.shotGain = { n: r.stats.intaked, t: this.t }; }
+        if (r.stats.intaked !== this.shotGain.n) this.shotGain = { n: r.stats.intaked, t: this.t };
+        if (this.shotIntake !== false && this.t - this.shotGain.t < 1 && this._fuelAhead()) this.shotIntake = Math.max(this.shotIntake, this.t + 0.3);
+        if (this.shotIntake !== false && this.t > this.shotIntake) this.shotIntake = false;
+        if (this.shotIntake === false) r.cmd.intake = false;
+      }
+    }
     this.label = r.cmd.shoot ? (r.ready ? 'Shooting' : 'Aiming') : bully ? 'Pushing through' : remain > 0.3 ? 'Returning to score' : 'Staged — waiting for HUB';
   }
 
@@ -667,6 +683,19 @@ export class OpponentAI {
     this._drive(b.pos.x, b.pos.z, { speed: near ? B.collectSpeed : 1, avoid: !near, arrive: -0.3 });
     r.cmd.intake = this._intakeFor(d);
     this.label = `Collecting (${r.stored.length}${r.full ? ', full' : '/~' + r.capacity()})`;
+  }
+
+  // loose FUEL on the carpet in front of the intake, about to be in its reach
+  _fuelAhead() {
+    const r = this.robot, ic = r.cfg.intake, f = r.forward();
+    const v = Math.max(0, r.vel.x * f.x + r.vel.z * f.z), far = r.halfL + ic.reach + 0.3 + 0.5 * v;
+    for (const b of this.fuel.balls) {
+      if (b.state !== 'field' || b.held || b.inFlight || b.pos.y > 0.3) continue;
+      if (Math.abs(b.pos.x - r.pos.x) > far + 0.5 || Math.abs(b.pos.z - r.pos.z) > far + 0.5) continue;
+      const l = r.worldToLocal(b.pos.x, b.pos.z);
+      if (l.x > r.halfL - 0.1 && l.x < far && Math.abs(l.z) < ic.width / 2 + 0.05) return true;
+    }
+    return false;
   }
 
   // FUEL just released by a HUB can't be caught before it touches the carpet (G408): is any of it

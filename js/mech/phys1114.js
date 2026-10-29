@@ -8,9 +8,9 @@
 //     the intake's button (their right bumper, also the shooter's off button) is pressed: then the
 //     hood brakes where it is and the flywheel drops to their ShooterIdle's 1000 RPM (their
 //     shooter's default command, commented out of their bindings; with it out their code coasts
-//     it). In TELEOP it's held, as a driver holds the trigger, while it lines up a shot: shooting,
-//     heading in to score (the AI's lineup), in its zone holding FUEL and not intaking; otherwise
-//     (intaking, out of its zone, empty) it idles.
+//     it). In TELEOP it's held, as a driver holds the trigger, while it lines up a shot: shooting
+//     (intaking or not), heading in to score (the AI's lineup, intaking or not), in its zone
+//     holding FUEL and not intaking; otherwise (only intaking, out of its zone, empty) it idles.
 //   shoot (their right trigger, Shoot with AgitateIntake): while the flywheel is within 500 RPM
 //     under its setpoint and the chassis within 7 deg of its heading: the elevator at 4500 RPM
 //     (their velocity loop, at the Talon's 1 kHz), the floor at 12 V and the side rollers at 10
@@ -26,8 +26,13 @@
 //     their hood CANrange sees nothing.
 //   eject (their D-pad down, RunOuttake): the roller at -12 V.
 //   by default the box coasts (0 V) and so does the roller.
-//   what its driver does (emulated): the intake's button also turns the shooter off, so while they
-//   hold the shot they don't intake (the AI here would do both: it shoots).
+//   intake and shoot together (TELEOP; not their bindings, where the intake's button also turns the
+//   shooter off): both run, the intake as RunIntakeBallevator (the roller at 12 V, the box held
+//   out) and the shot as Shoot (the flywheel at the shot for where it is, the elevator, floor and
+//   side rollers once its gate is met), with no AgitateIntake: the box comes in only once the
+//   intake's let go. The AI keeps intaking as it starts to shoot and while FUEL lie in front of
+//   the intake, then lets go so the box compacts the rest (js/opponent.js, shotCompacts). In
+//   AUTO, shooting, it doesn't intake, as their AUTO's commands run.
 import { Mechanism } from './mechanism.js';
 import { PhysicalRobot } from './physical.js';
 import {
@@ -71,6 +76,9 @@ export class Physical1114 extends PhysicalRobot {
     Object.assign(this, { t, w, s });
     this.ownsIntake = true;
     this.ownsHood = true;
+    // (its shot compacts the load, their AgitateIntake pulling the box in, only with the intake let
+    // go: the AI lets go once there's nothing in front of it to pick up, js/opponent.js)
+    this.shotCompacts = true;
     this.reset();
   }
 
@@ -155,9 +163,15 @@ export class Physical1114 extends PhysicalRobot {
     const r = this.r, T = this.t;
     this.account(t, mode);
     const turns = slideTurns(this.ext), pass = mode === 'pass';
-    // (what its driver does: their intake button is also the shooter's off button, so they don't
-    // intake while they shoot; asked to do both, it shoots)
-    const intaking = on && !!r.cmd.intake && !feeding, eject = on && !!outtake;
+    const auto = !!r.match?.isAuto;
+    // (TELEOP: intake and shoot held together (the human's triggers, or the AI picking up what's on
+    // its way in and shooting as it gets there) both run: the intake as their RunIntakeBallevator
+    // (the roller at 12 V, the box held out), the shot as their Shoot (the flywheel at the table's
+    // shot, FUEL fed up the elevator once its gate is met), and no AgitateIntake: the box doesn't
+    // come in while the intake's held. In their bindings the intake's button is also the shooter's
+    // off button, so their driver does one or the other. In AUTO it's as their AUTO's commands
+    // run: shooting, it doesn't intake)
+    const intaking = on && !!r.cmd.intake && !(auto && feeding), eject = on && !!outtake;
     // ---- aim (their AimShooter / AimShooterPass): started by a shot to line up, ended by the
     // intake's button
     // (their AUTO: AimShooterHub, an AimShooterAuto on the shooter alone, spins it up to the HUB
@@ -165,13 +179,13 @@ export class Physical1114 extends PhysicalRobot {
     // through FullShoot; ShooterStop after each FullShoot ends the aim until the next marker (their
     // code coasts the flywheel there; here it idles, below). The AUTO runner says which:
     // spin)
-    const auto = !!r.match?.isAuto, spin = auto ? r.cmd.spin : undefined, has = r.stored.length > 0;
+    const spin = auto ? r.cmd.spin : undefined, has = r.stored.length > 0;
     // (TELEOP: held, as their driver holds the aim trigger, while it lines up a shot: shooting or
-    // passing; heading in to score (the AI's lineup: from when it sets off for its spot with FUEL,
-    // the intake picking up what's on the way beside it, as their AUTO's AimShooterHub runs beside
-    // IntakeDeploy); in its ALLIANCE ZONE holding FUEL and not intaking (the human's: the sim's
-    // prespin, which gives the shared shot it reads), or asked to spin up for a pass. Otherwise
-    // (intaking, out of its zone, empty) it idles)
+    // passing, intaking or not; heading in to score (the AI's lineup: from when it sets off for its
+    // spot with FUEL, the intake picking up what's on the way beside it, as their AUTO's
+    // AimShooterHub runs beside IntakeDeploy); in its ALLIANCE ZONE holding FUEL and not intaking
+    // (the human's: the sim's prespin, which gives the shared shot it reads), or asked to spin up
+    // for a pass. Otherwise (only intaking, out of its zone, empty) it idles)
     const lineup = !auto && on && has && !!r.cmd.lineup && !feeding;
     if (!auto) {
       this.aim = on && (lineup || (setpoint > 0 && !!r.shot && (feeding || !intaking))) ? true : null;
@@ -228,7 +242,7 @@ export class Physical1114 extends PhysicalRobot {
         if (t - this.ballevT > 3 && !this._range()) floorV = 3;
       }
     } else if (shooting) {
-      // their AgitateIntake (the intake's own command while the trigger's held)
+      // their AgitateIntake (the intake's own command while the trigger's held, the intake's not)
       if (agitate && turns >= 1 && t - this.shootT > GATE.agitateWait && turns > SLIDE_POS.agitateMin) { this.slideMode = { kind: 'volts', v: SLIDE.pull }; roller = 6; }
     }
     if (eject) roller = -12;
@@ -238,7 +252,7 @@ export class Physical1114 extends PhysicalRobot {
     if (r.stats.shots !== this.shots) { this.shots = r.stats.shots; this.lastShotT = t; }
     this.fireT = fire ? this.fireT + dt : shooting ? this.fireT : 0;
     if (fire && this.fireT > 1.5 && t - this.lastShotT > 1.0) for (const b of this.held) this.parked.add(b);
-    if (intaking) this.parked.clear();
+    if (intaking && !shooting) this.parked.clear();
     if (this.parked.size) r.stored = r.stored.filter((b) => !this.parked.has(b));
     // (their IntakeSubsystem cuts the roller's positive voltage with the box inside 10.8in)
     if (roller > 0.1 && turns < SLIDE_POS.rollersOff) roller = 0;
