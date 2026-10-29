@@ -61,9 +61,15 @@ export const SHOOTER = {
   hoodWidth: 0.603,
   hoodMax: 37, // their HOOD_MAX_ANGLE: tilting the hood back over the drum this far flattens the shot
   drumPerMotor: 24 / 38, flywheelPerDrum: 67 / 10, hoodRollerPerDrum: 38 / 21,
-  // inertia: the drum (aluminum tube, 4in end wheels, grip tape, pulleys) and the brass flywheel
-  // (83 cm3 of brass, 6in): from the CAD's volumes
-  drumJ: 0.0048, flywheelJ: 0.0025,
+  // inertia (kg m^2), each about its own axis from the CAD's solids (OpenCascade's volume
+  // properties on the STEP) and the BOM's materials; README, *2910*, has the table. The drum: its
+  // 4in 6061 tube (0.85 kg), the DKL grip tape (the BOM's silicone rubber, 1.6 mm), the Onyx end
+  // caps with their 40t pulleys, the 67t PLA pulley, the 7075 shaft, the 40t that drives the hood's
+  // belt, and the 68T, 410 mm and 170T belts at their pulleys' pitch radius. The brass flywheel with
+  // its 10t pulley (88 cm3, 0.75 kg; it turns on a dead axle). The hood's two rollers (6061 tubes,
+  // grip tape, Onyx pulleys, 6061 hex), 1.7e-4 each. The motors' 24t pulleys and 55T belts (at the
+  // motors' speed). (The motors' rotors are added by the Train.)
+  drumJ: 3.99e-3, flywheelJ: 2.48e-3, hoodJ: 3.43e-4, motorJ: 2.3e-5,
   // their velocity loop (Slot0, volts): kV x target + kP x error, motor rotations/s
   kV: 12 / (5800 / 60), kP: 0.35,
 };
@@ -108,7 +114,9 @@ export function build2910() {
   const S = SHOOTER;
   const drum = shooter.add(new Shaft({ name: 'drum', inertia: S.drumJ }), S.drumPerMotor);
   shooter.add(new Shaft({ name: 'brass flywheel', inertia: S.flywheelJ }), S.drumPerMotor * S.flywheelPerDrum);
-  const hood = shooter.add(new Shaft({ name: 'hood rollers', inertia: 2e-4 }), -S.drumPerMotor * S.hoodRollerPerDrum);
+  const hood = shooter.add(new Shaft({ name: 'hood rollers', inertia: S.hoodJ }), -S.drumPerMotor * S.hoodRollerPerDrum);
+  // (inertia only: the train's drag stays the three shafts' it was tuned with)
+  shooter.add(new Shaft({ name: 'motors\' 24t pulleys', inertia: S.motorJ, drag: 0 }), 1);
   // the intake's pivot: an X60 through 40:1, its arm on it (I = m r^2, the arm's own spread
   // about doubling it)
   const pivot = new Shaft({ name: 'intake pivot', motor: new Motor('krakenX60', { ratio: 40, statorLimit: 75, supplyLimit: 30 }), inertia: 2 * INTAKE.mass * INTAKE.com * INTAKE.com, drag: 0.5 });
