@@ -279,6 +279,13 @@ export class AutoRunner {
     const shootAll = () => steps.push({ type: 'shoot', timeout: r.maxCapacity() / bps + 1.2 });
     if (plan.preload === 'stand') steps.push({ type: 'shoot', timeout: 1.5 });
     let first = plan.preload !== 'stand';
+    // where it starts (blue field coordinates): a first trip out under the TRENCH it starts in front
+    // of, with its preload already shot, sets off from there, not from the point behind it (with
+    // nothing to shoot on the way back there, all that does is turn it round by the wall and back
+    // again on the way in: 4414, wide, still turning as it reached the TRENCH, wedged across the
+    // opening with its intake out, from the wall to the skirt)
+    const sgn = this.alliance === 'blue' ? 1 : -1, sfx = HALF_L + sgn * r.pos.x, sfy = FIELD_W / 2 - sgn * r.pos.z;
+    let set = true;
     for (const trip of plan.trips) {
       if (trip.depot) {
         // along the ALLIANCE WALL through the DEPOT, intake and shooter both running
@@ -287,13 +294,14 @@ export class AutoRunner {
         steps.push({ type: 'drive', pts: [[dx, dfy - 0.45], [dx, dfy + 0.5]], intake: true, shoot: 'hub', speed: trip.speed ?? 0.35, face: Math.PI / 2 });
         steps.push({ type: 'drive', pts: [[2.2, dfy]], intake: true, shoot: 'hub', speed: 0.6 });
         if (!small) shootAll();
-        first = false;
+        first = set = false;
         continue;
       }
       const fx = Math.min(trip.fx, maxFx);
       const outY = lane(trip.out, trip.a), homeY = lane(trip.home, trip.b);
-      steps.push({ type: 'drive', pts: [[3.1, outY], [5.9, outY], [fx - 0.35, trip.a]], intake: true, shoot: first ? 'hub' : false, speed: 1.0 });
-      first = false;
+      const inX = set && !first && fitsTrench(r.cfg) && trip.out === 'trench' && Math.abs(sfy - outY) < 0.3 ? Math.max(3.1, sfx) : 3.1;
+      steps.push({ type: 'drive', pts: [[inX, outY], [5.9, outY], [fx - 0.35, trip.a]], intake: true, shoot: first ? 'hub' : false, speed: 1.0 });
+      first = set = false;
       steps.push({ type: 'drive', pts: [[fx, trip.a], [fx, trip.b]], intake: true, speed: trip.speed });
       steps.push({ type: 'drive', pts: [[6.0, homeY], [3.2, homeY], trip.shootAt], intake: small, shoot: 'hub', speed: 1.0 });
       shootAll();
