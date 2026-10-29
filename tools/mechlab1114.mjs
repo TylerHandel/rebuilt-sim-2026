@@ -16,6 +16,9 @@
 // Env: SEEDS (6), SPEED (path's 1 m/s; intake's 1,3), SEC (intakefull's 10 s), STUCK (where the
 // ones left over are), SHOT=rpm,hood (one shot of your own), MAP=1 (shooter: a grid of RPMs and
 // hoods), THEIR_RPM=1 (their LUT's own RPMs), NOAGITATE=1 (the dump without the box coming in),
+// BOTH=1 (dump: intake and shoot held together, as play has them: the roller at 12 V and the box
+// held out by their RunIntakeBallevator, no AgitateIntake), BOTHFOR=s (dump: that for the first s
+// seconds, then the intake let go, as the AI does),
 // AGITATE_V=v (dump: the box pulled in at v volts, not the 3.5 play uses, their SLIDE_FAST_PULL_VOLTAGE
 // (js/mech/r1114.js SLIDE.pull); their AgitateIntake runs 2), AGITATE=cycle (dump: the box in and out,
 // their commented-out cycle),
@@ -31,7 +34,7 @@ import { Mechanism } from '../js/mech/mechanism.js';
 import { sim2D } from '../js/ballistics.js';
 import {
   build1114, wheels1114, pathSurfaces1114, placeSlide, placeIntake, placeHood, hoodRot, hoodElevation, shotFor, slideTurns, kickerRot,
-  HUB_LUT, PASS_LUT, SLIDE, SLIDE_POS, SHOOTER, BALLEVATOR, FLOOR, ELEV, SQUISH, SIDE, INTAKE, FLY, RANGE,
+  HUB_LUT, PASS_LUT, SLIDE, SLIDE_POS, SHOOTER, BALLEVATOR, FLOOR, ELEV, SQUISH, SIDE, INTAKE, FLY, RANGE, BLANKET,
 } from '../js/mech/r1114.js';
 import PATH from '../js/mech/path1114.js';
 import { EXIT_PER_FLY_SURFACE } from '../js/mech/phys1114.js';
@@ -145,6 +148,38 @@ function fill(w, balls, step, { layers = 12, ext = SLIDE.out } = {}) {
   }
 }
 const TOP = { topX: 0.3, topN: 6 }; // (js/mech/phys1114.js naturalFull)
+// FUEL that got out, not as shots (each once it's been in it): where it left the robot's volume
+// (the frame, 0.80 m up, and the box as far out as it is): over the top (behind the blanket, x
+// under its back edge, or through it), over a side, out the back, or out the front over the
+// intake; with ESC=1 where it crossed and how fast
+function escapeWatch(rg) {
+  const seen = new Set(), out = new Map(), last = new Map();
+  const inVol = ([x, y, z], ext) => y > -0.02 && y < 0.8 && Math.abs(z) < 0.39 && x > -0.331 && x < 0.311 + ext + 0.05;
+  return {
+    out,
+    check(balls) {
+      const ext = rg.ext, bx0 = BLANKET.x0 + slideOffsetX(ext);
+      for (const b of balls) {
+        if (out.has(b)) continue;
+        const p = pos(b);
+        if (!seen.has(b)) { if (heldP(p, ext)) seen.add(b); else continue; }
+        // (shot: on its way up off the flywheel; set aside)
+        if (p[0] > 40 || p[1] > 3 || (b.linvel().y > 2 && p[1] > 0.55 && p[0] < 0.1)) { seen.delete(b); continue; }
+        if (inVol(p, ext)) { last.set(b, p); continue; }
+        const q = last.get(b) ?? p;
+        const why = p[1] >= 0.8 ? (q[0] < bx0 ? 'top, behind the blanket' : 'top, through the blanket') : Math.abs(p[2]) >= 0.39 ? 'side' : p[0] <= -0.331 ? 'back' : p[0] >= 0.311 + ext + 0.05 ? 'front' : 'under';
+        out.set(b, why);
+        if (process.env.ESC) { const v = b.linvel(); console.log(`   escaped (${why}): last in at ${q.map((u) => u.toFixed(3)).join(',')}, now ${p.map((u) => u.toFixed(3)).join(',')} v ${v.x.toFixed(1)},${v.y.toFixed(1)},${v.z.toFixed(1)}; the box ${slideTurns(ext).toFixed(1)} turns out`); }
+      }
+    },
+    report() {
+      const c = {};
+      for (const w of out.values()) c[w] = (c[w] || 0) + 1;
+      return `${out.size} escaped${out.size ? ` (${Object.entries(c).map(([k, n]) => `${k}: ${n}`).join(', ')})` : ''}`;
+    },
+  };
+}
+const slideOffsetX = (ext) => SLIDE.dir[0] * (SLIDE.out - ext);
 
 const tests = {
   rollers() {
@@ -274,7 +309,7 @@ const tests = {
       const r = intakeFull(seed, { keep: !!process.env.FILLFILE });
       res.push(r);
       if (process.env.FILLFILE) { writeFileSync(`${process.env.FILLFILE}-${seed}.json`, JSON.stringify(r.balls.map(pos).filter((p) => heldP(p, r.rig.ext)))); r.world.free(); }
-      console.log(fillReport(`1114 intaking at ${SPEED} m/s, seed ${seed}`, r));
+      console.log(fillReport(`1114 intaking at ${SPEED} m/s, seed ${seed}`, r) + `; ${r.esc.report()}`);
     }
     const fullAt = res.map((r) => r.fulls[0]?.n).filter((n) => n !== undefined);
     console.log(`1114 through its intake: the most it held ${res.map((r) => r.most).join(', ')} (mean ${mean(res.map((r) => r.most)).toFixed(1)}); full at ${fullAt.join(', ')}`);
@@ -328,16 +363,32 @@ const tests = {
   },
   hold() {
     for (const ext of [SLIDE.out, 0]) {
-      const { path } = rig({ ext });
+      const rg = rig({ ext }), { path } = rg, esc = escapeWatch(rg);
       const w = world();
       const balls = [];
-      const step = (n) => { for (let i = 0; i < n; i++) { path.step(DT, balls, balls); w.step(); } };
+      const step = (n) => { for (let i = 0; i < n; i++) { path.step(DT, balls, balls); w.step(); esc.check(balls); } };
       fill(w, balls, step, { ext });
       step(2 / DT);
       const n = balls.filter((b) => inIt(b, ext)).length, top = Math.max(...balls.filter((b) => inIt(b, ext)).map((b) => b.translation().y));
       if (process.env.HOLDFILE) writeFileSync(`${process.env.HOLDFILE}-${ext ? 'out' : 'in'}.json`, JSON.stringify(balls.map(pos)));
-      console.log(`1114 holds ${n} with the box ${ext ? 'out' : 'in'}, dropped in a layer at a time, everything off (the load's top ${(top + R).toFixed(2)} m)`);
+      console.log(`1114 holds ${n} with the box ${ext ? 'out' : 'in'}, dropped in a layer at a time, everything off (the load's top ${(top + R).toFixed(2)} m); ${esc.report()}`);
+      if (process.env.SHAKE) shake(rg, w, balls, esc, `dropped in, the box ${ext ? 'out' : 'in'}`);
       w.free();
+    }
+  },
+  // full through its intake, then driven about with the load in it (the box out, everything off):
+  // how many get out, and where (SEEDS fills; SHAKE_A the accelerations, m/s^2)
+  fullshake() {
+    for (let seed = 1; seed <= Math.min(SEEDS, 4); seed++) {
+      const f = intakeFull(seed, { keep: true, until: (full) => full, sec: 14 });
+      f.carpet.setLinvel({ x: 0, y: 0, z: 0 }, true);
+      const balls = [];
+      for (const b of f.balls) { if (ownP(pos(b), f.rig.ext)) balls.push(b); else b.setEnabled(false); }
+      // (SHAKE_INTAKE=1: the roller kept at 12 V, a driver holding the intake with it full)
+      f.rig.t.intake.cmd = process.env.SHAKE_INTAKE ? 1 : null; f.rig.t.floor.cmd = null;
+      console.log(`1114 full through its intake (seed ${seed}): ${balls.filter((b) => inIt(b, f.rig.ext)).length} in it; filling, ${f.esc.report()}`);
+      shake(f.rig, f.world, balls, f.esc, `full, seed ${seed}${process.env.SHAKE_INTAKE ? ', the roller at 12 V' : ''}`);
+      f.world.free();
     }
   },
   // the flywheel from their ShooterIdle (1000 RPM, settled) up to their shots: how long to Shoot's
@@ -386,21 +437,47 @@ const tests = {
   },
 };
 
+// driving about with the load in it, the robot's mechanisms fixed in the world: what its FUEL feel
+// in its frame (the bench's robot doesn't move): full drive forward and back (SHAKE_A, 8 m/s^2,
+// about what its tires give), hard to each side, and turning on the spot (SHAKE_W, 6 rad/s, the
+// load flung out from the robot's center), 1 s each, then 1 s still
+function shake(rg, w, balls, esc, name) {
+  const A = Number(process.env.SHAKE_A ?? 8), W = Number(process.env.SHAKE_W ?? 6), m = FUEL.mass;
+  const n0 = balls.filter((b) => inIt(b, rg.ext)).length, before = esc.out.size;
+  const phases = [[A, 0], [-A, 0], [0, A], [0, -A], ['spin', 1], ['spin', -1], [0, 0]];
+  for (const [ax, az] of phases) {
+    for (let k = 0; k < 1 / DT; k++) {
+      for (const b of balls) {
+        const p = b.translation();
+        if (p.x > 40 || p.y > 3) continue;
+        // (in the robot's frame: the push back against its acceleration; spinning, out from its center
+        // and the Coriolis push on what moves in it)
+        let fx = -ax * m, fz = -az * m;
+        if (ax === 'spin') { const v = b.linvel(); fx = m * (W * W * p.x - 2 * az * W * v.z); fz = m * (W * W * p.z + 2 * az * W * v.x); }
+        b.applyImpulse({ x: fx * DT, y: 0, z: fz * DT }, true);
+      }
+      rg.path.step(DT, balls, balls); slide(rg, {}); moveSlide(rg); w.step(); esc.check(balls);
+    }
+  }
+  const n1 = balls.filter((b) => inIt(b, rg.ext)).length;
+  console.log(`  driven about (${name}, ${A} m/s^2, spun at ${W} rad/s): ${n1} of ${n0} still in it, ${esc.out.size - before} escaped; in all ${esc.report()}`);
+}
 function intakeFull(seed, { keep = false, sec = Number(process.env.SEC ?? 10), until = null } = {}) {
-  const rg = rig(), { t, path } = rg;
+  const rg = rig(), { t, path } = rg, esc = escapeWatch(rg);
   t.intake.cmd = 1;
   // their RunIntakeBallevator: after 3 s the floor at 3 V while the hood CANrange sees nothing (a
   // FUEL up the elevator: js/mech/r1114.js RANGE)
   const control = (time, live) => {
+    esc.check(live);
     const staged = live.some((b) => { const p = b.translation(); return Math.abs(p.x - RANGE.at[0]) < RANGE.half && p.y > RANGE.at[1] && p.y < 0.8; });
     t.floor.cmd = time > 3 && !staged ? 3 / 12 : null;
     slide(rg, {}); moveSlide(rg);
   };
   const r = fillRun(RAPIER, { world: () => world({ carpet: false }), ball, path, DT, held: (p) => heldP(p, rg.ext), own: (p) => ownP(p, rg.ext), top: TOP, control, speed: SPEED, sec, seed, front: 0.31 + SLIDE.out + 0.03, keep, until });
-  return { ...r, rig: rg };
+  return { ...r, rig: rg, esc };
 }
 
-const CYCLE = process.env.AGITATE === 'cycle';
+const CYCLE = process.env.AGITATE === 'cycle', BOTH_FOR = process.env.BOTHFOR ? Number(process.env.BOTHFOR) : process.env.BOTH ? Infinity : 0;
 function dumpRun(seed) {
   const D = Number(process.env.DIST ?? 3.02), want = shotFor('hub', D);
   let rg, w, balls;
@@ -427,15 +504,25 @@ function dumpRun(seed) {
   const n0 = balls.filter((b) => ownP(pos(b), rg.ext)).length;
   const watch = shotWatch(shooter);
   let minRpm = Infinity, tallyN = 0, gateT = -1, heldOff = 0, inT0 = -1, inMid = -1, inT1 = -1;
+  let pushedT = -1, pushOut = false;
   const tally = new Map();
   for (let k = 0; k < 8 / DT; k++) {
-    const T = k * DT, rpm = RPM(t.shooter.omega);
-    const fire = rpm >= want.rpm - 500, aimed = !process.env.NOAGITATE && rpm >= want.rpm - 400 && T > 0.65;
+    const T = k * DT, rpm = RPM(t.shooter.omega), BOTH = T < BOTH_FOR;
+    const fire = rpm >= want.rpm - 500, aimed = !process.env.NOAGITATE && !BOTH && rpm >= want.rpm - 400 && T > 0.65;
     const agit = aimed && (CYCLE || slideTurns(rg.ext) > SLIDE_POS.agitateMin);
     feed(t, fire);
-    t.intake.cmd = agit && !process.env.NOROLL && slideTurns(rg.ext) >= SLIDE_POS.rollersOff ? 6 / 12 : null;
+    t.intake.cmd = BOTH ? 1 : agit && !process.env.NOROLL && slideTurns(rg.ext) >= SLIDE_POS.rollersOff ? 6 / 12 : null;
+    // (BOTH=1: intake and shoot both held, as play has them: their RunIntakeBallevator on the box,
+    // the roller at 12 V, the box coasting out unless pushed in under 13 turns for 0.5 s, then
+    // 20 A out until it's past 13.4; no AgitateIntake. BOTHFOR=s: for the dump's first s seconds,
+    // then the intake let go: AgitateIntake, as the AI does)
+    if (BOTH) {
+      const turns = slideTurns(rg.ext);
+      if (turns < SLIDE_POS.redeploy || pushOut) { pushedT = pushedT < 0 ? T : pushedT; if (T - pushedT > 0.5) pushOut = turns <= SLIDE_POS.out; } else pushedT = -1;
+      step(() => slide(rg, pushOut ? { amps: 20 } : {}));
+    }
     // (AGITATE=cycle: their commented-out last mode, the box's setpoint 6.4 in and 9 in by turns, 240 ms each)
-    if (CYCLE && agit) step(() => slide(rg, { turns: Math.floor((T - 0.65) / 0.24) % 2 ? 9 : 6.4 }));
+    else if (CYCLE && agit) step(() => slide(rg, { turns: Math.floor((T - 0.65) / 0.24) % 2 ? 9 : 6.4 }));
     else if (process.env.FORCEIN && agit) step(() => { t.slide.cmd = null; t.slide._omega = -Number(process.env.FORCEIN) / SLIDE.pinion; t.slide.lo = t.slide.hi = t.slide._omega; });
     else { t.slide.lo = -Infinity; t.slide.hi = Infinity; step(() => slide(rg, { volts: agit ? (process.env.AGITATE_V ? -Number(process.env.AGITATE_V) : SLIDE.pull) : 0 })); }
     watch.check(balls, T);
