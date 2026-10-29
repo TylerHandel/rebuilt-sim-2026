@@ -44,11 +44,26 @@ export const MU_FUEL = 0.6;
 const MU_SIDE = 0.3;                  // FUEL on a wheel's side (its plates, hub)
 
 // ------------------------------------------------------------------ foam
-// one contact's dent d (m) -> force (N) and its slope (N/m): the plate test's curve at 2d
+// one contact's dent d (m) -> force (N) and its slope (N/m): the plate test's curve at 2d.
+// Past 3.5in of squeeze (the fitted curve's range: 59% of the FUEL's 5.91in, ~390 lb) the foam
+// densifies: its cells are crushed shut and what's left is the solid polymer, so it stiffens
+// faster than the exponential, without limit as the squeeze nears the densification strain (the
+// cellular-solids picture, Gibson & Ashby: stress ~ 1 / (1 - strain / strain_D); strain_D ~0.9
+// for a foam of a few percent density). So past 3.5in the curve is the exponential times
+// (sD - 3.5in) / (sD - s), sD 90% of the diameter (5.32in): the same force at 3.5in, steeper
+// after (4 kN at 4in, 11 kN at 4.5in, 45 kN at 5in), and on in a straight line at its slope past 5in (where it
+// would blow up). It used to stop stiffening at 3.5in: its force held at ~1.7 kN however far it
+// was squeezed, so a hard enough push put a FUEL through any gap (1114's box: out through the
+// 5.3 cm slot along the bottom of its front, squeezed 9.7 cm, as its load packed against it)
+const DENSE = { sc: 3.5 * FUEL.stiffen, sD: 0.9 * 2 * FUEL.radius, sMax: 5.0 * 0.0254 };
 export function foam(d) {
-  const k0 = FUEL.springRate0, xc = FUEL.stiffen;
-  const e = Math.exp(Math.min(Math.max(0, 2 * d), 3.5 * xc) / xc);
-  return { F: k0 * xc * (e - 1), k: 2 * k0 * e };
+  const k0 = FUEL.springRate0, xc = FUEL.stiffen, s = Math.max(0, 2 * d);
+  if (s <= DENSE.sc) { const e = Math.exp(s / xc); return { F: k0 * xc * (e - 1), k: 2 * k0 * e }; }
+  const u = Math.min(s, DENSE.sMax), e = Math.exp(u / xc);
+  const g = (DENSE.sD - DENSE.sc) / (DENSE.sD - u), Fe = k0 * xc * (e - 1);
+  // (dF/ds: the exponential's slope times g, plus its force times g's slope)
+  const dF = k0 * e * g + Fe * g / (DENSE.sD - u);
+  return { F: Fe * g + dF * (s - u), k: 2 * dF };
 }
 // the foam in series with a tread of stiffness kt (N/m): the total squeeze d splits between them
 function squeeze(d, kt) {
