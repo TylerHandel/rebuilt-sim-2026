@@ -488,42 +488,44 @@ export const ROBOTS = {
     teamName: 'Orbit',
     robotName: 'Kepler',
     archetype: 'Compact turret',
-    blurb: 'A compact gear-driven turret on an 8in bearing shoots on the move while the intake keeps running. A roller floor pushes FUEL back into two belts along the back, which carry them to a column of flex wheels up into the turret. The hopper reaches out over the intake under a lattice frame, with netting over the top.',
-    // built of its physical mechanisms (js/mech/r1690.js, phys1690.js): its FUEL go through the ball
-    // path its CAD's renders show, moved by its rollers, belts, kicker, feeder and shooter wheel
+    blurb: 'A compact gear-driven turret on an 8in bearing shoots on the move while the intake keeps running. A roller floor pushes FUEL back into two belts along the back, which carry them to flex wheels that kick them up into the turret, where a 4in wheel throws them past feeder wheels on its hood. The intake slides out with the hopper\'s lattice front, under a lattice frame over the top.',
+    // built of its physical mechanisms (js/mech/r1690.js, phys1690.js) from their CAD (their X_T
+    // release): its FUEL go through the ball path's own surfaces, moved by its rollers, belts,
+    // kickers, shooter wheel and the hood's feeder wheels
     physical: '1690',
     frame: { length: 25.0 * IN, width: 29.0 * IN },
-    height: 21.5 * IN, // with the hood stowed ("travel ... stows the hood"); raised, it stands ~25in
+    height: 22.2 * IN, // the CAD's: the lattice frame over the top at 0.551 m, the turret's hood (stowed) at 0.565
     mass: 63, // robot (up to 115 lb) + bumpers + battery
     // they geared down (and spiked wheels) mid-season for the BUMP, TRENCH and defense: 13.1 ft/s free
     drive: { ratio: 7.73 },
-    // over-bumper: two silicone-wrapped rollers on arms that also carry the hopper's lattice front,
-    // over an aluminum tube that surgical tubing pulls down (it stays down); out at the start
-    intake: { width: 26 * IN, reach: 0.2, rate: 200, pull: 5, deployTime: 0.3, side: 'front', latched: true },
-    // the lattice U-frame on the intake's arms reaches out over the intake (0.28 m past the frame)
-    storage: { extLen: 0.28, extend: 'latched' },
-    // their CAD's renders: the roller floor (nine rollers, 0.18 to 0.144 m up, front to back) between
-    // walls to 0.482 m; the belts along the back (0.167 and 0.303 m), the corridor and the feeder up
-    // into the turret at the back left; the electronics box at the back right. Netting over the top
-    // (js/mech/r1690.js NET): slack cord the load lifts 0.08 m over its ties
+    // over-bumper: a carriage that slides out (0.318 m, down 12 deg) with two silicone-wrapped rollers
+    // and the hopper's lattice front, over the kicker bar that surgical tubing pulls down once it's out
+    intake: { width: 25.5 * IN, reach: 0.2, rate: 200, pull: 5, deployTime: 0.3, side: 'front', latched: true },
+    // the lattice U-frame on the carriage reaches out over the intake (0.30 m past the frame)
+    storage: { extLen: 0.30, extend: 'latched' },
+    // their CAD: the roller floor (nine rollers, 0.19 to 0.14 m up, front to back) between the side
+    // panels (0.716 m apart) to the lattice frame over the top (0.551 m); the belts along the back
+    // (0.159 and 0.302 m), the kickers up into the turret at the back left; the electronics box at the
+    // back right. Netting over the top (js/mech/r1690.js NET)
     bay: {
-      x0: -0.205, x1: 0.3175, hw: 0.325, top: 0.482,
-      dome: { h: 0.08, x0: -0.02, cx: 0, cz: 0, rHole: -1 },
-      floor: { a: 0.16, b: 0.07, lo: 0.16, hi: 0.2 },
+      x0: -0.21, x1: 0.3175, hw: 0.355, top: 0.551,
+      dome: { h: 0.01, x0: -0.02, cx: 0, cz: 0, rHole: -1 },
+      floor: { a: 0.16, b: 0.07, lo: 0.14, hi: 0.19 },
       drive: 'floor', driveSpeed: 2.0,
-      feed: { x: -0.13, z: -0.2, via: [[-0.13, 0.3, -0.22], [-0.14, 0.45, -0.2]] },
+      feed: { x: -0.134, z: -0.187, via: [[-0.134, 0.3, -0.19], [-0.134, 0.45, -0.187]] },
     },
     shooter: {
       type: 'turret',
-      turretPos: { x: -0.14, z: -0.20 },
-      // where FUEL leave over the 4in wheel, and how steep and fast: the hood pivots on the wheel's
-      // axle, FUEL leaving at 37 to 83 deg, at up to ~10.5 m/s (tools/mechlab1690.mjs shooter)
-      exitRadius: 0.07,
-      exitY: 0.69,
+      turretPos: { x: -0.134, z: -0.1872 },
+      // where FUEL leave the pinch between the 4in wheel and the hood's feeder wheels, and how steep and
+      // fast: the hood turns about the wheel's axle, FUEL leaving at 37 to 85 deg, at up to ~9.8 m/s (the
+      // wheel's two X60s geared 28t:42t top out near 20 m/s at its face; tools/mechlab1690.mjs shooter)
+      exitRadius: 0.03,
+      exitY: 0.66,
       turretRange: 200, turretRate: 720,
       bps: 13, // counted over a cycle in their reveal thread; its physical ball path sets the rate
       hoodMin: 37, hoodMax: 83,
-      speedMax: 10.5,
+      speedMax: 9.8,
       spinTau: 0.3, // no added flywheel mass
       shotDrop: 0.006,
       speedSigma: 0.012, angleSigma: 0.55, yawSigma: 0.55,

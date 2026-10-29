@@ -444,14 +444,14 @@ function armAt(chain, psi) {
 // chain; the spring's wheel takes up half of that (0.45 m of its travel; the spring's is 40in). Its
 // chain: WCP's 15x30 (small: "the tiny form factor of the echain", their thread).
 export const SPOOL1690 = {
-  axis: [-0.14, 0.20],            // the turret's (robot frame, [x, w])
-  y: 0.395,                       // the chain's middle (on its side, just over the turret's deck)
+  axis: [-0.134, 0.1872],         // the turret's (robot frame, [x, w]): the CAD's 8in bearing
+  y: 0.391,                       // the chain's middle (on its side): the CAD's spring and tray
   entry: [-0.30, 0.355],          // the fixed end's pin, the chain heading right from it
-  tensionR: 0.75 * 0.0254,        // the spring's wheel (1.5in)
-  tension: [-0.32, 0.175],        // its travel along w
+  tensionR: 0.025,                // the spring's wheel (the CAD's 2in)
+  tension: [-0.33, 0.175],        // its travel along w (the CAD's tray ends at -0.328)
   wheel: { at: 0.185, r: 0.75 * 0.0254 }, // the wheel the chain turns back round (w; its x: just in front of run B)
   box: { x: [-0.12, 0.13], z: [-0.095, 0.095], r: 0.03 },
-  spring: 6 * 4.448,              // N: the one 6 lb constant-force spring
+  spring: 6 * 4.448,              // N: the one 6 lb constant-force spring (the CAD's)
   yaw: [-200 * DEG, 200 * DEG],
   wrapMin: 0.05,
 };

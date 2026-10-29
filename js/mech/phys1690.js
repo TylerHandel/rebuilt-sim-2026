@@ -1,9 +1,9 @@
 // 1690's Kepler in play, built of its physical mechanisms (js/mech/r1690.js; the shared part:
 // js/mech/physical.js). Their code isn't public, so its controls are what the team said on Chief
 // Delphi about how it runs (their CAD release and reveal threads), the rest estimates:
-//   - intake: out at the start of the match and down from then on (the arm is a motor in "travel"
-//     mode only, and its tube under the rollers drops on surgical tubing and stays down); its rollers
-//     at 12 V while intaking, back out to outtake.
+//   - intake: the carriage slides out at the start of the match and stays out (its motor brings it
+//     in only for "travel"), and the kicker bar under its rollers falls on surgical tubing and stays
+//     down; its rollers at 12 V while intaking, back out to outtake.
 //   - shooting (held: the AI's shot; out of its zone, a pass), on the move and while intaking: the
 //     turret aims itself (the robot's turret model turns it, on its motor and its energy chain:
 //     turretStep), the shooter wheel's velocity loop to the speed for the shot and the hood to its
@@ -25,8 +25,8 @@
 import { Mechanism } from './mechanism.js';
 import { PhysicalRobot } from './physical.js';
 import {
-  build1690, wheels1690, shooterWheel, pathSurfaces1690, placeIntake, placeTurret, turretPoint,
-  HALF_L, HALF_W, INTAKE, FLOOR, BELT, VKICK, FEED, SHOOTER, TURRET, NET, WALL, PRELOAD,
+  build1690, wheels1690, shooterWheel, feederWheels, pathSurfaces1690, placeIntake, placeTurret, turretPoint, intakeFront, kickAt,
+  HALF_L, HALF_W, INTAKE, FLOOR, TOP, BELT, VKICK, FEED, SHOOTER, TURRET, NET, WALL, PRELOAD,
 } from './r1690.js';
 import { speedLoop, profile } from './phys1706.js';
 import { Field } from '../field.js';
@@ -43,10 +43,12 @@ const LATENCY = 0.05; // s: their loop and the turret's lag (estimate)
 // Its shots, as the bench measures them (tools/mechlab1690.mjs shooter and calibrate): where the FUEL
 // leave (the turret's frame: s along the shot from its axis, y up), the elevation each hood angle
 // gives (deg: the hood's angle about the axle, 90 + its geometric elevation, -> the FUEL's), and the
-// wheel's surface speed each exit speed takes (m/s)
-export const EXIT = { s: 0.07, y: 0.69 };
-export const EL_MAP = [[125, 36.5], [143.6, 57.5], [147.5, 60.1], [151.2, 64.2], [156.2, 69.3], [162.1, 75.9], [168, 83.2]];
-export const EXIT_MAP = [[0, 0], [4.85, 10], [5.97, 12.97], [6.38, 14.13], [6.71, 15.37], [7.09, 16.88], [7.48, 18.06], [7.83, 19.45], [8.21, 20.77], [8.53, 22.06], [8.88, 24.16], [9.38, 25.94], [10.4, 28.5]];
+// wheel's surface speed each exit speed takes (m/s). Tuned on FUEL fed up the bore in a stream by the
+// indexer (calibrate FED=1), the way it fires: those leave about 4% faster than lone FUEL thrown up
+// the bore, pressed into the wheel by the next one. Past 9.3 m/s, lone FUEL (the wheel saturates).
+export const EXIT = { s: 0.03, y: 0.66 };
+export const EL_MAP = [[125, 37.4], [144.2, 57.6], [144.9, 58], [145.9, 59.1], [147, 60.2], [148.3, 61], [150.4, 62.9], [151.6, 64], [153.8, 65.9], [156.9, 68.6], [160.5, 71.7], [163.4, 75], [172, 84.9]];
+export const EXIT_MAP = [[0, 0], [4, 6], [6.05, 9.02], [6.4, 9.57], [6.79, 10.22], [7.15, 10.87], [7.56, 11.66], [7.89, 12.15], [8.26, 13.04], [8.61, 13.7], [8.95, 14.2], [9.3, 15.71], [9.8, 19.14]];
 const interp = (t, x, a = 0, b = 1) => {
   if (x <= t[0][a]) return t[0][b];
   for (let k = 1; k < t.length; k++) if (x <= t[k][a]) return t[k - 1][b] + ((t[k][b] - t[k - 1][b]) * (x - t[k - 1][a])) / (t[k][a] - t[k - 1][a]);
@@ -64,13 +66,13 @@ export const HOOD_STOW = HOOD_RANGE[1];
 
 export class Physical1690 extends PhysicalRobot {
   constructor(robot) {
-    const t = build1690(), w = wheels1690(t), s = pathSurfaces1690(t), sw = shooterWheel(t);
+    const t = build1690(), w = wheels1690(t), s = pathSurfaces1690(t), sw = { wheel: shooterWheel(t), feeder: feederWheels(t) };
     const pathWheels = [...w.intake, ...w.floor, w.vkick, ...w.feed];
     super(robot, {
-      path: new Mechanism({ body: robot.body, substeps: 6, shafts: [...new Set(pathWheels.map((x) => x.shaft)), ...t.belts], wheels: pathWheels, surfaces: [s.body, s.ptfe, s.bottom, s.top, s.intake, s.bumper, s.net] }),
-      // (the turret's plates and the hood with the wheel: a FUEL goes over the wheel at up to 12
+      path: new Mechanism({ body: robot.body, substeps: 6, shafts: [...new Set(pathWheels.map((x) => x.shaft)), ...t.belts], wheels: pathWheels, surfaces: [s.body, s.bodyFine, s.ptfe, s.bottom, s.top, s.carriage, s.kick, s.bumper, s.net] }),
+      // (the turret and the hood with the wheel and the hood's feeder wheels: a FUEL leaves at up to 12
       // m/s, too far in a step to follow without sub-steps)
-      shooter: new Mechanism({ body: robot.body, substeps: 6, sub: 8, shafts: [t.wheel], wheels: [sw], surfaces: [s.turret, s.hood] }),
+      shooter: new Mechanism({ body: robot.body, substeps: 6, sub: 8, shafts: [t.wheel, ...t.hoodWheels], wheels: [sw.wheel, ...sw.feeder], surfaces: [s.turret, s.hood] }),
       preload: PRELOAD,
     });
     Object.assign(this, { t, w, s, sw });
@@ -87,7 +89,7 @@ export class Physical1690 extends PhysicalRobot {
     this.feedingNow = false; this.slowT = 0; this.jamT = 0; this.backT = 0; this.ready = false;
     this.want = null; this.aimPsi = null;
     const T = this.t;
-    for (const tr of [T.intake, T.floor, T.feed, T.shooter]) { tr.omega = 0; tr.cmd = null; tr.vel = null; }
+    for (const tr of [T.intake, T.floor, T.feed, T.shooter, T.hoodTrain]) { tr.omega = 0; tr.cmd = null; tr.vel = null; }
     for (const sh of [T.tube, T.vkick, ...T.belts]) { sh._omega = 0; sh.cmd = null; sh.vel = null; }
   }
 
@@ -109,11 +111,8 @@ export class Physical1690 extends PhysicalRobot {
   shooterBalls(near) {
     return near.filter((b) => { const [x, y, z] = this._local(b.pos); return y > TURRET.bore.y[0] && Math.hypot(x - TURRET.at[0], z - TURRET.at[1]) < 0.25; });
   }
-  // (the U-frame's front, x, at the intake's turn)
-  _front() {
-    const a = (1 - this.deploy) * INTAKE.stow * DEG, [px, py] = INTAKE.pivot, F = INTAKE.frame;
-    return px + (F.front - px) * Math.cos(a) - (F.top - py) * Math.sin(a);
-  }
+  // (the U-frame's front, x, the carriage this.deploy of the way out)
+  _front() { return intakeFront(this.deploy); }
 
   preStep(dt, t) {
     const r = this.r;
@@ -129,7 +128,7 @@ export class Physical1690 extends PhysicalRobot {
   }
   _place(yaw) {
     const s = this.s;
-    placeIntake(s.intake, this.w.intake, (1 - this.deploy) * INTAKE.stow);
+    placeIntake(s, this.w.intake, this.deploy);
     s.net.place(Math.max(HALF_L, this._front()));
     placeTurret(s, this.sw, yaw, this.hood);
   }
@@ -168,8 +167,9 @@ export class Physical1690 extends PhysicalRobot {
     this.want = sol;
     this.aimPsi = sol ? sol.psi : null;
     const surf = sol ? surfFor(sol.v) : 0;
-    if (sol) { this.hoodGoal = hoodFor(sol.el); speedLoop(T.shooter, surf / S.r, S.kP); }
-    else { this.hoodGoal = HOOD_STOW; speedLoop(T.shooter, null); }
+    // (the hood's feeder wheels at 60% of the wheel's target, at least 5 m/s)
+    if (sol) { this.hoodGoal = hoodFor(sol.el); speedLoop(T.shooter, surf / S.r, S.kP); speedLoop(T.hoodTrain, Math.max(FEED_MIN, FEED_SHARE * surf) / S.feeder.r); }
+    else { this.hoodGoal = HOOD_STOW; speedLoop(T.shooter, null); speedLoop(T.hoodTrain, unjam ? -3 / S.feeder.r : null); }
     const wheelSurf = Math.abs(T.wheel.omega) * S.r;
     const atV = !!sol && Math.abs(wheelSurf - surf) < S.tolV * surf;
     const atHood = Math.abs(this.hood - this.hoodGoal) < S.tolHood;
@@ -190,12 +190,13 @@ export class Physical1690 extends PhysicalRobot {
     if (this.jamT > 0.1) { this.backT = 0.15; this.jamT = 0; r.stats.unjams = (r.stats.unjams || 0) + 1; }
     this.backT = Math.max(0, this.backT - dt);
     if (unjam) {
-      speedLoop(T.floor, -rps(30, T.floor)); for (const b of T.belts) speedLoop(b, -rps(40, b)); speedLoop(vk, -rps(30, vk)); speedLoop(T.feed, -3 / FEED.r);
+      speedLoop(T.floor, -rps(30, T.floor)); for (const b of T.belts) speedLoop(b, -rps(40, b)); speedLoop(vk, -rps(30, vk)); speedLoop(T.feed, -rps(30, T.feed));
     } else if (this.feedingNow) {
       speedLoop(T.floor, rps(RPS.floor[k], T.floor) * slow);
       for (const b of T.belts) speedLoop(b, rps(RPS.belts[k], b) * slow);
       speedLoop(vk, (this.backT > 0 ? -1 : 1) * rps(RPS.vkick, vk));
-      speedLoop(T.feed, Math.max(FEED_MIN, FEED_SHARE * wheelSurf) / FEED.r);
+      // (the bottom and top kickers: their speed isn't public; at the belts' motor speed, an estimate)
+      speedLoop(T.feed, rps(RPS.belts[k], T.feed) * slow);
     } else {
       for (const a of [T.floor, ...T.belts, vk, T.feed]) speedLoop(a, null);
     }
@@ -209,16 +210,16 @@ export class Physical1690 extends PhysicalRobot {
 
   // how far the U-frame is out past the frame (m), for the hopper's collider and drawing it
   extNow() { return Math.max(0, this._front() - HALF_L); }
-  // the other moving parts, for drawing them: the intake's turn up from deployed (rad), the hood's
-  // angle (rad about the axle), the wheels' and belts' speeds
+  // the other moving parts, for drawing them: how far the carriage is out (0 to 1) and the kicker
+  // bar's fall (rad), the hood's angle (rad about the axle), the wheels' and belts' speeds
   mechPose() {
     const T = this.t;
-    return { intake: (1 - this.deploy) * INTAKE.stow * DEG, hood: this.hood * DEG, wheel: T.wheel.omega, floor: T.floor.omega, belts: T.belts.map((b) => b.omega * BELT.r), vkick: T.vkick.omega, feed: T.feed.omega, intakeRollers: T.intake.omega };
+    return { ext: this.deploy, kick: kickAt(this.deploy) * DEG, hood: this.hood * DEG, wheel: T.wheel.omega, feeder: T.hoodTrain.omega, floor: T.floor.omega, top: T.top[0].omega, belts: T.belts.map((b) => b.omega * 0.0175), vkick: T.vkick.omega, feed: T.feed.omega, intakeRollers: T.intake.omega, tube: T.tube.omega };
   }
   // the load's top (for the net and the TRENCH)
   loadTop() { let top = 0; for (const b of this.held) { const y = this._local(b.pos)[1]; if (y + R > top) top = y + R; } return top; }
   // how many it holds (tools/mechlab1690.mjs intakefull and hold)
-  capacity() { return 49; }
+  capacity() { return 47; }
 
   // The turret on its motor (js/mech/turretDrive.js): its X60 under a position loop, against its
   // bearings and its energy chain (js/echain.js). js/robot.js asks it each step where the turret gets

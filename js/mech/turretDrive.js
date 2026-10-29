@@ -107,10 +107,11 @@ export function drive4414({ chain = true } = {}) {
 // ---------------------------------------------------------------- 1690
 // Their code isn't public. Their CAD release thread: the turret on position control, Motion Magic
 // when it wraps, a feedforward of the target's tracking rate less the robot's own; a REV Through Bore
-// encoder geared to it, the Kraken's own encoder for the loop. Its CAD (view-only: the renders and the
-// BOM): an X60 low in the frame turning a long vertical shaft up to the turret's gear (a 12t SplineXS
-// pinion; the 8in bearing's gear teeth aren't readable), so the reduction is an estimate, 50:1 (~700
-// deg/s free). The loop as 8793's (an X60): kP 3 V per motor rotation, kD 0.1, kV the X60's 1/Kv
+// encoder geared to it, the Kraken's own encoder for the loop. Its CAD (their X_T release): an X60 low
+// in the frame, a 12t steel pinion into a ~56t gear (their centers 43.5 mm apart), up a long shaft to a
+// ~13t pinion 0.132 m from the turret's axis on a ~194t ring under the deck (gear teeth aren't
+// modeled in the X_T: the tooth counts are from the parts' radii and centers), about 70:1 (~515 deg/s
+// free). The loop as 8793's (an X60): kP 3 V per motor rotation, kD 0.1, kV the X60's 1/Kv
 // (0.124), kS 0.15 V, the commanded angle's own rate fed forward (bounded at 360 deg/s); stator 40 A,
 // supply 30 A; what turns: the shooter on its plates with its two X60s, the hood's X44 and the camera
 // (~6 kg, J 0.07); its thin-section 8in bearing ("tight tolerance on its slots made it significantly
@@ -119,7 +120,7 @@ export function drive4414({ chain = true } = {}) {
 export function drive1690({ chain = true } = {}) {
   const ch = new SpoolChain(SPOOL1690, LINK);
   return new TurretDrive({
-    motor: new Motor('krakenX60', { ratio: 50, statorLimit: 40, supplyLimit: 30, eff: 0.9 }),
+    motor: new Motor('krakenX60', { ratio: 70, statorLimit: 40, supplyLimit: 30, eff: 0.9 }),
     J: 0.07, friction: 1.0, viscous: 0.02,
     gains: { kP: 3, kD: 0.1, kV: 0.124, kS: 0.15 },
     maxRate: 360 * DEG, limits: [-200 * DEG, 200 * DEG],

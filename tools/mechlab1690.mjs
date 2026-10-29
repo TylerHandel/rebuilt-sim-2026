@@ -19,7 +19,7 @@ import { FUEL, GROUP, groups, HUB, TRENCH } from '../js/constants.js';
 import { Mechanism } from '../js/mech/mechanism.js';
 import { sim2D, ShotTable } from '../js/ballistics.js';
 import {
-  build1690, wheels1690, shooterWheel, pathSurfaces1690, placeIntake, placeTurret, turretPoint, netY, hoodElevation,
+  build1690, wheels1690, shooterWheel, feederWheels, pathSurfaces1690, placeIntake, placeTurret, turretPoint, netY, hoodElevation,
   HALF_L, HALF_W, INTAKE, FLOOR, BELT, BACK, VKICK, FEED, SHOOTER, TURRET, NET, WALL, MU as GRIP, TREAD,
 } from '../js/mech/r1690.js';
 import { speedLoop } from '../js/mech/phys1706.js';
@@ -58,30 +58,34 @@ const RPM = (w) => (w * 60) / TAU;
 const P = (b) => { const p = b.translation(); return [p.x, p.y, p.z]; };
 const rps = (n, sh) => (n * TAU) / sh.motor.ratio;
 
-// the robot's mechanisms, fixed in the world: the intake out (deg up from deployed: 0), the turret at
+// the robot's mechanisms, fixed in the world: the intake ext of the way out (1: out), the turret at
 // yaw (rad: 0 shoots forward), the hood at angle h (deg about the axle)
-function rig({ deg = 0, yaw = 0, hood = HOOD_STOW } = {}) {
-  const t = build1690(), wh = wheels1690(t), s = pathSurfaces1690(t), sw = shooterWheel(t);
+function rig({ ext = 1, yaw = 0, hood = HOOD_STOW } = {}) {
+  const t = build1690(), wh = wheels1690(t), s = pathSurfaces1690(t), sw = shooterWheel(t), fw = feederWheels(t);
   const pathW = [...wh.intake, ...wh.floor, wh.vkick, ...wh.feed];
-  const path = new Mechanism({ substeps: 6, shafts: [...new Set(pathW.map((x) => x.shaft)), ...t.belts], wheels: pathW, surfaces: [s.body, s.ptfe, s.bottom, s.top, s.intake, s.bumper, s.net] });
-  const shooter = new Mechanism({ substeps: 6, sub: Number(process.env.SUB ?? 8), shafts: [t.wheel], wheels: [sw], surfaces: [s.turret, s.hood] });
-  for (const a of [t.intake, t.floor, t.feed, t.shooter, t.vkick, ...t.belts]) a.cmd = null;
-  const r = { t, wh, s, sw, path, shooter, deg, yaw, hood };
-  r.pose = () => { placeIntake(s.intake, wh.intake, r.deg); placeTurret(s, sw, r.yaw, r.hood); };
+  const path = new Mechanism({ substeps: 6, shafts: [...new Set(pathW.map((x) => x.shaft)), ...t.belts], wheels: pathW, surfaces: [s.body, s.bodyFine, s.ptfe, s.bottom, s.top, s.carriage, s.kick, s.bumper, s.net] });
+  const shooter = new Mechanism({ substeps: 6, sub: Number(process.env.SUB ?? 8), shafts: [t.wheel, ...t.hoodWheels], wheels: [sw, ...fw], surfaces: [s.turret, s.hood] });
+  for (const a of [t.intake, t.floor, t.feed, t.shooter, t.hoodTrain, t.vkick, ...t.belts]) a.cmd = null;
+  const r = { t, wh, s, sw, fw, path, shooter, ext, yaw, hood };
+  r.pose = () => { placeIntake(s, wh.intake, r.ext); placeTurret(s, { wheel: sw, feeder: fw }, r.yaw, r.hood); };
   r.step = (balls, together = balls) => {
     r.pose();
     path.step(DT, balls, together);
     shooter.step(DT, balls.filter((b) => { const [x, y, z] = P(b); return y > TURRET.bore.y[0] && Math.hypot(x - TURRET.at[0], z - TURRET.at[1]) < 0.25; }));
   };
   // the shooter at a wheel surface speed (m/s; null: coast); the indexer feeding (as phys1690 runs it)
-  r.spin = (surf) => speedLoop(t.shooter, surf ? surf / SHOOTER.r : null, SHOOTER.kP);
+  // (the hood's feeder wheels at their share of the wheel's target)
+  r.spin = (surf) => {
+    speedLoop(t.shooter, surf ? surf / SHOOTER.r : null, SHOOTER.kP);
+    speedLoop(t.hoodTrain, surf ? Math.max(FEED_MIN, FEED_SHARE * surf) / SHOOTER.feeder.r : null);
+  };
   r.index = (on, pass = false) => {
-    const k = pass ? 1 : 0, ws = Math.abs(t.wheel.omega) * SHOOTER.r;
+    const k = pass ? 1 : 0;
     if (!on) { for (const a of [t.floor, ...t.belts, t.vkick, t.feed]) speedLoop(a, null); return; }
     speedLoop(t.floor, rps(RPS.floor[k], t.floor));
     for (const b of t.belts) speedLoop(b, rps(RPS.belts[k], b));
     speedLoop(t.vkick, rps(RPS.vkick, t.vkick));
-    speedLoop(t.feed, Math.max(FEED_MIN, FEED_SHARE * ws) / FEED.r);
+    speedLoop(t.feed, rps(RPS.belts[k], t.feed));
   };
   r.pose();
   return r;
@@ -141,7 +145,7 @@ function escapeWatch(r) {
         if (!seen.has(b)) { if (held1690(p)) seen.add(b); else continue; }
         if (under && y + R > top) top = y + R;
         if (Math.hypot(x - TURRET.at[0], z - TURRET.at[1]) < 0.2 || x > 40 || b.linvel().y > 2) continue;
-        const why = y > NET.y && !under ? 'over' : under && y > n.at(x, z)[0] + 0.03 ? 'through' : x < NET.x0 - 0.05 && y > TURRET.guardY[0] ? 'back' : null;
+        const why = y > NET.y && !under ? 'over' : under && y > n.at(x, z)[0] + 0.03 ? 'through' : x < BACK.x - R && y > TURRET.deck ? 'back' : null;
         if (why) out.set(b, why);
         if (why && process.env.ESC) { const v = b.linvel(); console.log(`   escaped (${why}) at ${x.toFixed(3)},${y.toFixed(3)},${z.toFixed(3)} v ${v.x.toFixed(1)},${v.y.toFixed(1)},${v.z.toFixed(1)}; the net there ${under ? n.at(x, z)[0].toFixed(3) : "-"}, its front ${n.x1.toFixed(3)}`); }
       }
@@ -157,7 +161,7 @@ function escapeWatch(r) {
 }
 // fill it a layer at a time (FUEL set into the space over the ones already in, under the net, let
 // settle), the net held up out of the way (bulge 0.2 m), then let down onto the load over a second
-function fill(w, balls, step, layers = 6, y = 0.62) {
+function fill(w, balls, step, layers = 6, y = WALL.top - R - 0.01) {
   const B = NET.bulge;
   NET.bulge = 0.2;
   for (let layer = 0; layer < layers; layer++) {
@@ -183,9 +187,11 @@ const tests = {
     console.log(`1690's rollers, free (intake 100%, the indexer at the team's speeds, the shooter wheel at 16 m/s):`);
     console.log(`  intake X60 ${RPM(t.intake.omega * t.intake.motor.ratio).toFixed(0)} rpm: rollers ${surf(t.rollers[0], INTAKE.rollers[0][2]).toFixed(2)} m/s at their surface`);
     console.log(`  floor X60 ${(t.floor.omega * t.floor.motor.ratio / TAU).toFixed(1)} rps (theirs ${RPS.floor[0]}): ${surf(t.floor.shafts[0], FLOOR.r).toFixed(2)} m/s at the rollers' surface`);
-    console.log(`  belts X44s ${t.belts.map((b) => (b.omega * b.motor.ratio / TAU).toFixed(1)).join('/')} rps (theirs ${RPS.belts[0]}): ${t.belts.map((b) => surf(b, BELT.r).toFixed(2)).join('/')} m/s (the walkthrough: 8)`);
+    console.log(`  top rollers ${surf(t.top[0], 0.016).toFixed(2)} m/s at their surface`);
+    console.log(`  belts X44s ${t.belts.map((b) => (b.omega * b.motor.ratio / TAU).toFixed(1)).join('/')} rps (theirs ${RPS.belts[0]}): ${t.belts.map((b) => surf(b, BELT.r).toFixed(2)).join('/')} m/s at their outer face`);
     console.log(`  vertical kicker X44 ${(t.vkick.omega * t.vkick.motor.ratio / TAU).toFixed(1)} rps (theirs ${RPS.vkick}): ${surf(t.vkick, VKICK.r).toFixed(2)} m/s`);
-    console.log(`  feeder ${surf(t.feedShafts[0], FEED.r).toFixed(2)} m/s at its wheels (60% of the shooter's ${surf(t.wheel, SHOOTER.r).toFixed(2)}, at least ${FEED_MIN})`);
+    console.log(`  bottom kicker ${surf(t.feedShafts[0], FEED.r).toFixed(2)} m/s, top kicker ${surf(t.feedShafts[3], FEED.topR).toFixed(2)} m/s at their wheels`);
+    console.log(`  the hood's feeder wheels ${surf(t.hoodWheels[0], SHOOTER.feeder.r).toFixed(2)} m/s (60% of the shooter's ${surf(t.wheel, SHOOTER.r).toFixed(2)}, at least ${FEED_MIN})`);
     for (const v of [12, 16, 20, 24]) {
       const r2 = rig();
       let T = 0;
@@ -221,7 +227,8 @@ const tests = {
   },
   // the shot maps behind phys1690's EXIT_MAP and EL_MAP, tuned the way a team tunes its table: for
   // each of the sim's HUB table's rows, the wheel's speed and the hood moved until the FUEL leave at
-  // the row's speed and elevation
+  // the row's speed and elevation (FED=1: FUEL fed up the bore in a stream by the indexer, the way a
+  // dump fires them, instead of lone FUEL thrown up it)
   calibrate() {
     const { hub } = tables(), pairs = [], els = [];
     for (const d of [1.25, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6]) {
@@ -230,7 +237,7 @@ const tests = {
       const el = row.theta / DEG;
       let surf = surfFor(row.v), h = hoodFor(el), o = null;
       for (let k = 0; k < 5; k++) {
-        o = fireSome(h, surf);
+        o = process.env.FED ? fedSome(h, surf) : fireSome(h, surf);
         if (!o) break;
         surf *= Math.pow(row.v / o.v, 1.2); h = Math.max(SHOOTER.elMin + 90, Math.min(SHOOTER.elMax + 90, h + (el - o.el)));
       }
@@ -244,7 +251,7 @@ const tests = {
   // FUEL laid on the floor in front of the belts (LAYERS rows), the indexer at the team's speeds and
   // the shooter at a 3 m shot: how fast they come out
   feed() {
-    const { hub } = tables(), row = hub.lookup(3 - EXIT.s), h = hoodFor(row.theta / DEG), surf = surfFor(row.v);
+    const { hub } = tables(), row = hub.lookup(env('D', 3) - EXIT.s), h = hoodFor(row.theta / DEG), surf = surfFor(row.v);
     const res = [];
     for (let seed = 1; seed <= SEEDS; seed++) {
       const r = rig({ hood: h }), w = world({ carpet: false }), balls = [];
@@ -258,11 +265,12 @@ const tests = {
         if (process.env.TRACE && k % 15 === 0) for (const b of l) { const [x, y, z] = P(b); if (inRobot(b)) console.log(`   ${(k * DT).toFixed(2)} ${balls.indexOf(b)} ${x.toFixed(3)},${y.toFixed(3)},${z.toFixed(3)}: ${[...r.path.contacts, ...r.shooter.contacts].filter((c) => c.ball === b).map((c) => c.wheel.name + ' ' + c.force.toFixed(0)).join(', ')}`); }
       }
       const s = watch.shots.map((x) => x.t);
-      res.push({ n: s.length, rate: s.length > 1 ? (s.length - 1) / (s[s.length - 1] - s[0]) : 0, first: s[0] ?? NaN, land: med(watch.shots.map((o) => landing(o) - 3)) });
+      if (process.env.SHOTS) for (const o of watch.shots) console.log(`   shot ${o.t.toFixed(2)} s: ${o.v.toFixed(2)} m/s at ${o.el.toFixed(1)} deg, side ${o.side.toFixed(1)}, from ${o.x.toFixed(3)},${o.y.toFixed(3)}; down at the rim ${(landing(o) - 3).toFixed(2)} m (the table ${row.v.toFixed(2)} m/s at ${(row.theta / DEG).toFixed(1)})`);
+      res.push({ n: s.length, rate: s.length > 1 ? (s.length - 1) / (s[s.length - 1] - s[0]) : 0, first: s[0] ?? NaN, land: med(watch.shots.map((o) => landing(o) - env('D', 3))), v: med(watch.shots.map((o) => o.v / row.v)) });
       if (process.env.STUCK) for (const b of live(balls).filter(inRobot)) { const [x, y, z] = P(b); console.log(`   left at ${x.toFixed(3)},${y.toFixed(3)},${z.toFixed(3)}: ${r.path.contacts.filter((c) => c.ball === b).map((c) => c.wheel.name + ' ' + c.force.toFixed(0)).join(', ')}`); }
       w.free();
     }
-    console.log(`1690 feeding ${env('N', 12)} FUEL laid on its floor (the 3 m shot): ${res.map((x) => x.n).join(', ')} shot in ${env('SEC', 5)} s, ${res.map((x) => x.rate.toFixed(1)).join(', ')} FUEL/s, the first after ${res.map((x) => x.first.toFixed(2)).join(', ')} s; down at the rim ${res.map((x) => (x.land >= 0 ? '+' : '') + x.land.toFixed(2)).join(', ')} m from the HUB's center`);
+    console.log(`1690 feeding ${env('N', 12)} FUEL laid on its floor (the ${env('D', 3)} m shot): ${res.map((x) => x.n).join(', ')} shot in ${env('SEC', 5)} s, ${res.map((x) => x.rate.toFixed(1)).join(', ')} FUEL/s, the first after ${res.map((x) => x.first.toFixed(2)).join(', ')} s; down at the rim ${res.map((x) => (x.land >= 0 ? '+' : '') + x.land.toFixed(2)).join(', ')} m from the HUB's center; out at ${res.map((x) => x.v.toFixed(3)).join(', ')} of the table's speed (median)`);
   },
   intake() {
     for (const speed of process.env.SPEED ? [SPEED] : [1, 3]) {
@@ -334,7 +342,7 @@ const tests = {
           for (const b of l) {
             const [x, y, z] = P(b);
             if (x < BELT.x[1] && z > BELT.bottom.z[0] && !gates.channel.has(b)) gates.channel.set(b, k * DT);
-            if (z < BELT.bottom.z[0] - 0.02 && x < FEED.front && !gates.corridor.has(b)) gates.corridor.set(b, k * DT);
+            if (z < BELT.bottom.z[0] - 0.02 && x < -0.05 && !gates.corridor.has(b)) gates.corridor.set(b, k * DT);
             if (y > TURRET.deck && Math.hypot(x - TURRET.at[0], z - TURRET.at[1]) < 0.1 && !gates.bore.has(b)) gates.bore.set(b, k * DT);
           }
         }
@@ -382,7 +390,7 @@ function fireSome(h, surf) {
   const balls = [], watch = shotWatch(r), [tx, tz] = TURRET.at;
   let dip = Infinity, low = null, rec = 0;
   for (let i = 0; i < 3 / DT && watch.shots.length < 4; i++) {
-    if (i % Math.round(0.4 / DT) === 0 && balls.length < 4) balls.push(ball(w, tx + 0.01, 0.36, tz, [0, 2.5, 0]));
+    if (i % Math.round(0.4 / DT) === 0 && balls.length < 4) balls.push(ball(w, tx + 0.005, 0.34, tz, [0, env('UP', 3), 0]));
     r.spin(surf);
     const l = balls.filter((b) => b.translation().y < 3);
     r.step(l); w.step(); watch.check(l, i * DT);
@@ -395,6 +403,24 @@ function fireSome(h, surf) {
   const o = watch.shots;
   if (!o.length) return null;
   return { n: o.length, v: med(o.map((q) => q.v)), el: med(o.map((q) => q.el)), side: med(o.map((q) => q.side)), x: med(o.map((q) => q.x)), y: med(o.map((q) => q.y)), surf, dip, rec };
+}
+
+// FUEL fed in a stream: n laid on the floor, the indexer on for sec s, the shooter at hood angle h
+// and wheel surface speed surf (seeds 1..SEEDS pooled): the median exit, as fireSome
+function fedSome(h, surf, { n = 9, sec = 2.5 } = {}) {
+  const all = [];
+  for (let seed = 1; seed <= SEEDS; seed++) {
+    const r = rig({ hood: h }), w = world({ carpet: false }), balls = [];
+    let sd = seed; const rnd = () => ((sd = (sd * 16807) % 2147483647) / 2147483647 - 0.5);
+    for (let i = 0; i < n; i++) balls.push(ball(w, 0.2 - 0.155 * (Math.floor(i / 3) % 2) + 0.01 * rnd(), 0.26 + 0.16 * Math.floor(i / 6), -0.09 + 0.155 * (i % 3) + 0.01 * rnd()));
+    for (let i = 0; i < 1 / DT; i++) { r.spin(surf); r.step(live(balls)); w.step(); }
+    const watch = shotWatch(r);
+    for (let k = 0; k < sec / DT; k++) { r.spin(surf); r.index(true); r.t.intake.cmd = 1; const l = live(balls); r.step(l); w.step(); watch.check(l, k * DT); }
+    w.free();
+    all.push(...watch.shots);
+  }
+  if (!all.length) return null;
+  return { n: all.length, v: med(all.map((q) => q.v)), el: med(all.map((q) => q.el)), side: med(all.map((q) => q.side)), x: med(all.map((q) => q.x)), y: med(all.map((q) => q.y)), surf };
 }
 
 // intaking alone: FUEL four abreast on a treadmill carpet at speed
