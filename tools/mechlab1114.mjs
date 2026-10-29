@@ -576,7 +576,10 @@ function dumpRun(seed) {
     const fire = rpm >= want.rpm - 500, aimed = !process.env.NOAGITATE && !BOTH && rpm >= want.rpm - 400 && T > 0.65;
     const agit = aimed && (CYCLE || slideTurns(rg.ext) > SLIDE_POS.agitateMin);
     feed(t, fire);
-    t.intake.cmd = BOTH ? 1 : agit && !process.env.NOROLL && slideTurns(rg.ext) >= SLIDE_POS.rollersOff ? 6 / 12 : null;
+    // (the roller at 6 V through the whole compaction, as play runs it (js/mech/phys1114.js); THEIR_ROLLER=1:
+    // their IntakeSubsystem's cut inside 10.8in)
+    const rollOn = process.env.THEIR_ROLLER ? agit && slideTurns(rg.ext) >= SLIDE_POS.rollersOff : aimed;
+    t.intake.cmd = BOTH ? 1 : rollOn && !process.env.NOROLL ? 6 / 12 : null;
     // (BOTH=1: intake and shoot both held, as play has them: their RunIntakeBallevator on the box,
     // the roller at 12 V, the box coasting out unless pushed in under 13 turns for 0.5 s, then
     // 20 A out until it's past 13.4; no AgitateIntake. BOTHFOR=s: for the dump's first s seconds,

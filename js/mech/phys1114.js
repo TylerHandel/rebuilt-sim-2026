@@ -246,6 +246,11 @@ export class Physical1114 extends PhysicalRobot {
     } else if (shooting) {
       // their AgitateIntake (the intake's own command while the trigger's held, the intake's not)
       if (agitate && turns >= 1 && t - this.shootT > GATE.agitateWait && turns > SLIDE_POS.agitateMin) { this.slideMode = { kind: 'volts', v: SLIDE.pull }; roller = 6; }
+      // (the user: the roller runs through the whole compaction, in to their 6.3in and held there,
+      // not cut inside 10.8in as their IntakeSubsystem does: FUEL the side rollers funnel to the
+      // middle wedge between them and a still intake roller and stop the box; a running one carries
+      // them up and over. A departure from their code)
+      if (agitate && t - this.shootT > GATE.agitateWait) { roller = 6; this.compacting = true; }
     }
     if (eject) roller = -12;
     // (what its driver does: firing, with nothing shot for a second, they see the last few won't
@@ -257,7 +262,8 @@ export class Physical1114 extends PhysicalRobot {
     if (intaking && !shooting) this.parked.clear();
     if (this.parked.size) r.stored = r.stored.filter((b) => !this.parked.has(b));
     // (their IntakeSubsystem cuts the roller's positive voltage with the box inside 10.8in)
-    if (roller > 0.1 && turns < SLIDE_POS.rollersOff) roller = 0;
+    if (roller > 0.1 && turns < SLIDE_POS.rollersOff && !this.compacting) roller = 0;
+    this.compacting = false;
     if (!on) roller = 0;
     T.intake.cmd = roller === 0 ? null : roller / 12;
     // ---- the indexer and elevator: their Shoot (fire), RunIntakeBallevator's 3 V, or off
