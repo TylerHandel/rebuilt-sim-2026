@@ -79,7 +79,7 @@ export const SHOOTER = {
   hoodPerDrum: (18 / 15) * (30 / 22), flywheelPerDrum: 45 / 15,
   // inertia (kg m^2), each part about its own axis from the CAD's solids (OpenCascade's volume
   // properties on the STEP; their BOM carries no materials, so by name and appearance: the
-  // tubes, shafts and WCP pulleys aluminum, the dark custom hubs and pulleys prints, PLA);
+  // tubes, shafts and WCP pulleys aluminum, the dark custom hubs and pulleys prints, PLA: printed, with the WCP insert shape);
   // README, *581*, has the table. The drum: its 4in tube (0.74 kg), the hubs, the 45t and 18t
   // pulleys, the ThunderHex and the belts; the WCP-2414 steel inertia flywheel (0.44 kg) with
   // its 15t pulley and stub; the hood's two 2in rollers (tubes, hubs, ThunderHex, the 22t gear
