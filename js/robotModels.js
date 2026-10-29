@@ -2229,6 +2229,7 @@ function build1690(cfg, alliance) {
   const green = std(0x62c94a, 0.7, 0.05), greenDark = std(0x3e9a3a, 0.75, 0.05);
   const fin = std(0x9fd3ea, 0.5, 0.1), plate = std(0xa7adb5, 0.4, 0.75), silicone = std(0x2a2c30, 0.75, 0.05);
   const beltMat = std(0x111214, 0.85, 0.05), ptfe = std(0xe9ecef, 0.6, 0.0, { side: THREE.DoubleSide });
+  const stripe = std(0x6a6f78, 0.6, 0.2);
   const D = R1690, top = D.WALL.top, [tx, tz] = D.TURRET.at, S = D.SHOOTER;
 
   // lattice plate: an outline with X-braced triangular pockets, in the XY plane (thickness z)
@@ -2271,7 +2272,7 @@ function build1690(cfg, alliance) {
     const z0 = D.FLOOR.z0[i], z1 = D.FLOOR.z1, g = new THREE.Group();
     g.position.set(x, y, (z0 + z1) / 2); root.add(g);
     cylZ(D.FLOOR.r, z1 - z0, silicone, g, 0, 0, 0, 14);
-    for (let k = 0; k < 3; k++) bx(0.004, 0.003, z1 - z0 - 0.01, std(0x4b4e55, 0.6, 0.2), g, 0, D.FLOOR.r * (k === 1 ? 1 : 0.6), 0).rotation.z = k * 2.1;
+    for (let k = 0; k < 3; k++) { const a = (k * 2 * Math.PI) / 3; bx(0.005, 0.005, z1 - z0 - 0.01, stripe, g, D.FLOOR.r * Math.cos(a), D.FLOOR.r * Math.sin(a), 0).rotation.z = a; }
     return g;
   });
   // ---- the backing plate (PTFE film on polycarbonate) and the belts' housing; the belts on their
@@ -2314,8 +2315,10 @@ function build1690(cfg, alliance) {
   }
   const feedWheels = [...D.FEED.wheels.map(([z, y]) => [z, y, D.FEED.r, green]), [...D.FEED.top.at, D.FEED.top.r, greenDark]].map(([z, y, r, mat]) => {
     const g = new THREE.Group(); g.position.set(D.FEED.x, y, z); root.add(g);
-    const w = cylZ(r, D.FEED.w, mat, g, 0, 0, 0, 16); w.rotation.set(0, Math.PI / 2, 0);
-    for (let k = 0; k < 6; k++) bx(0.004, r * 1.6, 0.006, std(0x2d6f2a, 0.8, 0.05), g, 0, 0, 0).rotation.x = (k * Math.PI) / 6;
+    // (on fore-aft shafts: the wheel's axis along x, and it spins about x)
+    cylX(r, D.FEED.w, mat, g, 0, 0, 0, 16);
+    cylX(0.006, D.FEED.w + 0.03, M.alu, g, 0, 0, 0, 6);
+    for (let k = 0; k < 6; k++) bx(D.FEED.w + 0.004, r * 1.6, 0.006, std(0x2d6f2a, 0.8, 0.05), g, 0, 0, 0).rotation.x = (k * Math.PI) / 6;
     return g;
   });
   // ---- the electronics box at the back right (its face at BACK.box)
@@ -2362,7 +2365,8 @@ function build1690(cfg, alliance) {
   cylZ(S.r, S.w, std(0x1f2022, 0.85, 0.05), wheel, 0, 0, 0, 28);
   cylZ(S.r * 0.75, S.w + 0.004, M.alu, wheel, 0, 0, 0, 20);
   for (let k = 0; k < 3; k++) bx(0.006, S.r * 1.3, S.w + 0.006, M.aluDark, wheel, 0, 0, 0).rotation.z = (k * Math.PI) / 3;
-  { const gr = spurGear(0.036, 36, 0.008, M.alu, wheel); gr.rotation.x = 0; gr.position.z = S.w / 2 + 0.01; }
+  // (spurGear lies flat, its axis y: turned up onto the wheel's axle, z)
+  { const gr = spurGear(0.036, 36, 0.008, M.alu, wheel, 4); gr.rotation.x = Math.PI / 2; gr.position.z = S.w / 2 + 0.01; }
   for (const s of [-1, 1]) kraken(turret, -0.05, 0.08, s * (S.plateZ + 0.05), false, 'z');
   // the hood: the printed arc about the wheel's axle, its sector gear, the X44
   const hood = new THREE.Group();
@@ -2397,7 +2401,14 @@ function build1690(cfg, alliance) {
     const arm = rbx(F.front - px + 0.02, 0.05, 0.012, 0.004, std(0x111214, 0.5, 0.3), intake, ...rel((F.front + px) / 2, py + 0.0), s * (F.sides + 0.012));
     arm.rotation.z = Math.atan2(I.rollers[0][1] - py, I.rollers[0][0] - px);
   }
-  const intakeRollers = I.rollers.map(([x, y, r]) => cylZ(r, I.width, silicone, intake, ...rel(x, y), 0, 16));
+  // (each roller in its own group on its axle, so spinning the group turns it about the axle: z)
+  const intakeRollers = I.rollers.map(([x, y, r]) => {
+    const g = new THREE.Group(); g.position.set(...rel(x, y), 0); intake.add(g);
+    cylZ(r, I.width, silicone, g, 0, 0, 0, 16);
+    // (three stripes along it, so it's seen to turn)
+    for (let k = 0; k < 3; k++) { const a = (k * 2 * Math.PI) / 3; bx(0.005, 0.005, I.width - 0.02, stripe, g, r * Math.cos(a), r * Math.sin(a), 0).rotation.z = a; }
+    return g;
+  });
   const tube = cylZ(I.tube[2], I.width, M.alu, intake, ...rel(I.tube[0], I.tube[1]), 0, 14);
   for (const s of [-1, 1]) rod(intake, new THREE.Vector3(...rel(I.tube[0], I.tube[1]), s * (I.width / 2 + 0.01)), new THREE.Vector3(...rel(I.tube[0] + 0.1, I.tube[1] + 0.16), s * (I.width / 2 + 0.01)), 0.008, std(0x17181b, 0.5, 0.3));
   kraken(intake, ...rel(I.rollers[1][0] - 0.02, I.rollers[1][1] + 0.03), F.sides + 0.04, false, 'z');
@@ -2409,7 +2420,8 @@ function build1690(cfg, alliance) {
   const anim = (st, dt) => {
     const mp = st.mech;
     intake.rotation.z = mp ? mp.intake : (1 - st.intakeDeploy) * I.stow * Math.PI / 180;
-    for (const r of intakeRollers) r.rotation.z -= (mp ? mp.intakeRollers * I.ratio : st.intakeSpeed * 40) * dt * 0.05;
+    // (the rollers' shafts turn at -1 times the train's: js/mech/r1690.js build1690)
+    for (const r of intakeRollers) r.rotation.z -= (mp ? mp.intakeRollers : st.intakeSpeed * 300) * dt;
     for (const r of floorRollers) r.rotation.z += (mp ? mp.floor : st.feeding * 30) * dt;
     vkick.rotation.y -= (mp ? mp.vkick : st.feeding * 60) * dt;
     for (const w of feedWheels) w.rotation.x -= (mp ? mp.feed : st.feeding * 60) * dt;
