@@ -126,9 +126,29 @@ export const REGRESSIONS = {
     [1600, 1650, 1700, 1750, 1850, 1900, 2000, 2200, 2350]),
   far: table([0, 12.46, 13.133], [3100, 3150, 3500], [45, 45, 45], [1400, 1400, 1300]),
 };
-export function shotFor(kind, d) {
-  const t = REGRESSIONS[kind];
-  return { rpm: interp(t.rpm, d), hood: interp(t.hood, d), tunnel: interp(t.tunnel, d) };
+// Their ferry and far tables re-found by shooting (tools/mechlab1678.mjs tune): their distances,
+// hood angles and tunnel speeds, and the drum RPM at which the sim's FUEL, fed up the tunnel as
+// they are in play, come down on the carpet at the row's distance from the robot's center. Their
+// own RPMs put every pass 0.7-5 m short here, for two reasons. Up to ~2500 RPM the FUEL leave at
+// 0.71 of the drum's surface speed (the drum's and the hood rollers', geared 1:1 on a 3.5in drum
+// and 1.63in rollers, averaged) and fly drag-only, with no Magnus lift for the backspin the slower
+// hood rollers put on, so they need 10-30% more. Past that the FUEL slip on the drum: carried
+// round its 0.12 m radius (drum and FUEL) at 8.5 m/s they need ~130 N toward it, about all the
+// 2 cm squeeze between drum and hood rollers presses them with (the foam's measured, static curve,
+// constants.js), so the hood side takes the load, the drum's grip goes, and they leave at no more
+// than ~9 m/s however fast the drum turns: no more than ~8 m on the carpet, at any hood angle.
+// Rows past that are flat out (4200 RPM: the drum gets to 4350 under its loop) and land short.
+// THEIR_PASS=1 in the environment: their own RPMs. (The HUB's land as they are: the hood's turn,
+// SHOOTER.hoodTurn, was fitted to them.)
+export const SIM_PASS = {
+  ferry: [1990, 1990, 2240, 2465, 4200, 4200, 4200, 4200, 4200],
+  far: [4200, 4200, 4200],
+};
+const THEIR_PASS = typeof process !== 'undefined' && !!process.env?.THEIR_PASS;
+export function shotFor(kind, d, { theirs = THEIR_PASS } = {}) {
+  const t = REGRESSIONS[kind], sim = !theirs && SIM_PASS[kind];
+  const rpm = sim ? t.rpm.map(([x], i) => [x, sim[i]]) : t.rpm;
+  return { rpm: interp(rpm, d), hood: interp(t.hood, d), tunnel: interp(t.tunnel, d) };
 }
 // their CANranges: the tunnel's, on the left side plate looking across the tunnel (0.6 m), and the
 // hopper's, at the back of the hopper looking forward along it (0.3 m, 27 deg wide)

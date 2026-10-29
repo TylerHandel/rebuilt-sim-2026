@@ -3,11 +3,14 @@
 //   node --import ./tools/node-env.mjs tools/mechlab1678.mjs [test ...]
 // Tests: rollers (each roller's free speed, the drum's spin-up), shooter (FUEL fed up the tunnel at
 // their regressions' drum and tunnel speeds and hood angles: how fast and how steep they leave,
-// and whether that reaches the HUB from the regression's distance), path (FUEL on a treadmill
-// carpet, the robot driving into them at 1 m/s: intake, floor, tunnel, drum; how many and how
-// fast), intake (their intake() alone, 24 FUEL), intakefull (filled through the intake from the
-// NEUTRAL ZONE's FUEL until it can't take more: tools/fillbench.mjs), hold (how many it holds,
-// everything off, set in a layer at a time), dump (a full one fired at their 3.2 m shot).
+// and whether that reaches the HUB from the regression's distance; SHOT=rpm,hood,tunnel tries one),
+// tune (six fed up the tunnel as in play at each row: the HUB's where they come down, and the
+// ferry and far ferry rows' drum speeds re-found: js/mech/r1678.js SIM_PASS; MAXRPM, SETTLED,
+// TUNELOG),
+// path (FUEL on a treadmill carpet, the robot driving into them at 1 m/s: intake, floor, tunnel,
+// drum; how many and how fast), intake (their intake() alone, 24 FUEL), intakefull (filled
+// through the intake from the NEUTRAL ZONE's FUEL until it can't take more: tools/fillbench.mjs),
+// hold (how many it holds, everything off, set in a layer at a time), dump (a full one fired at their 3.2 m shot).
 // Env: SEEDS (6), STUCK (where the ones left over are), SPEED (1 m/s), SEC (intakefull's 12 s),
 // FILLSEED (hold and dump: each FUEL set a few mm off its spot, another fill), BINS (dump's shots
 // each quarter second)
@@ -73,7 +76,7 @@ function landing(o) {
   const hit = sim2D(o.y, o.v, (o.el * Math.PI) / 180, HUB.rimFront);
   return hit ? hit.d : NaN;
 }
-// a FUEL that touched the drum and has left it going up: shot
+// a FUEL that touched the drum and has left it going up and back: shot
 function shotWatch(shooter) {
   const touched = new Set(), shots = [];
   return {
@@ -84,7 +87,9 @@ function shotWatch(shooter) {
         else if (touched.has(b)) {
           touched.delete(b);
           const v = b.linvel(), p = b.translation();
-          if (v.y > 2) { shots.push({ t, v: Math.hypot(v.x, v.y, v.z), el: (Math.atan2(v.y, -v.x) * 180) / Math.PI, x: p.x, y: p.y, b }); b.setTranslation({ x: 50 + shots.length, y: 5, z: 0 }, true); }
+          // (going up and back over the drum: not one kicked up forward off it, a rebound off the
+          // one ahead, which falls back onto it)
+          if (v.y > 2 && v.x < 0) { shots.push({ t, v: Math.hypot(v.x, v.y, v.z), el: (Math.atan2(v.y, -v.x) * 180) / Math.PI, x: p.x, y: p.y, b }); b.setTranslation({ x: 50 + shots.length, y: 5, z: 0 }, true); }
         }
       }
     },
@@ -153,6 +158,72 @@ const tests = {
       const land = landing(o) - o.x;
       console.log(`  ${kind} ${d} m (${want.rpm.toFixed(0)} RPM, hood ${want.hood}): ${outs.length}/3 out at ${o.v.toFixed(2)} m/s (${(o.v / surf).toFixed(2)} of the drum's ${surf.toFixed(1)}; the estimate ${EXIT_PER_DRUM_SURFACE}), ${o.el.toFixed(1)} deg (${hoodElevation(want.hood).toFixed(1)} by the CAD's geometry), ` +
         (kind === 'hub' ? `comes down at the rim ${land.toFixed(2)} m back (HUB's center ${d} m: ${land - d > 0 ? '+' : ''}${(land - d).toFixed(2)})` : `comes down to the carpet ~${(sim2D(o.y, o.v, (o.el * Math.PI) / 180, 0.1)?.d - o.x).toFixed(1)} m back`));
+    }
+  },
+  // their ferry and far tables' rows re-found by shooting: at each row's hood angle and tunnel
+  // speed, the drum RPM whose FUEL, six fed up the tunnel in a stream as play feeds them (the drum
+  // from its 2100 RPM idle, fired once it's within 150 RPM (80 at the HUB); a far
+  // ferry's floor and feeder at 3 V, the tunnel held to 5 V), come down on the carpet at the row's
+  // distance from the robot's center (a search between 1200 RPM and MAXRPM, 4200: the drum
+  // gets to 4350 under its loop); prints what js/mech/r1678.js keeps as SIM_PASS. And the HUB's
+  // rows the same way, at their RPMs: where they come down through the rim's height
+  tune() {
+    const MAX = Number(process.env.MAXRPM ?? 4200), SETTLED = !!process.env.SETTLED;
+    const shoot = (kind, rpm, hood, tun) => {
+      const { t, path, shooter } = rig({ hood });
+      const w = world(), far = kind === 'far';
+      // (from its idle, their kSlow 2100, to within 80 RPM of the shot's speed (150 ferrying), where
+      // it fires, as phys1678 does; SETTLED=1: 3 s at the row's speed first)
+      const tol = kind === 'hub' ? 80 : 150, gap = () => Math.abs((t.drum.omega * 60) / 2 / Math.PI - rpm);
+      if (SETTLED) for (let i = 0; i < 3 / DT; i++) { drum(t, rpm); shooter.step(DT, []); }
+      else {
+        for (let i = 0; i < 3 / DT; i++) { drum(t, SHOOTER.slow); shooter.step(DT, []); }
+        for (let i = 0; i < 6 / DT && gap() > tol; i++) { drum(t, rpm); shooter.step(DT, []); }
+      }
+      t.feederT.cmd = far ? 3 / 12 : 1; t.floor.cmd = far ? 3 / 12 : 1;
+      const balls = [...[-0.15, 0, 0.15].map((z) => ball(w, -0.17, 0.22, z)), ...[-0.15, 0, 0.15].map((z) => ball(w, -0.02, 0.2, z))];
+      const watch = shotWatch(shooter);
+      for (let i = 0; i < 4 / DT && watch.shots.length < balls.length; i++) {
+        drum(t, rpm); tunnel(t, tun, far ? 5 : 12);
+        path.step(DT, balls, balls); shooter.step(DT, balls); w.step();
+        watch.check(balls, i * DT);
+      }
+      w.free();
+      const H = kind === 'hub' ? HUB.rimFront : R;
+      const L = watch.shots.map((o) => { const h = sim2D(o.y, o.v, (o.el * Math.PI) / 180, H); return h ? h.d - o.x : NaN; }).filter(Number.isFinite);
+      if (process.env.TUNELOG) console.log(`      ${rpm.toFixed(0)}: ${watch.shots.map((o, k) => `${o.t.toFixed(2)}s ${o.v.toFixed(2)}@${o.el.toFixed(0)} ${(L[k] ?? NaN).toFixed(2)}`).join(' | ')}`);
+      return { land: L.length ? L.reduce((a, b) => a + b, 0) / L.length : NaN, n: L.length, spread: L.length ? Math.max(...L) - Math.min(...L) : NaN };
+    };
+    const out = {};
+    for (const kind of ['hub', 'ferry', 'far']) {
+      const tb = REGRESSIONS[kind];
+      out[kind] = [];
+      for (let k = 0; k < tb.rpm.length; k++) {
+        const [d, rpm0] = tb.rpm[k], hood = tb.hood[k][1], tun = tb.tunnel[k][1];
+        if (d === 0) { out[kind].push(null); continue; } // (their Double.MIN_VALUE row: the next one's)
+        if (kind === 'hub') {
+          const s = shoot(kind, rpm0, hood, tun);
+          console.log(`  hub ${d} m, hood ${hood}, ${rpm0} RPM: ${s.n}/6 come down through the rim's height ${s.land.toFixed(2)} m back (${s.land - d > 0 ? '+' : ''}${(s.land - d).toFixed(2)}; spread ${s.spread.toFixed(2)})`);
+          continue;
+        }
+        const theirs = shoot(kind, rpm0, hood, tun).land;
+        // (bracketed, then regula falsi: past ~2500 RPM the FUEL slip on the drum and the
+        // landing barely moves with the speed, where a secant runs off)
+        let lo = 1200, flo = shoot(kind, lo, hood, tun).land, hi = MAX, fhi = shoot(kind, hi, hood, tun).land, b = hi, lb = fhi;
+        if (!(flo < d)) flo = 0;
+        for (let j = 0; j < 14 && fhi > d && Math.abs(lb - d) > 0.03 && hi - lo > 5; j++) {
+          b = lo + ((d - flo) * (hi - lo)) / (fhi - flo);
+          b = Math.max(lo + 0.1 * (hi - lo), Math.min(hi - 0.1 * (hi - lo), b));
+          lb = shoot(kind, b, hood, tun).land;
+          if (process.env.TUNELOG) console.log(`    ${b.toFixed(0)} RPM: ${lb.toFixed(2)} m`);
+          if (!(lb >= d)) { lo = b; flo = Number.isFinite(lb) ? lb : 0; } else { hi = b; fhi = lb; }
+        }
+        const ok = Number.isFinite(lb) && Math.abs(lb - d) < 0.1;
+        const best = ok ? Math.round(b / 5) * 5 : MAX, at = ok ? lb : fhi;
+        out[kind].push(best);
+        console.log(`  ${kind} ${d} m, hood ${hood}: their ${rpm0} RPM lands ${theirs.toFixed(2)} m (${(theirs - d).toFixed(2)}); ${ok ? `the sim's FUEL come down there at ${best} RPM (x${(best / rpm0).toFixed(3)})` : `out of reach: flat out (${MAX}) lands ${at.toFixed(2)} m (${(at - d).toFixed(2)})`}`);
+      }
+      if (kind !== 'hub') { out[kind][0] = out[kind][1]; console.log(`SIM_PASS.${kind}`, JSON.stringify(out[kind])); }
     }
   },
   // carpet to shot: FUEL in front, the robot driving into them; intaking, then shooting at 3.2 m
