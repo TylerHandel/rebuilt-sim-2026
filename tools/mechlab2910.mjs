@@ -3,7 +3,9 @@
 //   node --import ./tools/node-env.mjs tools/mechlab2910.mjs [test ...]
 // Tests: rollers (each roller's free speed), shooter (FUEL fed up the lift at their table's motor
 // speeds and hood angles: how fast and how steep they leave, and whether that reaches the HUB from
-// the table's distance), path (FUEL on a treadmill carpet, the robot driving into them at 1 m/s:
+// the table's distance), tune (their tables' rows, sixteen FUEL fed as in play: the HUB's where they
+// come down, and the passing table's speeds re-found: js/mech/r2910.js SIM_PASS_TABLE; MAXRPM,
+// ROWS, IDLE_RPM, SETTLED, TUNELOG), path (FUEL on a treadmill carpet, the robot driving into them at 1 m/s:
 // intake, floor, lift, drum; how many and how fast), hold (how many it holds: filled a layer at a
 // time, the lift staged as their PRELOADING does), intakefull (filled through the intake from the
 // NEUTRAL ZONE's FUEL until it can't take more: tools/fillbench.mjs), dump (a full one fired,
@@ -17,7 +19,7 @@ import { FUEL, GROUP, groups, HUB } from '../js/constants.js';
 import { Mechanism } from '../js/mech/mechanism.js';
 import { sim2D } from '../js/ballistics.js';
 import {
-  build2910, wheels2910, pathSurfaces2910, placeIntake, placeHood, hoodElevation, shotFor, SHOT_TABLE, PASS_TABLE, passFor, intakeLimits,
+  build2910, wheels2910, pathSurfaces2910, placeIntake, placeHood, hoodElevation, shotFor, SHOT_TABLE, PASS_TABLE, THEIR_PASS_TABLE, passFor, intakeLimits,
   INTAKE, SHOOTER, FLOOR, DRUM, PIVOT, RANGES,
 } from '../js/mech/r2910.js';
 import PATH from '../js/mech/path2910.js';
@@ -133,6 +135,78 @@ const tests = {
       console.log(`  ${kind} ${d} m (${rpm} RPM, hood ${hood}): out at ${o.v.toFixed(2)} m/s (${(o.v / drum).toFixed(2)} of the drum's ${drum.toFixed(1)}), ${o.el.toFixed(1)} deg (CAD's geometry: ${hoodElevation(hood).toFixed(1)}), ` +
         (kind === 'hub' ? `comes down at the rim ${land.toFixed(2)} m back (HUB's center ${need} m: ${land - need > 0 ? '+' : ''}${(land - need).toFixed(2)})` : `lands ~${landing({ ...o, y: o.y }).toFixed(1)} m+ out`));
     }
+  },
+  // their tables' rows shot as play feeds them: the drum from its idle to the row's speed, and
+  // once it's within 5% (as phys2910 gates a shot) sixteen FUEL (ROWS rows of four, from where the
+  // preload sits forward) fed by the floor at full (their SHOOT) while it stays within it; where they come down, from the
+  // robot's center: the HUB's rows through the rim's height (at their RPMs, and the pass rows'
+  // re-found: at their PASSING_ANGLE, the motor RPM at which they come down on the carpet at the
+  // row's distance, a search between 600 RPM and MAXRPM, 5600, about what the drum gets to
+  // on its 35 A); prints what js/mech/r2910.js keeps as SIM_PASS_TABLE
+  tune() {
+    const MAX = Number(process.env.MAXRPM ?? 5600), SETTLED = !!process.env.SETTLED, ROWS = Number(process.env.ROWS ?? 4), IDLE_RPM = Number(process.env.IDLE_RPM ?? 2378);
+    const shoot = (rpm, hood, H, idle = IDLE_RPM) => {
+      const { t, path, shooter } = rig({ hood });
+      const w = world();
+      // (from its idle, 82% of the HUB shot's speed for the distance to the HUB: IDLE_RPM, 2378
+      // from 5 m on; SETTLED=1: the drum held at the row's speed until it's there, instead)
+      const now = () => (t.shooter.omega * 60) / 2 / Math.PI, within = () => Math.abs(now() - rpm) <= 0.05 * rpm;
+      if (SETTLED) {
+        for (let i = 0, last = 0; i < 15 / DT; i++) {
+          flywheel(t, rpm); shooter.step(DT, []); path.step(DT, []);
+          if (i % 12 === 0) { if (Math.abs(now() - rpm) < 0.01 * rpm || (i > 0 && now() - last < 0.002 * rpm)) break; last = now(); }
+        }
+      } else {
+        for (let i = 0; i < 6 / DT; i++) { flywheel(t, idle); shooter.step(DT, []); }
+        for (let i = 0; i < 15 / DT && !within(); i++) { flywheel(t, rpm); shooter.step(DT, []); path.step(DT, []); }
+      }
+      const balls = [[-0.17, 0.205], [-0.02, 0.225], [0.13, 0.26], [0.28, 0.3]].slice(0, ROWS).flatMap(([x, y]) => [-0.19, -0.063, 0.063, 0.19].map((z) => ball(w, x, y, z)));
+      const touched = new Set(), outs = [];
+      for (let i = 0; i < 6 / DT && outs.length < balls.length; i++) {
+        // (their SHOOT while the drum's within 5% of the shot's speed, as play gates it)
+        t.floor.cmd = SETTLED || within() ? 1 : 0;
+        flywheel(t, rpm); path.step(DT, balls, balls); shooter.step(DT, balls); w.step();
+        for (const b of balls) {
+          if (shooter.contacts.some((c) => c.ball === b)) touched.add(b);
+          else if (touched.has(b)) {
+            touched.delete(b);
+            const v = b.linvel(), p = b.translation();
+            // (up and back over the drum: not one kicked forward off it by the one ahead)
+            if (v.y > 2 && v.x < 0) { outs.push({ drum: now() / rpm, v: Math.hypot(v.x, v.y, v.z), el: (Math.atan2(v.y, -v.x) * 180) / Math.PI, x: p.x, y: p.y }); b.setTranslation({ x: 50 + outs.length, y: 5, z: 0 }, true); }
+          }
+        }
+      }
+      w.free();
+      const L = outs.map((o) => { const h = sim2D(o.y, o.v, (o.el * Math.PI) / 180, H); return h ? h.d - o.x : NaN; }).filter(Number.isFinite);
+      return { land: L.length ? L.reduce((a, b) => a + b, 0) / L.length : NaN, n: L.length, spread: L.length ? Math.max(...L) - Math.min(...L) : NaN, v: med(outs.map((o) => o.v)), drum: med(outs.map((o) => o.drum)) };
+    };
+    for (const [d, rpm, hood] of SHOT_TABLE) {
+      const s = shoot(rpm, hood, HUB.rimFront, 0.82 * rpm);
+      console.log(`  hub ${d} m, hood ${hood}, ${rpm} RPM: ${s.n}/${4 * ROWS} out at ${s.v.toFixed(2)} m/s (the drum at ${s.drum.toFixed(3)} of it), come down through the rim's height ${s.land.toFixed(2)} m back (${s.land - d > 0 ? '+' : ''}${(s.land - d).toFixed(2)}; spread ${s.spread.toFixed(2)})`);
+    }
+    const out = [], hood = SHOOTER.hoodMax;
+    for (const [d, rpm0] of THEIR_PASS_TABLE) {
+      const theirs = shoot(Math.min(rpm0, MAX), hood, R);
+      // (bracketed, then regula falsi: past ~4000 RPM the FUEL slip on the drum and the
+      // landing barely moves with the speed, where a secant runs off)
+      let lo = 600, flo = shoot(lo, hood, R).land, hi = MAX, fhi = shoot(hi, hood, R).land, b = hi, lb = fhi;
+      if (!(flo < d)) flo = 0;
+      for (let j = 0; j < 14 && fhi > d && Math.abs(lb - d) > 0.03 && hi - lo > 5; j++) {
+        b = lo + ((d - flo) * (hi - lo)) / (fhi - flo);
+        b = Math.max(lo + 0.1 * (hi - lo), Math.min(hi - 0.1 * (hi - lo), b));
+        lb = shoot(b, hood, R).land;
+        if (process.env.TUNELOG) console.log(`    ${b.toFixed(0)} RPM: ${lb.toFixed(2)} m`);
+        if (!(lb >= d)) { lo = b; flo = Number.isFinite(lb) ? lb : 0; } else { hi = b; fhi = lb; }
+      }
+      const ok = Number.isFinite(lb) && Math.abs(lb - d) < 0.1;
+      const best = ok ? Math.round(b / 5) * 5 : MAX, at = ok ? lb : fhi;
+      out.push([d, best]);
+      console.log(`  pass ${d} m, hood ${hood}: their ${rpm0} RPM${rpm0 > MAX ? ` (flat out, ${MAX})` : ''} lands ${theirs.land.toFixed(2)} m (${theirs.land - d > 0 ? '+' : ''}${(theirs.land - d).toFixed(2)}); ${ok ? `(the drum at ${shoot(b, hood, R).drum.toFixed(3)} of it) ` : ''}${ok ? `the sim's FUEL come down there at ${best} RPM (x${(best / rpm0).toFixed(3)})` : `out of reach: flat out (${MAX}) lands ${at.toFixed(2)} m (${(at - d).toFixed(2)})`}`);
+    }
+    // (past the last row it asks that row's speed: flat out carries only a little farther, and takes
+    // seconds more to get to)
+    console.log(`  flat out (${MAX}): ${shoot(MAX, hood, R).land.toFixed(2)} m`);
+    console.log('SIM_PASS_TABLE', JSON.stringify(out));
   },
   // carpet to shot: FUEL in front, the robot driving into them; the intake down, the floor and
   // shooter running as when it shoots

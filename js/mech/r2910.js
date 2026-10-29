@@ -76,7 +76,25 @@ export const SHOOTER = {
 // their shot tables (ShooterInterpolation, PassingInterpolation): distance to the HUB's center
 // (m) -> motor RPM and hood angle; passes at the flattest hood
 export const SHOT_TABLE = [[1.3, 2100, 0], [2.0, 2250, 8], [3.0, 2400, 17], [4.0, 2600, 23], [5.0, 2900, 28]];
-export const PASS_TABLE = [[2.0, 2000], [6.0, 3500], [10.0, 6000]];
+export const THEIR_PASS_TABLE = [[2.0, 2000], [6.0, 3500], [10.0, 6000]];
+// Their passing table re-found by shooting (tools/mechlab2910.mjs tune): their distances at their
+// PASSING_ANGLE, and the motor RPM at which the sim's FUEL, fed by the floor as in play, come down
+// on the carpet at the row's distance from the robot's center (the drum from its idle, fed once
+// it's within 5% and while it stays there, as here). Their own RPMs, through the same
+// drum, hood and exit (0.85 of the drum's surface speed) that put their HUB table in the HUB,
+// carry 2.0 m past at 2 m, 3.3 m past at 6 m and (flat out) 1.6 m past at 10 m: it takes 0.62,
+// 0.76 and 0.62 of them, not one factor, so it isn't a gearing or a unit (both tables are the
+// motors' RPM, FLYWHEEL_GEAR_RATIO 1.0, set the same way). Their code feeds a pass as soon as the
+// drum is within 3000 RPM of it (FLYWHEEL_RPM_TOLERANCE), so their FUEL likely leave while it's
+// still spinning up from the HUB shot's speed it idles at, slower than their table's speeds (a
+// guess: nothing in their code says how far their passes go); here a pass waits for them (within
+// 5%, or as fast as it gets: FlatOut). Past ~4000 RPM the FUEL slip on the drum and carry little
+// farther (flat out, 5600 RPM, 11.6 m). Past 10 m it asks the 10 m row's speed, as their table
+// does its last row's (theirs is flat out; here that's 4-7 s from idle for 1.6 m more).
+// THEIR_PASS=1 in the environment: their own RPMs.
+export const SIM_PASS_TABLE = [[2.0, 1240], [6.0, 2655], [10.0, 3700]];
+const THEIR_PASS = typeof process !== 'undefined' && !!process.env?.THEIR_PASS;
+export const PASS_TABLE = THEIR_PASS ? THEIR_PASS_TABLE : SIM_PASS_TABLE;
 const interp = (t, x, j) => {
   if (x <= t[0][0]) return t[0][j];
   for (let k = 1; k < t.length; k++) if (x <= t[k][0]) return t[k - 1][j] + ((t[k][j] - t[k - 1][j]) * (x - t[k - 1][0])) / (t[k][0] - t[k - 1][0]);
@@ -84,6 +102,10 @@ const interp = (t, x, j) => {
 };
 export const shotFor = (d) => ({ rpm: interp(SHOT_TABLE, d, 1), hood: interp(SHOT_TABLE, d, 2) });
 export const passFor = (d) => ({ rpm: interp(PASS_TABLE, d, 1), hood: SHOOTER.hoodMax });
+// their passing time of flight (PassingInterpolation's timeInterpolationTable, by distance, s):
+// a pass's distance is from where the robot will be by then, at its velocity now
+export const PASS_TOF = [[0.5, 0.5], [6.0, 0.83], [10.0, 1.1]];
+export const passTof = (d) => interp(PASS_TOF, d, 1);
 // their CANranges, on the right side plate looking across, tripped by anything within 0.57 m:
 // the hopper's (full when FUEL are piled up to it) and the feeder's (one waiting at the lift)
 export const RANGES = { hopper: { at: [-0.012, 0.399], z: -0.327 }, feeder: { at: [-0.229, 0.380], z: -0.327 }, reach: 0.57 };

@@ -17,7 +17,7 @@
 import { Mechanism } from './mechanism.js';
 import { PhysicalRobot, FlatOut } from './physical.js';
 import {
-  build2910, wheels2910, pathSurfaces2910, placeIntake, placeHood, intakeRot, hoodElevation, shotFor, passFor, intakeLimits,
+  build2910, wheels2910, pathSurfaces2910, placeIntake, placeHood, intakeRot, hoodElevation, shotFor, passFor, passTof, intakeLimits,
   INTAKE, SHOOTER, RANGES, PRELOAD, PIVOT, DRUM,
 } from './r2910.js';
 import PATH from './path2910.js';
@@ -142,12 +142,14 @@ export class Physical2910 extends PhysicalRobot {
     const ranges = { hopper: this._range(RANGES.hopper), feeder: this._range(RANGES.feeder) };
     this.account(t, mode);
     // the shot: their tables, by the distance from the robot's center to the HUB's (or to where
-    // the pass is going)
+    // the pass is going: from where the robot will be once it's flown, their passing()'s
+    // extrapolated translation, its velocity now times the table's time of flight)
     const pass = mode === 'pass';
     let want = null, dist = 0;
     if (setpoint > 0 && r.shot) {
-      const tgt = r.shot.target;
+      const tgt = r.shot.target, lv = r.body.linvel();
       dist = Math.hypot(tgt.x - r.pos.x, tgt.z - r.pos.z);
+      if (pass) { const tof = passTof(dist); dist = Math.hypot(tgt.x - r.pos.x - lv.x * tof, tgt.z - r.pos.z - lv.z * tof); }
       if (!pass) { const c = Field.hubCenter(r.alliance); dist = Math.hypot(c.x - r.pos.x, c.z - r.pos.z); }
       want = pass ? passFor(dist) : shotFor(dist);
     }
