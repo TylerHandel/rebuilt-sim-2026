@@ -1,0 +1,61 @@
+{
+  "source": "1690 Orbit, \"Kepler\": their public X_T release (\"1690-26-Top Level Closed.x_t\", the Google Drive folder their CAD release thread links: chiefdelphi.com/t/520673), imported into Onshape (document 3ea216c248ca60e524c3aa86, workspace 3271fb524a16a4479f60b24c, assembly bbec13ff9e942a2f0d5ca6fd \"1690-26-Top Level\"), exported as STEP and tessellated by tools/step2glb.py (1.2 mm, 0.45 rad, screws, bolts, nuts, washers and rivets skipped); the X_T's pose: the intake's carriage in (\"Closed\"), the turret at -24 deg, the hood at its steep end",
+  "front": "+y,zdown",
+  "parts": [
+    {
+      "out": "cad/robots/1690-body.glb",
+      "include": ["1690-26-100 <1>", "1690-26-200 <1>", "1690-26-300 <1>", "1690-26-400 <1>", "1690-26-600 <1>", "Kepler A bot bumper assembly <1>"],
+      "exclude": [
+        "^1690-26-321-(0[67]|1[0-5])", "^1690-26-315-0[3-7]", "^1690-26-314-0[2-8]", "^1690-26-31[012]-01A", "^1690-26-331-04A", "^1690-26-332-0[5-7]",
+        "Compliant Wheel", "Stealth Wheel", "HTD5 22", "Belt", "^1690-26-253-", "^1690-26-254-", "^Part 16[12]$", "^Part 156$", "^1690-26-432-", "^1690-26-443-08A", "^Part 70$",
+        "^1690-26-25[12]-", "X60 Brushless Motor \\(5\\)", "^Part 10[4-8]$", "^Part 153$", "^Part 157", "^12-18-4", "^motor pulley",
+        "^Part 15[49]$", "^1690-26-44\\d", "^1690-26-451", "^1690-26-43\\d", "Kraken X60 Brushless Motor \\(3\\)", "X60 Brushless Motor-Mirrored", "X44 Brushless Motor-Mirrored",
+        "VersaPlanetary", "^Part 1(1[7-9]|2\\d|6[23]|99)$", "^Part 15$", "Spur gear", "14t Aluminum",
+        "Bumper - IGNORE", "Length \\d Plate", "Width \\d Plate", "^Part (1[7-9]|20)$", "^\\*\\d", "114-0", "^Part 11[07]$",
+        "bearing", "Hex \\(", "Hex Shaft", "Pulley", "PDP"
+      ],
+      "skipBox": [[0.16, 0.36, 0, 0.17, 0.16, 0.40], [0.16, 0.36, 0, 0.17, -0.40, -0.16], [-0.36, -0.16, 0, 0.17, 0.16, 0.40], [-0.36, -0.16, 0, 0.17, -0.40, -0.16]],
+      "smooth": true,
+      "ratio": 0.08,
+      "error": 0.004
+    },
+    {
+      "out": "cad/robots/1690-turret.glb",
+      "include": ["1690-26-400 <1>"],
+      "onlyName": ["^1690-26-43\\d", "^1690-26-451-0[1348]", "Kraken X60 Brushless Motor \\(3\\)", "X60 Brushless Motor-Mirrored", "X44 Brushless Motor-Mirrored", "VersaPlanetary", "^Part 1(1[7-9]|2\\d|6[23]|99)$", "^Part 15$"],
+      "exclude": ["^1690-26-432-", "^Part 70$", "bearing"],
+      "origin": [-0.134, 0, -0.1872],
+      "smooth": true,
+      "ratio": 0.12,
+      "error": 0.003
+    },
+    {
+      "out": "cad/robots/1690-hood.glb",
+      "include": ["1690-26-400 <1>"],
+      "onlyName": ["^1690-26-44\\d", "^1690-26-451-05A", "Spur gear", "14t Aluminum", "110T", "85T"],
+      "exclude": ["Stealth Wheel", "^1690-26-443-08A", "bearing"],
+      "origin": [-0.0701, 0.464, -0.1587],
+      "smooth": true,
+      "ratio": 0.15,
+      "error": 0.002
+    },
+    {
+      "out": "cad/robots/1690-carriage.glb",
+      "include": ["1690-26-200 <1>"],
+      "onlyName": ["^1690-26-25[12]-", "X60 Brushless Motor \\(5\\)", "^Part 10[4-8]$", "^Part 153$", "^Part 157", "^12-18-4", "^motor pulley", "46T", "68T"],
+      "exclude": ["^1690-26-253-05A", "^1690-26-254-05A", "bearing"],
+      "smooth": true,
+      "ratio": 0.12,
+      "error": 0.003
+    },
+    {
+      "out": "cad/robots/1690-kick.glb",
+      "include": ["1690-26-200 <1>"],
+      "onlyName": ["^Part 15[49]$", "^Part 156$", "^Part 161$"],
+      "origin": [0.2723, 0.1703, 0],
+      "smooth": true,
+      "ratio": 0.3,
+      "error": 0.002
+    }
+  ]
+}
