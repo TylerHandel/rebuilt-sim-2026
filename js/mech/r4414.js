@@ -80,8 +80,11 @@ const R = FUEL.radius;
 // what each grips FUEL with (estimates, as 604's and 341's): the TTB urethane wheels, the stealth
 // wheels on the flywheel, the sushi wheels (rubber), the intake's polycarbonate tubes, the omnis'
 // rollers, the passive rollers (free: almost nothing along them), and plates and the hook's fixed
-// standoffs
-export const MU = { urethane: 1.1, stealth: 1.6, sushi: 1.0, polycarb: 0.5, omni: 0.6, rollers: 0.06, plate: 0.3 };
+// standoffs; the hopper's walls, floor and top plate and the box's panels (wall: smoked
+// polycarbonate walls and plates, the printed stadium pieces; 0.25 as every robot's polycarbonate
+// here, 2910's, 604's, 1114's: it was MU.plate's 0.3. The dump's rate doesn't care: 10.0, 10.2 and
+// 10.3 FUEL/s through the middle at 0.3, 0.25 and 0.2, eight fills each)
+export const MU = { urethane: 1.1, stealth: 1.6, sushi: 1.0, polycarb: 0.5, omni: 0.6, rollers: 0.06, plate: 0.3, wall: 0.25 };
 
 // ------------------------------------------------------------------ the layout (robot frame)
 export const HALF_L = 12.5 * IN, HALF_W = 16 * IN; // the frame (25 x 32in)
@@ -254,19 +257,28 @@ export const INTAKE = {
   // extension; the places are estimates from the renders). The black roller is in short segments
   // in the renders: compliant, gripping as rubber does (mu, tread); the kick wheel too (an
   // estimate).
-  // The primary's height: a FUEL taken under it is squeezed 1.2in against the carpet (its bottom
-  // 0.12 m up; FRC intakes squeeze FUEL 0.5-1in). At 0.14 m (1.9in) the FUEL under it wedged
-  // against the carpet and against the one being lifted in the corner (80-160 N each, dented 25-48
-  // mm, 1.5-3 N·m apiece out of it), and driving through FUEL at 3 m/s it sat at its 120 A for two
-  // thirds of the pickup, down to a stall and turning back; meanwhile the FUEL in the corner, the
-  // kick wheel 30 mm into it (140 N) and the bumper's foam behind it (95 N), held the kick wheel's
-  // X44 at its 40 A. The primary reaches a FUEL against the bumper's face only from 0.051 m under
-  // its own center (it's 0.176 m out: a FUEL's radius and its own, less 12 mm), so it can't go
-  // much higher: at 0.165 and up FUEL sat on the kick wheel just under its reach and it filled
-  // 20-30 fewer at 1 m/s. The kick wheel, its back gap out from the bumper's face, holds a FUEL
-  // against the face 0.117 m up, in the primary's reach (4 mm out, in the corner, it held it at
-  // 0.103 m, wedged into the foam)
-  primary: { dx: -0.046, y: 0.158, r: 1.5 * IN },
+  // Where the primary is: what it squeezes a FUEL by against the carpet and against the bumper's
+  // face, and where it reaches one the kick wheel holds against the face. Their CAD isn't public and
+  // the team didn't answer what they run; teams report 1/2-5/8in for rigid rollers, 3/4-1in for
+  // compliant wheels. Here 5/8in (16 mm) against the carpet (its bottom 0.134 m up) and 0.85in
+  // (22 mm) against the bumper's face (its foam giving some of it), 0.166 m out from the face; it
+  // reaches a FUEL against the face from 0.105 m up, and the kick wheel holds them there at 0.117.
+  // It was 0.158 m up and 0.176 m out: 1.2in into the carpet, 0.47in against the face. The FUEL
+  // wedged under it against the carpet took most of its load (80%, at 225-315 deg round it), its
+  // X60s sat at their limit 78% of a pickup driving down the NEUTRAL ZONE's FUEL line at 1.5 m/s,
+  // the kick wheel ran at a median 17% of its speed and the FUEL it holds against the bumper's
+  // face spun there (slipping 1.2 m/s, rising 0.15): 64 in 4 s (2910: 76), 87 at 3 m/s (now 91
+  // and 90). Raised alone, to 0.165-0.178 (0.9-0.4in into the carpet), it took FUEL in faster on
+  // the field, but its reach at the face was from 0.12 m up, over the FUEL the kick wheel holds
+  // there: on the bench's four-abreast fill those spun in place against the face (92% of the
+  // time), the primary spinning over the row under it, and half the fills stopped at 35-55 for
+  // good. 1 cm closer to the face it reaches them again: the bench's fill 96-103 (94-101 before),
+  // 102 in play driving down the line and back at 1 m/s (89). At 0.14 m (1.9in) the FUEL under it
+  // wedged against the carpet and against the one being lifted (80-160 N each), and at 3 m/s it
+  // stalled and turned back. The kick wheel, its back gap out from the bumper's face, holds a FUEL
+  // against the face 0.117 m up (4 mm out, in the corner, it held it at 0.103 m, wedged into the
+  // foam)
+  primary: { dx: -0.056, y: 0.172, r: 1.5 * IN },
   bar: { r: 0.75 * IN, mu: 1.0, tread: 20000 },
   kick: { gap: 0.035, y: 0.75 * IN + 0.006, r: 0.75 * IN, mu: 1.0, tread: 20000 },
   // two tubes across the box over the primary roller, each free on its bearings (the isolated
@@ -649,7 +661,7 @@ function hood() {
 
 export function pathSurfaces4414(t) {
   const s = (name, m, o = {}) => new Surface({ name, vertices: m.v, indices: m.i, mu: MU.plate, ...o });
-  const body = s('hopper (floor, walls, top plate)', merge(hopperFloor(), hopperWalls(), topPlate()));
+  const body = s('hopper (floor, walls, top plate)', merge(hopperFloor(), hopperWalls(), topPlate()), { mu: MU.wall });
   const netS = s('net', net(), { mu: 0.4, tread: 1500 });
   // (the rotor's: it turns, and FUEL they touch push back on its motor)
   const A = [AXIS[0], 0, AXIS[1]], onRotor = (sf) => sf.onShaft(t.rotor, A, [0, -1, 0]);
@@ -658,7 +670,7 @@ export function pathSurfaces4414(t) {
   const boreS = onRotor(s('bore', bore(), { pos: A }));
   const columnS = onRotor(s('hub and skirt', column(), { mu: MU.rollers, pos: A }));
   // (the box slides on its racks' pinions: FUEL it pushes push back on them)
-  const boxS = s('box and intake ramp', box()).onSlide(t.slide, [1, 0, 0]);
+  const boxS = s('box and intake ramp', box(), { mu: MU.wall }).onSlide(t.slide, [1, 0, 0]);
   boxS.slideK = RACK.pinion;
   const turretS = s('turret', turret(), { pos: [AXIS[0], 0, AXIS[1]] });
   const hoodS = s('hood backing', hood(), { pos: [AXIS[0] + SHOOTER.x, FLY.y, AXIS[1]] });

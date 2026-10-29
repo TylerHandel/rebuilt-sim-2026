@@ -4,7 +4,12 @@
 // the torque it takes out of the primary, where round the roller it touches (deg: 0 ahead, 90 on
 // top, 180 behind toward the bumper, 270 under it) and what else holds that FUEL (the bumper, the
 // kick wheel, the black roller, the guard tubes, the box, the carpet, other FUEL). Summed over the
-// window the intake is working (from the first FUEL on the primary to the last one in).
+// window the intake is working (from the first FUEL on the primary to the last one in). And how the
+// FUEL against the bumper's face go (bumperSlip): each step, each FUEL the bumper touches while the
+// primary or the kick wheel drives it, how fast its center goes along the face (relative to the
+// robot) against how fast its surface slips on the face at the contact (its spin less its rolling):
+// rolling up the face, the slip is ~0; spinning in place against it, its center stays put and the
+// slip is its whole spin.
 import { FUEL } from '../js/constants.js';
 
 const R = FUEL.radius;
@@ -16,7 +21,7 @@ const q = (a, f) => { const b = [...a].sort((x, y) => x - y); return b.length ? 
 // robot's frame; onCarpet(body): the FUEL's resting on the carpet; count(): how many it's taken in
 // (the window ends with the last one in)
 export function intakeWatch({ path, t, primary, local, onCarpet, count, every = 0.25 }) {
-  const steps = [], load = new Map(), at = new Map(), series = [], barLoad = new Map();
+  const steps = [], load = new Map(), at = new Map(), series = [], barLoad = new Map(), slip = [];
   let first = null, last = null, tt = 0, win = [], nIn = 0;
   const free = { p: t.primary.motor.freeSpeed, b: t.bar.motor.freeSpeed };
   return {
@@ -53,6 +58,21 @@ export function intakeWatch({ path, t, primary, local, onCarpet, count, every = 
         const key = `${kind(c.wheel.name)}: ${[...who].sort().join('+') || 'nothing else'}`;
         barLoad.set(key, (barLoad.get(key) || 0) + tq * dt);
       }
+      // (the FUEL on the bumper's face, driven by the primary or the kick wheel: along-face center
+      // speed and slip at the face, relative to the robot)
+      const fr = path._frame(), sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+      const crs = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+      for (const c of C) {
+        if (!c.wheel.name?.startsWith('bumper')) continue;
+        const drivers = C.filter((d) => d.ball === c.ball && (d.wheel === primary || d.wheel.shaft === t.bar) && d.wheel.radius);
+        if (!drivers.length) continue;
+        const b = c.ball, p = b.translation(), v = b.linvel(), w = b.angvel(), bc = [p.x, p.y, p.z];
+        const fv = (x) => { const r = sub(x, fr.com); const k = crs(fr.w, r); return [fr.v[0] + k[0], fr.v[1] + k[1], fr.v[2] + k[2]]; };
+        const vc = sub([v.x, v.y, v.z], fv(bc)), rc = sub(c.x, bc), wr = crs([w.x, w.y, w.z], rc);
+        const vp = sub([v.x + wr[0], v.y + wr[1], v.z + wr[2]], fv(c.x)); // (its surface at the contact)
+        const tang = (u) => { const dn = u[0] * c.n[0] + u[1] * c.n[1] + u[2] * c.n[2]; return Math.hypot(u[0] - dn * c.n[0], u[1] - dn * c.n[1], u[2] - dn * c.n[2]); };
+        slip.push({ t: tt, along: tang(vc), slip: tang(vp), N: c.force, by: drivers.map((d) => (d.wheel === primary ? 'primary' : kind(d.wheel.name))).sort().join('+') });
+      }
       s.load = on.reduce((a, c) => a - c.torque * Math.sign(t.primary.omega || 1), 0);
       steps.push(s); win.push(s);
       if (win.length * dt >= every - 1e-9) {
@@ -75,6 +95,15 @@ export function intakeWatch({ path, t, primary, local, onCarpet, count, every = 
       o.text = `over ${o.span.toFixed(2)} s from the first FUEL on the primary to the last one in: primary min ${(100 * o.pMin).toFixed(0)}%, 10th pct ${(100 * o.p10).toFixed(0)}%, median ${(100 * o.pMed).toFixed(0)}% of free; its X60s median ${o.pA.toFixed(0)} A, 90th ${o.pA90.toFixed(0)} A (both), at a current limit ${(100 * o.pLim).toFixed(0)}% (${o.pLimS.toFixed(2)} s); ` +
         `kick wheel/black roller min ${(100 * o.bMin).toFixed(0)}%, median ${(100 * o.bMed).toFixed(0)}%, limited ${(100 * o.bLim).toFixed(0)}%\n     the primary's load (torque x time) by what else holds the FUEL: ${share(load)}\n     by where round the primary: ${share(at)}\n     the kick wheel's and black roller's load: ${share(barLoad, [...barLoad.values()].reduce((a, v) => a + Math.max(0, v), 0) || 1)}`;
       o.series = series;
+      // (the FUEL on the bumper's face: their along-face speed and slip, and how often one's spinning
+      // in place, its center under 0.1 m/s along the face while it slips over 0.5 m/s)
+      const S = slip.filter((x) => x.t >= first && x.t <= last);
+      if (S.length) {
+        const spin = S.filter((x) => x.along < 0.1 && x.slip > 0.5).length / S.length;
+        const by = [...new Set(S.map((x) => x.by))].map((k) => { const a = S.filter((x) => x.by === k); return `${k} ${a.length}: along ${q(a.map((x) => x.along), 0.5).toFixed(2)} m/s, slip ${q(a.map((x) => x.slip), 0.5).toFixed(2)} m/s (90th ${q(a.map((x) => x.slip), 0.9).toFixed(2)}), pressed ${q(a.map((x) => x.N), 0.5).toFixed(0)} N`; }).join('; ');
+        o.slip = { spin, along: q(S.map((x) => x.along), 0.5), slip: q(S.map((x) => x.slip), 0.5) };
+        o.text += `\n     FUEL on the bumper's face, driven (FUEL-steps ${S.length}): along it median ${o.slip.along.toFixed(2)} m/s, slipping on it median ${o.slip.slip.toFixed(2)} m/s; spinning in place (under 0.1 m/s along, over 0.5 slipping) ${(100 * spin).toFixed(0)}% of the time; by what drives them: ${by}`;
+      }
       return o;
     },
   };
