@@ -87,9 +87,12 @@ export const SHOOTER = {
   fly: { at: [0.112, 0.466], d: 4 * IN, w: 0.1 },
   feed: { at: [0.074, 0.410], d: 1 * IN, w: 0.1 },
   hood: [[-0.202, -0.002], [-0.196, 0.052]], hoodD: 2 * IN, hoodW: 0.05,
-  // the flywheel and what turns with it: two 4in urethane rollers on aluminum hubs, the Stealth
-  // wheels, the 1in wheels and the shafts (an estimate)
-  J: 0.0015,
+  // the flywheel and what turns with it (kg m^2), each part about its own axis from the CAD's solids
+  // (OpenCascade's volume properties on the STEP) and the BOM's materials; README, *341*, has the
+  // table: two McMaster 2477K37 4in urethane rollers (0.40 kg each) on their steel hubs and HDPE
+  // inserts, the 7075 hex, the PLA pulleys, the belts and the motors' pulleys. The Stealth wheels'
+  // two shafts and the reverser (the 30t gears) are Jstealth, the 1in wheels Jfeed
+  J: 1.228e-3, Jstealth: 8.66e-5, Jfeed: 8.3e-6,
   // their velocity loop (VelocityVoltage, motor rotations/s): kV, kP; their RPM tolerance
   kV: 0.135, kP: 0.125, tol: 130,
   hoodMax: 31.3, // their soft limit, 11.62 motor rotations
@@ -171,8 +174,8 @@ export function build341() {
   // Stealth wheels' fronts up, and the 1in wheel's back up
   const shooter = new Train({ name: 'shooter', motor: new Motor('krakenX60', { count: 2, statorLimit: 120, supplyLimit: 200 }) });
   const fly = shooter.add(new Shaft({ name: 'flywheel (4in urethane)', inertia: SHOOTER.J }), -1);
-  const stealth = shooter.add(new Shaft({ name: 'hood Stealth wheels', inertia: 1e-4 }), 1);
-  const feed = shooter.add(new Shaft({ name: '1in urethane wheel', inertia: 1e-5 }), -1);
+  const stealth = shooter.add(new Shaft({ name: 'hood Stealth wheels', inertia: SHOOTER.Jstealth }), 1);
+  const feed = shooter.add(new Shaft({ name: '1in urethane wheel', inertia: SHOOTER.Jfeed }), -1);
   // the intake's pivot (positive turns the arm down, out)
   const pivot = new Shaft({ name: 'intake pivot', motor: new Motor('krakenX44', { ratio: 3.4 * (48 / 14) * (48 / 16), statorLimit: 40, supplyLimit: 30 }), inertia: INTAKE.J, drag: 0.3 });
   return { intake, bottom, top, pivotRoller, dead, serializer, tableA, tableB, upBack, upFront, feederT, feeder, omniFree, shooter, fly, stealth, feed, pivot };
