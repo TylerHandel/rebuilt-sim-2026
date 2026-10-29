@@ -29,7 +29,7 @@
 //     (its rim, the Ball Bar, the corner gussets) out of the rotor's reach, and stowing slides the
 //     hopper in over them; it stays stowed until the next intake.
 import { Mechanism } from './mechanism.js';
-import { PhysicalRobot } from './physical.js';
+import { PhysicalRobot, FlatOut } from './physical.js';
 import {
   build604, wheels604, shooterWheels, pathSurfaces604, placeIntake, placeHopper, placeRotor, placeRotorSurface, placeShooter, placeTurretSurfaces,
   armRot, hopperExt, hoodRot, hoodElevation, launchFor, feedSpeed, radFor, velocityAt, rollerRad, rotorPoint,
@@ -271,7 +271,11 @@ export class Physical604 extends PhysicalRobot {
     const yawTol = feed ? S.feedTolYaw : S.tolYaw, angleTol = feed ? S.feedTolAngle : S.tolAngle, vTol = feed ? S.feedTolV : S.tolV;
     const atYaw = Math.abs(r.aimErr ?? Infinity) < yawTol * DEG;
     const atAngle = Math.abs(this.hoodDeg - this.hoodGoal) < angleTol;
-    const atV = targetRad > 0 && targetRad < MAX_RAD && Math.abs(velocityAt(targetRad) - velocityAt(Math.abs(T.main.omega))) < vTol;
+    // (a feed from out of reach asks for their lookup's ceiling, 600 rad/s, which atVelocity never
+    // is: it goes once the launcher's as fast as it gets, its FUEL falling short: FlatOut)
+    this.flat ||= new FlatOut();
+    const flatOut = this.flat.step(dt, Math.abs(T.main.omega), feed && launch ? targetRad : 0);
+    const atV = targetRad > 0 && ((targetRad < MAX_RAD && Math.abs(velocityAt(targetRad) - velocityAt(Math.abs(T.main.omega))) < vTol) || flatOut);
     const inLaunchZone = !this._in('TOWER') && !this._in('BUMP') && !this._in('BLOCKED');
     this.ready = launch && atYaw && atAngle && atV;
 

@@ -15,7 +15,7 @@
 //     the HUB, 15 for a pass); for the HUB also stopped (0.15 m/s) and 1.5 m or more away. Their
 //     flywheel tolerance (3000 RPM) doesn't hold anything.
 import { Mechanism } from './mechanism.js';
-import { PhysicalRobot } from './physical.js';
+import { PhysicalRobot, FlatOut } from './physical.js';
 import {
   build2910, wheels2910, pathSurfaces2910, placeIntake, placeHood, intakeRot, hoodElevation, shotFor, passFor, intakeLimits,
   INTAKE, SHOOTER, RANGES, PRELOAD, PIVOT, DRUM,
@@ -169,7 +169,11 @@ export class Physical2910 extends PhysicalRobot {
     const aim = Math.abs(r.aimErr ?? Infinity);
     // (and, since it idles below it between shots, the drum up to the shot's speed: within 5%. Their
     // public code's 3000 RPM tolerance would feed straight away from idle, every FUEL short)
-    const spunUp = Math.abs(rps * 60 - this.targetRpm) <= 0.05 * this.targetRpm;
+    // (a pass past what its drum gets to, their table's 6000 RPM for 10 m and on: as fast as it goes,
+    // its FUEL falling short: FlatOut)
+    this.flat ||= new FlatOut();
+    const flatOut = this.flat.step(dt, rps * 60, pass && want ? this.targetRpm : 0);
+    const spunUp = Math.abs(rps * 60 - this.targetRpm) <= 0.05 * this.targetRpm || flatOut;
     const ready = !!want && hoodOk && spunUp && (pass ? aim <= TOL.passAim : aim <= TOL.aim && speed <= TOL.speed && dist >= TOL.minDist);
     this.feed = on && feeding && ready && r.passClear !== false;
     // the hopper floor: SHOOT, PRELOADING (its hopper CANrange full for 0.25 s, nothing at the

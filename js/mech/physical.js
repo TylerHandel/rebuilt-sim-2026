@@ -40,6 +40,23 @@ export class FullWatch {
     return this.full;
   }
 }
+// A pass from out of reach asks a flywheel for its table's last row (or more) when its motors may
+// not get it there: a velocity loop that never comes within its code's tolerance would never feed.
+// So, passing, it goes anyway once it's about as fast as it'll go: short of what it's told, and its
+// speed has all but stopped climbing (gaining under 5% of the target a second, smoothed over 0.1 s,
+// for 0.25 s; 2910's drum and brass flywheel on their 35 A supply limits creep the last few hundred
+// RPM up over many seconds, toward ~5650 RPM). Its FUEL then come down as short as physics has them.
+// step() each step with the flywheel's speed and the target (any one unit); true: flat out.
+export class FlatOut {
+  constructor() { this.t = 0; this.rate = 0; this.last = null; }
+  step(dt, speed, target) {
+    const rate = this.last === null ? 0 : (speed - this.last) / dt;
+    this.last = speed;
+    this.rate += (rate - this.rate) * (1 - Math.exp(-dt / 0.1));
+    this.t = target > 0 && speed < target && speed > 0.5 * target && this.rate < 0.05 * target ? this.t + dt : 0;
+    return this.t >= 0.25;
+  }
+}
 // any FUEL in the mouth (centers, robot frame) pressed against one of the load's
 export function mouthPressed(mouth, load) {
   return mouth.some(([x, y, z]) => load.some(([u, v, w]) => (u - x) ** 2 + (v - y) ** 2 + (w - z) ** 2 < (2 * R + 0.01) ** 2));
