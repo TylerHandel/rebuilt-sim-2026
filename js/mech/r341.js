@@ -113,8 +113,30 @@ const interp = (t, x) => {
   for (let k = 1; k < t.length; k++) if (x <= t[k][0]) return t[k - 1][1] + ((t[k][1] - t[k - 1][1]) * (x - t[k - 1][0])) / (t[k][0] - t[k - 1][0]);
   return t[t.length - 1][1];
 };
-export function shotFor(kind, d) {
-  return kind === 'ferry' ? { rpm: interp(REGRESSIONS.feedRpm, d), hood: REGRESSIONS.feedHood } : { rpm: interp(REGRESSIONS.rpm, d), hood: interp(REGRESSIONS.hood, d) };
+// Their tables' rows re-found by shooting (tools/mechlab341.mjs tune): at their distances and
+// hood angles, the flywheel RPM at which the sim's FUEL, the preload fed up the uptake as play
+// feeds it, come down through the HUB's rim height over its center (ferrying: on the carpet at
+// the distance). Their own RPMs put the HUB's shots 0.13-0.41 m short at 2.4-5.5 m (0.41 at 3.07,
+// where their table's 2025 RPM is less than its 2.38 m row's) and every ferry 1.2-4.2 m short:
+// the sim's FUEL leave at ~0.68 of the flywheel's surface speed and fly drag-only, with no Magnus
+// lift for the backspin the hood's Stealth wheels (half the flywheel's surface speed) put on them,
+// which flattens a real one's flight, the more so the longer and flatter it is. So the HUB's
+// rows ask 0-5% more, the ferry's 18-39%. Past ~2500 RPM the FUEL slip on the flywheel (0.56 of
+// its surface speed at 3670, 0.45 at 5500), so a ferry gets no further than ~12.8 m at 28 deg:
+// their 13.94 and 16 m rows are flat out (5500: the flywheel's 5700 free, less room for its loop
+// to catch up). The HUB's 14 m row (no HUB shot comes from there; it sets the slope past 5.5 m)
+// is their RPM times the 5.5 m row's factor. Two of the ferry's rows are the sim's own: 4 m,
+// short of their first, where the sim's pass targets can be, and 9 m, where the slip bends the
+// curve. THEIR_SHOTS=1 in the environment: their own RPMs.
+export const SIM_SHOTS = {
+  rpm: [[1.51, 2005], [2.38, 2115], [3.07, 2135], [3.5, 2190], [4.24, 2230], [5.5, 2475], [14, 3310]],
+  feedRpm: [[4, 1705], [5.5, 2115], [7.5, 2565], [9, 2910], [10.5, 3670], [13.94, 5500], [16, 5500]],
+};
+const THEIR_SHOTS = typeof process !== 'undefined' && !!process.env?.THEIR_SHOTS;
+export function shotFor(kind, d, { theirs = THEIR_SHOTS } = {}) {
+  const key = kind === 'ferry' ? 'feedRpm' : 'rpm';
+  const rpm = interp(theirs ? REGRESSIONS[key] : SIM_SHOTS[key], d);
+  return { rpm, hood: kind === 'ferry' ? REGRESSIONS.feedHood : interp(REGRESSIONS.hood, d) };
 }
 // the preload, eight on the serializer's floor
 export const PRELOAD = [

@@ -46,10 +46,12 @@ const profile = (p, v, goal, vmax, amax, dt) => {
   const nv = v + clamp(want - v, -amax * dt, amax * dt);
   return [p + nv * dt, nv];
 };
-// FUEL leave at this fraction of the flywheel's surface speed (tools/mechlab341.mjs shooter: 0.68-0.73
-// over their tables' rows, at the elevation the CAD's geometry gives; their HUB table's shots
-// come down within 0.05 m of its distance at 1.5, 2.4, 4.2 and 5.5 m, 0.2 m short at 3-3.5 m)
-export const EXIT_PER_FLY_SURFACE = 0.7;
+// FUEL leave at this fraction of the flywheel's surface speed (tools/mechlab341.mjs shooter: 0.67-0.72
+// over the HUB's rows, a few degrees steeper than the CAD's geometry gives), up to ~2700 RPM;
+// past that they slip on it, and leave at no more than 8 m/s plus 0.15 of its surface speed
+// (10.9 m/s at 3670 RPM, 12.4 at 5500): exitSpeed. (The shot tables are re-found by shooting:
+// js/mech/r341.js SIM_SHOTS)
+export const EXIT_PER_FLY_SURFACE = 0.7, EXIT_SLIP = [8.0, 0.15];
 // the AI's driver letting go of the trigger when nothing comes out (letGo): after (s) without a
 // shot, for (s)
 export const LET_GO = { after: 0.8, for: 0.4 };
@@ -227,7 +229,7 @@ export class Physical341 extends PhysicalRobot {
   // the arm's turn from the CAD's pose (rad), for drawing it
   armTurn() { return intakeRot(this.armDeg); }
   // about how fast a FUEL leaves at the flywheel's speed now (m/s; tools/mechlab341.mjs shooter)
-  exitSpeed() { return EXIT_PER_FLY_SURFACE * Math.abs(this.t.fly.omega) * SHOOTER.fly.d / 2; }
+  exitSpeed() { const s = (Math.abs(this.t.fly.omega) * SHOOTER.fly.d) / 2; return Math.min(EXIT_PER_FLY_SURFACE * s, EXIT_SLIP[0] + EXIT_SLIP[1] * s); }
   // how many it holds in its path (tools/mechlab341.mjs hold)
   capacity() { return 8; }
 }

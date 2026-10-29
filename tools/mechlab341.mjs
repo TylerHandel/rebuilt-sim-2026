@@ -4,7 +4,9 @@
 // Tests: geometry (where the arm's rollers are, down), rollers (each roller's free speed, the
 // flywheel's spin-up), shooter (FUEL fed up the uptake at their tables' RPM and hood angles: how
 // fast and how steep they leave, and whether that reaches the HUB from the table's distance),
-// path (FUEL on a treadmill carpet, the robot driving into them at 1 m/s, shooting at 3 m: intake,
+// tune (the preload fed as in play at each row of their tables: the flywheel RPM at which the
+// HUB's come down over its center and the ferry's at the row's distance: js/mech/r341.js
+// SIM_SHOTS; MAXRPM, SETTLED, TUNELOG), path (FUEL on a treadmill carpet, the robot driving into them at 1 m/s, shooting at 3 m: intake,
 // serializer, uptake, shooter; how many and how fast), rate (the intake on its own: FUEL taken off
 // the serializer's floor as soon as they're past the pivot's shaft, 30 of them three or four
 // abreast; how fast it takes them in, against their binder's 10 FUEL/s), intake (intaking, not
@@ -13,13 +15,14 @@
 // Env: SEEDS (6), SPEED (1 m/s), ARM (their angle down, 149), ABREAST (rate: 3 or 4), TRACE (a FUEL's index to follow),
 // STUCK (where the ones left over are), LEAK (how ones get out other than shot), EXIT (the exit/flywheel-surface ratio to report against),
 // LETGO (path: the AI driver letting go of the trigger when nothing comes out, as in play)
+// THEIR_SHOTS=1: their tables' own RPMs instead of the re-found ones (js/mech/r341.js)
 import { RAPIER } from '../js/physics.js';
 import { FUEL, GROUP, groups, HUB } from '../js/constants.js';
 import { Mechanism } from '../js/mech/mechanism.js';
 import { sim2D } from '../js/ballistics.js';
 import {
   build341, wheels341, shooterWheels, pathSurfaces341, placeIntake, intakeRot, placeShooter, placeTurretSurfaces, hoodElevation,
-  shotFor, REGRESSIONS, INTAKE, SHOOTER, OMNI, PIVOT, TURRET, HALF,
+  shotFor, REGRESSIONS, INTAKE, SHOOTER, OMNI, PIVOT, TURRET, HALF, PRELOAD,
 } from '../js/mech/r341.js';
 import PATH from '../js/mech/path341.js';
 import { EXIT_PER_FLY_SURFACE, LET_GO } from '../js/mech/phys341.js';
@@ -150,6 +153,85 @@ const tests = {
         (kind === 'hub' ? `comes down at the rim ${land.toFixed(2)} m out (the HUB's center ${d} m: ${land - d > 0 ? '+' : ''}${(land - d).toFixed(2)})` : `comes down to the carpet ~${(sim2D(o.y, o.v, (o.el * Math.PI) / 180, 0.1)?.d + o.x - TURRET[0]).toFixed(1)} m out`));
     }
     if (ratios.length) console.log(`  exit speed / flywheel surface speed: median ${med(ratios).toFixed(3)}`);
+  },
+  // their tables' rows re-found by shooting: at each row's hood angle (their hood table at the
+  // row's distance; the ferry's 28), the flywheel RPM whose FUEL, the preload's eight fed as play
+  // feeds them (the flywheel from rest to within their 130 RPM, then the intake's rollers, top
+  // rollers and uptake at 12 V and the feeder at 3 V while it stays within it, debounced 0.1 s as
+  // theirs), come down at the row's distance from the turret: the HUB's through the rim's height,
+  // the ferry's on the carpet (a search between 1200 RPM and MAXRPM, 5500: the flywheel's 5700
+  // free, less room for its loop to catch up between FUEL); prints what
+  // js/mech/r341.js keeps as SIM_SHOTS. SETTLED=1: 3 s at the row's speed first; TUNELOG: each shot
+  tune() {
+    const MAX = Number(process.env.MAXRPM ?? 5500), SETTLED = !!process.env.SETTLED;
+    const shoot = (kind, rpm, hood) => {
+      const { t, path, shooter } = rig({ hood });
+      const w = world();
+      const now = () => RPM(t.shooter.omega), within = () => Math.abs(now() - rpm) <= SHOOTER.tol;
+      if (SETTLED) for (let i = 0; i < 3 / DT; i++) { fly(t, rpm); shooter.step(DT, []); }
+      else for (let i = 0; i < 6 / DT && !within(); i++) { fly(t, rpm); shooter.step(DT, []); }
+      const balls = PRELOAD.map(([x, y, z]) => ball(w, x, y, z));
+      const watch = shotWatch(shooter);
+      let atSpeedT = 0.1;
+      // (until all eight are out, or nothing's come out for a second: the zipper locked, as it can
+      // in play, where the AI's driver lets go and presses again; the ones shot count)
+      const quiet = (i) => i * DT - (watch.shots.length ? watch.shots[watch.shots.length - 1].t : 0) > 1;
+      for (let i = 0; i < 6 / DT && watch.shots.length < balls.length && !quiet(i); i++) {
+        const live = balls.filter((b) => b.translation().y < 3);
+        fly(t, rpm);
+        atSpeedT = within() ? 0.1 : Math.max(0, atSpeedT - DT);
+        const on = atSpeedT > 0;
+        t.intake.cmd = on ? 1 : 0; t.serializer.cmd = on ? 1 : 0; t.feederT.cmd = on ? 3 / 12 : 0;
+        path.step(DT, live, live); shooter.step(DT, live); w.step();
+        watch.check(live, i * DT);
+      }
+      w.free();
+      const H = kind === 'hub' ? HUB.rimFront : R;
+      const L = watch.shots.map((o) => { const h = sim2D(o.y, o.v, (o.el * Math.PI) / 180, H); return h ? h.d + o.x - TURRET[0] : NaN; }).filter(Number.isFinite);
+      if (process.env.TUNELOG) console.log(`      ${rpm.toFixed(0)}: ${watch.shots.map((o, k) => `${o.t.toFixed(2)}s ${o.v.toFixed(2)}@${o.el.toFixed(0)} ${(L[k] ?? NaN).toFixed(2)}`).join(' | ')}`);
+      return { land: L.length ? L.reduce((a, b) => a + b, 0) / L.length : NaN, n: L.length, spread: L.length ? Math.max(...L) - Math.min(...L) : NaN };
+    };
+    const lerp = (t, x) => { if (x <= t[0][0]) return t[0][1]; for (let k = 1; k < t.length; k++) if (x <= t[k][0]) return t[k - 1][1] + ((t[k][1] - t[k - 1][1]) * (x - t[k - 1][0])) / (t[k][0] - t[k - 1][0]); return t[t.length - 1][1]; };
+    // (and two rows of the sim's own for ferrying: at 4 m, short of their first (5.5 m), where the
+    // sim's pass targets can be; at 9 m, where the FUEL's slip on the flywheel bends the curve
+    // between their 7.5 and 10.5 m rows)
+    const extra = { rpm: [], feedRpm: [4.0, 9.0] }, out = { rpm: [], feedRpm: [] };
+    for (const [key, kind] of [['rpm', 'hub'], ['feedRpm', 'ferry']]) {
+      const rows = [...REGRESSIONS[key].map(([d, r]) => [d, r, true]), ...extra[key].map((d) => [d, Math.round(lerp(REGRESSIONS[key], d)), false])].sort((p, q) => p[0] - q[0]);
+      for (const [d, rpm0, own] of rows) {
+        const hood = shotFor(kind, d, { theirs: true }).hood;
+        const theirs = shoot(kind, rpm0, hood);
+        // (bracketed, then regula falsi, as tools/mechlab1678.mjs tune)
+        let lo = 1200, flo = shoot(kind, lo, hood).land, hi = MAX, fhi = shoot(kind, hi, hood).land, b = hi, lb = fhi;
+        if (!(flo < d)) flo = 0;
+        for (let j = 0; j < 14 && fhi > d && Math.abs(lb - d) > 0.03 && hi - lo > 5; j++) {
+          b = lo + ((d - flo) * (hi - lo)) / (fhi - flo);
+          b = Math.max(lo + 0.1 * (hi - lo), Math.min(hi - 0.1 * (hi - lo), b));
+          lb = shoot(kind, b, hood).land;
+          if (process.env.TUNELOG) console.log(`    ${b.toFixed(0)} RPM: ${lb.toFixed(2)} m`);
+          if (!(lb >= d)) { lo = b; flo = Number.isFinite(lb) ? lb : 0; } else { hi = b; fhi = lb; }
+        }
+        const ok = Number.isFinite(lb) && Math.abs(lb - d) < 0.1;
+        // (out of reach: a ferry's flat out; the HUB's 14 m row, which no HUB shot comes from (the
+        // ALLIANCE ZONE's far corner is ~6 m from it) and only sets the table's slope past 5.5 m,
+        // their RPM times the last row's factor, so that slope stays theirs)
+        const last = out[key][out[key].length - 1], prev = last && lerp(REGRESSIONS[key], last[0]);
+        const best = ok ? Math.round(b / 5) * 5 : kind === 'hub' && prev ? Math.round((rpm0 * last[1]) / prev / 5) * 5 : MAX, at = ok ? lb : fhi;
+        const mine = ok ? shoot(kind, best, hood) : null;
+        out[key].push([d, best]);
+        console.log(`  ${kind} ${d} m, hood ${hood.toFixed(1)}: ${own ? 'their' : '(the sim\'s own row; their table gives)'} ${rpm0} RPM: ${theirs.n}/8 land ${theirs.land.toFixed(2)} m (${theirs.land - d > 0 ? '+' : ''}${(theirs.land - d).toFixed(2)}); ` +
+          (ok ? `the sim's FUEL come down there at ${best} RPM (x${(best / rpm0).toFixed(3)}): ${mine.n}/8 land ${mine.land.toFixed(2)} m (${mine.land - d > 0 ? '+' : ''}${(mine.land - d).toFixed(2)}, spread ${mine.spread.toFixed(2)})` : `out of reach: flat out (${MAX}) lands ${at.toFixed(2)} m (${(at - d).toFixed(2)}); ${best} kept`));
+      }
+    }
+    console.log('SIM_SHOTS', JSON.stringify(out));
+    // and between the rows, at the interpolated RPM: their table's, and the re-found one's
+    for (const [key, kind, ds] of [['rpm', 'hub', [2.0, 2.7, 3.3, 3.9, 4.9, 6.0]], ['feedRpm', 'ferry', [4.5, 6.5, 8.3, 9.8, 12.0]]]) {
+      for (const d of ds) {
+        const hood = shotFor(kind, d, { theirs: true }).hood, r0 = lerp(REGRESSIONS[key], d), r1 = lerp(out[key], d);
+        const a = shoot(kind, r0, hood).land, b2 = shoot(kind, r1, hood).land, e = (x) => `${x - d > 0 ? '+' : ''}${(x - d).toFixed(2)}`;
+        console.log(`  between: ${kind} ${d} m, hood ${hood.toFixed(1)}: their ${r0.toFixed(0)} RPM lands ${a.toFixed(2)} m (${e(a)}), the re-found ${r1.toFixed(0)} ${b2.toFixed(2)} m (${e(b2)})`);
+      }
+    }
   },
   path() {
     const runs = [];
