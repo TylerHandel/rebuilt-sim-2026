@@ -164,7 +164,7 @@ export class OpponentAI {
       this.seen.push({ t: this.t, x: F.pos.x, z: F.pos.z });
       while (this.seen.length > 2 && this.seen[1].t < this.t - this.skill.lag) this.seen.shift();
     }
-    Object.assign(cmd, { vx: 0, vz: 0, omega: 0, intake: false, shoot: false, pass: false, outtake: false, prespin: false, lower: false });
+    Object.assign(cmd, { vx: 0, vz: 0, omega: 0, intake: false, shoot: false, pass: false, outtake: false, prespin: false, lower: false, lineup: false });
     // an intake that stows folded up (8793's) comes down on the way under a TRENCH
     if (r.cfg.intake.fold && fitsTrench(r.cfg) && underTrench(r.pos.x, r.pos.z, r.halfL + 1.2)) cmd.lower = true;
     if (!m.isTeleop) { this.label = m.isAuto ? 'AUTO' : 'Waiting'; return; }
@@ -448,6 +448,9 @@ export class OpponentAI {
       this.label = r.ready ? 'Shooting' : 'Aiming';
       return;
     }
+    // (heading in to score with FUEL: lining up a shot, as a driver holding an aim trigger does;
+    // only a physical robot that asks reads it: 1114's flywheel spins up to its shot)
+    r.cmd.lineup = r.stored.length > 0;
     // heading in to score: go around a blocker at first, then drive straight through it.
     // "blocked" = a robot is close and we haven't gained 0.3 m on home for a while
     const dF = this.others.reduce((a, o) => Math.min(a, Math.hypot(o.pos.x - r.pos.x, o.pos.z - r.pos.z)), Infinity);

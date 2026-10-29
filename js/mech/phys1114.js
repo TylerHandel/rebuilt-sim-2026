@@ -8,7 +8,9 @@
 //     the intake's button (their right bumper, also the shooter's off button) is pressed: then the
 //     hood brakes where it is and the flywheel drops to their ShooterIdle's 1000 RPM (their
 //     shooter's default command, commented out of their bindings; with it out their code coasts
-//     it), so each dump spins up from idle.
+//     it). In TELEOP it's held, as a driver holds the trigger, while it lines up a shot: shooting,
+//     heading in to score (the AI's lineup), in its zone holding FUEL and not intaking; otherwise
+//     (intaking, out of its zone, empty) it idles.
 //   shoot (their right trigger, Shoot with AgitateIntake): while the flywheel is within 500 RPM
 //     under its setpoint and the chassis within 7 deg of its heading: the elevator at 4500 RPM
 //     (their velocity loop, at the Talon's 1 kHz), the floor at 12 V and the side rollers at 10
@@ -45,6 +47,8 @@ const GATE = { rpm: 500, aim: 7 * DEG, agitateRpm: 400, agitateAim: 5 * DEG, agi
 // moves it at most 7530 RPM x 2.43 = 305 deg/s at 12 V)
 const HOOD = { kP: SHOOTER.hoodKP / SHOOTER.hoodDegPerRot, free: (7530 / 60) * SHOOTER.hoodDegPerRot };
 const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+// heading in to score (the AI's lineup), the HUB shot held within these distances (m)
+const LINEUP = { near: 1.6, far: 4.5 };
 // a motor's duty cycle for torque current amps (per motor) at its output speed w (their FOC
 // torque current, the battery's 12 V permitting)
 function dutyFor(motor, amps, w, V = 12) {
@@ -161,13 +165,28 @@ export class Physical1114 extends PhysicalRobot {
     // through FullShoot; ShooterStop after each FullShoot ends the aim until the next marker (their
     // code coasts the flywheel there; here it idles, below). The AUTO runner says which:
     // spin)
-    const spin = r.match?.isAuto ? r.cmd.spin : undefined;
-    if (on && setpoint > 0 && r.shot) { this.aim = true; this.aimMode = pass && !spin ? 'pass' : 'hub'; }
-    if ((intaking && !spin) || !on || (spin === false && !feeding)) this.aim = null;
+    const auto = !!r.match?.isAuto, spin = auto ? r.cmd.spin : undefined, has = r.stored.length > 0;
+    // (TELEOP: held, as their driver holds the aim trigger, while it lines up a shot: shooting or
+    // passing; heading in to score (the AI's lineup: from when it sets off for its spot with FUEL,
+    // the intake picking up what's on the way beside it, as their AUTO's AimShooterHub runs beside
+    // IntakeDeploy); in its ALLIANCE ZONE holding FUEL and not intaking (the human's: the sim's
+    // prespin, which gives the shared shot it reads), or asked to spin up for a pass. Otherwise
+    // (intaking, out of its zone, empty) it idles)
+    const lineup = !auto && on && has && !!r.cmd.lineup && !feeding;
+    if (!auto) {
+      this.aim = on && (lineup || (setpoint > 0 && !!r.shot && (feeding || !intaking))) ? true : null;
+      this.aimMode = pass && !lineup ? 'pass' : 'hub';
+    } else {
+      if (on && setpoint > 0 && r.shot) { this.aim = true; this.aimMode = pass && !spin ? 'pass' : 'hub'; }
+      if ((intaking && !spin) || !on || (spin === false && !feeding)) this.aim = null;
+    }
     let want = null;
     if (this.aim) {
-      const tgt = this.aimMode === 'pass' ? this.passTarget() : Field.hubCenter(r.alliance);
-      want = shotFor(this.aimMode, Math.hypot(tgt.x - r.pos.x, tgt.z - r.pos.z));
+      const tgt = this.aimMode === 'pass' ? this.passTarget() : Field.hubCenter(r.alliance), d = Math.hypot(tgt.x - r.pos.x, tgt.z - r.pos.z);
+      // (heading in, the HUB shot for where it is, held within its table's rows from 1.6 to 4.5 m,
+      // 2390-3500 RPM: farther out it would ask up to 5800, and their Shoot's gate (within 500 under)
+      // lets an over-speed shot go long)
+      want = shotFor(this.aimMode, lineup ? clamp(d, LINEUP.near, LINEUP.far) : d);
       this.hoodGoal = want.hood;
     } else this.hoodGoal = null;
     // the flywheel: their velocity loop (motor RPM) at the shot. Not aiming, their ShooterIdle:
