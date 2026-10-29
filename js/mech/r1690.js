@@ -29,14 +29,14 @@
 //     polycarbonate lattice plate over the top, 0.55 m up, that the load bows up (PLATE)
 //   - the roller floor (300): nine silicone-wrapped rollers sloping down from front to back (in Open
 //     its front five are 2.1 deg lower, the floor's front hinged at the sixth). Its X60 (low at the back
-//     right) drives up through a 16T:58T gear stage, 24T:24T (55T 5M) up to a shaft over the floor's
+//     right) drives up through 2:1 (their video; the CAD has a 16T:58T gear stage), 24T:24T (55T 5M) up to a shaft over the floor's
 //     back, which drives the back top roller (28T:28T, 75T 5M) and, through 34T:34T gears (turning it
 //     back), 18T:18T (62T 5M) down and 28T:28T (75T 5M) to the back floor roller; roller to roller by
 //     60T 3M belts on 28T pulleys, but 30T on the second roller and three 29T:32T steps in front, so the
 //     front rollers turn at 0.69 of the back one's speed: FUEL speed up toward the back. The two top
 //     rollers over the floor's back turn the other way (28T:30T between them).
 //   - the belts along the back: two 30 mm HTD belts (180T and 160T 5M) on 24T pulleys on fore-aft
-//     axles, each its own X44 through 16T:48T (89T and 80T 3M belts). The bottom belt's top run (0.159
+//     axles, each its own X44 through 1.5:1 (their video: 8 m/s; the CAD has 16T:48T on 89T and 80T 3M belts). The bottom belt's top run (0.159
 //     m up) and the top belt's bottom run (0.302 m) pinch FUEL between them, against the backing plate
 //     behind (polycarbonate under PTFE film), and carry them to the robot's left.
 //   - the vertical kicker: a 1in tube standing at the belts' left end in front of them (an X44,
@@ -80,14 +80,15 @@ export const WALL = { left: -0.358, right: 0.358, top: 0.551 };
 // the roller floor: [x, y] of each roller's axle, front to back (their 1.3in silicone-wrapped tubes),
 // as the Open X_T has them (the front five 2.1 deg lower than in Closed); the back three stop short of
 // the left side (the vertical kicker and the feeder are there): z from each one's left end to its
-// right. Its X60: 16T:58T to the drive shaft over the floor's back (ratio), which turns the back roller
+// right. Its X60: 2:1 to the drive shaft over the floor's back (ratio: the team's video; the CAD's 16T:58T,
+// 3.6:1, is older, FLOORR=3.625 for it), which turns the back roller
 // 1:1 (through 34T:34T, 18T:18T and 28T:28T); each roller's turns per the drive shaft's (k: the 60T 3M
 // belts' 28T, 30T and 29T:32T pulleys)
 export const FLOOR = {
   r: 0.0165,
   at: [[0.2810, 0.1817], [0.2335, 0.1749], [0.1860, 0.1681], [0.1422, 0.1618], [0.0984, 0.1556], [0.0546, 0.1493], [0.0071, 0.1425], [-0.0409, 0.1425], [-0.0874, 0.1425]],
   z0: [-0.322, -0.322, -0.322, -0.322, -0.322, -0.322, -0.132, -0.132, -0.132], z1: [0.31, 0.298, 0.298, 0.298, 0.298, 0.298, 0.298, 0.276, 0.276],
-  ratio: 58 / 16,
+  ratio: 2,
   k: [28 / 30 * (29 / 32) ** 3, 28 / 30 * (29 / 32) ** 3, 28 / 30 * (29 / 32) ** 3, 28 / 30 * (29 / 32) ** 2, 28 / 30 * 29 / 32, 28 / 30, 28 / 30, 28 / 30, 1],
 };
 // the two rollers over the floor's back: the drive shaft turns the back one 28T:28T, which turns the
@@ -102,9 +103,11 @@ export const TOP = { at: [[-0.0409, 0.3191], [-0.0874, 0.3183]], r: 0.016, z: [-
 export const ROLL = { rr: 0.08 };
 // the belts along the back: across their 30 mm (x), each one's run against the FUEL (its outer
 // face's height, z from pulley to pulley), the belt's outer radius round its 24T pulleys and their
-// pitch radius (the belt's speed per radian); X44s through 16T:48T (3:1)
+// pitch radius (the belt's speed per radian); X44s through 1.5:1 (the team's video: 8 m/s, which their
+// 100 RPS gives through 1.5:1, 7.6 m/s at the 95 they score at; the CAD's 16T:48T, 3:1, would take 200
+// RPS, past an X44's free speed, so it's older: BELTR=3 for it)
 export const BELT = {
-  x: [-0.149, -0.119], r: 0.0203, pitch: (24 * 0.005) / (2 * Math.PI), ratio: 3,
+  x: [-0.149, -0.119], r: 0.0203, pitch: (24 * 0.005) / (2 * Math.PI), ratio: 1.5,
   bottom: { y: 0.1586, z: [-0.1158, 0.2742] }, // its top run (the 180T)
   top: { y: 0.3022, z: [-0.0423, 0.2977] },    // its bottom run (the 160T)
 };
