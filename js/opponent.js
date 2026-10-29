@@ -467,18 +467,23 @@ export class OpponentAI {
     const remain = this._drive(home.x, home.z, { avoid: !bully, speed: 1, face });
     const settled = this.skill.sotm || (remain < 0.3 && Math.hypot(r.vel.x, r.vel.z) < 0.3);
     r.cmd.shoot = canShoot && r.lastInZone && settled;
-    // pick up what's on the way (2910 keeps it up: retracting while it shoots compacts its load)
-    if (!r.cfg.intake.compacts && this._hasRoom() && !this._foeAhead() && !this._hubFuelNear()) r.cmd.intake = true;
-    // a robot whose shot compacts its load only with its intake let go (1114's AgitateIntake pulls
-    // its box in): it goes on intaking as it starts shooting (the first 0.65 s, their AgitateIntake's
-    // wait, costs it nothing) and while there's FUEL in front of its intake and it's still taking
-    // some in (one in the last second), then lets go for the rest of the shot, so the box comes in
-    // behind the load
-    if (r.phys?.shotCompacts) {
+    // pick up what's on the way (an intake that raises the robot's top, 1678's lid, not near a
+    // TRENCH: it wouldn't fit under)
+    const lidUp = r.deployRaisesTop && underTrench(r.pos.x, r.pos.z, Math.max(r.halfL, r.halfW) + 2.0);
+    const hold = this._shotHold();
+    if (hold !== false && this._hasRoom() && !this._foeAhead() && !this._hubFuelNear() && !lidUp) r.cmd.intake = true;
+    // a robot whose shot compacts its load only with its intake let go (1114's AgitateIntake
+    // pulling its box in, 581's intake coming in, 1678's contraction, 2910's intake folding back
+    // over the load, 971's and 4930's: robotConfigs.js compacts): it goes on intaking as it starts
+    // shooting, for as long as its code waits before it compacts (_shotHold: 1114 0.65 s, 581 0.7,
+    // 1678 1; 0.65 where it compacts at once), and while there's FUEL in front of its intake and
+    // it's still taking some in (one in the last second), then lets go for the rest of the shot, so
+    // the load is compacted behind it
+    if (typeof hold === 'number') {
       // (shotIntake: until when it keeps intaking; false once it's let go, until the shot ends)
       if (!r.cmd.shoot) this.shotIntake = null;
       else if (r.cmd.intake) {
-        if (this.shotIntake == null) { this.shotIntake = this.t + 0.65; this.shotGain = { n: r.stats.intaked, t: this.t }; }
+        if (this.shotIntake == null) { this.shotIntake = this.t + hold; this.shotGain = { n: r.stats.intaked, t: this.t }; }
         if (r.stats.intaked !== this.shotGain.n) this.shotGain = { n: r.stats.intaked, t: this.t };
         if (this.shotIntake !== false && this.t - this.shotGain.t < 1 && this._fuelAhead()) this.shotIntake = Math.max(this.shotIntake, this.t + 0.3);
         if (this.shotIntake !== false && this.t > this.shotIntake) this.shotIntake = false;
@@ -683,6 +688,17 @@ export class OpponentAI {
     this._drive(b.pos.x, b.pos.z, { speed: near ? B.collectSpeed : 1, avoid: !near, arrive: -0.3 });
     r.cmd.intake = this._intakeFor(d);
     this.label = `Collecting (${r.stored.length}${r.full ? ', full' : '/~' + r.capacity()})`;
+  }
+
+  // how long a robot whose shot compacts its load (with its intake let go) keeps intaking as the
+  // shot starts: its own code's wait before it compacts (a physical robot's shotHold), 0.65 s
+  // where it compacts at once; null for one that doesn't compact; false for one that keeps its
+  // intake up on the way in to score (1706: scoring alone, seeds 1-4, it scored 227 TELEOP FUEL
+  // on average that way and 211 picking up what's on the way)
+  _shotHold() {
+    const r = this.robot, h = r.phys?.shotHold;
+    if (typeof h === 'number' || h === false) return h;
+    return r.cfg.intake.compacts ? 0.65 : null;
   }
 
   // loose FUEL on the carpet in front of the intake, about to be in its reach

@@ -82,6 +82,9 @@ export class Physical581 extends PhysicalRobot {
     });
     Object.assign(this, { t, w, s });
     this.ownsIntake = true;
+    // (firing, it compacts COMPACTION_DELAY in, only with the intake let go: the AI keeps intaking
+    // that long as it starts to shoot, js/opponent.js _shotHold)
+    this.shotHold = COMPACTION_DELAY;
     this.ownsHood = true;
     this.reset();
   }

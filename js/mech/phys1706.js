@@ -112,6 +112,9 @@ export class Physical1706 extends PhysicalRobot {
     });
     Object.assign(this, { t, w, s, sw });
     this.ownsIntake = true;
+    // (the AI keeps its intake up on the way in to score, and so lets it fold over the load as
+    // it shoots: js/opponent.js _shotHold)
+    this.shotHold = false;
     this.ownsHood = true;
     this.ownsFlywheel = true;
     this.reset();

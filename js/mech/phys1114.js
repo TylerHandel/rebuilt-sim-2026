@@ -31,7 +31,7 @@
 //   out) and the shot as Shoot (the flywheel at the shot for where it is, the elevator, floor and
 //   side rollers once its gate is met), with no AgitateIntake: the box comes in only once the
 //   intake's let go. The AI keeps intaking as it starts to shoot and while FUEL lie in front of
-//   the intake, then lets go so the box compacts the rest (js/opponent.js, shotCompacts). In
+//   the intake, then lets go so the box compacts the rest (js/opponent.js, shotHold). In
 //   AUTO the same, where their AUTO intakes beside a shot (the Depot auto's last FullShoot).
 import { Mechanism } from './mechanism.js';
 import { PhysicalRobot } from './physical.js';
@@ -77,8 +77,9 @@ export class Physical1114 extends PhysicalRobot {
     this.ownsIntake = true;
     this.ownsHood = true;
     // (its shot compacts the load, their AgitateIntake pulling the box in, only with the intake let
-    // go: the AI lets go once there's nothing in front of it to pick up, js/opponent.js)
-    this.shotCompacts = true;
+    // go, after their 0.65 s wait: the AI keeps intaking that long, and while there's FUEL in front
+    // of it to pick up, js/opponent.js _shotHold)
+    this.shotHold = GATE.agitateWait;
     this.reset();
   }
 

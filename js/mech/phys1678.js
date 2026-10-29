@@ -103,6 +103,9 @@ export class Physical1678 extends PhysicalRobot {
     // the extension, driven by the arm through its pin and slot (FUEL in it push back on the arm)
     s.slide.onSlide(t.pivot, [1, 0, 0]);
     this.ownsIntake = true;
+    // (firing, it contracts after 1 s, only with the intake let go: the AI keeps intaking that long
+    // as it starts to shoot, js/opponent.js _shotHold)
+    this.shotHold = 1;
     this.ownsHood = true;
     this.reset();
   }
