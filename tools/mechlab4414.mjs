@@ -39,7 +39,7 @@ import {
   hoodElevation, chan, rotorPoint, hookCurve, hookBack, stadiumY, netY, AXIS, CH, HOOK, YB, FLY, SHOOTER, FEED, BORE, BOX, HALF_L, HALF_W, BAY, INTAKE, BEND, RAMP, STADIUM, FLOOR, COLUMN,
 } from '../js/mech/r4414.js';
 import { velocityDuty } from '../js/mech/phys604.js';
-import { launchFor, shooterFor, rotorLoop } from '../js/mech/phys4414.js';
+import { launchFor, shooterFor, rotorLoop, driveBox, moveBox, STROKE } from '../js/mech/phys4414.js';
 import { intakeWatch } from './intakewatch4414.mjs';
 
 await RAPIER.init();
@@ -115,16 +115,17 @@ function pathLog(r) {
   };
 }
 
-// the robot's mechanisms, fixed in the world: the box out ext, the turret at yaw (rad; 0 facing
+// the robot's mechanisms, fixed in the world: the box out ext (its racks' X44s holding it out, as
+// in play; r.agitate: stroking in and out, phys4414's driveBox), the turret at yaw (rad; 0 facing
 // forward), the hood at its angle (deg)
 function rig({ yaw = 0, hood = 140, ext = BOX.ext } = {}) {
   const t = build4414(), wh = wheels4414(t), s = pathSurfaces4414(t), sw = shooterWheels(t);
   const pathW = [...wh.feed, ...wh.intake];
-  const path = new Mechanism({ substeps: 6, shafts: [...new Set(pathW.map((x) => x.shaft)), t.rotor], wheels: pathW, surfaces: Object.values(s).filter((x) => x !== s.turret && x !== s.hood) });
+  const path = new Mechanism({ substeps: 6, shafts: [...new Set(pathW.map((x) => x.shaft)), t.rotor, t.slide], wheels: pathW, surfaces: Object.values(s).filter((x) => x !== s.turret && x !== s.hood) });
   const shooter = new Mechanism({ substeps: 6, sub: Number(process.env.SUB ?? 8), shafts: [t.fly, t.hoodRoller, t.feeder], wheels: sw, surfaces: [s.turret, s.hood] });
   for (const tr of [t.rollers, t.launcher]) tr.cmd = null;
   for (const sh of [t.rotor, t.primary, t.bar]) sh.cmd = null;
-  const r = { t, wh, s, sw, path, shooter, yaw, hood, ext, phi: 0 };
+  const r = { t, wh, s, sw, path, shooter, yaw, hood, ext, phi: 0, agitate: false, stroke: 'out', strokes: 0 };
   r.pose = () => {
     placeIntake(wh.intake, r.ext);
     placeBox(s.box, r.ext);
@@ -134,8 +135,10 @@ function rig({ yaw = 0, hood = 140, ext = BOX.ext } = {}) {
     placeShooter(sw, r.yaw, r.hood);
   };
   r.step = (balls, together = balls) => {
+    driveBox(r, t.slide, DT, { on: true, agitate: r.agitate });
     r.pose();
     path.step(DT, balls, together);
+    moveBox(r, t.slide, DT);
     shooter.step(DT, balls.filter((b) => { const p = b.translation(); return p.y > 0.2 && Math.hypot(p.x - AXIS[0], p.z - AXIS[1]) < 0.3; }));
     r.phi = (r.phi + t.rotor.omega * DT) % TAU;
   };
@@ -591,7 +594,7 @@ const tests = {
   dump() {
     const res = [];
     for (let seed = 1 + Number(process.env.SEED0 ?? 0); seed <= Number(process.env.SEED0 ?? 0) + Number(process.env.DSEEDS ?? 1); seed++) res.push(dumpRun(seed));
-    if (res.length > 1) console.log(`  over ${res.length} fills: through the middle ${res.map((x) => x.mid.toFixed(1)).join(', ')} (median ${med(res.map((x) => x.mid)).toFixed(1)}); its best second ${res.map((x) => x.best).join(', ')} (median ${med(res.map((x) => x.best))}); dumped ${res.map((x) => x.n + '/' + x.n0).join(', ')}`);
+    if (res.length > 1) console.log(`  over ${res.length} fills: through the middle ${res.map((x) => x.mid.toFixed(1)).join(', ')} (median ${med(res.map((x) => x.mid)).toFixed(1)}); its best second ${res.map((x) => x.best).join(', ')} (median ${med(res.map((x) => x.best))}); dumped ${res.map((x) => x.n + '/' + x.n0).join(', ')}; left in it ${res.map((x) => x.left).join(', ')}; got out ${res.map((x) => x.esc).join(', ')}`);
   },
 };
 
@@ -643,8 +646,24 @@ function dumpRun(seed = 1) {
     const n0 = balls.filter(inRobot).length;
     const watch = shotWatch(r), tq = process.env.ROTORLOG ? torqueTally(r) : null;
     let minFly = Infinity;
+    // (the box's strokes, as in play while it shoots and isn't intaking: STROKE=0 none, the box
+    // held out; STROKE=in,volts[,outVolts] its own. Each stroke in: how far in it got, how long the
+    // stroke in and out took, and the racks' X44s' current)
+    if (process.env.STROKE && process.env.STROKE !== '0') { const [a, b, c] = process.env.STROKE.split(',').map(Number); Object.assign(STROKE, { in: a, ...(b ? { volts: b } : {}), ...(c ? { outVolts: c } : {}) }); }
+    const strokeOn = process.env.STROKE !== '0';
+    const sl = { ins: [], lo: BOX.ext, t0: 0, periods: [], maxA: 0, amps: [], escaped: new Set() }, wasIn = new Set(balls.filter(inRobot));
     for (let k = 0; k < 10 / DT; k++) {
+      r.agitate = strokeOn && watch.shots.length < n0;
+      const was = r.stroke;
       step(1, () => { launcher(r.t, rad); feed(r); r.t.primary.cmd = r.t.bar.cmd = process.env.INTAKE === '0' ? null : 1; });
+      if (r.agitate) {
+        sl.lo = Math.min(sl.lo, r.ext); const A = Math.abs(r.t.slide.motor.current) / 2; sl.maxA = Math.max(sl.maxA, A); sl.amps.push(A);
+        if (was !== 'in' && r.stroke === 'in') { if (sl.t0) { sl.periods.push(k * DT - sl.t0); sl.ins.push(sl.lo); } sl.t0 = k * DT; sl.lo = BOX.ext; }
+        if (process.env.STROKELOG && k % 6 === 0) console.log(`   ${(k * DT).toFixed(2)} s: box ${(100 * r.ext).toFixed(1)} cm out (${r.stroke}), ${(r.t.slide.omega * 0.5 * 0.0254).toFixed(2)} m/s, racks ${A.toFixed(0)} A a motor; ${watch.shots.length} shot`);
+      }
+      // (FUEL that were in it and get out, other than shot: off the carpet's top layer out past the box, the walls or over the net)
+      if (k % 12 === 0) for (const b of balls) { const p = b.translation(); if (p.y < 3 && wasIn.has(b) && !inRobot(b) && !sl.escaped.has(b)) { sl.escaped.add(b); if (process.env.ESCLOG) console.log(`   got out at ${(k * DT).toFixed(2)} s (box ${(100 * r.ext).toFixed(1)} cm out), its last second:\n` + (b.hist2 ?? []).map((q) => `     ${q}`).join('\n')); } }
+      if (process.env.ESCLOG && k % 6 === 0) for (const b of balls) { const p = b.translation(); if (p.y > 3) continue; (b.hist2 ??= []).push(`${(k * DT).toFixed(2)} ${p.x.toFixed(3)},${p.y.toFixed(3)},${p.z.toFixed(3)} box ${(100 * r.ext).toFixed(1)}: ${names(r, b)}`); if (b.hist2.length > 20) b.hist2.shift(); }
       tq?.add(balls);
       watch.check(balls, k * DT);
       if (watch.shots.length) minFly = Math.min(minFly, r.t.fly.omega);
@@ -751,7 +770,13 @@ function dumpRun(seed = 1) {
       const rpm = L.map((x) => x[0]), A = L.map((x) => x[1]), free = RPM(r.t.rollers.motor.freeSpeed * r.t.ttb.k);
       console.log(`   the TTB stack while it feeds: free ${free.toFixed(0)} rpm; median ${q(rpm, 0.5).toFixed(0)} (${(100 * q(rpm, 0.5) / free).toFixed(0)}%), 10th percentile ${q(rpm, 0.1).toFixed(0)} rpm (${(100 * q(rpm, 0.1) / free).toFixed(0)}%); its X60s median ${q(A, 0.5).toFixed(0)} A, 90th ${q(A, 0.9).toFixed(0)} A, at 60 A ${(100 * A.filter((x) => x > 59).length / A.length).toFixed(0)}% of the time`);
     }
-    return { n: s.length, n0, mid: midRate, best };
+    const leftN = left.length, esc = [...sl.escaped].filter((b) => b.translation().y < 3 && !inRobot(b));
+    if (strokeOn && sl.periods.length) {
+      const amps = [...sl.amps].sort((a, b) => a - b);
+      console.log(`  the box: ${sl.periods.length + 1} strokes in ${sl.periods.reduce((a, b) => a + b, 0).toFixed(1)} s, every ${med(sl.periods).toFixed(2)} s (median; ${Math.min(...sl.periods).toFixed(2)}..${Math.max(...sl.periods).toFixed(2)}), in to ${(100 * med(sl.ins)).toFixed(1)} cm out (median; ${(100 * Math.min(...sl.ins)).toFixed(1)}..${(100 * Math.max(...sl.ins)).toFixed(1)}; it aims for ${(100 * STROKE.in).toFixed(0)}); its X44s at a median ${amps[amps.length >> 1].toFixed(0)} A, up to ${sl.maxA.toFixed(0)} A (of 40)`);
+    }
+    console.log(`  FUEL that got out of it (not shot): ${esc.length}${esc.length ? ' (' + esc.slice(0, 5).map((b) => { const p = b.translation(); return `${p.x.toFixed(2)},${p.y.toFixed(2)},${p.z.toFixed(2)}`; }).join('; ') + ')' : ''}; ${leftN} left in it`);
+    return { n: s.length, n0, mid: midRate, best, left: leftN, esc: esc.length };
 }
 
 function pathRun(seed, { shoot = true, n = 20, sec = 8 } = {}) {

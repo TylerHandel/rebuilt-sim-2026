@@ -239,6 +239,10 @@ export const HOOD = SHOOTER;
 // its side panels' inner faces, outboard of the hopper's walls, the pinion strips on them and the
 // racks (robotModels draws them here)
 export const BOX = { ext: 0.27, front: HALF_L + 3.25 * IN + 0.2224, side: HALF_W + IN + 0.005, chin: 0.31 }; // (its sides just outside the hopper's walls, BAY.hw, sliding along them)
+// its racks (the binder: "driven by 1x Kraken X44 on each side geared to 3.33:1 at the 10T
+// pinion", 10DP racks: a 1in pitch circle); what slides: the box with its rollers and their three
+// motors (5 kg, an estimate)
+export const RACK = { pinion: 0.5 * IN, ratio: 3.33, mass: 5 };
 export const INTAKE = {
   // No ramp, the box's bottom open (the renders, from above; the team): the primary 3in
   // polycarbonate roller low in front of the bumper's face, its back running up it, squeezes a
@@ -315,7 +319,12 @@ export function build4414() {
   // the sushi feeder: geared down 16:14 off the flywheel (its gears down the turret's side, in the
   // renders), so it feeds as fast as the shot's speed lets it: "the main bps regulator"
   const feeder = launcher.add(new Shaft({ name: 'shooter sushi feeder', inertia: 1e-5 }), 14 / 16);
-  return { primary, bar, rotor, rollers, ttb, feeder, bend, launcher, fly, hoodRoller };
+  // the box's racks: an X44 a side through 3.33:1 to the 10t pinions (positive runs the box out);
+  // what slides seen at the pinions. Their current limits aren't public: 40 A stator, 30 A supply
+  // (estimates). The racks ride on bearing stacks ("allowed our intake to slide smoothly", the
+  // team): a little running friction (0.05 N·m at the pinions, 4 N at the racks; an estimate)
+  const slide = new Shaft({ name: 'box racks (pinions)', motor: new Motor('krakenX44', { count: 2, ratio: RACK.ratio, statorLimit: 40, supplyLimit: 30 }), inertia: RACK.mass * RACK.pinion ** 2, drag: 0.01, friction: 0.05 });
+  return { primary, bar, rotor, rollers, ttb, feeder, bend, launcher, fly, hoodRoller, slide };
 }
 
 const X = [1, 0, 0], Y = [0, 1, 0], Z = [0, 0, 1];
@@ -648,7 +657,9 @@ export function pathSurfaces4414(t) {
   const feedS = onRotor(s('channel and ramp (passive rollers)', feedPath(), { mu: MU.rollers, pos: A }));
   const boreS = onRotor(s('bore', bore(), { pos: A }));
   const columnS = onRotor(s('hub and skirt', column(), { mu: MU.rollers, pos: A }));
-  const boxS = s('box and intake ramp', box());
+  // (the box slides on its racks' pinions: FUEL it pushes push back on them)
+  const boxS = s('box and intake ramp', box()).onSlide(t.slide, [1, 0, 0]);
+  boxS.slideK = RACK.pinion;
   const turretS = s('turret', turret(), { pos: [AXIS[0], 0, AXIS[1]] });
   const hoodS = s('hood backing', hood(), { pos: [AXIS[0] + SHOOTER.x, FLY.y, AXIS[1]] });
   return { body, net: netS, hook: hookS, feed: feedS, bore: boreS, column: columnS, box: boxS, turret: turretS, hood: hoodS, bumper: bumper4414() };
