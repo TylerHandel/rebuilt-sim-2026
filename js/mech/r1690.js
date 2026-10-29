@@ -68,8 +68,10 @@ const DEG = Math.PI / 180, R = FUEL.radius;
 // polycarbonate and aluminum, the PTFE film on the backing plate (slick: "to reduce friction as much
 // as possible"), the printed hood (PLA), the net's cord
 export const MU = { silicone: 1.2, compliant: 1.3, tread: 1.3, belt: 1.0, polycarb: 0.5, alu: 0.4, ptfe: 0.1, pla: 0.3, wall: 0.25, net: 0.25 };
-// and how far each gives where a FUEL presses it (N/m)
-export const TREAD = { silicone: 20000, compliant: 12000, tread: 30000, belt: Number(globalThis.process?.env?.BELTK ?? 3000), plate: 100000 }; // (the top plate where a FUEL presses it, its bow aside (PLATE): the FUEL's own foam gives)
+// and how far each gives where a FUEL presses it (N/m; the belts ride on the CAD's 3 mm aluminum
+// beds, 311-02A/04A and 312-07A/08A, so they give no more than a wrap on a tube: a free span's 3000
+// let FUEL press through them onto the beds' edges, and drag there; BELTK=3000 for that)
+export const TREAD = { silicone: 20000, compliant: 12000, tread: 30000, belt: Number(globalThis.process?.env?.BELTK ?? 20000), plate: 100000 }; // (the top plate where a FUEL presses it, its bow aside (PLATE): the FUEL's own foam gives)
 
 // ------------------------------------------------------------------ the layout (robot frame, m: the CAD's)
 export const HALF_L = 12.5 * IN, HALF_W = 14.5 * IN; // 25 x 29in frame
