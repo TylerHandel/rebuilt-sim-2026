@@ -320,11 +320,16 @@ INTAKE.kick.dx = INTAKE.kick.r + INTAKE.kick.gap - 0.2224;
 // with the bumper's face (the team; it was 11 mm out past the face and 2 cm over the top)
 INTAKE.bar.dx = -0.2224 - INTAKE.bar.r;
 INTAKE.bar.y = 0.16 + INTAKE.bar.r + 0.001;
-// the preload: eight on the floor round the hub, clear of the hook
-export const PRELOAD = [0, 1, 2, 3, 4, 5, 6, 7].map((k) => {
-  const a = CH + 0.65 + (k / 7) * (2 * Math.PI - 1.3);
-  return [AXIS[0] + 0.19 * Math.cos(a), FLOOR + R + 0.01, AXIS[1] + 0.19 * Math.sin(a)];
-});
+// the preload, eight round the hub as it starts (the box in, the rotor at its pose): three on the
+// floor between the TTB and the black roller (the box in, it and the primary stand in the floor's
+// front half), five up the floor's slope behind and beside them and over the hook's back end, each
+// 3 mm clear of every part and of each other; they settle a few cm down onto the floor and each
+// other. (The old ring round the hub at the floor started them 2-7.5 cm into the black roller, the
+// TTB's wheels and the hook, and 1.8 cm into each other.)
+export const PRELOAD = [
+  [0.012, 0.186, -0.181], [-0.194, 0.186, -0.062], [-0.233, 0.25, 0.072],
+  [-0.13, 0.243, -0.191], [-0.263, 0.302, -0.142], [-0.103, 0.25, 0.209], [-0.26, 0.38, -0.01], [-0.025, 0.295, -0.29],
+];
 
 // ------------------------------------------------------------------ the drives
 export function build4414() {
