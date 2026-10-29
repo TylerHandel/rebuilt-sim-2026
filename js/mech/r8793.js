@@ -95,7 +95,7 @@ export function build8793() {
   // (a positive command turns the 4in wheels so FUEL leave over them)
   const shooter = new Train({ name: 'shooter', motor: new Motor('krakenX60', { statorLimit: 160, supplyLimit: 60 }) });
   const large = shooter.add(new Shaft({ name: 'shooter 4in wheels', inertia: SHOOTER.moi }), -1 / SHOOTER.ratio);
-  const small = shooter.add(new Shaft({ name: 'shooter 2in wheels', inertia: 6e-5 }), SHOOTER.smallPerLarge / SHOOTER.ratio);
+  const small = shooter.add(new Shaft({ name: 'shooter 2in wheels', inertia: SHOOTER.smallMoi }), SHOOTER.smallPerLarge / SHOOTER.ratio);
   // the intake arm's pivot (positive swings the arm up, toward stowed): its two X60s through 18:1,
   // the arm and its rollers on it (PIVOT, below)
   const pivot = new Shaft({ name: 'intake pivot', motor: new Motor('krakenX60', { count: 2, ratio: PIVOT.ratio, statorLimit: PIVOT.stator, supplyLimit: PIVOT.supply }), inertia: PIVOT.J, drag: PIVOT.drag });
@@ -310,15 +310,18 @@ export function indexerWheels({ ishafts }) {
 // (ShooterConstants): one Kraken X60 (CAN 27; 160 A stator, 60 A supply), 28:18 to the 4in
 // wheels, the 2in wheels at 18/28 of the 4in wheels' speed (so FUEL leave with backspin);
 // velocity control in volts, kV 0.125 and kP 0.4 per motor rotation/s, up to 90 rotations/s. The
-// 4in shaft's inertia: half the SDS flywheel's 0.00117 kg·m² (Onshape's mass properties: 0.70 kg),
-// the 4in solid roller wheel (~0.3 kg, ~0.00035) and the shaft and pulleys.
+// 4in shaft's inertia: half the SDS flywheel's 0.00117 kg·m² (Onshape's mass properties: 0.70 kg; the
+// CAD shows two whole ones, the team says half of one), and from the CAD's solids (OpenCascade's
+// volume properties on the STEP, README *8793* has the table) the 4in solid roller wheel (urethane,
+// 0.30 kg, 4.4e-4), its three 18t pulleys, collar and spacers, and the jackshaft that turns with
+// it (its 18t and 28t, 1.4e-5). The 2in shaft: its Stealth wheels, steel 28t gear and hex, 6.6e-5.
 export const SHOOTER = {
   // 28:18 from the motor to the 4in wheel (a reduction, for torque), and the 2in wheels geared up
   // from it 28:18 so their surface runs near the 4in's and the FUEL leave with little spin (the
   // team; their code's FLYWHEEL_SMALL_PER_LARGE_RATIO says 18/28, which it only uses to convert
   // speeds: codeExitSpeed). Geared up, FUEL leave within 3% of the speed their aim solver expects;
   // at 18/28 they'd leave 15-18% short of it.
-  ratio: 28 / 18, smallPerLarge: 28 / 18, codeSmallPerLarge: 18 / 28, moi: 0.00097,
+  ratio: 28 / 18, smallPerLarge: 28 / 18, codeSmallPerLarge: 18 / 28, moi: 1.046e-3, smallMoi: 6.6e-5,
   large: { x: 0.127, y: 0.411, r: 2 * IN }, small: { r: 1 * IN, d: 0.203 },
   elevation: [52, 72],
   kV: 0.125, kP: 0.4, maxRps: 90,
