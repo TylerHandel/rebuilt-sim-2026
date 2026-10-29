@@ -77,9 +77,14 @@ export const SHOOTER = {
   // the hood's 2in rollers as exported (their 11 deg, the hood's hard stop)
   hood: [[-0.0820, 0.4615], [-0.0865, 0.5245]], hoodR: 0.0254, hoodWidth: 0.552,
   hoodPerDrum: (18 / 15) * (30 / 22), flywheelPerDrum: 45 / 15,
-  // the drum (aluminum tube and hubs: the CAD's volumes), its shaft and pulleys; the steel
-  // inertia flywheel (56 cm3 in the CAD, 7.7e-4 kg m^2)
-  drumJ: 2.6e-3, flywheelJ: 7.7e-4,
+  // inertia (kg m^2), each part about its own axis from the CAD's solids (OpenCascade's volume
+  // properties on the STEP; their BOM carries no materials, so by name and appearance: the
+  // tubes, shafts and WCP pulleys aluminum, the dark custom hubs and pulleys prints, PLA);
+  // README, *581*, has the table. The drum: its 4in tube (0.74 kg), the hubs, the 45t and 18t
+  // pulleys, the ThunderHex and the belts; the WCP-2414 steel inertia flywheel (0.44 kg) with
+  // its 15t pulley and stub; the hood's two 2in rollers (tubes, hubs, ThunderHex, the 22t gear
+  // and 20t pulleys) and the jackshaft that drives them, at the rollers' speed
+  drumJ: 2.21e-3, flywheelJ: 7.88e-4, hoodJ: 5.11e-4,
   // their hood angles (ShooterHoodConfig): 11 is its hard stop (homing), where the CAD has it;
   // 13 to 45 in play
   hoodCad: 11, hoodMin: 13, hoodMax: 45, hoodIdle: 13,
@@ -148,7 +153,7 @@ export function build581() {
   const S = SHOOTER;
   const drum = shooter.add(new Shaft({ name: 'drum', inertia: S.drumJ }), 1);
   shooter.add(new Shaft({ name: 'inertia flywheel', inertia: S.flywheelJ }), S.flywheelPerDrum);
-  const hood = shooter.add(new Shaft({ name: 'hood rollers', inertia: 4.4e-4 }), -S.hoodPerDrum);
+  const hood = shooter.add(new Shaft({ name: 'hood rollers', inertia: S.hoodJ }), -S.hoodPerDrum);
   // the deploy: the racks' pinions (positive runs the intake out); what slides (the intake's
   // plates, rollers, two X60s, panels: ~5.5 kg, an estimate) seen at the pinion; the racks'
   // friction (an estimate: it damps their position loop, which has no kD)
