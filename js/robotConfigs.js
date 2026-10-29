@@ -878,9 +878,22 @@ export const ROBOTS = {
     // linear deploy on titanium racks (their CAD's slider: 0.306 m, tilted 5.5deg up toward the
     // robot; their code runs it to 11.8in), a 3in main roller and a 2in top roller (21.8in of grip
     // tape), the 3in's front 0.28 m past the frame; the intake's front plate is the front wall of
-    // the hopper's extension, so the hopper comes out with it
-    intake: { width: 22 * IN, reach: 0.28, rate: 200, pull: 5, deployTime: 0.3, retractTime: 0.5, side: 'front', latched: false, compacts: true },
-    storage: { extLen: 0.305, extend: 'intake' },
+    // the hopper's extension, so the hopper comes out with it.
+    // slide: what of it meets the field and other robots (its CAD, cad/robots/581-intake.glb, all
+    // the way out): its side outline from 0.28 m out (inside the frame) to its front plate at
+    // 0.644, from under its 3in roller 0.14 m up to the side panels' tops at 0.492, 0.345 m to
+    // each side (the side panels' outsides; [x, y, hw]: the roller's bearing plates, 0.353 at
+    // 0.49-0.55 m out, 0.15-0.21 up), moved back along the racks with it (js/mech/r581.js SLIDE:
+    // all the way in, 0.3061 m back and 0.0294 up). Its kicker bars, hanging to 1.4 cm off the carpet, swing on their
+    // pivot and aren't in it. It's the hopper's sliding front too (storage.box: false)
+    intake: {
+      width: 22 * IN, reach: 0.28, rate: 200, pull: 5, deployTime: 0.3, retractTime: 0.5, side: 'front', latched: false, compacts: true,
+      slide: {
+        hull: [[0.280, 0.162], [0.481, 0.143], [0.589, 0.140], [0.609, 0.151], [0.644, 0.227], [0.644, 0.492], [0.280, 0.492], [0.488, 0.146, 0.353], [0.545, 0.146, 0.353], [0.545, 0.209, 0.353], [0.488, 0.209, 0.353]],
+        hw: 0.345, back: [-0.3047, 0.0294],
+      },
+    },
+    storage: { extLen: 0.305, extend: 'intake', box: false },
     // their CAD: a roller floor sloping up from the shooter tower to the front (it pivots up at the
     // tower to compact the load), smoked polycarbonate walls on the bumpers, a polycarbonate top over
     // the fixed part and a trucker net from its front edge down to the intake's front plate, riding
@@ -996,17 +1009,22 @@ export const ROBOTS = {
     // two 2in rollers in silicone tubing (21in) on polycarbonate arms pivoting on the gearboxes' arm
     // shaft 0.3048 m forward and 0.2064 m up (their Viz3d's 12in and 8.125in); the front roller's
     // 0.175 m past the bumpers deployed (their -5 deg); stowed (their 80, 98 at boot) the arms
-    // stand up inside the frame. fold.hull: the arm's side outline round the pivot, deployed.
+    // stand up inside the frame. fold.hull: the arm's side outline round the pivot, deployed (the
+    // convex hull of its CAD, cad/robots/604-intake.glb, turned to their -5: the front roller
+    // 0.316 m out, the arm plates' bottom 0.174 under the pivot, 3.3 cm off the carpet); fold.hw:
+    // its half width, the polycarbonate arm plates' outsides (0.337 m; the rollers are 0.267)
     intake: {
       width: 21 * IN, reach: 0.175, rate: 200, pull: 5, deployTime: 0.45, retractTime: 0.9, side: 'front', latched: false,
       fold: {
-        pivot: [0.3048, 0.2064], stowDeg: 103,
-        hull: [[-0.026, 0.108], [-0.042, -0.076], [0.057, -0.166], [0.137, -0.173], [0.297, -0.107], [0.317, 0.129], [0.240, 0.136]],
+        pivot: [0.3048, 0.2064], stowDeg: 103, hw: 0.337,
+        hull: [[-0.032, -0.022], [0.122, -0.174], [0.297, -0.096], [0.316, 0.129], [0.286, 0.131], [-0.024, 0.033], [-0.035, 0.016], [-0.040, -0.004]],
       },
     },
     // the hopper box slides out 0.2921 m over the intake as the arms come down (their CAD's slider;
-    // the arms' retainer plates push it out, surgical tubing pulls it back)
-    storage: { extLen: 0.2921, extend: 'intake' },
+    // the arms' retainer plates push it out, surgical tubing pulls it back); box: its collider,
+    // its corrugated walls (their CAD, cad/robots/604-hopper.glb): 0.26-0.696 m up, 0.346 to each
+    // side, its front 0.635 m out with it all the way out (stowed it's still 0.129 out)
+    storage: { extLen: 0.2921, extend: 'intake', box: { y0: 0.26, y1: 0.696, hw: 0.346 } },
     // their CAD: corrugated plastic walls to 0.69 m (the box out front, the superstructure's at the
     // back) over the DPC serializer: a plywood bucket (floor 0.154 m up, a balustrade round it, 0.62 m
     // across) on the rotor's axis, 1in behind the center, where its hook sweeps FUEL round to the

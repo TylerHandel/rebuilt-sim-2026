@@ -208,13 +208,19 @@ export class Robot {
     const st = this.cfg.storage;
     this.hopperCollider = null;
     // (not where the extension is the space over a folding intake, 8793's and 341's: the arm is
-    // its own collider)
-    if (st.extLen && !cfg.intake.fold) {
-      this.hopperHalfH = (this.height - 0.17) / 2;
+    // its own collider; storage.box: where the sliding section's extents are known, from its CAD,
+    // { y0, y1, hw }: 604's box over its arm is a real one; false where the intake's own collider
+    // is the sliding section, 581's, whose side panels and front plate are the hopper's front)
+    const box = st.box;
+    if (st.extLen && box !== false && (!cfg.intake.fold || box)) {
+      const y0 = box ? box.y0 : 0.17, y1 = box ? box.y1 : this.height;
+      this.hopperHalfH = (y1 - y0) / 2;
+      this.hopperY = y0 + this.hopperHalfH;
       this.hopperCollider = world.createCollider(
-        RAPIER.ColliderDesc.cuboid(st.extLen / 2, this.hopperHalfH, cfg.frame.width / 2 - 0.02)
-          .setTranslation(cfg.frame.length / 2 - st.extLen / 2, 0.17 + this.hopperHalfH, 0)
-          .setMass(0.5)
+        RAPIER.ColliderDesc.cuboid(st.extLen / 2, this.hopperHalfH, box ? box.hw : cfg.frame.width / 2 - 0.02)
+          .setTranslation(cfg.frame.length / 2 - st.extLen / 2, this.hopperY, 0)
+          // (a box whose CAD gives it: its weight's in cfg.mass already, 604's BOM)
+          .setMass(box ? 0 : 0.5)
           .setFriction(0.05).setRestitution(0.1)
           .setCollisionGroups(0),
         this.body,
@@ -246,12 +252,15 @@ export class Robot {
     const ic = this.cfg.intake;
     // Intakes are solid to the field and other robots as they come out, so one deployed against a
     // wall or a robot pushes this robot back rather than going through. 8793's arm is its own
-    // shape (its side outline across its width), turning about its pivot; the others are a block
-    // from the bumper out to the roller that slides out as they deploy.
+    // shape (its side outline across its width), turning about its pivot; an intake on racks
+    // whose shape its CAD gives (intake.slide, 581's) is that shape, sliding along them; the
+    // others are a block from the bumper out to the roller that slides out as they deploy.
     const intakeGroups = groups(GROUP.INTAKE, GROUP.STATIC | GROUP.ROBOT | GROUP.INTAKE | GROUP.ROBOT_BARRIER);
     if (ic.fold) {
       const pts = [];
-      for (const [x, y] of ic.fold.hull) for (const z of [-ic.width / 2 - 0.01, ic.width / 2 + 0.01]) pts.push(x, y, z);
+      // (fold.hw: the arm's half width where its CAD gives it, 604's side plates; else the rollers')
+      const hw = ic.fold.hw ?? ic.width / 2 + 0.01;
+      for (const [x, y] of ic.fold.hull) for (const z of [-hw, hw]) pts.push(x, y, z);
       // (an arm on a pivot the TRENCH arm can push it down on, 8793's: fold.yields, it passes
       // through the TRENCH arm here, and its mechanisms work out what the TRENCH arm does to it,
       // putting it back in the TRENCH arm's way only where it can't give: js/mech/phys8793.js)
@@ -260,6 +269,22 @@ export class Robot {
       this.armCollider = world.createCollider(
         RAPIER.ColliderDesc.convexHull(new Float32Array(pts)).setTranslation(ic.fold.pivot[0], ic.fold.pivot[1], 0)
           .setDensity(0).setFriction(0.1).setRestitution(0.05).setCollisionGroups(this.armGroups),
+        this.body,
+      );
+    } else if (ic.slide) {
+      // its side outline all the way out (robot frame) across its width (slide.hw, or a point's
+      // own [x, y, hw]), moved back along its racks by (1 - deploy) x slide.back (all the way in),
+      // as the intake is (js/mech/r581.js slideOffset). FUEL meet its outside, as they met the
+      // sliding hopper section's collider it stands in for (its side panels and front plate are
+      // the hopper's front; without that 581 took 10% less down the NEUTRAL ZONE's FUEL line,
+      // tools/intake-test.mjs 1.5 --along, over 16 runs)
+      this.slideGroups = groups(GROUP.INTAKE, GROUP.STATIC | GROUP.ROBOT | GROUP.INTAKE | GROUP.ROBOT_BARRIER | GROUP.BALL);
+      const pts = [];
+      for (const [x, y, hw = ic.slide.hw] of ic.slide.hull) for (const z of [-hw, hw]) pts.push(x, y, z);
+      this.armCollider = world.createCollider(
+        // (the 0.5 kg the generic sliding hopper section carries, as it's that too)
+        RAPIER.ColliderDesc.convexHull(new Float32Array(pts)).setTranslation(ic.slide.back[0], ic.slide.back[1], 0)
+          .setMass(0.5).setFriction(0.1).setRestitution(0.05).setCollisionGroups(0),
         this.body,
       );
     } else {
@@ -463,9 +488,13 @@ export class Robot {
     // collider follows the sliding section
     const out = this.hopperDeploy * st.extLen;
     const fx = this.cfg.frame.length / 2 - st.extLen / 2 + out;
-    this.hopperCollider.setTranslationWrtParent({ x: fx, y: 0.17 + this.hopperHalfH, z: 0 });
+    this.hopperCollider.setTranslationWrtParent({ x: fx, y: this.hopperY, z: 0 });
     // solid to the field and to robots once it's out (out against a wall, it pushes the robot back)
-    const g = this.hopperDeploy > 0.05 ? groups(GROUP.ROBOT, GROUP.BALL | GROUP.ROBOT | GROUP.ROBOT_BARRIER | GROUP.STATIC | GROUP.INTAKE) : 0;
+    // (a box from its CAD, storage.box, is a physical robot's: what FUEL meet of it is its ball
+    // path's surfaces, js/mech/physical.js, as for its arm's collider; 604 takes as many either
+    // way, tools/intake-test.mjs 1.5 --along --settle 1)
+    const ball = st.box ? 0 : GROUP.BALL;
+    const g = this.hopperDeploy > 0.05 ? groups(GROUP.ROBOT, ball | GROUP.ROBOT | GROUP.ROBOT_BARRIER | GROUP.STATIC | GROUP.INTAKE) : 0;
     this.hopperCollider.setCollisionGroups(g);
   }
 
@@ -725,6 +754,10 @@ export class Robot {
     if (ic.fold) {
       const a = (1 - this.intakeDeploy) * ic.fold.stowDeg * DEG;
       this.armCollider.setRotationWrtParent({ x: 0, y: 0, z: Math.sin(a / 2), w: Math.cos(a / 2) });
+    } else if (ic.slide) {
+      const k = 1 - this.intakeDeploy, [bx, by] = ic.slide.back;
+      this.armCollider.setTranslationWrtParent({ x: k * bx, y: k * by, z: 0 });
+      this.armCollider.setCollisionGroups(this.intakeDeploy > 0.05 ? this.slideGroups : 0);
     } else {
       // the block slides out from inside the bumper to the roller as the intake deploys
       // (ic.front: where its front really is, down, from the CAD)
