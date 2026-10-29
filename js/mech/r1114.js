@@ -83,6 +83,16 @@ export const SHOOTER = {
   flyJ: 1.33e-3, brassJ: 1.28e-3, hoodJ: 1.6e-4,
   // their velocity loop (Slot0, VelocityVoltage, motor rotations/s): kV x target + kP x error
   kV: 0.14, kP: 0.25,
+  // their ShooterIdle (SHOOTER_IDLE_VELOCITY, motor RPM): the shooter's default command in their
+  // RobotContainer, commented out there; here it runs whenever it isn't aiming
+  idle: 1000,
+  // the four X60s' current limits (ShooterConstants.leadShooterConfigs, the followers take the
+  // leader's configuration): a 50 A stator limit and nothing else, so Phoenix 6's defaults for the
+  // rest: a 70 A supply limit (falling to 40 A once it's been at 70 for 1 s: never here, the
+  // stator limit keeps the supply under 50), +-16 V peak output (the battery's the bound), no
+  // closed-loop ramp; their VelocityVoltage has FOC off (trapezoidal). STATOR / SUPPLY in the
+  // environment change them on tools/mechlab1114.mjs (spinup, dump), not in play
+  stator: 50, supply: 70,
   // their hood angles (ShooterConstants): it homes against its stop at 74.484, steepest, and runs
   // 42 to 74; the CAD has it at 45.6 (the last roller's place round the flywheel)
   hoodCad: 45.6, hoodHome: 74.484, hoodMin: 42, hoodMax: 74,
@@ -97,8 +107,14 @@ export const INTAKE = { at: [0.5457, 0.1663], r: 0.0262, width: 0.635 };
 // the box's slide: all the way out as the CAD has it (0.298 m of rack, a parallel mate along
 // (0, 0.988, 0.152) in the CAD); going in it moves back and up along DIR. pinion: its 10t 10DP
 // pinion's pitch radius; perRot: m of travel per slide-motor turn; mass: what slides (the box's
-// polycarbonate, side plates, two X60s, the roller, the kicker: ~6 kg, an estimate)
-export const SLIDE = { out: 0.298, dir: [-0.988, 0.152], pinion: 0.0127, ratio: 3.6, mass: 6, perRot: (Math.PI * 0.0254) / 3.6 };
+// polycarbonate, side plates, two X60s, the roller, the kicker: ~6 kg, an estimate).
+// pull: the volts their AgitateIntake pulls it in with while shooting, here their own
+// SLIDE_FAST_PULL_VOLTAGE (-3.5, kept in their IntakeConstants for a commented-out "fast" mode),
+// not the -2 their AgitateIntake runs (theirPull): at 2 V the X44 makes ~46 A at a stall, under its
+// 60 A limit, ~170 N along the racks, and a full box's load pushes back 130-150 N, so the box crawled
+// in at ~0.05 m/s (3.0 s to their 6.3in); at 3.5 V it's at its 60 A limit (~220 N) and comes in
+// in 1.7 s; more volts give no more (tools/mechlab1114.mjs dump, AGITATE_V)
+export const SLIDE = { out: 0.298, dir: [-0.988, 0.152], pinion: 0.0127, ratio: 3.6, mass: 6, perRot: (Math.PI * 0.0254) / 3.6, pull: -3.5, theirPull: -2 };
 // their slide positions (IntakeConstants, motor turns: "inches")
 export const SLIDE_POS = { drop: 13.55, zero: 13.5, out: 13.4, redeploy: 13.0, rollersOff: 10.8, agitateMin: 6.3, outCheck: 9.0, tol: 0.025 / 0.0254 };
 export const slideTurns = (ext) => ext / SLIDE.perRot;
@@ -194,7 +210,7 @@ export function build1114() {
   // the hood rollers the other way
   const S = SHOOTER;
   // (their shooter's VelocityVoltage has FOC off: trapezoidal commutation)
-  const shooter = new Train({ name: 'shooter', motor: new Motor('krakenX60Trap', { count: 4, statorLimit: 50, supplyLimit: SUPPLY }) });
+  const shooter = new Train({ name: 'shooter', motor: new Motor('krakenX60Trap', { count: 4, statorLimit: S.stator, supplyLimit: S.supply }) });
   const fly = shooter.add(new Shaft({ name: 'flywheel (3in, grip tape)', inertia: S.flyJ }), -S.flyPerMotor);
   shooter.add(new Shaft({ name: '4in brass flywheel', inertia: S.brassJ }), S.brassPerMotor);
   const hood = shooter.add(new Shaft({ name: 'hood rollers', inertia: S.hoodJ }), S.flyPerMotor * S.hoodPerFly);

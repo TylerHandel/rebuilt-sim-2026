@@ -10,15 +10,18 @@
 // put more in: tools/fillbench.mjs), hold (how many it holds, dropped in, everything off), dump (a
 // full one fired at their 3 m shot, with their AgitateIntake pulling the box in), feed (what the
 // floor, squish wheels and elevator take with the floor's front kept full: FEEDLOG, FEEDSNAP=t).
-// tune (their LUT's rows re-found by shooting: js/mech/r1114.js SIM_HUB, SIM_PASS).
+// tune (their LUT's rows re-found by shooting: js/mech/r1114.js SIM_HUB, SIM_PASS). spinup (the
+// flywheel from their ShooterIdle's 1000 RPM up to their 2.34, 3.02 and 4 m shots at their 50 A
+// stator limit and higher ones: LIMITS=a,b,..; BATT=1 with the battery sagging under it).
 // Env: SEEDS (6), SPEED (path's 1 m/s; intake's 1,3), SEC (intakefull's 10 s), STUCK (where the
 // ones left over are), SHOT=rpm,hood (one shot of your own), MAP=1 (shooter: a grid of RPMs and
 // hoods), THEIR_RPM=1 (their LUT's own RPMs), NOAGITATE=1 (the dump without the box coming in),
-// AGITATE_V=v (dump: the box pulled in at v volts, not their 2; their code keeps a commented-out
-// -3.5 V "fast pull"), AGITATE=cycle (dump: the box in and out, their commented-out cycle),
+// AGITATE_V=v (dump: the box pulled in at v volts, not the 3.5 play uses, their SLIDE_FAST_PULL_VOLTAGE
+// (js/mech/r1114.js SLIDE.pull); their AgitateIntake runs 2), AGITATE=cycle (dump: the box in and out,
+// their commented-out cycle),
 // FILL=layers (dump: filled as hold does; EXT=m with the box m out), SEED=a,b (dump: those fills),
 // NOROLL=1 (dump: the intake roller off while the box comes in), FORCEIN=v (dump: the box driven in
-// at v m/s whatever the load), DUMPTALLY=t0,t1 (dump: what holds the load up, TALLYAT=1 where), SPINUP=s (dump: the flywheel's head start, 3 s; 0 from rest), DIST=m (dump: from m, not 3.02), BINS (dump: shots each quarter
+// at v m/s whatever the load), DUMPTALLY=t0,t1 (dump: what holds the load up, TALLYAT=1 where), SPINUP=s (dump: the flywheel's head start, 3 s; 0 from rest), IDLE=1 (dump: the head start at their 1000 RPM idle, so it spins up from there as the trigger's pulled), STATOR=a / SUPPLY=a (dump, spinup: the shooter's X60s' limits, per motor, not their 50 A stator and Phoenix's 70 A supply), DIST=m (dump: from m, not 3.02), BINS (dump: shots each quarter
 // second), DUMPLOG (dump: where the load is each quarter second), DUMPSNAP=t (dump: every FUEL
 // and what it touches at t), HOLDFILE / FILLFILE=path (hold / intakefull: where the FUEL are, as
 // JSON), TRACE=i (path)
@@ -64,6 +67,8 @@ function rig({ ext = SLIDE.out, hood = SHOOTER.hoodHome } = {}) {
   const shooter = new Mechanism({ substeps: 6, sub: 8, shafts: [t.fly, t.hood], wheels: [wh.fly, ...wh.hood] });
   for (const tr of [t.intake, t.floor, t.sideT, t.elev, t.shooter]) tr.cmd = null;
   t.slide.cmd = null;
+  if (process.env.STATOR) t.shooter.motor.statorLimit = Number(process.env.STATOR);
+  if (process.env.SUPPLY) t.shooter.motor.supplyLimit = Number(process.env.SUPPLY);
   const r = { t, wh, s, path, shooter, ext, hood };
   r.pose = () => {
     placeSlide(s, r.ext);
@@ -163,13 +168,18 @@ const tests = {
       for (; T < 10; T += DT) { r3.shooter.step(DT, []); if (RPM(r3.t.shooter.omega) > target - 100) break; }
       console.log(`  the flywheel from rest to within 100 of ${target} motor RPM: ${T.toFixed(2)} s (its motors at ${(r3.t.shooter.motor.current / 4).toFixed(0)} A each at the end)`);
     }
-    // the box: out on their position loop (13.55 turns), in at their agitation's -2 V
+    // the box: out on their position loop (13.55 turns), in at their agitation's -2 V and at the
+    // -3.5 V play pulls it in with (their SLIDE_FAST_PULL_VOLTAGE)
     const r4 = rig({ ext: 0 });
     let T = 0;
     for (; T < 3 && slideTurns(r4.ext) < SLIDE_POS.drop - 0.98; T += DT) { slide(r4, { turns: SLIDE_POS.drop }); r4.path.step(DT, []); moveSlide(r4); }
     console.log(`  the box out on their position loop: out (their 12.6 turns) in ${T.toFixed(2)} s, the kicker ${(kickerRot(r4.ext) * 180 / Math.PI).toFixed(0)} deg up`);
-    for (T = 0; T < 4 && slideTurns(r4.ext) > SLIDE_POS.agitateMin; T += DT) { slide(r4, { volts: -2 }); r4.path.step(DT, []); moveSlide(r4); }
-    console.log(`  in at their agitation's -2 V to 6.3 turns: ${T.toFixed(2)} s (empty)`);
+    const out = r4.ext;
+    for (const v of [SLIDE.theirPull, SLIDE.pull]) {
+      r4.ext = out; r4.t.slide._omega = 0;
+      for (T = 0; T < 4 && slideTurns(r4.ext) > SLIDE_POS.agitateMin; T += DT) { slide(r4, { volts: v }); r4.path.step(DT, []); moveSlide(r4); }
+      console.log(`  in at ${v} V to 6.3 turns: ${T.toFixed(2)} s (empty)`);
+    }
     for (T = 0; T < 2; T += DT) { slide(r4, {}); r4.path.step(DT, []); moveSlide(r4); }
     console.log(`  coasting 2 s: ${slideTurns(r4.ext).toFixed(1)} turns`);
   },
@@ -330,6 +340,41 @@ const tests = {
       w.free();
     }
   },
+  // the flywheel from their ShooterIdle (1000 RPM, settled) up to their shots: how long to Shoot's
+  // gate (within 500 RPM), AgitateIntake's (400), their tolerance (300) and within 50, at their 50
+  // A stator limit and higher ones (LIMITS), each X60 under the supply limit (SUPPLY, Phoenix's 70
+  // A); BATT=1: the battery's 12.6 V sagging 0.02 ohm under the shooter's draw and 25 A for the rest
+  // of the robot (js/drivetrain.js), else a steady 12 V
+  spinup() {
+    const limits = (process.env.LIMITS ?? '50,80,100,120').split(',').map(Number), supply = Number(process.env.SUPPLY ?? SHOOTER.supply);
+    const dists = (process.env.DISTS ?? '2.34,3.02,4').split(',').map(Number);
+    console.log(`1114's flywheel from their ShooterIdle (${SHOOTER.idle} RPM) to their shots, ${supply} A supply limit per motor${process.env.BATT ? ', the battery sagging' : ', 12 V'}:`);
+    for (const d of dists) {
+      const want = shotFor('hub', d);
+      for (const lim of limits) {
+        const { t, shooter } = rig({ hood: want.hood });
+        t.shooter.motor.statorLimit = lim; t.shooter.motor.supplyLimit = supply;
+        flywheel(t, SHOOTER.idle);
+        for (let i = 0; i < 3 / DT; i++) shooter.step(DT, []);
+        flywheel(t, want.rpm);
+        const hit = {}, gates = [500, 400, 300, 50];
+        let T = 0, peakStator = 0, peakSupply = 0, minV = 12;
+        for (; T < 4; T += DT) {
+          // (each X60's supply current: its stator current at the volts it applies, back-EMF and the
+          // windings' drop, over the battery's)
+          const m = t.shooter.motor, I = Math.abs(m.current) / 4, sup = (I * ((t.shooter.omega * m.ratio) / m.kV + I * m.Rm)) / shooter.V;
+          if (process.env.BATT) { shooter.V = 12.6 - 0.02 * (4 * sup + 25); minV = Math.min(minV, shooter.V); }
+          shooter.step(DT, []);
+          const rpm = RPM(t.shooter.omega);
+          peakStator = Math.max(peakStator, I);
+          peakSupply = Math.max(peakSupply, sup);
+          for (const g of gates) if (hit[g] === undefined && rpm >= want.rpm - g) hit[g] = T + DT;
+          if (hit[50] !== undefined) break;
+        }
+        console.log(`  ${d} m (${want.rpm.toFixed(0)} RPM) at ${lim} A stator: ${gates.map((g) => `within ${g} ${hit[g]?.toFixed(2) ?? '-'} s`).join(', ')}; each X60 at most ${peakStator.toFixed(0)} A stator, ${peakSupply.toFixed(0)} A supply${process.env.BATT ? `, the battery down to ${minV.toFixed(1)} V` : ''}`);
+      }
+    }
+  },
   // a full one fired: filled through its intake until it's full (intakefull), then their Shoot at
   // their 3 m shot with AgitateIntake (after 0.65 s the box in at -2 V to 6.3 turns, the roller at
   // 6 V while it's out past 10.8)
@@ -337,7 +382,7 @@ const tests = {
     const runs = [];
     const seeds = process.env.SEED ? process.env.SEED.split(',').map(Number) : Array.from({ length: process.env.FILL === 'layers' ? 1 : Number(process.env.SEEDS ?? 3) }, (_, i) => i + 1);
     for (const seed of seeds) runs.push(dumpRun(seed));
-    console.log(`1114 dumps (mean of ${runs.length}): ${mean(runs.map((r) => r.n)).toFixed(1)} of ${mean(runs.map((r) => r.n0)).toFixed(1)}, ${mean(runs.map((r) => r.rate)).toFixed(1)} FUEL/s over the whole dump (${runs.map((r) => r.rate.toFixed(1)).join(', ')}), best second ${mean(runs.map((r) => r.best)).toFixed(1)} (${runs.map((r) => r.best).join(', ')}), ${mean(runs.map((r) => r.inHub)).toFixed(1)} in the HUB's opening (${runs.map((r) => r.n - r.inHub).join(', ')} missed)`);
+    console.log(`1114 dumps (mean of ${runs.length}): ${mean(runs.map((r) => r.n)).toFixed(1)} of ${mean(runs.map((r) => r.n0)).toFixed(1)}, ${mean(runs.map((r) => r.rate)).toFixed(1)} FUEL/s over the whole dump (${runs.map((r) => r.rate.toFixed(1)).join(', ')}), best second ${mean(runs.map((r) => r.best)).toFixed(1)} (${runs.map((r) => r.best).join(', ')}), ${mean(runs.map((r) => r.inHub)).toFixed(1)} in the HUB's opening (${runs.map((r) => r.n - r.inHub).join(', ')} missed); the first shot ${mean(runs.map((r) => r.first)).toFixed(2)} s in, the motors down to ${mean(runs.map((r) => r.minRpm)).toFixed(0)} RPM, held off ${mean(runs.map((r) => r.heldOff)).toFixed(2)} s; the box in (to 6.3 turns) in ${mean(runs.map((r) => r.inTime)).toFixed(2)} s (${runs.map((r) => r.inTime.toFixed(2)).join(', ')})`);
   },
 };
 
@@ -377,11 +422,11 @@ function dumpRun(seed) {
   // gives it s instead, 0 from rest: their Shoot feeds once it's within 500 RPM)
   const spin = Number(process.env.SPINUP ?? 3);
   t.intake.cmd = null; t.floor.cmd = null;
-  for (let i = 0; i < 3 / DT; i++) { if (i >= (3 - spin) / DT) flywheel(t, want.rpm); step(() => slide(rg, {})); }
+  for (let i = 0; i < 3 / DT; i++) { if (process.env.IDLE) flywheel(t, SHOOTER.idle); else if (i >= (3 - spin) / DT) flywheel(t, want.rpm); step(() => slide(rg, {})); }
   flywheel(t, want.rpm);
   const n0 = balls.filter((b) => ownP(pos(b), rg.ext)).length;
   const watch = shotWatch(shooter);
-  let minRpm = Infinity, tallyN = 0;
+  let minRpm = Infinity, tallyN = 0, gateT = -1, heldOff = 0, inT0 = -1, inMid = -1, inT1 = -1;
   const tally = new Map();
   for (let k = 0; k < 8 / DT; k++) {
     const T = k * DT, rpm = RPM(t.shooter.omega);
@@ -392,8 +437,15 @@ function dumpRun(seed) {
     // (AGITATE=cycle: their commented-out last mode, the box's setpoint 6.4 in and 9 in by turns, 240 ms each)
     if (CYCLE && agit) step(() => slide(rg, { turns: Math.floor((T - 0.65) / 0.24) % 2 ? 9 : 6.4 }));
     else if (process.env.FORCEIN && agit) step(() => { t.slide.cmd = null; t.slide._omega = -Number(process.env.FORCEIN) / SLIDE.pinion; t.slide.lo = t.slide.hi = t.slide._omega; });
-    else { t.slide.lo = -Infinity; t.slide.hi = Infinity; step(() => slide(rg, { volts: agit ? -Number(process.env.AGITATE_V ?? 2) : 0 })); }
+    else { t.slide.lo = -Infinity; t.slide.hi = Infinity; step(() => slide(rg, { volts: agit ? (process.env.AGITATE_V ? -Number(process.env.AGITATE_V) : SLIDE.pull) : 0 })); }
     watch.check(balls, T);
+    if (fire && gateT < 0) gateT = T;
+    if (watch.shots.length && !fire) heldOff += DT;
+    // (how long the box takes to come in: from their AgitateIntake's first pull to 10.8 turns and
+    // to their 6.3)
+    if (agit && inT0 < 0) inT0 = T;
+    if (inT0 >= 0 && inMid < 0 && slideTurns(rg.ext) <= SLIDE_POS.rollersOff) inMid = T;
+    if (inT0 >= 0 && inT1 < 0 && slideTurns(rg.ext) <= SLIDE_POS.agitateMin + 0.05) inT1 = T;
     if (watch.shots.length) minRpm = Math.min(minRpm, RPM(t.shooter.omega));
     // (DUMPLOG=1: where the load is each 0.25 s: up the elevator, at its foot, over the floor's back
     // slope and valley, on the floor, in the box out front, and the elevator's and floor's speeds)
@@ -426,10 +478,11 @@ function dumpRun(seed) {
   const land = watch.shots.map((o) => landing(o)).filter(Number.isFinite).sort((a, b) => a - b);
   const inHub = land.filter((d) => Math.abs(d - D) < HUB_R).length;
   const sh = watch.shots;
-  console.log(`  (shots leave at ${med(sh.map((o) => o.v)).toFixed(2)} m/s, ${med(sh.map((o) => o.el)).toFixed(1)} deg; come down at the rim ${land[land.length >> 1]?.toFixed(2)} m out (median; ${land[0]?.toFixed(2)}..${land[land.length - 1]?.toFixed(2)}), ${inHub} of ${land.length} in the HUB's opening ${D} m out; the motors down to ${minRpm.toFixed(0)} of ${want.rpm.toFixed(0)} RPM; the box in to ${slideTurns(rg.ext).toFixed(1)} turns; ${left.length} still in it)`);
+  console.log(`  (shots leave at ${med(sh.map((o) => o.v)).toFixed(2)} m/s, ${med(sh.map((o) => o.el)).toFixed(1)} deg; come down at the rim ${land[land.length >> 1]?.toFixed(2)} m out (median; ${land[0]?.toFixed(2)}..${land[land.length - 1]?.toFixed(2)}), ${inHub} of ${land.length} in the HUB's opening ${D} m out; the motors down to ${minRpm.toFixed(0)} of ${want.rpm.toFixed(0)} RPM; the box in to ${slideTurns(rg.ext).toFixed(1)} turns${inT0 >= 0 ? `, pulled in from ${inT0.toFixed(2)} s: to 10.8 turns in ${inMid >= 0 ? (inMid - inT0).toFixed(2) + ' s' : '-'}, to 6.3 in ${inT1 >= 0 ? (inT1 - inT0).toFixed(2) + ' s' : '-'}` : ''}; ${left.length} still in it)`);
+  console.log(`  (the flywheel at Shoot's gate ${gateT.toFixed(2)} s in, the first shot ${first.toFixed(2)} s in; held off under its gate ${heldOff.toFixed(2)} s after that)`);
   console.log(`1114 dumps ${s.length} of ${n0}${process.env.FILL === 'layers' ? ' (filled a layer at a time)' : ` (filled through its intake, seed ${seed})`}: ${in1} in the first second, best second ${best}, ${rate.toFixed(1)} FUEL/s over the whole dump`);
   w.free();
-  return { n: s.length, n0, rate, best, in1, inHub };
+  return { n: s.length, n0, rate, best, in1, inHub, first, minRpm, heldOff, inTime: inT0 >= 0 && inT1 >= 0 ? inT1 - inT0 : NaN };
 }
 
 function pathRun(seed, { shoot = true, n = 20, sec = 7, speed = SPEED } = {}) {

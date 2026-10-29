@@ -6,15 +6,16 @@
 //     to the HUB's (or to their pass point: 2 m out from the ALLIANCE WALL, 1.5 m in from the side
 //     wall on the robot's side of the field), the hood to the table's angle (42-74). It runs until
 //     the intake's button (their right bumper, also the shooter's off button) is pressed: then the
-//     hood brakes where it is and, where their code coasts the flywheel (setShooterVoltage 0), it's
-//     kept spinning here at the HUB shot for where the robot is (not their code), so a dump never
-//     waits for it to come up from rest.
+//     hood brakes where it is and the flywheel drops to their ShooterIdle's 1000 RPM (their
+//     shooter's default command, commented out of their bindings; with it out their code coasts
+//     it), so each dump spins up from idle.
 //   shoot (their right trigger, Shoot with AgitateIntake): while the flywheel is within 500 RPM
 //     under its setpoint and the chassis within 7 deg of its heading: the elevator at 4500 RPM
 //     (their velocity loop, at the Talon's 1 kHz), the floor at 12 V and the side rollers at 10
 //     V; otherwise all off (coasting). AgitateIntake: once the flywheel's within 400 RPM and the
-//     heading within 5 deg, 0.65 s after the trigger, the box comes in at -2 V while it's over
-//     their 6.3in, its roller at 6 V (their code cuts the roller's positive voltage inside 10.8in),
+//     heading within 5 deg, 0.65 s after the trigger, the box comes in while it's over their
+//     6.3in (at -3.5 V, their SLIDE_FAST_PULL_VOLTAGE, not their AgitateIntake's -2: js/mech/r1114.js
+//     SLIDE.pull), its roller at 6 V (their code cuts the roller's positive voltage inside 10.8in),
 //     then stops; it stays where it is when the trigger's let go (their default command coasts it).
 //   intake (their right bumper, LowerIntake then RunIntakeBallevator): the box out on their
 //     position loop (13.55, kP 4 V per turn) until it's out (over 9in and within 1in), then the
@@ -44,8 +45,6 @@ const GATE = { rpm: 500, aim: 7 * DEG, agitateRpm: 400, agitateAim: 5 * DEG, agi
 // moves it at most 7530 RPM x 2.43 = 305 deg/s at 12 V)
 const HOOD = { kP: SHOOTER.hoodKP / SHOOTER.hoodDegPerRot, free: (7530 / 60) * SHOOTER.hoodDegPerRot };
 const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
-// the flywheel kept spinning between shots: at the HUB shot for the distance, held within these (m)
-const IDLE = { near: 1.6, far: 4.5 };
 // a motor's duty cycle for torque current amps (per motor) at its output speed w (their FOC
 // torque current, the battery's 12 V permitting)
 function dutyFor(motor, amps, w, V = 12) {
@@ -160,7 +159,7 @@ export class Physical1114 extends PhysicalRobot {
     // (their AUTO: AimShooterHub, an AimShooterAuto on the shooter alone, spins it up to the HUB
     // shot beside IntakeDeploy (on the intake and indexer) from its marker to the path's end and
     // through FullShoot; ShooterStop after each FullShoot ends the aim until the next marker (their
-    // code coasts the flywheel there; here it's kept spinning, below). The AUTO runner says which:
+    // code coasts the flywheel there; here it idles, below). The AUTO runner says which:
     // spin)
     const spin = r.match?.isAuto ? r.cmd.spin : undefined;
     if (on && setpoint > 0 && r.shot) { this.aim = true; this.aimMode = pass && !spin ? 'pass' : 'hub'; }
@@ -171,13 +170,10 @@ export class Physical1114 extends PhysicalRobot {
       want = shotFor(this.aimMode, Math.hypot(tgt.x - r.pos.x, tgt.z - r.pos.z));
       this.hoodGoal = want.hood;
     } else this.hoodGoal = null;
-    // the flywheel: their velocity loop (motor RPM) at the shot. Not aiming, it's kept spinning
-    // (their code coasts it then: their intake button and ShooterStop; its ShooterIdle, 1000 RPM,
-    // is commented out of their bindings): at the HUB shot for where it is, its table's rows from
-    // 1.6 to 4.5 m (2390-3500 RPM), so a dump never waits for it to come up from rest
-    const hub = Field.hubCenter(r.alliance);
-    const idle = shotFor('hub', clamp(Math.hypot(hub.x - r.pos.x, hub.z - r.pos.z), IDLE.near, IDLE.far)).rpm;
-    const loop = want ? want.rpm : on ? idle : 0;
+    // the flywheel: their velocity loop (motor RPM) at the shot. Not aiming, their ShooterIdle:
+    // the same loop at 1000 RPM (SHOOTER_IDLE_VELOCITY; their shooter's default command, commented
+    // out of their bindings, where their intake button and ShooterStop leave it coasting)
+    const loop = want ? want.rpm : on ? SHOOTER.idle : 0;
     if (loop) T.shooter.vel = { target: (loop / 60) * TAU, kV: SHOOTER.kV, kP: SHOOTER.kP, lo: -12, hi: 12, per: 1 / TAU };
     else { T.shooter.vel = null; T.shooter.cmd = null; }
     const rpm = (T.shooter.omega * 60) / TAU, sp = want ? want.rpm : 0;
@@ -214,7 +210,7 @@ export class Physical1114 extends PhysicalRobot {
       }
     } else if (shooting) {
       // their AgitateIntake (the intake's own command while the trigger's held)
-      if (agitate && turns >= 1 && t - this.shootT > GATE.agitateWait && turns > SLIDE_POS.agitateMin) { this.slideMode = { kind: 'volts', v: -2 }; roller = 6; }
+      if (agitate && turns >= 1 && t - this.shootT > GATE.agitateWait && turns > SLIDE_POS.agitateMin) { this.slideMode = { kind: 'volts', v: SLIDE.pull }; roller = 6; }
     }
     if (eject) roller = -12;
     // (what its driver does: firing, with nothing shot for a second, they see the last few won't
