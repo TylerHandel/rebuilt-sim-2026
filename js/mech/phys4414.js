@@ -33,13 +33,13 @@ import { Mechanism } from './mechanism.js';
 import { PhysicalRobot } from './physical.js';
 import {
   build4414, wheels4414, shooterWheels, pathSurfaces4414, placeIntake, placeRotor, placeRotorSurfaces, placeBox, placeShooter, placeTurretSurfaces,
-  hoodElevation, AXIS, HALF_L, BAY, BOX, RACK, SHOOTER, PRELOAD,
+  hoodElevation, AXIS, HALF_L, BAY, BOX, RACK, SHOOTER, FLY, PRELOAD,
 } from './r4414.js';
 import { FIT, LAUNCH } from './shot4414.js';
 import { profile, velocityDuty } from './phys604.js';
 import { sim2D } from '../ballistics.js';
 import { Field } from '../field.js';
-import { FUEL } from '../constants.js';
+import { FUEL, HUB } from '../constants.js';
 import { clamp } from '../util.js';
 
 const DEG = Math.PI / 180, TAU = 2 * Math.PI, R = FUEL.radius;
@@ -58,7 +58,7 @@ const BOX_KP = 4;
 // `in` (m out) at up to `volts`, then back out to the box's stop at up to `outVolts`, and in again
 // as soon as it's there; a stroke in turns round where it gets to, or where the load holds it
 // (under `slow` m/s for `stall` s). STROKE.on false: no strokes (the box stays out)
-export const STROKE = { on: true, in: 0.14, volts: 4, outVolts: 6, tol: 0.008, slow: 0.05, stall: 0.08 };
+export const STROKE = { on: true, in: 0.14, volts: 2, outVolts: 3, tol: 0.008, slow: 0.05, stall: 0.08 };
 // the racks' X44s for the box's state st ({ ext (m out), stroke, strokeT, slowT, strokes }): out
 // on deploy and held there; agitate: stroking. And its stops (all the way in, all the way out)
 export function driveBox(st, slide, dt, { on, agitate, stroke = STROKE }) {
@@ -79,6 +79,11 @@ export function moveBox(st, slide, dt) {
   st.ext += slide.omega * RACK.pinion * dt;
   if (st.ext < 0) { st.ext = 0; if (slide._omega < 0) slide._omega = 0; }
   if (st.ext > BOX.ext) { st.ext = BOX.ext; if (slide._omega > 0) slide._omega = 0; }
+}
+// v rotated by the unit quaternion q
+function qrot(q, [vx, vy, vz]) {
+  const tx = 2 * (q.y * vz - q.z * vy), ty = 2 * (q.z * vx - q.x * vz), tz = 2 * (q.x * vy - q.y * vx);
+  return [vx + q.w * tx + (q.y * tz - q.z * ty), vy + q.w * ty + (q.z * tx - q.x * tz), vz + q.w * tz + (q.x * ty - q.y * tx)];
 }
 // v (frame) rotated by the inverse of the unit quaternion q
 function qrotInv(q, [vx, vy, vz]) {
@@ -132,6 +137,7 @@ export class Physical4414 extends PhysicalRobot {
     this.ownsIntake = true;
     this.ownsHood = true;
     this.tiltComp = true; // (their Shot/TiltComp/Enabled; off for the bench's comparison)
+    this.tiltPos = true; // (and where the tilted shooter is, as they'd estimate it: _aim)
     this.reset();
   }
 
@@ -204,9 +210,26 @@ export class Physical4414 extends PhysicalRobot {
     this.va.ax += k * ((v.x - this.va.vx) / dt - this.va.ax); this.va.az += k * ((v.z - this.va.vz) / dt - this.va.az);
     this.va.vx = v.x; this.va.vz = v.z;
     const L = LATENCY, c = b.translation(), yaw = r.yaw + w * L;
+    // tilted? (their getTiltCompensatedAim: over TILT.min, the shoot-on-the-fly lockout not active)
+    const q = b.rotation(), upY = 1 - 2 * (q.x * q.x + q.z * q.z);
+    this.tilt = Math.acos(clamp(upY, -1, 1));
+    this.tiltLock = this.tilt > TILT.lock && Math.hypot(v.x, v.z) > TILT.lockSpeed;
+    this.tiltComped = this.tiltComp && !this.tiltLock && this.tilt > TILT.min;
     const px = c.x + v.x * L + 0.5 * this.va.ax * L * L, pz = c.z + v.z * L + 0.5 * this.va.az * L * L;
     const ox = AXIS[0] * Math.cos(yaw) + AXIS[1] * Math.sin(yaw), oz = -AXIS[0] * Math.sin(yaw) + AXIS[1] * Math.cos(yaw);
-    const tx = px + ox, tz = pz + oz;
+    let tx = px + ox, tz = pz + oz;
+    // where the tilted shooter is (tiltPos): what their gyro's pitch and roll say, the robot turned
+    // about its lowest wheel, taken to be on the carpet (it can't know a BUMP lifts it): the
+    // flywheel leant over (moving where the shot starts from) and raised or lowered (dh, against
+    // its height flat)
+    let dh = 0;
+    if (this.tiltComped && this.tiltPos) {
+      const fly = qrot(q, [AXIS[0], FLY.y, AXIS[1]]), c0 = Math.cos(r.yaw), s0 = Math.sin(r.yaw);
+      const low = Math.min(...r.wheelPts.map((p) => qrot(q, [p.x, 0, p.z])[1]));
+      tx += fly[0] - (AXIS[0] * c0 + AXIS[1] * s0); tz += fly[2] - (-AXIS[0] * s0 + AXIS[1] * c0);
+      dh = fly[1] - low - FLY.y;
+    }
+    this.tiltDh = dh;
     const vtx = v.x + this.va.ax * L + w * oz, vtz = v.z + this.va.az * L - w * ox;
     const tgt = feed ? (r.shot?.target ?? Field.hubCenter(r.alliance)) : Field.hubCenter(r.alliance);
     const dx = tgt.x - tx, dz = tgt.z - tz, d = Math.hypot(dx, dz);
@@ -214,10 +237,24 @@ export class Physical4414 extends PhysicalRobot {
     if (feed) {
       // a pass: the hood at PASS_HOOD, the speed that lands it at the pass point
       el = fitOf('el', 450, PASS_HOOD);
-      const y0 = fitOf('y', 450, PASS_HOOD), x0 = fitOf('x', 450, PASS_HOOD);
+      const y0 = fitOf('y', 450, PASS_HOOD) + dh, x0 = fitOf('x', 450, PASS_HOOD);
       const reach = (s) => (sim2D(y0, s, el * DEG, R)?.d ?? 0) + x0;
       v0 = reach(fitOf('v', RADS[1], PASS_HOOD)) < d ? fitOf('v', RADS[1], PASS_HOOD) : bisect(reach, 3, 12, d);
-    } else ({ v: v0, el } = launchFor(d));
+    } else {
+      ({ v: v0, el } = launchFor(d));
+      // (started dh higher, the table's shot for d comes down further on: the table's shot for
+      // where it lands short of d by as much instead)
+      if (dh) {
+        let de = d;
+        for (let k = 0; k < 2; k++) {
+          const o = shooterFor(v0, el), y0 = fitOf('y', o.rad, o.hood);
+          const a = sim2D(y0, v0, el * DEG, HUB.rimFront)?.d, z = sim2D(y0 + dh, v0, el * DEG, HUB.rimFront)?.d;
+          if (a === undefined || z === undefined) break;
+          de = d - (z - a);
+          ({ v: v0, el } = launchFor(de));
+        }
+      }
+    }
     const ux = dx / (d || 1), uz = dz / (d || 1);
     const sx = v0 * Math.cos(el * DEG) * ux - vtx, sz = v0 * Math.cos(el * DEG) * uz - vtz, sy = v0 * Math.sin(el * DEG);
     const vr = Math.hypot(sx, sy, sz);
@@ -229,11 +266,7 @@ export class Physical4414 extends PhysicalRobot {
     // chassis' yaw, pitch and roll into its own frame, where the turret and hood turn: the turret's
     // azimuth there (aimPsi: the robot turns the turret to aimPsi less its heading) and the hood's
     // elevation. Untilted, the two frames differ only by the heading, and this is what's above
-    const q = b.rotation(), upY = 1 - 2 * (q.x * q.x + q.z * q.z);
-    this.tilt = Math.acos(clamp(upY, -1, 1));
-    this.tiltLock = this.tilt > TILT.lock && Math.hypot(v.x, v.z) > TILT.lockSpeed;
-    this.tiltComped = this.tiltComp && !this.tiltLock && this.tilt > TILT.min && vr > 0;
-    if (this.tiltComped) {
+    if (this.tiltComped && vr > 0) {
       const [bx, by, bz] = qrotInv(q, [sx, sy, sz]);
       this.aimPsi = r.yaw + Math.atan2(-bz, bx);
       this.launchAngle = Math.asin(clamp(by / vr, -1, 1)) / DEG;
@@ -273,8 +306,9 @@ export class Physical4414 extends PhysicalRobot {
     // slow agitation and braked it hard at 80 A between shots
     this.notReady = this.ready ? 0 : (this.notReady ?? 1) + dt;
     this.feedingNow = on && launch && (this.ready || (this.feedingNow && this.notReady < 0.3));
-    // the box strokes while it shoots and isn't intaking (its driver not asking for the intake)
-    this.agitating = this.feedingNow && !r.cmd.intake;
+    // the box strokes as soon as it's shooting, never while it's intaking (its driver asking for
+    // the intake: the user)
+    this.agitating = launch && !r.cmd.intake;
     this._rotor(dt, on, unjam);
     // what the robot's aiming and drawing see
     r.hoodDeg = hoodElevation(this.hoodDeg);

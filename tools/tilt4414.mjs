@@ -1,7 +1,9 @@
 // 4414 shooting tilted: parked up on its ALLIANCE's BUMP (its back wheels on the carpet in the
 // ALLIANCE ZONE, its front up the BUMP's slope), firing volleys at the HUB with its tilt
 // compensation (js/mech/phys4414.js: their getTiltCompensatedAim) on and off, and flat on the
-// carpet beside the BUMP for comparison. How many go in, how far the misses land from the HUB's
+// carpet beside the BUMP for comparison: off, the launch vector alone turned through the tilt
+// (vector), and that with where the tilted shooter is as their code would estimate it, the robot
+// turned about its lowest wheel on the carpet (vector+pos). How many go in, how far the misses land from the HUB's
 // middle, and the chassis' pitch and roll while it fires.
 //   node --import ./tools/node-env.mjs tools/tilt4414.mjs [--volleys n] [--cases pitch,roll,flat,...] [--z m]
 // Cases: pitch (facing the HUB's way along the FIELD, driven forward up the slope: pitched nose up,
@@ -30,7 +32,7 @@ const CASE = {
   flat: { x: -5.0, yaw: 0, v: [0.8, 0], stopX: -4.75 },
 };
 
-async function run(name, comp) {
+async function run(name, comp, pos) {
   const c = CASE[name];
   const world = await createWorld();
   Math.random = mulberry32(5);
@@ -42,7 +44,7 @@ async function run(name, comp) {
   r.spawn(c.x, Z0, c.yaw);
   fuel.stage(0);
   r.enabled = true;
-  r.phys.tiltComp = comp;
+  r.phys.tiltComp = comp; r.phys.tiltPos = pos;
   let t = 0;
   const step = (cmd) => {
     Object.assign(r.cmd, { vx: 0, vz: 0, omega: 0, intake: false, shoot: false, pass: false, outtake: false, ...cmd });
@@ -59,7 +61,7 @@ async function run(name, comp) {
   const pitch = Math.asin(fwd[1]) * DEG, roll = -Math.asin(right[1]) * DEG;
   const hub = Field.hubCenter(BLUE), dist = Math.hypot(hub.x - r.pos.x, hub.z - r.pos.z);
   // volleys: 8 FUEL into its preload slots from the far side of the NEUTRAL ZONE, fire them all
-  const scored = new Set(), out = { shots: 0, in: 0, miss: [], tilt: [], comped: 0, steps: 0 };
+  const scored = new Set(), out = { shots: 0, in: 0, miss: [], tilt: [], comped: 0, steps: 0, agT: 0 }, st0 = r.phys.strokes;
   const watched = new Set();
   for (let v = 0; v < VOLLEYS; v++) {
     const balls = fuel.balls.filter((b) => b.state === 'field' && b.pos.x > 0.5 && b.pos.y < 0.2 && !watched.has(b)).slice(0, 8);
@@ -69,6 +71,8 @@ async function run(name, comp) {
     let last = t;
     for (let i = 0; i < 8 / PHYSICS_DT; i++) {
       step({ shoot: true });
+      if (r.phys.agitating) out.agT += PHYSICS_DT;
+      if (r.phys.strokes !== out._s) { if (out._s !== undefined && t - out._st < 1.5) (out.periods ??= []).push(t - out._st); out._s = r.phys.strokes; out._st = t; }
       if (r.stats.shots > s0 && r.phys.feedingNow) { out.steps++; if (r.phys.tiltComped) out.comped++; out.tilt.push(r.phys.tilt * DEG); }
       if (r.stats.shots !== (out._n ?? s0)) { out._n = r.stats.shots; last = t; }
       for (const b of watched) if (b.inHub) scored.add(b);
@@ -79,6 +83,8 @@ async function run(name, comp) {
     for (let i = 0; i < 2 / PHYSICS_DT; i++) { step({}); for (const b of watched) if (b.inHub) scored.add(b); }
   }
   out.in = scored.size;
+  const P = (out.periods ?? []).sort((a, b) => a - b);
+  out.period = P.length ? P[P.length >> 1] : NaN;
   // where the misses ended up (their distance from the HUB's middle, on the carpet)
   for (const b of watched) if (!scored.has(b) && b.state === 'field' && Math.hypot(b.pos.x - r.pos.x, b.pos.z - r.pos.z) > 0.8) out.miss.push(Math.hypot(b.pos.x - hub.x, b.pos.z - hub.z));
   physics.world.free();
@@ -86,9 +92,9 @@ async function run(name, comp) {
 }
 
 for (const name of CASES) {
-  for (const comp of [false, true]) {
-    const o = await run(name, comp);
+  for (const [mode, comp, pos] of [['off', false, false], ['vector', true, false], ['vector+pos', true, true]]) {
+    const o = await run(name, comp, pos);
     const med = (a) => { const b = [...a].sort((p, q) => p - q); return b.length ? b[b.length >> 1] : NaN; };
-    console.log(`4414 ${name.padEnd(5)} tilt comp ${comp ? 'on ' : 'off'}: at ${o.x.toFixed(2)},${o.z.toFixed(2)} (${o.dist.toFixed(2)} m from the HUB), pitch ${o.pitch.toFixed(1)} deg, roll ${o.roll.toFixed(1)} deg; ${o.in}/${o.shots} in the HUB${o.miss.length ? `, misses resting ${med(o.miss).toFixed(1)} m from its middle (median)` : ''}; compensating ${o.steps ? ((100 * o.comped) / o.steps).toFixed(0) : 0}% of the time it fed`);
+    console.log(`4414 ${name.padEnd(5)} tilt comp ${mode.padEnd(10)}: at ${o.x.toFixed(2)},${o.z.toFixed(2)} (${o.dist.toFixed(2)} m from the HUB), pitch ${o.pitch.toFixed(1)} deg, roll ${o.roll.toFixed(1)} deg; ${o.in}/${o.shots} in the HUB${o.miss.length ? `, misses resting ${med(o.miss).toFixed(1)} m from its middle (median)` : ''}; compensating ${o.steps ? ((100 * o.comped) / o.steps).toFixed(0) : 0}% of the time it fed; the box stroking every ${o.period.toFixed(2)} s (median)`);
   }
 }
