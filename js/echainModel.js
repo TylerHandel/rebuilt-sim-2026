@@ -3,7 +3,7 @@
 // turret's yaw, and the pieces that hold its ends.
 import * as THREE from 'three';
 import { LINK_POS, LINK_IDX } from './echainLink.js';
-import { TrackChain, SpoolChain, LINK } from './echain.js';
+import { TrackChain, SpoolChain, LINK, SPOOL1690 } from './echain.js';
 
 const DEG = Math.PI / 180;
 
@@ -141,17 +141,21 @@ export function chain8793(parent, axis, { linkMat, bracketMat, screwMat } = {}) 
 // it right), the 3in compliant wheel behind the turret on the left, the fixed end on the left, the
 // corner guides round the shooter and the end's bracket on them. update(yaw) moves the chain and the
 // tensioner.
-export function chain4414(parent, turret, wallTop, M) {
-  const ch = new SpoolChain(), o = ch.o, link = ch.link;
+export function chain4414(parent, turret, wallTop, M) { return spoolChainModel(parent, turret, { ch: new SpoolChain(), top: wallTop - 0.005, turretY: wallTop, name: '4414', M }); }
+// 1690's (js/echain.js SPOOL1690: its routing an estimate): the same pieces, along the back of its frame
+// behind the turret, hung from a strip just over the chain; turretY: the turret group's height
+export function chain1690(parent, turret, turretY, M) { return spoolChainModel(parent, turret, { ch: new SpoolChain(SPOOL1690, LINK), top: SPOOL1690.y + 0.035, turretY, name: '1690', M }); }
+function spoolChainModel(parent, turret, { ch, top, turretY, name, M }) {
+  const o = ch.o, link = ch.link;
   const g = new THREE.Group();
-  g.name = 'echain 4414';
+  g.name = `echain ${name}`;
   parent.add(g);
   const linkMat = new THREE.MeshStandardMaterial({ color: 0x1c1d21, roughness: 0.62, metalness: 0.05 });
   const dark = new THREE.MeshStandardMaterial({ color: 0x2a2d33, roughness: 0.55, metalness: 0.35 });
   const print = new THREE.MeshStandardMaterial({ color: 0x24272c, roughness: 0.8, metalness: 0.02 });
   const print2 = new THREE.MeshStandardMaterial({ color: 0x24272c, roughness: 0.8, metalness: 0.02, side: THREE.DoubleSide });
   const steel = new THREE.MeshStandardMaterial({ color: 0xc9ccd1, roughness: 0.3, metalness: 0.9 });
-  const y = o.y, top = wallTop - 0.005, wid = link.width;
+  const y = o.y, wid = link.width;
   const links = chainMesh(ch.n, wid, linkMat);
   g.add(links.mesh);
   const flex = M?.compliant || new THREE.MeshStandardMaterial({ color: 0x3f8f5a, roughness: 0.85 });
@@ -178,7 +182,7 @@ export function chain4414(parent, turret, wallTop, M) {
   cyl(0.004, top - 0.008 - y + wid / 2, steel, slider, 0, (top - 0.008 - y) / 2 - wid / 4, 0, 8);
   {
     const wheel = cyl(o.tensionR, wid * 0.9, flex, slider, 0, 0, 0, 20);
-    wheel.name = 'echain 4414 tensioner wheel';
+    wheel.name = `echain ${name} tensioner wheel`;
   }
   const bands = [];
   for (const dx of [-0.012, 0.012]) {
@@ -190,17 +194,17 @@ export function chain4414(parent, turret, wallTop, M) {
   // the compliant wheel, on its axle hung from the plate
   {
     const [cx, cw] = ch.C;
-    cyl(o.wheel.r, wid * 0.85, flex, g, cx, y, -cw, 28).name = 'echain 4414 compliant wheel';
+    cyl(o.wheel.r, wid * 0.85, flex, g, cx, y, -cw, 28).name = `echain ${name} compliant wheel`;
     cyl(0.005, top - y + wid / 2, steel, g, cx, (top + y) / 2, -cw, 8);
     box(0.05, 0.006, 0.05, dark, g, cx, top - 0.003, -cw);
   }
   // on the turret: the guides round the shooter's corners (printed, lipped top and bottom), and the
   // end's bracket on the box's face where the chain's end is fixed
   const guides = new THREE.Group();
-  guides.name = 'echain 4414 corner guides';
+  guides.name = `echain ${name} corner guides`;
   turret.add(guides);
   {
-    const b = o.box, r = b.r, gy = y - wallTop;
+    const b = o.box, r = b.r, gy = y - turretY;
     const cx = [b.x[0] + r, b.x[1] - r], cz = [b.z[0] + r, b.z[1] - r];
     const corners = [[cx[1], cz[1], 0], [cx[1], cz[0], 1], [cx[0], cz[0], 2], [cx[0], cz[1], 3]];
     for (const [x, z, k] of corners) {
@@ -218,7 +222,7 @@ export function chain4414(parent, turret, wallTop, M) {
     }
   }
   const endB = endBracket(wid, -0.01, 0.035, print, steel);
-  endB.name = 'echain 4414 shooter mount';
+  endB.name = `echain ${name} shooter mount`;
   endB.rotation.order = 'YXZ';
   turret.add(endB);
   let last = null;
@@ -232,7 +236,7 @@ export function chain4414(parent, turret, wallTop, M) {
     // the end's bracket in the turret's frame: from the last pin on along the chain
     const hd = Math.atan2(P[2 * n + 1] - P[2 * n - 1], P[2 * n] - P[2 * n - 2]) - yaw;
     const dx = P[2 * n] - o.axis[0], dw = P[2 * n + 1] - o.axis[1], c = Math.cos(-yaw), s = Math.sin(-yaw);
-    endB.position.set(c * dx - s * dw, y - wallTop, -(s * dx + c * dw));
+    endB.position.set(c * dx - s * dw, y - turretY, -(s * dx + c * dw));
     endB.rotation.y = hd;
     endB.rotation.x = Math.PI; // (its plate on the box's side: the chain's left)
   };

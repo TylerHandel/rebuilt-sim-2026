@@ -430,3 +430,33 @@ function armAt(chain, psi) {
   const f = Math.min(t.n, Math.max(0, (psi - t.y0) / DEG)), i = Math.min(t.n - 1, Math.floor(f));
   return t.a[i] + (t.a[i + 1] - t.a[i]) * (f - i);
 }
+
+// ---------------------------------------------------------------- 1690: a spool with a tensioner
+// The user: 1690's chain "works very similarly to how 4414's does, with a constant force spring".
+// Their CAD (view-only: its renders, js/mech/r1690.js) has the spring (the BOM's "Constant Force
+// Spring (6 lbs, 40in Travel, 3/4in Width)") and printed guides on the curved guard round the
+// turret's front, but not the chain or where its runs go. So the routing is 4414's, laid out in the
+// room 1690 has (estimates throughout): the fixed end at the back left (by the frame's corner behind
+// the turret), the chain running right along the back of the frame round the spring's 1.5in wheel
+// (it slides along the back; the spring pulls it right), back left round a 1.5in wheel behind the
+// turret's right side, and on round the guides of the turret's rotating base (a rounded box round
+// its plates) to its end there. The turret's +-200 deg of travel winds on or pays out ~0.9 m of
+// chain; the spring's wheel takes up half of that (0.45 m of its travel; the spring's is 40in). Its
+// chain: WCP's 15x30 (small: "the tiny form factor of the echain", their thread).
+export const SPOOL1690 = {
+  axis: [-0.14, 0.20],            // the turret's (robot frame, [x, w])
+  y: 0.395,                       // the chain's middle (on its side, just over the turret's deck)
+  entry: [-0.30, 0.355],          // the fixed end's pin, the chain heading right from it
+  tensionR: 0.75 * 0.0254,        // the spring's wheel (1.5in)
+  tension: [-0.32, 0.175],        // its travel along w
+  wheel: { at: 0.185, r: 0.75 * 0.0254 }, // the wheel the chain turns back round (w; its x: just in front of run B)
+  box: { x: [-0.12, 0.13], z: [-0.095, 0.095], r: 0.03 },
+  spring: 6 * 4.448,              // N: the one 6 lb constant-force spring
+  yaw: [-200 * DEG, 200 * DEG],
+  wrapMin: 0.05,
+};
+// 1690: as 4414's (chainLoad4414: the spring's pull at the arm the chain leaves the turret's guides
+// along, the pins and the wires' hysteresis at its bends, the spring wheel's slide), with its own
+// spring, its wires (two X60s on the shooter on 14 AWG, the hood's X44, CAN, the turret's camera: EI
+// 3e-3, as 4414's) and the slide's friction (2 N, estimate)
+export function chainLoad1690(chain, psi, { EI = 3e-3, bushing = 2 } = {}) { return chainLoad4414(chain, psi, { EI, bushing }); }

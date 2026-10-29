@@ -1,8 +1,8 @@
 // The physical turrets on their motors (js/mech/turretDrive.js), with and without their energy
 // chains (js/echain.js): how long a swing across their travel takes, how long they take to settle on
 // a new aim, and where they come to rest.
-//   node tools/turret-bench.mjs
-import { drive8793, drive4414 } from '../js/mech/turretDrive.js';
+//   node tools/turret-bench.mjs [8793,4414,1690]
+import { drive8793, drive4414, drive1690 } from '../js/mech/turretDrive.js';
 
 const DEG = Math.PI / 180, DT = 1 / 120;
 
@@ -25,7 +25,8 @@ function run(make, a, b, { tol = 0.6, near = 2 } = {}) {
 }
 
 const fmt = (r) => `${r.tNear === null ? '  -  ' : r.tNear.toFixed(3)} s to 2 deg, ${r.tIn === null ? 'never' : r.tIn.toFixed(3) + ' s'} to stay in 0.6, overshoot ${r.over.toFixed(2)} deg, rest ${r.end >= 0 ? '+' : ''}${r.end.toFixed(3)} deg, ${r.peak.toFixed(0)} A`;
-for (const [name, make, lo, hi, mid] of [['8793', drive8793, -200, 270, 35], ['4414', drive4414, -200, 200, 0]]) {
+const which = process.argv[2]?.split(',');
+for (const [name, make, lo, hi, mid] of [['8793', drive8793, -200, 270, 35], ['4414', drive4414, -200, 200, 0], ['1690', drive1690, -200, 200, 0]].filter(([n]) => !which || which.includes(n))) {
   console.log(`${name}:`);
   for (const chain of [false, true]) {
     const mk = () => make({ chain });

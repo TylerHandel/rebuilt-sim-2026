@@ -4,7 +4,7 @@
 // physical robots' turretStep (js/mech/phys8793.js, phys4414.js) runs one, so the turret gets where
 // the aim asks as fast as its motor can take it there, instead of at a set rate (js/robot.js).
 import { Motor } from './mechanism.js';
-import { TrackChain, SpoolChain, chainLoad8793, chainLoad4414 } from '../echain.js';
+import { TrackChain, SpoolChain, chainLoad8793, chainLoad4414, chainLoad1690, SPOOL1690, LINK } from '../echain.js';
 
 const DEG = Math.PI / 180, TURN = 2 * Math.PI;
 const sgn = (x) => (x > 0 ? 1 : x < 0 ? -1 : 0);
@@ -101,5 +101,28 @@ export function drive4414({ chain = true } = {}) {
     gains: { kP: 1.5, kD: 0.05, kV: 0.095, kS: 0.09, ff: chain ? (yaw) => -chainLoad4414(ch, yaw).torque * vPerNm : null },
     maxRate: 360 * DEG, limits: [-200 * DEG, 200 * DEG],
     chain: chain ? (yaw) => chainLoad4414(ch, yaw) : null,
+  });
+}
+
+// ---------------------------------------------------------------- 1690
+// Their code isn't public. Their CAD release thread: the turret on position control, Motion Magic
+// when it wraps, a feedforward of the target's tracking rate less the robot's own; a REV Through Bore
+// encoder geared to it, the Kraken's own encoder for the loop. Its CAD (view-only: the renders and the
+// BOM): an X60 low in the frame turning a long vertical shaft up to the turret's gear (a 12t SplineXS
+// pinion; the 8in bearing's gear teeth aren't readable), so the reduction is an estimate, 50:1 (~700
+// deg/s free). The loop as 8793's (an X60): kP 3 V per motor rotation, kD 0.1, kV the X60's 1/Kv
+// (0.124), kS 0.15 V, the commanded angle's own rate fed forward (bounded at 360 deg/s); stator 40 A,
+// supply 30 A; what turns: the shooter on its plates with its two X60s, the hood's X44 and the camera
+// (~6 kg, J 0.07); its thin-section 8in bearing ("tight tolerance on its slots made it significantly
+// stiffer so we had to scrape it quite a lot until it got smooth"): 1.0 N m. All estimates; travel
+// +-200 deg (the sim's config). Its chain: js/echain.js SPOOL1690.
+export function drive1690({ chain = true } = {}) {
+  const ch = new SpoolChain(SPOOL1690, LINK);
+  return new TurretDrive({
+    motor: new Motor('krakenX60', { ratio: 50, statorLimit: 40, supplyLimit: 30, eff: 0.9 }),
+    J: 0.07, friction: 1.0, viscous: 0.02,
+    gains: { kP: 3, kD: 0.1, kV: 0.124, kS: 0.15 },
+    maxRate: 360 * DEG, limits: [-200 * DEG, 200 * DEG],
+    chain: chain ? (yaw) => chainLoad1690(ch, yaw) : null,
   });
 }
