@@ -32,7 +32,7 @@
 //   side rollers once its gate is met), with no AgitateIntake: the box comes in only once the
 //   intake's let go. The AI keeps intaking as it starts to shoot and while FUEL lie in front of
 //   the intake, then lets go so the box compacts the rest (js/opponent.js, shotCompacts). In
-//   AUTO, shooting, it doesn't intake, as their AUTO's commands run.
+//   AUTO the same, where their AUTO intakes beside a shot (the Depot auto's last FullShoot).
 import { Mechanism } from './mechanism.js';
 import { PhysicalRobot } from './physical.js';
 import {
@@ -169,9 +169,9 @@ export class Physical1114 extends PhysicalRobot {
     // (the roller at 12 V, the box held out), the shot as their Shoot (the flywheel at the table's
     // shot, FUEL fed up the elevator once its gate is met), and no AgitateIntake: the box doesn't
     // come in while the intake's held. In their bindings the intake's button is also the shooter's
-    // off button, so their driver does one or the other. In AUTO it's as their AUTO's commands
-    // run: shooting, it doesn't intake)
-    const intaking = on && !!r.cmd.intake && !(auto && feeding), eject = on && !!outtake;
+    // off button, so their driver does one or the other. In AUTO the same, where their AUTO runs
+    // its intake beside a shot: the Depot auto's last FullShoot, IntakeDeploy still running)
+    const intaking = on && !!r.cmd.intake, eject = on && !!outtake;
     // ---- aim (their AimShooter / AimShooterPass): started by a shot to line up, ended by the
     // intake's button
     // (their AUTO: AimShooterHub, an AimShooterAuto on the shooter alone, spins it up to the HUB
@@ -192,7 +192,7 @@ export class Physical1114 extends PhysicalRobot {
       this.aimMode = pass && !lineup ? 'pass' : 'hub';
     } else {
       if (on && setpoint > 0 && r.shot) { this.aim = true; this.aimMode = pass && !spin ? 'pass' : 'hub'; }
-      if ((intaking && !spin) || !on || (spin === false && !feeding)) this.aim = null;
+      if ((intaking && !spin && !feeding) || !on || (spin === false && !feeding)) this.aim = null;
     }
     let want = null;
     if (this.aim) {
