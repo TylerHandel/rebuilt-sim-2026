@@ -78,9 +78,19 @@ export const SHOOTER = {
   // the hood's three 1.5in rollers as exported (the CAD's pose: the shot leaves 45.6 deg up)
   hood: [[-0.2024, 0.6137], [-0.1841, 0.6621], [-0.1534, 0.7037]], hoodR: 0.01975, hoodWidth: 0.4064,
   flyPerMotor: (36 / 24) * (24 / 48), brassPerMotor: (36 / 24) * (36 / 15), hoodPerFly: 36 / 24,
-  // the flywheel (the CAD's volumes: its 3in aluminum tube, the sleeve, the hubs), the 4in brass
-  // inertia flywheel (82 cm3 of brass, a rim 34-50 mm out), the hood's rollers and jackshaft
-  flyJ: 1.33e-3, brassJ: 1.28e-3, hoodJ: 1.6e-4,
+  // inertia (kg m^2), each about its own axis from the CAD's solids (OpenCascade's volume
+  // properties on the STEP) and the BOM's materials; README, *1114*, has the table. The flywheel:
+  // its 3in 6061 tube (0.48 kg), the 2 mm sleeve over it (no BOM material: 1240, a print's),
+  // the Onyx end hubs with their 48t and 36t pulleys, the hub rivets and stubs, and the 160T and
+  // 45T belts at their pulleys' pitch radius. The brass: SDS's 4in brass flywheel (0.70 kg, the
+  // 1.54 lb SDS publishes; 1.170e-3 against their 4.0 lb in^2), its 15t pulley and stub. The
+  // jackshaft (1.5 of the motors): its 36t and two 24t pulleys, the 75T belt. The motors' output
+  // shafts: four 50t gears, their hex adapters, the 36t pulley and the 90T belt. The hood's
+  // drive (1.5 of the flywheel): the three 1.5in rollers (6061 tubes, 7075 shafts, the BOM's
+  // carbon-fiber end pieces, grip tape), their 24t pulleys and 34t gears and the jackshaft that
+  // drives them. (The motors' rotors are added by the Train.)
+  flyJ: 1.36e-3, brassJ: 1.171e-3, jackJ: 5.06e-5, motorJ: 1.42e-4, hoodJ: 4.27e-4,
+  jackPerMotor: 36 / 24,
   // their velocity loop (Slot0, VelocityVoltage, motor rotations/s): kV x target + kP x error
   kV: 0.14, kP: 0.25,
   // their ShooterIdle (SHOOTER_IDLE_VELOCITY, motor RPM): the shooter's default command in their
@@ -218,6 +228,10 @@ export function build1114() {
   const shooter = new Train({ name: 'shooter', motor: new Motor('krakenX60Trap', { count: 4, statorLimit: S.stator, supplyLimit: S.supply }) });
   const fly = shooter.add(new Shaft({ name: 'flywheel (3in, grip tape)', inertia: S.flyJ }), -S.flyPerMotor);
   shooter.add(new Shaft({ name: '4in brass flywheel', inertia: S.brassJ }), S.brassPerMotor);
+  // (the jackshaft's and the motors' gears' inertia only: the train's drag stays the three shafts'
+  // it was tuned with)
+  shooter.add(new Shaft({ name: 'jackshaft (36t, 24ts)', inertia: S.jackJ, drag: 0 }), S.jackPerMotor);
+  shooter.add(new Shaft({ name: 'motors\' 50t gears and 36t', inertia: S.motorJ, drag: 0 }), 1);
   const hood = shooter.add(new Shaft({ name: 'hood rollers', inertia: S.hoodJ }), S.flyPerMotor * S.hoodPerFly);
   // the box's slide: the racks' pinions (positive runs the box out); what slides seen at the
   // pinion; the racks' friction (an estimate: enough that the box doesn't run out down its racks
