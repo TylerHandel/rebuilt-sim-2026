@@ -92,6 +92,11 @@ export function trajectoryPoints(p, v, maxT = 3, floorY = 0.05) {
 }
 
 // Lookup table: horizontal distance -> {theta, v, tof, alpha}
+// A pass table (mode 'pass') lobs at passTheta wherever that reaches; past it, at the hood angle
+// nearest passTheta that still gets there (flatter, toward the angle that throws farthest). Past
+// everything it can reach, lookup() gives its longest throw (`far`: the hood angle that carries
+// farthest in the drag model, at speedMax, flagged reach: false): a pass from out of reach still
+// goes, as far as the shooter throws, and comes down short.
 export class ShotTable {
   constructor({ h0, Ht, hoodMin, hoodMax, speedMin = 2.5, speedMax, dMin = 0.4, dMax = 16, step = 0.05, mode = 'hub', passTheta = 55, clearDist = 0, clearHeight = 0 }) {
     this.h0 = h0;
@@ -99,19 +104,25 @@ export class ShotTable {
     this.dMin = dMin;
     this.step = step;
     const thetas = [];
-    if (mode === 'pass') thetas.push(Math.min(Math.max(passTheta, hoodMin), hoodMax));
+    const lob = Math.min(Math.max(passTheta, hoodMin), hoodMax);
+    // (a pass's flatter angles, every 2 deg down to hoodMin, only matter past the lob's reach: fast
+    // shots. In the drag model the longest throw is at about 41-44 deg, flatter than the lob)
+    if (mode === 'pass') { thetas.push(lob); for (let t = lob - 2; t > hoodMin - 1e-6; t -= 2) thetas.push(t); if (lob > hoodMin + 1e-6 && (lob - hoodMin) % 2) thetas.push(hoodMin); }
     else for (let t = hoodMin; t <= hoodMax + 1e-6; t += 1) thetas.push(t);
 
     // For each hood angle, sweep exit speed (h0: the exit height, or a function of the hood
     // angle when where FUEL leaves moves with the hood)
-    const curves = thetas.map((tdeg) => {
+    const curves = thetas.map((tdeg, k) => {
       const th = tdeg * DEG;
       const h = typeof h0 === 'function' ? h0(tdeg) : h0;
       const pts = [];
-      for (let v = speedMin; v <= speedMax + 1e-6; v += 0.1) {
+      for (let v = mode === 'pass' && k > 0 ? Math.max(speedMin, 0.5 * speedMax) : speedMin; v <= speedMax + 1e-6; v += 0.1) {
         const r = sim2D(h, v, th, Ht, clearDist);
         if (r) pts.push({ v, ...r });
       }
+      // (a pass's longest throw at exactly speedMax, where the 0.1 m/s steps stop short of it)
+      const last = pts[pts.length - 1];
+      if (mode === 'pass' && last && last.v < speedMax - 1e-6) { const r = sim2D(h, speedMax, th, Ht, clearDist); if (r) pts.push({ v: speedMax, ...r }); }
       return { th, pts };
     });
 
@@ -139,7 +150,7 @@ export class ShotTable {
           if (mode === 'hub') {
             const ad = cand.alpha / DEG;
             cost = cand.tof + (ad < 52 ? (52 - ad) * 0.06 : 0) + (ad < 38 ? 100 : 0);
-          } else cost = cand.tof;
+          } else cost = Math.abs(c.th / DEG - lob) * 100 + cand.tof; // (passTheta's own lob wherever it reaches)
           if (cost < bestCost) { bestCost = cost; best = cand; }
           break;
         }
@@ -155,9 +166,19 @@ export class ShotTable {
       this.minD = Math.min(this.minD, d);
       this.maxD = Math.max(this.maxD, d);
     });
+    // a pass table's longest throw: flat out, at the hood angle that carries farthest
+    this.far = null;
+    if (mode === 'pass') {
+      for (const c of curves) {
+        const p = c.pts[c.pts.length - 1];
+        if (p && (!this.far || p.d > this.far.d)) this.far = { theta: c.th, v: p.v, tof: p.tof, alpha: p.alpha, d: p.d, reach: false };
+      }
+    }
   }
 
   lookup(d) {
+    // (past what a pass table reaches: its longest throw, which comes down short)
+    if (this.far && d > this.maxD) return this.far;
     const fi = (d - this.dMin) / this.step;
     let i = Math.floor(fi);
     if (i < 0 || i + 1 >= this.entries.length) return null;
@@ -184,10 +205,20 @@ export class ShotTable {
 export function solveMovingShot(table, exit, vel, target) {
   let ax = target.x, az = target.z;
   let sol = null;
+  // a pass from out of reach (from where it is, or once led for the launcher's motion): its longest
+  // throw, straight along the line to the target (no lead: it can't get there anyway, and a long
+  // throw's lead swings the aim round with every change in the robot's velocity)
+  const d0 = Math.hypot(ax - exit.x, az - exit.z);
+  const straight = () => {
+    const f = table.far;
+    return { psi: Math.atan2(-(target.z - exit.z), target.x - exit.x), theta: f.theta, v: f.v, tof: f.tof, dist: d0, aim: { x: target.x, z: target.z }, reach: false };
+  };
+  if (table.far && d0 > table.maxD) return straight();
   for (let i = 0; i < 5; i++) {
     const d = Math.hypot(ax - exit.x, az - exit.z);
     sol = table.lookup(d);
     if (!sol) return null;
+    if (sol.reach === false) return straight();
     ax = target.x - vel.x * sol.tof;
     az = target.z - vel.z * sol.tof;
   }
@@ -197,6 +228,7 @@ export function solveMovingShot(table, exit, vel, target) {
     const d = Math.hypot(dx, dz);
     sol = table.lookup(d);
     if (!sol) return null;
+    if (sol.reach === false) return straight();
     const ch = Math.cos(sol.theta) * sol.v / d;
     const v3 = { x: dx * ch + vel.x, y: Math.sin(sol.theta) * sol.v, z: dz * ch + vel.z };
     const hit = sim3D(exit, v3, table.Ht);
@@ -210,5 +242,6 @@ export function solveMovingShot(table, exit, vel, target) {
   const d = Math.hypot(dx, dz);
   sol = table.lookup(d);
   if (!sol) return null;
-  return { psi: Math.atan2(-dz, dx), theta: sol.theta, v: sol.v, tof: sol.tof, dist: d, aim: { x: ax, z: az } };
+  if (sol.reach === false) return straight();
+  return { psi: Math.atan2(-dz, dx), theta: sol.theta, v: sol.v, tof: sol.tof, dist: d, aim: { x: ax, z: az }, reach: true };
 }

@@ -519,8 +519,9 @@ export class OpponentAI {
       if (b !== this.ball) { this.ball = b; this.ballBest = 1e9; this.ballProgressT = 0; }
     }
     const lineX = Field.allianceLineX(this.own);
-    const fromLine = this.own === BLUE ? r.pos.x - lineX : lineX - r.pos.x;
-    const canPass = !r.lastInZone && fromLine < 6 && this._passClear(r.pos, target);
+    // (from anywhere out of our zone, however far: from out of reach the robot throws as far as it
+    // can and the FUEL fall short, closer to home than they were; js/robot.js _shooter)
+    const canPass = !r.lastInZone && this._passClear(r.pos, target);
     const stored = r.stored.length;
     // collect a batch, then dump it all in one go: one spin-up (and for a chassis-aimed shooter
     // one turn) per batch instead of one per FUEL. It passes early if there's nothing left to get.
@@ -545,7 +546,8 @@ export class OpponentAI {
       const h = this._home();
       this._drive(h.x, h.z, { avoid: true });
     }
-    // full (e.g. after stealing from the far zone) or nothing left: head back into passing range
+    // full or nothing left, and it can't pass from here (in our zone, or our HUB in the way): out
+    // past the line, beside the HUB
     if (!b && stored && !canPass) {
       const tx = lineX + (this.own === BLUE ? 2.5 : -2.5), tz = target.z;
       this._drive(tx, tz, { avoid: true });

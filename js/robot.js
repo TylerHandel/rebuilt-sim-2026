@@ -108,7 +108,9 @@ export class Robot {
       h0, Ht: HUB.targetHeight, hoodMin: sh.hoodMin, hoodMax: sh.hoodMax, speedMax: sh.speedMax, mode: 'hub',
       clearDist: HUB.size / 2 + FUEL.radius + 0.02, clearHeight: HUB.rimFront + FUEL.radius + 0.04,
     });
-    this.passTable = new ShotTable({ h0, Ht: FUEL.radius + 0.02, hoodMin: sh.hoodMin, hoodMax: sh.hoodMax, speedMax: sh.speedMax, mode: 'pass', passTheta: 55 });
+    // (passes: a 55 deg lob where that reaches, flatter past it; out to the FIELD's diagonal and past,
+    // where beyond its reach its longest throw goes anyway and falls short: ballistics.js ShotTable)
+    this.passTable = new ShotTable({ h0, Ht: FUEL.radius + 0.02, hoodMin: sh.hoodMin, hoodMax: sh.hoodMax, speedMax: sh.speedMax, mode: 'pass', passTheta: 55, dMax: 22 });
 
     // turret shooters: one or more turrets (971 has two), each aiming itself
     this.turrets = sh.type === 'turret' ? (sh.turrets || [sh.turretPos]) : [];
@@ -1071,7 +1073,9 @@ export class Robot {
 
   // where a FUEL launched now would come down is on our half of the FIELD, clear of the walls,
   // and it doesn't drop into a HUB on the way (that would be a G407 from outside the zone);
-  // anywhere: only that it doesn't drop into a HUB
+  // anywhere: only that it doesn't drop into a HUB. A pass from out of reach (its shot's reach
+  // false) can't get to our half: it may come down short anywhere on the FIELD (no rule says where
+  // a pass lands), still clear of the walls (G405) and of both HUBs
   _passLands(ti = 0, anywhere = false) {
     const sh = this.cfg.shooter;
     const psi = sh.type === 'fixed' ? this.yaw + this.aimOffset : this.yaw + this.turretYaws[ti];
@@ -1084,7 +1088,8 @@ export class Robot {
     const th = (w ? w.hood : this.hoodDeg) * DEG, v = w ? w.fly : this.flywheel;
     const pts = trajectoryPoints(exit, { x: Math.cos(psi) * Math.cos(th) * v + lv.x, y: Math.sin(th) * v, z: -Math.sin(psi) * Math.cos(th) * v + lv.z });
     const x = pts[pts.length - 3], z = pts[pts.length - 1], s = this.alliance === BLUE ? 1 : -1;
-    if (!anywhere && !(Math.abs(x) < HALF_L - 1.2 && Math.abs(z) < HALF_W - 1.2 && s * x < -0.5)) return false;
+    const short = (w ? w.sol : this.shot)?.reach === false;
+    if (!anywhere && !(Math.abs(x) < HALF_L - 1.2 && Math.abs(z) < HALF_W - 1.2 && (short || s * x < -0.5))) return false;
     for (const a of [BLUE, RED]) {
       const c = Field.hubCenter(a);
       for (let i = 0; i < pts.length; i += 3) {
@@ -1160,12 +1165,9 @@ export class Robot {
         const e2 = exitAt(sol.theta / DEG), s2 = solveMovingShot(tgt.table, e2, lv, tgt);
         if (s2) { sol = s2; exit = e2; }
       }
-      // out of reach, a physical robot's pass goes anyway (8793's code shuttles whatever its
-      // flywheel is doing): as far as it'll go, flat out at its flattest, toward the target
-      if (!sol && this.phys && tgt.mode === 'pass') {
-        const dx = tgt.x - exit.x, dz = tgt.z - exit.z;
-        sol = { psi: Math.atan2(-dz, dx), theta: sh.hoodMin * DEG, v: sh.speedMax, tof: 0, dist: Math.hypot(dx, dz), aim: { x: tgt.x, z: tgt.z }, reach: false };
-      }
+      // (out of reach, a pass still has a solution: the pass table's longest throw, flat out at the
+      // hood angle that carries farthest, toward the target: sol.reach false. A physical robot's own
+      // code sets its speed and hood for it, from its own tables)
       if (sol) {
         this.shot = { ...sol, mode: tgt.mode, target: tgt, exit, lv };
         setpoint = sol.v;
@@ -1207,10 +1209,14 @@ export class Robot {
         // are right now, the FUEL would come down on our half of the FIELD (clear of the walls)
         const pass = tgt.mode === 'pass';
         const tol = pass ? 4 * DEG : Math.max(0.6 * DEG, Math.atan2(0.14, sol.dist));
-        const spinOk = pass ? this.flywheel > 0.75 * sol.v : Math.abs(this.flywheel - sol.v) / sol.v < 0.025;
+        // (a pass from out of reach waits for the flywheel to be flat out and the hood at its
+        // longest throw: anything less only falls shorter. A physical robot's code sets its own
+        // speed and hood, and says itself when it feeds)
+        const flat = pass && !sol.reach && !this.phys;
+        const spinOk = pass ? this.flywheel > (flat ? 0.97 : 0.75) * sol.v : Math.abs(this.flywheel - sol.v) / sol.v < 0.025;
         const hoodOk = Math.abs(this.hoodDeg - sol.theta / DEG) < 1.5;
         const aimOk = Math.abs(aimErr) < tol;
-        ready = pass ? spinOk && this._passLands() : spinOk && hoodOk && aimOk;
+        ready = pass ? spinOk && (!flat || hoodOk) && this._passLands() : spinOk && hoodOk && aimOk;
         this.passClear = !pass || this._passLands(0, true);
         status = !spinOk ? 'Spinning up' : !aimOk ? 'Aiming' : !hoodOk ? 'Hood' : 'READY';
         if (tgt.mode === 'pass') status = ready ? 'PASS READY' : 'Pass: ' + status.toLowerCase();
@@ -1335,10 +1341,12 @@ export class Robot {
             w.sol = { ...sol, exit, lv };
             const err = Math.abs(wrapAngle(psi - (this.yaw + this.turretYaws[i])));
             const tol = pass ? 4 * DEG : Math.max(0.6 * DEG, Math.atan2(0.14, sol.dist));
-            const spinOk = pass ? w.fly > 0.75 * sol.v : Math.abs(w.fly - sol.v) / sol.v < 0.025;
+            // (out of reach: flat out, at the longest throw's hood, as a single shooter)
+            const flat = pass && !sol.reach && !this.phys;
+            const spinOk = pass ? w.fly > (flat ? 0.97 : 0.75) * sol.v : Math.abs(w.fly - sol.v) / sol.v < 0.025;
             const hoodOk = Math.abs(w.hood - sol.theta / DEG) < 1.5;
             spun ||= spinOk; aimed ||= err < tol;
-            w.ok = spinOk && err < tol && (pass || hoodOk);
+            w.ok = spinOk && err < tol && ((pass && !flat) || hoodOk);
             if (show < 0 || (w.ok && !this.tws[show].ok)) show = i;
           }
         }

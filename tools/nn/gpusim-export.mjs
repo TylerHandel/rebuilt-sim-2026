@@ -34,7 +34,7 @@ for (const key of ROBOT_ORDER) {
   // flywheel speed a stationary shot needs at each distance (null: out of range)
   const h0 = sh.type === 'fixed' ? fixedExit(sh, (sh.hoodMin + sh.hoodMax) / 2).y : sh.exitY;
   const hc = Field.hubCenter(BLUE);
-  const shotV = (table, d, tx) => { const s = solveMovingShot(table, new THREE.Vector3(tx - d, h0, 0), { x: 0, z: 0 }, { x: tx, z: 0 }); return s ? +s.v.toFixed(3) : null; };
+  const shotV = (table, d, tx) => { const s = solveMovingShot(table, new THREE.Vector3(tx - d, h0, 0), { x: 0, z: 0 }, { x: tx, z: 0 }); return s?.reach ? +s.v.toFixed(3) : null; }; // (out of reach: null, though a pass goes anyway and falls short)
   const hubV = [], passV = [];
   for (let d = 0; d <= 12; d += 0.5) hubV.push(shotV(r.hubTable, d, hc.x));
   for (let d = 0; d <= 20; d += 0.5) passV.push(shotV(r.passTable, d, 0));
