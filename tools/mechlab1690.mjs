@@ -63,7 +63,7 @@ function world({ carpet = true } = {}) {
 }
 function ball(w, x, y, z, v = [0, 0, 0]) {
   const b = w.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setTranslation(x, y, z).setLinvel(...v).setCcdEnabled(true).setAngularDamping(FUEL.angularDamping));
-  w.createCollider(RAPIER.ColliderDesc.ball(R).setMass(FUEL.mass).setFriction(FUEL.friction).setRestitution(FUEL.restitution).setCollisionGroups(HELD), b);
+  w.createCollider(RAPIER.ColliderDesc.ball(R).setMass(FUEL.mass).setFriction(Number(process.env.MUBALL ?? FUEL.friction)).setRestitution(FUEL.restitution).setCollisionGroups(HELD), b);
   return b;
 }
 const med = (a) => { const b = [...a].sort((p, q) => p - q); return b[b.length >> 1]; };
@@ -440,7 +440,7 @@ const tests = {
       for (let i = 0; i < 1 / DT; i++) { r.spin(surf); const l = live(balls); r.step(l); w.step(); esc.check(l); }
       const n0 = balls.filter((b) => held1690(P(b))).length;
       const watch = shotWatch(r), fw = floorWatch(r);
-      let minSurf = Infinity, gates = null, lo = Infinity;
+      let minSurf = Infinity, gates = null, lo = Infinity, entry = null;
       r.slideAmps = 0; r.cs.strokes = 0;
       for (let k = 0; k < env('SEC2', 8) / DT; k++) {
         r.spin(surf); r.index(true, pass); r.t.intake.cmd = process.env.NOINTAKE ? null : 1;
@@ -467,6 +467,19 @@ const tests = {
           console.log(`   ${(k * DT).toFixed(2)} s: ${watch.shots.length} shot`);
           for (const b of l) { const [x, y, z] = P(b); if (x < 0.06 && z < 0.0 && y < 0.5 && inRobot(b)) { const v = b.linvel(); console.log(`     ${x.toFixed(3)},${y.toFixed(3)},${z.toFixed(3)} v ${v.x.toFixed(1)},${v.y.toFixed(1)},${v.z.toFixed(1)}: ${[...r.path.contacts, ...r.shooter.contacts].filter((c) => c.ball === b).map((c) => c.wheel.name.replace(/ \(.*\)/, '') + ' ' + c.force.toFixed(0)).join(', ')}`); } }
         }
+        if (process.env.ENTRY) {
+          entry ??= { n: 0, vx: 0, hist: [0, 0, 0, 0], on: new Map() };
+          for (const b of l) {
+            const [x, y, z] = P(b);
+            if (x < -0.03 && x > -0.14 && y > 0.19 && y < 0.28 && z > -0.11) {
+              const v = b.linvel(); entry.n++; entry.vx += v.x;
+              entry.hist[x > -0.06 ? 0 : x > -0.09 ? 1 : x > -0.12 ? 2 : 3]++;
+              if (x < -0.12) { entry.cn = (entry.cn ?? 0) + 1; entry.vz = (entry.vz ?? 0) + v.z; }
+              for (const c of r.path.contacts) if (c.ball === b && c.wheel.name.startsWith('bodyFine')) { entry.pts ??= new Map(); const q = [c.x[0], c.x[1], c.x[2]].map((u) => Math.round(u * 50) / 50).join(',') + ' n ' + c.n.map((u) => Math.round(u * 2) / 2).join(','); const e = entry.pts.get(q) ?? [0, 0]; e[0]++; e[1] += c.force; entry.pts.set(q, e); }
+              for (const c of [...r.path.contacts, ...r.shooter.contacts]) if (c.ball === b) { const nm = c.wheel.name.replace(/ \(.*\)/, ''); const e = entry.on.get(nm) ?? [0, 0]; e[0]++; e[1] += c.force; entry.on.set(nm, e); }
+            }
+          }
+        }
         if (process.env.TALLY && k % 60 === 0) {
           const c = { floor: 0, front: 0, belts: 0, corridor: 0, turret: 0, over: 0 };
           for (const b of l) {
@@ -478,6 +491,8 @@ const tests = {
         }
       }
       if (process.env.SNAP && !process.env.SNAPAT) (await import("node:fs")).writeFileSync(process.env.SNAP, JSON.stringify(balls.filter(inRobot).map(P)));
+      if (entry?.pts) console.log(`   channel vz ${(entry.vz / entry.cn).toFixed(2)} m/s (${entry.cn}); bodyFine at ${[...entry.pts].sort((p, q) => q[1][0] - p[1][0]).slice(0, 12).map(([k, e]) => `${k} x${e[0]} ${(e[1] / e[0]).toFixed(0)} N`).join(' | ')}`);
+      if (entry) console.log(`   entry: ${entry.n} samples, vx ${(entry.vx / entry.n).toFixed(2)} m/s, by x (front→back) ${entry.hist.join(' ')}; ${[...entry.on].sort((p, q) => q[1][0] - p[1][0]).slice(0, 10).map(([nm, e]) => `${nm} ${(e[0] / entry.n * 100).toFixed(0)}% ${(e[1] / e[0]).toFixed(0)} N`).join(', ')}`);
       if (gates) for (const [g, m] of Object.entries(gates)) { const ts = [...m.values()].sort((a, b) => a - b); console.log(`   ${g}: ${ts.length} in, ${ts.length > 1 ? ((ts.length - 1) / (ts[ts.length - 1] - ts[0])).toFixed(1) : '-'} a second; by the half second ${Array.from({ length: 16 }, (_, i) => ts.filter((x) => x < (i + 1) * 0.5 && x >= i * 0.5).length).join(' ')}`); }
       const s = watch.shots;
       const rate = (q) => (q.length > 1 ? (q.length - 1) / (q[q.length - 1].t - q[0].t) : 0);

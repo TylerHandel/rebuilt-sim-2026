@@ -69,7 +69,7 @@ const DEG = Math.PI / 180, R = FUEL.radius;
 // as possible"), the printed hood (PLA), the net's cord
 export const MU = { silicone: 1.2, compliant: 1.3, tread: 1.3, belt: 1.0, polycarb: 0.5, alu: 0.4, ptfe: 0.1, pla: 0.3, wall: 0.25, net: 0.25 };
 // and how far each gives where a FUEL presses it (N/m)
-export const TREAD = { silicone: 20000, compliant: 12000, tread: 30000, belt: 3000, plate: 100000 }; // (the top plate where a FUEL presses it, its bow aside (PLATE): the FUEL's own foam gives)
+export const TREAD = { silicone: 20000, compliant: 12000, tread: 30000, belt: Number(globalThis.process?.env?.BELTK ?? 3000), plate: 100000 }; // (the top plate where a FUEL presses it, its bow aside (PLATE): the FUEL's own foam gives)
 
 // ------------------------------------------------------------------ the layout (robot frame, m: the CAD's)
 export const HALF_L = 12.5 * IN, HALF_W = 14.5 * IN; // 25 x 29in frame
