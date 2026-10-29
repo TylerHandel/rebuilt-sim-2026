@@ -14,7 +14,10 @@ which are the sim's blue fx, fy.
 - 8793 (PathPlanner): each .auto's command tree; each path's Bezier waypoints sampled, at the
   speed PathPlanner's profile has there (pp_path: its max velocity and acceleration, its
   constraint zones', the settings' defaults where it uses them, from the speed the last path left
-  it at to its goal end velocity), chained paths flowing on without a stop. Their modes: TrenchMode (intake up, not shooting),
+  it at to its goal end velocity), chained paths flowing on without a stop, each point's time along
+  it (dt) and holonomic rotation (rot: from the ideal starting state's through the rotation targets
+  to the goal end state's, cosine interpolated as PathPlanner's trajectory does); the AUTO starts at
+  the first path's starting rotation (startYaw: 180, 8793's backward). Their modes: TrenchMode (intake up, not shooting),
   ShuttleMode (intake, shuttling FUEL home from anywhere), ShooterMode (intake; shoots at the HUB
   in the ALLIANCE ZONE, shuttles from anywhere else).
 - 2910 (AutoFactory, driveToPoint / driveToPointWhileIntaking to FieldConstants poses): their
@@ -22,12 +25,12 @@ which are the sim's blue fx, fy.
   ft/s, the next command once within its tolerance), so a big tolerance cuts the corner as on the
   robot. scoreStationary shoots until the intake has retracted (at most 4 s). Pose values are
   transcribed from their FieldConstants.java (the right side mirrors the left).
-- 1678 (Choreo): each routine's trajectories' samples, at their speed there; driveOverBump (3 m/s straight back over the
-  BUMP to where the next trajectory starts) and fireCommand (3 s) between them.
+- 1678 (Choreo): each routine's trajectories' samples, at their speed, heading and time there; driveOverBump (3 m/s straight back over the
+  BUMP to where the next trajectory starts, turned to its heading) and fireCommand (3 s) between them.
 - 604 (Quikplan): every competition AUTO in their chooser (the Champs ones first, its default,
   Double Cycle Inwards, first of all; then the ones commented out from earlier events), each a
   sequence of FollowQuikplan partials (their time-optimal trajectories' 50 Hz samples, at their
-  speed there, with the actions along them: launch on/off, intake down and rolling, stowed),
+  speed, heading and time there, with the actions along them: launch on/off, intake down and rolling, stowed),
   waits and RetractIntake, from the right side and mirrored left as their isLeft does. A wait
   holds the robot where it is, launching if the last action left it launching.
 - 1114 (PathPlanner): their chooser's first, Right / Left 1-1 Middle Sweep : Greedy Sweep (the
@@ -36,6 +39,11 @@ which are the sim's blue fx, fy.
   FullShoot from x = 3.1 m (their autonXShootPose): aiming until aimed and stopped (at most its
   aiming time), then shooting for its timeout; the flywheel spun up from each AimShooterHub
   marker; no stop where an IntakeDeploy zone starts or ends.
+
+The time-parameterized ones (PathPlanner, Choreo, Quikplan: timed()) run in the sim by their
+trajectories' clock, as their followers do (js/auto.js, AutoRunner._timed): the robot chases where
+the trajectory is by now with their controllers' P gains, and each path ends when its time is up,
+wherever the robot is. 2910's (drive to point) give each point a time limit instead.
 """
 import argparse, json, math, os, re
 
@@ -45,12 +53,16 @@ W = 8.069  # the field's width (m): the 2026 AprilTag layout's, as all three use
 STEP = 0.35  # spacing of the waypoints along a path (m)
 
 
-def pt(x, y, intake, shoot, v, action='none', t=None, spin=False):
+def pt(x, y, intake, shoot, v, action='none', t=None, spin=False, dt=None, rot=None):
     p = {'fx': round(x, 3), 'fy': round(y, 3), 'intake': intake, 'shoot': shoot, 'v': round(v, 2), 'action': action}
     if t is not None:
         p['t'] = t
     if spin:
         p['spin'] = True  # the flywheel up to its HUB shot on the way here (not shooting), intaking or not
+    if dt is not None:
+        p['dt'] = round(dt, 3)  # (a timed path's: the time its trajectory takes from the point before to here)
+    if rot is not None:
+        p['rot'] = round(wrap_deg(rot), 1)  # (the chassis' heading there, deg, blue field frame: 0 toward the red ALLIANCE WALL, 90 to the left)
     return p
 
 
@@ -76,7 +88,7 @@ def bezier(p0, p1, p2, p3, n=40):
 PATH_TIMES = []  # (team's folder, path, its length and time at its constraints), printed at the end
 
 
-def pp_path(d, name, marker=None, onward=None, v0=0.0):
+def pp_path(d, name, marker=None, onward=None, v0=0.0, rot0=0.0):
     """(point, speed) every STEP along a path; with marker (an event's name), (point, speed, on):
     whether one of that event's zones (zoned event markers: running from its start to its end) covers it;
     with onward too (a point event's name), (point, speed, on, past): whether it's past that event
@@ -122,8 +134,13 @@ def pp_path(d, name, marker=None, onward=None, v0=0.0):
         v[i] = min(v[i], math.sqrt(v[i - 1] ** 2 + 2 * alim[i - 1] * ds[i - 1]))
     for i in range(n - 2, -1, -1):
         v[i] = min(v[i], math.sqrt(v[i + 1] ** 2 + 2 * alim[i] * ds[i]))
-    T = sum(2 * ds[i] / max(1e-6, v[i] + v[i + 1]) for i in range(n - 1))
+    # (the time along it to each point, as PathPlanner's trajectory has it: what its follower runs by)
+    tt = [0.0]
+    for i in range(n - 1):
+        tt.append(tt[-1] + (2 * ds[i] / (v[i] + v[i + 1]) if v[i] + v[i + 1] > 1e-6 else 0.0))
+    T = tt[-1]
     PATH_TIMES.append((d, name, sum(ds), T, v0, v[-1]))
+    rot = pp_rotations(p, xy, rel, rot0)
     # (speeding up, holding or slowing down there: a new point wherever that changes)
     mode = [0] + [(1 if v[i] > v[i - 1] + 1e-6 else -1 if v[i] < v[i - 1] - 1e-6 else 0) for i in range(1, n)]
     if marker:
@@ -133,17 +150,42 @@ def pp_path(d, name, marker=None, onward=None, v0=0.0):
     past = [any(e['name'] == onward and r >= e['waypointRelativePos'] for e in p.get('eventMarkers', [])) for r in rel]
     # sample along it, a new point wherever its profile changes from speeding up to holding to
     # slowing down, its constraints change, or the marker
-    out, acc = [(xy[0], v[0])], 0.0
+    # (each: its point xy, speed v, holonomic rotation rot (deg), time t from the path's start; on
+    # (with marker), past (with onward))
+    Q = lambda i: {'xy': xy[i], 'v': v[i], 'rot': rot[i], 't': tt[i], 'on': bool(marker and on[i]), 'past': past[i]}
+    out, acc = [Q(0)], 0.0
     for i in range(1, len(xy)):
         acc += math.dist(xy[i - 1], xy[i])
         if acc >= STEP or (vlim[i] != vlim[i - 1] and acc > 0.05) or (mode[i] != mode[i - 1] and acc > 0.05) or (marker and on[i] != on[i - 1]) or past[i] != past[i - 1] or i == len(xy) - 1:
-            out.append((xy[i], v[i]))
+            out.append(Q(i))
             acc = 0.0
-            if marker: out[-1] += (on[i],)
-            if onward: out[-1] += (past[i],)
-    if marker: out[0] += (on[0],)
-    if onward: out[0] += (past[0],)
     return out, v[-1]
+
+
+def pp_rotations(p, xy, rel, rot0):
+    """The holonomic rotation (deg, blue field frame) at each point, as PathPlanner's trajectory has
+    it: from its ideal starting state's (rot0 without one: where the last path left the robot)
+    through each rotation target (at its waypoint-relative position) to its goal end state's, cosine
+    interpolated between one and the next by the distance along the path, the short way round."""
+    D = [0.0]
+    for a, b in zip(xy, xy[1:]): D.append(D[-1] + math.dist(a, b))
+    at = lambda r: next((D[i] for i in range(len(rel)) if rel[i] >= r - 1e-9), D[-1])
+    ideal = p.get('idealStartingState') or {}
+    tg = [(0.0, ideal.get('rotation', rot0))]
+    tg += sorted((at(rt['waypointRelativePos']), rt['rotationDegrees']) for rt in p.get('rotationTargets', []))
+    tg.append((D[-1], p['goalEndState']['rotation']))
+    out, k = [], 0
+    for x in D:
+        while k + 2 < len(tg) and x > tg[k + 1][0]: k += 1
+        (d0, r0), (d1, r1) = tg[k], tg[k + 1]
+        u = min(1.0, max(0.0, (x - d0) / (d1 - d0))) if d1 > d0 else 1.0
+        u = (1 - math.cos(math.pi * u)) / 2
+        out.append(wrap_deg(r0 + wrap_deg(r1 - r0) * u))
+    return out
+
+
+def wrap_deg(a):
+    return (a + 180.0) % 360.0 - 180.0
 
 
 MODES_8793 = {
@@ -156,7 +198,7 @@ MODES_8793 = {
 
 def auto_8793(d, file):
     a = json.load(open(os.path.join(d, 'autos', file + '.auto')))
-    pts, start, vend = [], None, 0.0
+    pts, start, vend, rlast = [], None, 0.0, 0.0
     for c in a['command']['data']['commands']:
         t, data = c['type'], c.get('data', {})
         kids = data.get('commands', []) if t in ('race', 'parallel', 'deadline', 'sequential') else [c]
@@ -166,12 +208,13 @@ def auto_8793(d, file):
         intake, shoot = MODES_8793[mode]
         if path:
             # (from the speed the last path left it at, straight on from it: PathPlanner follows each
-            # from the robot's speed as it starts it)
-            seg, vend = pp_path(d, path, v0=vend)
+            # from the robot's speed as it starts it; each its own time, chained)
+            seg, vend = pp_path(d, path, v0=vend, rot0=rlast)
             if start is None:
-                start = seg[0][0]
-            for (x, y), v in seg[1:]:
-                pts.append(pt(x, y, intake, shoot, v))
+                start = (*seg[0]['xy'], seg[0]['rot'])
+            for q0, q in zip(seg, seg[1:]):
+                pts.append(pt(*q['xy'], intake, shoot, q['v'], dt=q['t'] - q0['t'], rot=q['rot']))
+            rlast = seg[-1]['rot']
             continue
         vend = 0.0
         if mode and pts and wait is not None:
@@ -208,20 +251,25 @@ SHOOT_X_1114 = 3.1
 def auto_1114(d, file, mirror):
     a = json.load(open(os.path.join(d, 'autos', file + '.auto')))
     ys = (lambda y: W - y) if mirror else (lambda y: y)
-    pts, start, vend = [], None, 0.0
+    rs = (lambda r: -r) if mirror else (lambda r: r)
+    pts, start, vend, rlast = [], None, 0.0, 0.0
     for c in a['command']['data']['commands']:
         t, data = c['type'], c.get('data', {})
         if t == 'path':
-            seg, vend = pp_path(d, data['pathName'], 'IntakeDeploy', 'AimShooterHub', v0=vend)
+            seg, vend = pp_path(d, data['pathName'], 'IntakeDeploy', 'AimShooterHub', v0=vend, rot0=rlast)
             if start is None:
-                start = (seg[0][0][0], ys(seg[0][0][1]))
-            for (x, y), v, on, spin in seg[1:]:
-                pts.append(pt(x, ys(y), on, 'off', v, spin=spin))
+                start = (seg[0]['xy'][0], ys(seg[0]['xy'][1]), rs(seg[0]['rot']))
+            for q0, q in zip(seg, seg[1:]):
+                pts.append(pt(q['xy'][0], ys(q['xy'][1]), q['on'], 'off', q['v'], spin=q['past'], dt=q['t'] - q0['t'], rot=rs(q['rot'])))
+            rlast = seg[-1]['rot']
         elif t == 'named' and data['name'] in SHOOT_1114:
             aim, dur = SHOOT_1114[data['name']]
             last = pts[-1]
             if last['fx'] > SHOOT_X_1114:
-                pts.append(pt(SHOOT_X_1114, last['fy'], False, 'off', 1.0, spin=True))
+                # (aimDriveHubAuto's drive to x = 3.1 m, as a stretch of the path on from its end
+                # speed to 1 m/s; it turns to the HUB as it aims, holding the path's heading till then)
+                ds = last['fx'] - SHOOT_X_1114
+                pts.append(pt(SHOOT_X_1114, last['fy'], False, 'off', 1.0, spin=True, dt=2 * ds / (vend + 1.0), rot=last['rot']))
             pts[-1].update(action='shoot', t=dur, aim=aim, hold=True)
             vend = 0.0
     return start, pts
@@ -325,8 +373,14 @@ def choreo(d, name, mirror):
     s = t['trajectory']['samples']
     events = {e['name']: e['from']['targetTimestamp'] + (e['from']['offset']['val'] or 0) for e in t.get('events', [])}
     ys = (lambda y: W - y) if mirror else (lambda y: y)
-    xy = [(q['x'], ys(q['y']), q['t'], math.hypot(q['vx'], q['vy'])) for q in s]
+    rs = (lambda r: -r) if mirror else (lambda r: r)
+    # (x, y, t, speed, heading in deg: their mirroredTrajectory flips y and the heading)
+    xy = [(q['x'], ys(q['y']), q['t'], math.hypot(q['vx'], q['vy']), rs(math.degrees(q['heading']))) for q in s]
     return xy, events.get('intake', 0.0)
+
+
+# driveOverBump's heading (CHOREO_THETA_CONTROLLER to it, blue, LeftSweep; RightSweep's the negative)
+BUMP_ROT_1678 = [135.0, 141.15]
 
 
 def auto_1678(d, trajs, mirror):
@@ -335,22 +389,24 @@ def auto_1678(d, trajs, mirror):
     for i, name in enumerate(trajs):
         xy, intake_at = choreo(d, name, mirror)
         if start is None:
-            start = xy[0][:2]
+            start = (*xy[0][:2], xy[0][4])
         elif pts:
-            # driveOverBump from the last trajectory's end to here, then fireCommand
+            # driveOverBump from the last trajectory's end to here, at 3 m/s turning to its heading,
+            # then fireCommand
             a, b = (pts[-1]['fx'], pts[-1]['fy']), xy[0][:2]
+            rot = BUMP_ROT_1678[min(i - 1, 1)] * (-1 if mirror else 1)
             n = max(1, int(math.dist(a, b) / STEP))
             for k in range(1, n + 1):
-                pts.append(pt(a[0] + (b[0] - a[0]) * k / n, a[1] + (b[1] - a[1]) * k / n, True, 'off', over_bump))
+                pts.append(pt(a[0] + (b[0] - a[0]) * k / n, a[1] + (b[1] - a[1]) * k / n, True, 'off', over_bump, dt=math.dist(a, b) / n / over_bump, rot=rot))
             pts[-1].update(action='shoot', t=3.0)
-        last, acc = xy[0], 0.0
+        last, acc, tl = xy[0], 0.0, xy[0][2]
         for k, q in enumerate(xy[1:], 1):
             acc += math.dist(last[:2], q[:2])
             last = q
             if acc >= STEP or k == len(xy) - 1:
-                # (its speed there in their trajectory, but not crawling: the sim's runner brakes for the turns)
-                pts.append(pt(q[0], q[1], q[2] >= intake_at, 'off', max(1.0, q[3])))
-                acc = 0.0
+                # (its speed, heading and time there in their trajectory: their AutoTrajectory runs by its clock)
+                pts.append(pt(q[0], q[1], q[2] >= intake_at, 'off', q[3], dt=q[2] - tl, rot=q[4]))
+                acc, tl = 0.0, q[2]
     return start, pts
 
 
@@ -381,13 +437,14 @@ def qp_partial(d, name, flip):
     state, out = (False, False, False), []
     for r in rows:
         if int(r[7]) != 0: state = qp_state(state, int(r[7]))
-        out.append((r[1], ys(r[2]), r[0], math.hypot(r[4], r[5]), state))
+        # (x, y, t, speed, mechanisms, heading in deg: their reader flips y and theta for the left)
+        out.append((r[1], ys(r[2]), r[0], math.hypot(r[4], r[5]), state, math.degrees(-r[3] if flip else r[3])))
     return out, rows[-1][0]
 
 
 def auto_604(d, seq):
     """seq: ('qp', file, flip, endTimeExtension) | ('wait', s) | ('retract',). Returns start, points."""
-    pts, start, state, hold, pos = [], None, (False, False, False), 0.0, None
+    pts, start, state, hold, pos, rot = [], None, (False, False, False), 0.0, None, None
 
     def flush_hold(final=False):
         nonlocal hold
@@ -395,8 +452,9 @@ def auto_604(d, seq):
         intake, shoot = state[0] and state[1], state[2]
         if final and not shoot and hold <= 0: return
         # (shooting with its intake still rolling, for the whole wait even once it's empty: their
-        # robot sits it out; launching to the end of AUTO when that's how it ends)
-        p = pt(pos[0], pos[1], intake, 'always' if shoot else 'off', 1.0, 'shoot' if shoot else 'wait', round(20.0 if final and shoot else hold, 2))
+        # robot sits it out; launching to the end of AUTO when that's how it ends; holding the
+        # heading its last partial left it at, turning to it if that partial turned on the spot)
+        p = pt(pos[0], pos[1], intake, 'always' if shoot else 'off', 1.0, 'shoot' if shoot else 'wait', round(20.0 if final and shoot else hold, 2), rot=rot)
         p['hold'] = True
         pts.append(p)
         hold = 0.0
@@ -412,23 +470,25 @@ def auto_604(d, seq):
         _, name, flip, ext = item
         samples, T = qp_partial(d, name, flip)
         if start is None:
-            start = pos = samples[0][:2]
+            start = (*samples[0][:2], samples[0][5])
+            pos, rot = samples[0][:2], samples[0][5]
             flush_hold()  # (a wait before it moves: where it starts, nothing running yet)
         moved = math.dist(samples[0][:2], samples[-1][:2]) > 0.05 or any(math.dist(samples[0][:2], q[:2]) > 0.05 for q in samples)
         if moved:
             flush_hold()
-            last, acc = samples[0], 0.0
+            last, acc, tl = samples[0], 0.0, samples[0][2]
             for k, q in enumerate(samples[1:], 1):
                 acc += math.dist(last[:2], q[:2])
                 last = q
                 if acc >= STEP or k == len(samples) - 1 or q[4] != samples[k - 1][4]:
                     s = q[4]
-                    # (their speed there in the trajectory, but not crawling: the sim's runner brakes for turns)
-                    pts.append(pt(q[0], q[1], s[0] and s[1], 'always' if s[2] else 'off', max(1.0, q[3])))
-                    acc = 0.0
+                    # (its speed, heading and time there in their trajectory: FollowQuikplan runs by its clock)
+                    pts.append(pt(q[0], q[1], s[0] and s[1], 'always' if s[2] else 'off', q[3], dt=q[2] - tl, rot=q[5]))
+                    acc, tl = 0.0, q[2]
             pos = samples[-1][:2]
         else:
             hold += T  # (turning on the spot: their turn_forward_transition)
+        rot = samples[-1][5]
         state = samples[-1][4]
         hold += ext
     flush_hold(final=True)
@@ -486,9 +546,17 @@ AUTOS_604.sort(key=lambda a: ORDER_604.index(a['name']) if a['name'] in ORDER_60
 COMPACT = ('604',)
 def pack(p):
     f = (1 if p['intake'] else 0) | (2 if p['shoot'] != 'off' else 0) | (4 if p.get('hold') else 0)
-    out = [p['fx'], p['fy'], p['v'], f]
+    out = [p['fx'], p['fy'], p['v'], f, p.get('dt', 0), p.get('rot')]
     if p['action'] != 'none': out += [p['action'], p.get('t')]
     return out
+
+
+def timed(start, kp, kr):
+    """An AUTO run by its trajectory's clock (PathPlanner's, Choreo's, Quikplan's followers): each
+    point's dt (the time to it from the point before) and rot (the heading there), the robot chasing
+    where the trajectory is by now with their controller's P gains (translation per m, rotation per
+    rad), each path over once its time is up; starting at its first heading (startYaw, deg)."""
+    return {'startYaw': round(wrap_deg(start[2]), 1), 'timed': True, 'flow': True, 'gains': [kp, kr]}
 
 
 def main():
@@ -507,7 +575,7 @@ def main():
                              ('center', 'Center + Depot Auto', 'Center + Depot')]:
         start, pts, pre = auto_8793(pp, file)
         autos.setdefault('8793', []).append({'id': f'8793-{side}', 'name': name, 'side': side, 'source': f'PathPlanner "{file}"',
-                                             'startFx': round(start[0], 3), 'startFy': round(start[1], 3), 'shootPreload': pre or False, 'flow': True, 'profile': True, 'points': pts})
+                                             'startFx': round(start[0], 3), 'startFy': round(start[1], 3), **timed(start, 5.0, 5.0), 'shootPreload': pre or False, 'points': pts})
     for side, seq, start, mirror, name, src in [
             ('left', LEFT_NZ, 'start', False, 'Left Neutral Zone', 'createLeftNeutralZoneAuto'),
             ('right', RIGHT_NZ, 'start', True, 'Right Neutral Zone', 'createRightNeutralZoneAuto'),
@@ -518,7 +586,7 @@ def main():
     for side, mirror, name, src in [('left', False, 'Left Double Sweep', 'LeftSweep'), ('right', True, 'Right Double Sweep', 'RightSweep')]:
         st, pts = auto_1678(a.t1678, ['startToScore', 'scoreToSecondSweep', 'secondScoreToNeutral'], mirror)
         autos.setdefault('1678', []).append({'id': f'1678-{side}', 'name': name, 'side': side, 'source': f'autos/midline/{src}.java',
-                                             'startFx': round(st[0], 3), 'startFy': round(st[1], 3), 'shootPreload': False, 'points': pts})
+                                             'startFx': round(st[0], 3), 'startFy': round(st[1], 3), **timed(st, 6.0, 4.0), 'shootPreload': False, 'points': pts})
     for au in AUTOS_604:
         slug = re.sub(r'[^a-z0-9]+', '-', au['name'].lower()).strip('-')
         for side in ('right', 'left'):
@@ -529,7 +597,7 @@ def main():
             files = ' + '.join(i[1] + '.csv' for i in seq if i[0] == 'qp')
             autos.setdefault('604', []).append({'id': f'604-{slug}-{side}', 'name': f"{au['name']} {side.upper()}", 'side': side,
                                                 'source': f'commands/autos/{cls}: {files}' + ('' if au['champs'] else ' (not in their Champs chooser)'),
-                                                'startFx': round(st[0], 3), 'startFy': round(st[1], 3), 'shootPreload': False, 'points': pts})
+                                                'startFx': round(st[0], 3), 'startFy': round(st[1], 3), **timed(st, 5.0, 4.0), 'shootPreload': False, 'points': pts})
     pp = os.path.join(a.t1114, 'src/main/deploy/pathplanner')
     for side, file, mirror, name in [('right', 'RightSideMiddleGreedySweep', False, 'Right 1-1 Middle Sweep : Greedy Sweep'),
                                      ('left', 'RightSideMiddleGreedySweep', True, 'Left 1-1 Middle Sweep : Greedy Sweep'),
@@ -537,22 +605,25 @@ def main():
         st, pts = auto_1114(pp, file, mirror)
         slug = re.sub(r'[^a-z0-9]+', '-', name.lower()).strip('-')
         autos.setdefault('1114', []).append({'id': f'1114-{slug}', 'name': name, 'side': side, 'source': f'PathPlanner "{file}"' + (' mirrored' if mirror else ''),
-                                             'startFx': round(st[0], 3), 'startFy': round(st[1], 3), 'shootPreload': False, 'flow': True, 'profile': True, 'spinPts': True, 'points': pts})
+                                             'startFx': round(st[0], 3), 'startFy': round(st[1], 3), **timed(st, 3.5, 5.0), 'shootPreload': False, 'spinPts': True, 'points': pts})
     out = os.path.join(ROOT, 'js', 'teamAutos.js')
     with open(out, 'w') as f:
         f.write('// The teams\' own AUTOs, from their robot code (tools/team-autos.py writes this file; see its\n')
         f.write('// header). Blue field coordinates; points as js/customAutos.js, speeds v in m/s, t: how long a\n')
-        f.write('// shoot or wait lasts (s), or for until, the time into AUTO it waits for.\n')
+        f.write('// shoot or wait lasts (s), or for until, the time into AUTO it waits for. A timed one\'s points\n')
+        f.write('// also give dt, the time its trajectory takes to them from the point before (s), and rot, the\n')
+        f.write('// heading there (deg, blue: 0 toward the red ALLIANCE WALL, 90 to the left); startYaw, its start\'s.\n')
         plain = {k: v for k, v in autos.items() if k not in COMPACT}
         f.write('export const TEAM_AUTOS = ' + json.dumps(plain, separators=(',', ':')) + ';\n')
-        # (a team with many autos, 604's, as compact points, [fx, fy, v, flags] and [.., action, t]
+        # (a team with many autos, 604's, as compact points, [fx, fy, v, flags, dt, rot] and [.., action, t]
         # (flags: 1 intake, 2 shooting, 4 hold the wait out), spelled out as above when it loads)
         for k in COMPACT:
             if k not in autos: continue
             comp = [{**{q: x[q] for q in x if q != 'points'}, 'pts': [pack(p) for p in x['points']]} for x in autos[k]]
             f.write(f"TEAM_AUTOS['{k}'] = " + json.dumps(comp, separators=(',', ':')) + '.map(({ pts, ...a }) => ({ ...a, points: pts.map(unpack) }));\n')
-        f.write('function unpack([fx, fy, v, f, action = "none", t]) {\n'
-                '  const p = { fx, fy, intake: !!(f & 1), shoot: f & 2 ? "always" : "off", v, action };\n'
+        f.write('function unpack([fx, fy, v, f, dt, rot, action = "none", t]) {\n'
+                '  const p = { fx, fy, intake: !!(f & 1), shoot: f & 2 ? "always" : "off", v, action, dt };\n'
+                '  if (rot !== null) p.rot = rot;\n'
                 '  if (t !== undefined) p.t = t;\n'
                 '  if (f & 4) p.hold = true;\n'
                 '  return p;\n'

@@ -70,9 +70,13 @@ export function waitTime(action, t) {
 // Convert to AutoRunner steps. Consecutive points that share segment settings and don't stop
 // are merged into one drive so the robot flows through them. (The teams' own autos, js/teamAutos.js,
 // also give a point's speed in m/s (v), how long a shoot or wait lasts (t), a wait until a time
-// into AUTO (action 'until'), and where the robot starts along the field (startFx).)
+// into AUTO (action 'until'), and where the robot starts along the field (startFx). A timed one's,
+// a.timed (PathPlanner's, Choreo's, Quikplan's trajectories), give each point's time from the point
+// before (dt) and heading (rot, deg, blue), which its drive steps carry in tp: the AutoRunner
+// follows those by the clock; the others, as every drive step, give each point a time limit.)
 export function customSteps(a, mirror, maxSpeed) {
   const fy = (y) => (mirror ? FIELD_W - y : y);
+  const rot = (r) => (r === undefined || r === null ? undefined : mirror ? -r : r);
   const steps = [];
   if (a.shootPreload) steps.push({ type: 'shoot', timeout: a.shootPreload === true ? 3 : a.shootPreload });
   let cur = null;
@@ -81,16 +85,16 @@ export function customSteps(a, mirror, maxSpeed) {
   for (const p of a.points) {
     const shoot = p.shoot === 'hub' ? 'hub' : p.shoot === 'always';
     // (a team auto's speed is per point: its path speeds up and slows down without stopping; on a
-    // profile, PathPlanner's, a point's speed can be 0: where its path comes to a stop)
-    const hasV = a.profile ? p.v !== undefined : !!p.v;
+    // timed one, a point's speed can be 0: where its path comes to a stop)
+    const hasV = a.timed ? p.v !== undefined : !!p.v;
     const speed = hasV ? Math.min(1, p.v / maxSpeed) : p.speed;
     const same = cur && cur.intake === p.intake && cur.shoot === shoot && (hasV ? cur.perPoint : cur.speed === speed);
     if (!same) {
       flush();
       cur = { type: 'drive', pts: [], intake: p.intake, shoot, speed, mirror: false, timeout: 3, perPoint: hasV };
-      // (its speeds a profile along the path, PathPlanner's: speeding up and slowing down between
-      // the points at its max acceleration, so the robot's speed follows it by where it is)
-      if (a.profile) cur.profile = true;
+      // (run by its trajectory's clock, chasing where it should be by now with their controller's
+      // gains: each point's time from the one before, heading, speed (m/s) and distance from it)
+      if (a.timed) Object.assign(cur, { timed: true, tp: [], gains: a.gains || [5, 5] });
       // (a team's path that runs its events beside it, PathPlanner's: it doesn't stop where they
       // start or end; and one whose flywheel runs only where its code runs it: 1114's)
       if (a.flow) cur.flow = true;
@@ -98,15 +102,19 @@ export function customSteps(a, mirror, maxSpeed) {
     }
     // (its flywheel up to the HUB shot on the way to this point: spin)
     cur.pts.push(hasV ? (a.spinPts ? [p.fx, fy(p.fy), speed, !!p.spin] : [p.fx, fy(p.fy), speed]) : [p.fx, fy(p.fy)]);
-    cur.timeout += (2 * Math.hypot(p.fx - prev.fx, p.fy - prev.fy)) / Math.max(0.5, maxSpeed * speed);
+    const ds = Math.hypot(p.fx - prev.fx, p.fy - prev.fy);
+    cur.timeout += (2 * ds) / Math.max(0.5, maxSpeed * speed);
+    if (cur.timed) cur.tp.push({ dt: p.dt ?? 0, rot: rot(p.rot), v: p.v, ds });
     prev = p;
+    // (a timed auto's wait or held shot keeps the heading its trajectory left it at)
+    const hold = a.timed && rot(p.rot) !== undefined ? { rot: rot(p.rot), gains: a.gains || [5, 5] } : {};
     // (a team auto's shot that holds its spot for the time it's given, its intake running or not, as
     // 604's Quikplan waits do: hold)
     // (aim: it aims, not shooting, until it's aimed and stopped, for at most that long, then shoots
     // for its time: 1114's timedShoot)
-    if (p.action === 'shoot') { flush(); steps.push(p.hold ? { type: 'shoot', timeout: p.t ?? 3, hold: true, intake: !!p.intake, ...(p.aim ? { aim: p.aim } : {}), ...(a.spinPts ? { spinPts: true } : {}) } : { type: 'shoot', timeout: p.t ?? 3 }); }
-    else if (p.action === 'until') { flush(); steps.push({ type: 'wait', until: p.t, intake: p.intake }); }
-    else if (p.action !== 'none') { flush(); steps.push({ type: 'wait', t: waitTime(p.action, p.t), intake: p.intake }); }
+    if (p.action === 'shoot') { flush(); steps.push(p.hold ? { type: 'shoot', timeout: p.t ?? 3, hold: true, intake: !!p.intake, ...hold, ...(p.aim ? { aim: p.aim } : {}), ...(a.spinPts ? { spinPts: true } : {}) } : { type: 'shoot', timeout: p.t ?? 3, ...hold }); }
+    else if (p.action === 'until') { flush(); steps.push({ type: 'wait', until: p.t, intake: p.intake, ...hold }); }
+    else if (p.action !== 'none') { flush(); steps.push({ type: 'wait', t: waitTime(p.action, p.t), intake: p.intake, ...hold }); }
   }
   flush();
   return steps;

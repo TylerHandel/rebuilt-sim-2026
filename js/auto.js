@@ -21,9 +21,10 @@ export const START_ORDER = ['leftTrench', 'leftBump', 'hub', 'rightBump', 'right
 // Starting pose: BUMPERS overlapping the ROBOT STARTING LINE, not touching the BUMP (G303). A
 // team's own auto starts where theirs does (its startFx, as far past the line as the BUMPERS still
 // overlap it), except a robot that only fits under the TRENCH with its intake down, which starts
-// clear of the TRENCH.
+// clear of the TRENCH; and facing as theirs does (its startYaw, deg in blue field coordinates: their
+// trajectory's first heading), or else forward, toward the NEUTRAL ZONE.
 export function startPose(key, robot, alliance, custom = null) {
-  let fy, fx = ALLIANCE_ZONE_DEPTH - 0.02 - robot.halfL;
+  let fy, fx = ALLIANCE_ZONE_DEPTH - 0.02 - robot.halfL, yaw = 0;
   if (custom) {
     fy = custom.mirror ? FIELD_W - custom.auto.startFy : custom.auto.startFy;
     fy = clamp(fy, robot.halfW + 0.02, FIELD_W - robot.halfW - 0.02);
@@ -32,10 +33,14 @@ export function startPose(key, robot, alliance, custom = null) {
       const w = fw(at, fy, alliance);
       if (!robot.cfg.intake.fold || !underTrench(w.x, w.z, robot.halfL)) fx = at;
     }
+    if (custom.auto.startYaw !== undefined) yaw = ((custom.mirror ? -1 : 1) * custom.auto.startYaw * Math.PI) / 180;
   } else fy = START_POSITIONS[key].fy;
   const w = fw(fx, fy, alliance);
-  return { x: w.x, z: w.z, yaw: alliance === 'blue' ? 0 : Math.PI };
+  return { x: w.x, z: w.z, yaw: wrapAngle(yaw + (alliance === 'blue' ? 0 : Math.PI)) };
 }
+
+// a heading in blue field coordinates (deg) as the robot's yaw on this ALLIANCE's side
+const yawOf = (deg, alliance) => wrapAngle((deg * Math.PI) / 180 + (alliance === 'blue' ? 0 : Math.PI));
 
 // The team's own auto for a robot started at spot key (js/teamAutos.js): the one from the side
 // nearest it, or null if the team's code isn't in. avoid: spots already taken.
@@ -333,10 +338,10 @@ export class AutoRunner {
     }
     const s = this.steps[this.i];
     this.stepT += dt;
-    const next = () => { this.i++; this.stepT = 0; this.pi = 0; this.lag = 0; this.aimT = undefined; };
-    // (where a profiled path sets out from: the robot, at its speed then; on into the next drive
-    // step, the last point it reached)
-    if (s.type !== 'drive') this.from = null;
+    const next = () => { this.i++; this.stepT = 0; this.pi = 0; this.segT = 0; this.segBudget = undefined; this.lag = 0; this.aimT = undefined; };
+    // (a timed auto's wait or held shot keeps the heading its trajectory left it at, turning to it
+    // if that turned on the spot: 604's; a chassis-aimed shooter's aim takes over as it shoots)
+    if ((s.type === 'shoot' || s.type === 'wait') && s.rot !== undefined) cmd.omega = clamp(s.gains[1] * wrapAngle(yawOf(s.rot, this.alliance) - r.yaw), -r.cfg.drive.maxOmega, r.cfg.drive.maxOmega);
     if (s.type === 'shoot') {
       // (a team auto whose flywheel runs only where its code runs it: up for its shot here)
       if (s.spinPts) cmd.spin = cmd.prespin = true;
@@ -368,6 +373,10 @@ export class AutoRunner {
         const p = r.climbPose();
         const dx = p.x - r.pos.x, dz = p.z - r.pos.z;
         const d = Math.hypot(dx, dz);
+        // (held up on the way longer than the drive there takes, twice over plus 2 s: AUTO's
+        // climb given up, the routine over where the robot is)
+        if (s.budget === undefined) s.budget = (2 * d) / (r.cfg.drive.maxSpeed * 0.8) + 2;
+        if (this.stepT > s.budget) { next(); return; }
         if (d > 1.0) {
           const sp = Math.min(r.cfg.drive.maxSpeed * 0.8, d * 2);
           cmd.vx = (dx / d) * sp; cmd.vz = (dz / d) * sp;
@@ -379,10 +388,21 @@ export class AutoRunner {
       }
       return;
     }
+    if (s.type === 'drive' && s.timed) { this._timed(s, next); return; }
     if (s.type === 'drive') {
       if (this.pi === undefined) this.pi = 0;
+      this.segT = (this.segT || 0) + dt;
+      // Every point has a time budget, set as the robot heads for it: what a trapezoid at this
+      // step's speed and the drive's acceleration takes from where it is, half again, plus a
+      // second's grace. Held up longer than that (by another robot, a pile, the DEPOT), it goes
+      // on to the next point as if it had got there, and past the step's last to the next step,
+      // so no AUTO sits pushing in the middle of the field. (A timed one's are its own times.)
+      if (this.segBudget === undefined) {
+        const t0 = this.P(s.pts[this.pi][0], s.pts[this.pi][1], s.mirror !== false);
+        const L = Math.hypot(t0.x - r.pos.x, t0.z - r.pos.z), v = Math.max(0.3, r.cfg.drive.maxSpeed * (s.pts[this.pi][2] ?? s.speed ?? 1)), a = Math.min(6, r.cfg.drive.maxAccel || 6);
+        this.segBudget = 1.5 * (L < (v * v) / a ? 2 * Math.sqrt(L / a) : L / v + v / a) + 1.0;
+      }
       let pts = s.pts.map(([fx, fy]) => this.P(fx, fy, s.mirror !== false));
-      let spd = s.pts.map((q) => q[2] ?? s.speed ?? 1);
       // (a team's path that runs on into the next drive step without stopping (s.flow: PathPlanner's
       // event zones start and end beside it): that step's points ahead too, up to the next stop)
       const n = pts.length;
@@ -390,7 +410,6 @@ export class AutoRunner {
       for (; s.flow && this.steps[after]?.type === 'drive' && this.steps[after].flow; after++) {
         const st = this.steps[after];
         pts = pts.concat(st.pts.map(([fx, fy]) => this.P(fx, fy, st.mirror !== false)));
-        spd = spd.concat(st.pts.map((q) => q[2] ?? st.speed ?? 1));
       }
       const flows = pts.length > n;
       const tgt = pts[this.pi];
@@ -399,29 +418,7 @@ export class AutoRunner {
       const d = Math.hypot(dx, dz);
       let remain = d;
       for (let k = this.pi; k + 1 < pts.length; k++) remain += Math.hypot(pts[k + 1].x - pts[k].x, pts[k + 1].z - pts[k].z);
-      let vmax = r.cfg.drive.maxSpeed * (s.pts[this.pi][2] ?? s.speed ?? 1);
-      // a profiled path (PathPlanner's: s.profile) gives its speed at each point, speeding up and
-      // slowing down between them at its max acceleration: the speed at where the robot is along it
-      // (a little ahead, 5 cm, so it sets off from a stop), v^2 linear in the distance between points
-      if (s.profile) {
-        if (!this.from) this.from = { p: { x: r.pos.x, z: r.pos.z }, v: Math.hypot(r.vel.x, r.vel.z) };
-        const C = [this.from.p, ...pts], V = [this.from.v, ...spd.map((k) => k * r.cfg.drive.maxSpeed)];
-        const S = [0];
-        for (let k = 1; k < C.length; k++) S.push(S[k - 1] + Math.hypot(C[k].x - C[k - 1].x, C[k].z - C[k - 1].z));
-        // (the robot's place: on the nearest of the segments up to the point it's heading for)
-        let best = Infinity, at = 0;
-        for (let k = Math.max(0, this.pi - 2); k <= this.pi; k++) {
-          const a = C[k], b = C[k + 1], L = S[k + 1] - S[k];
-          const u = L > 1e-6 ? clamp(((r.pos.x - a.x) * (b.x - a.x) + (r.pos.z - a.z) * (b.z - a.z)) / (L * L), 0, 1) : 1;
-          const e = Math.hypot(a.x + u * (b.x - a.x) - r.pos.x, a.z + u * (b.z - a.z) - r.pos.z);
-          if (e <= best + 1e-9) { best = e; at = S[k] + u * L; }
-        }
-        const q = Math.min(at + 0.05, S[S.length - 1]);
-        let k = 0;
-        while (k + 2 < S.length && S[k + 1] < q) k++;
-        const w = S[k + 1] - S[k] > 1e-6 ? clamp((q - S[k]) / (S[k + 1] - S[k]), 0, 1) : 1;
-        vmax = Math.min(r.cfg.drive.maxSpeed, Math.sqrt(Math.max(0, V[k] ** 2 + (V[k + 1] ** 2 - V[k] ** 2) * w)));
-      }
+      const vmax = r.cfg.drive.maxSpeed * (s.pts[this.pi][2] ?? s.speed ?? 1);
       let sp = Math.min(vmax, Math.sqrt(2 * 6 * Math.max(0, remain - 0.02)) + 0.05);
       // slow for the turn at the waypoint ahead (it's left 0.35 m before it): a right angle at
       // half speed, a U-turn at a fifth
@@ -466,14 +463,99 @@ export class AutoRunner {
       // (a team auto whose flywheel runs only where its code runs it: up to the HUB shot on the way
       // to a point that says so, 1114's AimShooterHub; not aiming otherwise, their ShooterStop)
       if (s.spinPts) cmd.spin = cmd.prespin = !!s.pts[Math.min(this.pi, n - 1)][3];
-      if ((last && d < 0.1) || (!last && d < 0.35)) {
-        if (s.profile && (last || (flows && this.pi === n - 1))) this.from = { p: tgt, v: spd[this.pi] * r.cfg.drive.maxSpeed };
+      // (a team's or the editor's point not reached in its time, held up on the way by another
+      // robot or a pile: on to the next as if it had)
+      const late = this.segT > this.segBudget;
+      if ((last && d < 0.1) || (!last && d < 0.35) || late) {
         if (last) next();
         // (flowing on: the next step from its first point once past this one's last)
         else if (flows && this.pi === n - 1) next();
-        else this.pi++;
+        else { this.pi++; this.segT = 0; this.segBudget = undefined; }
       }
-      if (this.stepT > (s.timeout ?? 8)) { this.from = null; next(); }
+      if (this.stepT > (s.timeout ?? 8)) next();
     }
+  }
+
+  // A timed drive (a team's trajectory: PathPlanner's, Choreo's, Quikplan's), run by the clock as
+  // their followers run it: the setpoint moves along the trajectory with the time since it started
+  // (each point's dt after the one before, speeding up or slowing down evenly between them, its
+  // heading turning evenly to the next point's), and the robot chases it, their feedforward plus
+  // their controller's P gains (s.gains: translation per m, rotation per rad) on how far it is from
+  // where it should be by now, as PPHolonomicDriveController and Choreo's controller do. Nothing is
+  // projected onto the path: fallen behind (held up), the robot is pulled after the setpoint as it
+  // moves on; ahead of it, held back. The sum is capped at the drive's top speed and turn rate; its
+  // motors, grip and swerve modules limit how fast it gets there (drivetrain.js). Each step is over
+  // when its time is up, wherever the robot got to (it moves on to what comes next), as their
+  // FollowPathCommand / AutoTrajectory / FollowQuikplan end. A run of timed steps is one trajectory:
+  // their paths chain on without a stop where theirs do.
+  _timed(s, next) {
+    const r = this.robot, cmd = r.cmd, d = r.cfg.drive;
+    let c = this.chain;
+    if (!c || this.i < c.i0 || this.i >= c.i0 + c.ends.length) c = this.chain = this._chain();
+    const tau = this.elapsed - c.t0;
+    // (its steps over by now: on to the next, in the same tick; past the last, the step after it)
+    while (tau >= c.T[c.ends[this.i - c.i0]]) {
+      next();
+      if (this.i >= c.i0 + c.ends.length) { this.chain = this.setpoint = null; return; }
+    }
+    const st = this.steps[this.i], j = this.i - c.i0;
+    while (c.k + 2 < c.T.length && c.T[c.k + 1] <= tau) c.k++;
+    const k = c.k, h = c.T[k + 1] - c.T[k];
+    const w = h > 1e-6 ? clamp((tau - c.T[k]) / h, 0, 1) : 1;
+    const v0 = c.V[k], v1 = c.V[k + 1], vm = (v0 + v1) / 2;
+    // (the way along this stretch by now at an even acceleration from v0 to v1, and the speed there)
+    const f = vm > 1e-6 ? (v0 * w + 0.5 * (v1 - v0) * w * w) / vm : w;
+    const A = c.C[k], B = c.C[k + 1], L = Math.hypot(B.x - A.x, B.z - A.z);
+    const v = h > 1e-6 ? (vm > 1e-6 ? ((L / h) * (v0 + (v1 - v0) * w)) / vm : L / h) : 0;
+    const ux = L > 1e-6 ? (B.x - A.x) / L : 0, uz = L > 1e-6 ? (B.z - A.z) / L : 0;
+    const [kp, kr] = st.gains;
+    const turn = wrapAngle(c.R[k + 1] - c.R[k]);
+    // (where it should be by now, how fast, facing which way: the setpoint)
+    const sp0 = this.setpoint = { x: A.x + (B.x - A.x) * f, z: A.z + (B.z - A.z) * f, vx: ux * v, vz: uz * v, yaw: wrapAngle(c.R[k] + turn * w) };
+    let vx = sp0.vx + kp * (sp0.x - r.pos.x), vz = sp0.vz + kp * (sp0.z - r.pos.z);
+    const sp = Math.hypot(vx, vz);
+    if (sp > d.maxSpeed) { vx *= d.maxSpeed / sp; vz *= d.maxSpeed / sp; }
+    cmd.vx = vx; cmd.vz = vz;
+    cmd.omega = clamp((h > 1e-6 ? turn / h : 0) + kr * wrapAngle(sp0.yaw - r.yaw), -d.maxOmega, d.maxOmega);
+    // (the point of this step it's on its way to, for what looks ahead along the route)
+    const first = j === 0 ? 1 : c.ends[j - 1] + 1;
+    this.pi = clamp(k + 1 - first, 0, st.pts.length - 1);
+    cmd.intake = !!st.intake;
+    // under a TRENCH later on this route: as a drive step's (below), the load kept under the arm
+    if (fitsTrench(r.cfg) && this._trenchAhead()) {
+      if (r.loadNearTrench()) this.fullHold = this.i;
+      if (this.fullHold === this.i) cmd.intake = false;
+      if (r.deployRaisesTop && underTrench(r.pos.x, r.pos.z, Math.max(r.halfL, r.halfW) + 2.0)) cmd.intake = false;
+      const m = Math.hypot(vx, vz);
+      const ahead = m > 0.05 && [0.4, 0.8, 1.2].some((q) => underTrench(r.pos.x + (vx / m) * q, r.pos.z + (vz / m) * q, Math.max(r.halfL, r.halfW)));
+      if (ahead && !r.fitsTrenchLowered()) { this.fullHold = this.i; cmd.vx = 0; cmd.vz = 0; cmd.intake = false; cmd.outtake = true; return; }
+    }
+    cmd.shoot = st.shoot === 'hub' ? r.lastInZone : !!st.shoot;
+    if (st.spinPts) cmd.spin = cmd.prespin = !!st.pts[this.pi][3];
+  }
+
+  // the trajectory from this step on through the timed steps that flow into it: the robot where it
+  // is now, then each point, the time to it (T, s from the start), the speed there (V, m/s) and the
+  // heading (R, the robot's yaw); ends: where each step's points end
+  _chain() {
+    const r = this.robot, C = [{ x: r.pos.x, z: r.pos.z }], T = [0], V = [Math.hypot(r.vel.x, r.vel.z)], R = [r.yaw], ends = [];
+    for (let k = this.i; k < this.steps.length; k++) {
+      const st = this.steps[k];
+      if (st.type !== 'drive' || !st.timed) break;
+      st.pts.forEach(([fx, fy], q) => {
+        const tp = st.tp[q];
+        C.push(this.P(fx, fy, st.mirror !== false));
+        let dt = tp.dt;
+        // (where it sets out from further than their trajectory has it, as a robot that starts
+        // clear of the TRENCH: the first stretch longer, at the same acceleration)
+        if (C.length === 2) { const L = Math.hypot(C[1].x - C[0].x, C[1].z - C[0].z); if (L > tp.ds + 0.05 && tp.ds > 0.05) dt *= Math.sqrt(L / tp.ds); }
+        T.push(T[T.length - 1] + dt);
+        V.push(tp.v);
+        R.push(tp.rot === undefined ? R[R.length - 1] : yawOf(tp.rot, this.alliance));
+      });
+      ends.push(C.length - 1);
+      if (!st.flow) break;
+    }
+    return { i0: this.i, t0: this.elapsed, C, T, V, R, ends, k: 0 };
   }
 }
