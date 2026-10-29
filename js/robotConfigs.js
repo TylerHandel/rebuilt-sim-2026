@@ -862,7 +862,7 @@ export const ROBOTS = {
     teamName: 'Blazing Bulldogs',
     robotName: 'Rubble',
     archetype: 'Dumper',
-    blurb: 'Hopper Division finalist. Rebuilt mid-season from a turret into a dumper: a linear intake slides out on titanium racks and carries the front of the hopper with it, a roller floor that pivots up to compact the load (ramps on the intake lift it as it comes in) feeds a drum at the back, and an adjustable hood throws FUEL out over the back. Fits under the TRENCH, until a full load bulges the net over its front.',
+    blurb: 'Hopper Division finalist. Rebuilt mid-season from a turret into a dumper: a linear intake slides out on titanium racks and carries the front of the hopper with it, a roller floor that pivots up to compact the load (ramps on the intake lift it as it comes in) feeds a drum at the back, and an adjustable hood throws FUEL out over the back. Fits under the TRENCH, full or not.',
     // built of its physical mechanisms (js/mech/r581.js, phys581.js): its FUEL go through its
     // CAD's ball path, moved by its rollers under its code's controls
     physical: '581',

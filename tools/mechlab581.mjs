@@ -134,20 +134,18 @@ const netTop = (r, x, z) => (r.s.net.under(x, z) ? r.s.net.at(x, z)[0] : null);
 // stood taller than a TRENCH arm's underside (22.25in) for a quarter second, or the 30in limit
 function escapeWatch(r) {
   const seen = new Set(), out = new Map();
-  let top = 0, topNet = 0, tallT = 0, tallAt = null, overAt = null, playT = 0, playAt = null, nearT = 0, nearAt = null;
+  let top = 0, topNet = 0, tallT = 0, tallAt = null, overAt = null;
   return {
     out,
-    get top() { return top; }, get topNet() { return topNet; }, get tallAt() { return tallAt; }, get overAt() { return overAt; }, get playAt() { return playAt; }, get nearAt() { return nearAt; },
+    get top() { return top; }, get topNet() { return topNet; }, get tallAt() { return tallAt; }, get overAt() { return overAt; },
     check(balls) {
       const isHeld = held581(r.ext);
-      let now = 0, held = 0, net = 0;
+      let now = 0, held = 0;
       const [dx] = slideOffset(r.ext), front = NET.frontX + dx;
       for (const b of balls) {
         const p = P(b), [x, y, z] = p;
         // (the load's top: in the hopper, not one in the tower)
         if (isHeld(p)) { held++; if (x > TOWER_X) now = Math.max(now, y + R); }
-        // (as js/mech/phys581.js loadTop() has it, for play: how high the load holds the net up)
-        if (isHeld(p) && r.s.net.under(x, z)) net = Math.max(net, Math.min(y + R, r.s.net.at(x, z)[0]));
         if (out.has(b) || x > 40) continue;
         if (!seen.has(b)) { if (isHeld(p)) seen.add(b); else continue; }
         const h = netTop(r, x, z);
@@ -162,19 +160,12 @@ function escapeWatch(r) {
       tallT = now > TRENCH.clearHeight ? tallT + DT : 0;
       if (tallAt === null && tallT >= 0.25) tallAt = held;
       if (overAt === null && now > LIMIT) overAt = held;
-      // (in play, js/robot.js: too tall to get under a TRENCH arm once the net's top is within 5 mm
-      // of it with the 5 mm it adds; nearly up to it at 3.5 cm under it, for 0.3 s)
-      playT = net + 0.005 > TRENCH.clearHeight - 0.005 ? playT + DT : 0;
-      if (playAt === null && playT >= 0.25) playAt = held;
-      nearT = net > TRENCH.clearHeight - 0.035 ? nearT + DT : 0;
-      if (nearAt === null && nearT >= 0.3) nearAt = held;
     },
     report() {
       const c = {};
       for (const w of out.values()) c[w] = (c[w] ?? 0) + 1;
       return `${out.size} escaped${out.size ? ` (${Object.entries(c).map(([k, n]) => `${k}: ${n}`).join(', ')})` : ''}; the load's top ${top.toFixed(3)} m (under the net ${topNet.toFixed(3)})` +
-        `${tallAt !== null ? `, taller than the TRENCH from ${tallAt} in it` : ', never taller than the TRENCH'}${overAt !== null ? `, over 30in from ${overAt}` : ''}` +
-        `; in play (the net's top) nearly up to the TRENCH from ${nearAt ?? '-'}, too tall for it from ${playAt ?? '-'}`;
+        `${tallAt !== null ? `, taller than the TRENCH from ${tallAt} in it` : ', never taller than the TRENCH'}${overAt !== null ? `, over 30in from ${overAt}` : ''}`;
     },
   };
 }
@@ -282,10 +273,10 @@ const tests = {
       if (process.env.SNAP && seed === 1) (await import('node:fs')).writeFileSync(process.env.SNAP, JSON.stringify({ ext: r.ext, load: res.balls.map(P).filter(held581(r.ext)) }));
       if (res.world) res.world.free();
       console.log(fillReport(`581 intaking at ${SPEED} m/s, seed ${seed}`, res) + `; ${esc.report()}`);
-      runs.push({ ...res, esc: esc.out.size, loadTop: esc.top, tallAt: esc.tallAt, overAt: esc.overAt, playAt: esc.playAt, nearAt: esc.nearAt });
+      runs.push({ ...res, esc: esc.out.size, loadTop: esc.top, tallAt: esc.tallAt, overAt: esc.overAt });
     }
     const f = runs.map((x) => x.fulls[0]?.n).filter((n) => n !== undefined);
-    console.log(`581 through its intake (${runs.length} fills): the most it held ${Math.min(...runs.map((x) => x.most))}-${Math.max(...runs.map((x) => x.most))} (mean ${(runs.reduce((a, x) => a + x.most, 0) / runs.length).toFixed(1)}), full at ${f.length ? `${Math.min(...f)}-${Math.max(...f)}` : '-'} (${f.length} of ${runs.length}); ${runs.reduce((a, x) => a + x.esc, 0)} escaped in all; the load's top ${Math.min(...runs.map((x) => x.loadTop)).toFixed(3)}-${Math.max(...runs.map((x) => x.loadTop)).toFixed(3)} m, taller than the TRENCH from ${runs.map((x) => x.tallAt ?? '-').join(', ')} in it; over 30in from ${runs.map((x) => x.overAt ?? '-').join(', ')}; in play nearly up to the TRENCH from ${runs.map((x) => x.nearAt ?? '-').join(', ')}, too tall for it from ${runs.map((x) => x.playAt ?? '-').join(', ')}`);
+    console.log(`581 through its intake (${runs.length} fills): the most it held ${Math.min(...runs.map((x) => x.most))}-${Math.max(...runs.map((x) => x.most))} (mean ${(runs.reduce((a, x) => a + x.most, 0) / runs.length).toFixed(1)}), full at ${f.length ? `${Math.min(...f)}-${Math.max(...f)}` : '-'} (${f.length} of ${runs.length}); ${runs.reduce((a, x) => a + x.esc, 0)} escaped in all; the load's top ${Math.min(...runs.map((x) => x.loadTop)).toFixed(3)}-${Math.max(...runs.map((x) => x.loadTop)).toFixed(3)} m, taller than the TRENCH from ${runs.map((x) => x.tallAt ?? '-').join(', ')} in it; over 30in from ${runs.map((x) => x.overAt ?? '-').join(', ')}`);
   },
   async hold() {
     const r = rig(), { path } = r, esc = escapeWatch(r);

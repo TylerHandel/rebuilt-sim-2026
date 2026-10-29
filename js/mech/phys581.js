@@ -370,19 +370,10 @@ export class Physical581 extends PhysicalRobot {
 
   // how far out the intake is (m along its racks), for the hopper drawn on it
   extNow() { return this.ext; }
-  // how high the load holds its net up (for the TRENCH): the top of the FUEL under it, as far as
-  // the net's slack lets it rise (one pressing past that stretches the bungee, which gives under a
-  // TRENCH arm); 0 with none under it. The rest of the load is under the polycarbonate top, which
-  // fits under the arm (js/mech/r581.js NET)
-  loadTop() {
-    const n = this.s.net;
-    let top = 0;
-    for (const b of this.held) {
-      const [x, y, z] = this._local(b.pos);
-      if (n.under(x, z)) top = Math.max(top, Math.min(y + R, n.at(x, z)[0]));
-    }
-    return top;
-  }
+  // (no loadTop(): it always counts as fitting under the TRENCH, full or not. A load bulging its
+  // net meets a TRENCH arm in the physics, where the net's bungee gives (js/mech/r581.js NET), but
+  // the robot's top for the TRENCH (Robot.topY, fitsTrenchLowered, loadNearTrench) stays its
+  // frame's, 21.7in)
   // the floor's lift and the hood's turn from their CAD poses (rad), for drawing them
   floorTurn() { return floorRot(this.ext); }
   hoodTurn() { return hoodRot(this.hoodDeg); }
