@@ -8,12 +8,16 @@
 // and elevation; and the sim's shot table's rows: where they come down), calibrate (the shot maps
 // behind js/mech/phys1690.js's EXIT_MAP and EL_MAP), feed (FUEL laid on the floor, the indexer
 // running and the shooter firing: how fast they come out), intake (24 FUEL at SPEED m/s, intaking
-// alone), intakefull (filled through the intake from the NEUTRAL ZONE's FUEL until it can't put more
-// in: tools/fillbench.mjs), hold (filled a layer at a time, everything off), dump (a full one fired
+// alone: its stalls and jams, the kicker bar's lift), intakefull (filled through the intake from the
+// NEUTRAL ZONE's FUEL until it can't put more in: tools/fillbench.mjs; the top plate's bow, and 2 s
+// after the intake stops), hold (filled a layer at a time, everything off), dump (a full one fired
 // at 3 m: FUEL/s; the carriage agitating while it does, as phys1690 has it when it shoots and isn't
 // intaking), strokes (the carriage's agitation, empty: its stroke and its X44's current).
-// Env: SEEDS, SPEED (1 m/s), BULGE (the net's, m), GRIP_<material>, TREAD_<material>, STUCK (where the
-// ones left over are), MAP=1 (shooter: the full sweep), LAYERS, SEC, SEC2, PASS=1 (dump: the passing
+// Env: SEEDS, SPEED (1 m/s), DS (shooter, calibrate: the distances, m), FED=1 (shooter: the table's
+// rows stream-fed; YAW: the turret turned, deg), BULGE (the top lifted further, m), GRIP_<material>,
+// TREAD_<material>, STUCK (intake: each stall and jam and where the ones left over are, what they
+// touch), FLOORIN (intake, intakefull: the floor's RPS while intaking, 0: coasting), KICKRIGID=1 (the
+// kicker bar's arms posed, not on their pin), TRACEFED=s (shooter FED=1: the stream up the bore), MAP=1 (shooter: the full sweep), LAYERS, SEC, SEC2, PASS=1 (dump: the passing
 // speeds), FILL=layers (dump: filled a layer at a time), AGITATE=0 (dump: the carriage held out),
 // DEPTH, HZ (the carriage's strokes: m in, a second)
 import { RAPIER } from '../js/physics.js';
@@ -21,11 +25,11 @@ import { FUEL, GROUP, groups, HUB, TRENCH } from '../js/constants.js';
 import { Mechanism } from '../js/mech/mechanism.js';
 import { sim2D, ShotTable } from '../js/ballistics.js';
 import {
-  build1690, wheels1690, shooterWheel, feederWheels, pathSurfaces1690, placeIntake, placeTurret, turretPoint, netY, hoodElevation,
+  build1690, wheels1690, shooterWheel, feederWheels, pathSurfaces1690, placeIntake, placeTurret, turretPoint, netY, hoodElevation, kickAt,
   HALF_L, HALF_W, INTAKE, FLOOR, TOP, BELT, BACK, VKICK, FEED, SHOOTER, TURRET, NET, WALL, SLIDE, MU as GRIP, TREAD,
 } from '../js/mech/r1690.js';
 import { speedLoop } from '../js/mech/phys1706.js';
-import { RPS, FEED_SHARE, FEED_MIN, EXIT, hoodFor, elevationAt, surfFor, exitAt, HOOD_STOW, STROKE, driveCarriage, moveCarriage } from '../js/mech/phys1690.js';
+import { RPS, FEED_SHARE, FEED_MIN, EXIT, hoodFor, elevationAt, surfFor, exitAt, HOOD_STOW, STROKE, FLOOR_INTAKE, driveCarriage, moveCarriage, driveKick, moveKick } from '../js/mech/phys1690.js';
 import { ROBOTS } from '../js/robotConfigs.js';
 import { fillRun, fillReport } from './fillbench.mjs';
 
@@ -70,17 +74,21 @@ const rps = (n, sh) => (n * TAU) / sh.motor.ratio;
 function rig({ ext = 1, yaw = 0, hood = HOOD_STOW } = {}) {
   const t = build1690(), wh = wheels1690(t), s = pathSurfaces1690(t), sw = shooterWheel(t), fw = feederWheels(t);
   const pathW = [...wh.intake, ...wh.floor, wh.vkick, ...wh.feed];
-  const path = new Mechanism({ substeps: 6, shafts: [...new Set(pathW.map((x) => x.shaft)), ...t.belts, t.slide], wheels: pathW, surfaces: [s.body, s.bodyFine, s.ptfe, s.bottom, s.top, s.carriage, s.kick, s.bumper, s.net] });
+  const path = new Mechanism({ substeps: 6, shafts: [...new Set(pathW.map((x) => x.shaft)), ...t.belts, t.slide, t.kickArm], wheels: pathW, surfaces: [s.body, s.bodyFine, s.ptfe, s.bottom, s.top, s.carriage, s.kick, s.kickTube, s.bumper, s.net] });
   const shooter = new Mechanism({ substeps: 6, sub: Number(process.env.SUB ?? 8), shafts: [t.wheel, ...t.hoodWheels], wheels: [sw, ...fw], surfaces: [s.turret, s.hood] });
   for (const a of [t.intake, t.floor, t.feed, t.shooter, t.vkick, ...t.belts]) a.cmd = null;
-  const r = { t, wh, s, sw, fw, path, shooter, ext, yaw, hood, agitate: false, cs: { pos: ext * SLIDE.travel }, slideAmps: 0 };
-  r.pose = () => { placeIntake(s, wh.intake, r.ext); placeTurret(s, { wheel: sw, feeder: fw }, r.yaw, r.hood); };
+  const r = { t, wh, s, sw, fw, path, shooter, ext, yaw, hood, agitate: false, cs: { pos: ext * SLIDE.travel }, ks: { kick: kickAt(ext) }, slideAmps: 0 };
+  r.pose = () => { placeIntake(s, wh.intake, r.ext, r.ks.kick); placeTurret(s, { wheel: sw, feeder: fw }, r.yaw, r.hood); };
   r.step = (balls, together = balls) => {
     driveCarriage(r.cs, t.slide, DT, { on: ext > 0.5, agitate: r.agitate });
+    driveKick(r.ks, t.kickArm, r.ext);
     r.pose();
     path.step(DT, balls, together);
+    s.net.flex(DT, path.contacts);
+    r.bowMax = Math.max(r.bowMax || 0, s.net.bow);
     moveCarriage(r.cs, t.slide, DT);
     r.ext = r.cs.pos / SLIDE.travel;
+    moveKick(r.ks, t.kickArm, DT, r.ext);
     r.slideAmps = Math.max(r.slideAmps, Math.abs(t.slide.motor.current || 0));
     shooter.step(DT, balls.filter((b) => { const [x, y, z] = P(b); return y > TURRET.bore.y[0] && Math.hypot(x - TURRET.at[0], z - TURRET.at[1]) < 0.25; }));
   };
@@ -167,7 +175,7 @@ function escapeWatch(r) {
     report() {
       const c = { over: 0, through: 0, back: 0 };
       for (const w of out.values()) c[w]++;
-      return `${out.size} escaped (over the walls or the front: ${c.over}, through the net: ${c.through}, out over the back: ${c.back}); the load's top under the net ${top.toFixed(3)} m${tallAt !== null ? `, taller than the TRENCH from ${tallAt} in it` : ''}`;
+      return `${out.size} escaped (over the walls or the front: ${c.over}, through the top: ${c.through}, out over the back: ${c.back}); the top plate bowed up to ${((r.bowMax || 0) * 1000).toFixed(0)} mm (${r.s.net.force.toFixed(0)} N on it at the end), the load's top ${top.toFixed(3)} m${tallAt !== null ? `, taller than the TRENCH from ${tallAt} in it` : ''}`;
     },
   };
 }
@@ -244,10 +252,10 @@ const tests = {
     if (process.env.NOTABLE) return;
     const { hub } = tables();
     console.log(`  the sim's HUB table (its config's exit at ${ROBOTS['1690'].shooter.exitY} m), fired as js/mech/phys1690.js fires it:`);
-    for (const d of [1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6]) {
+    for (const d of list('DS') ?? [1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6]) {
       const row = hub.lookup(d - EXIT.s);
       if (!row) { console.log(`   ${d} m: out of the table`); continue; }
-      const o = fireSome(hoodFor(row.theta / DEG), surfFor(row.v));
+      const o = (process.env.FED ? fedSome : fireSome)(hoodFor(row.theta / DEG), surfFor(row.v));
       if (!o) { console.log(`   ${d} m: nothing came out`); continue; }
       const land = landing(o);
       console.log(`   ${d} m: the table's ${row.v.toFixed(2)} m/s at ${(row.theta / DEG).toFixed(1)} deg (hood ${hoodFor(row.theta / DEG).toFixed(1)}, wheel ${surfFor(row.v).toFixed(1)}): out at ${o.v.toFixed(2)} m/s, ${o.el.toFixed(1)} deg, from ${o.x.toFixed(2)},${o.y.toFixed(2)}; down at the rim ${land.toFixed(2)} m (${land - d >= 0 ? '+' : ''}${(land - d).toFixed(2)})`);
@@ -259,7 +267,7 @@ const tests = {
   // dump fires them, instead of lone FUEL thrown up it)
   calibrate() {
     const { hub } = tables(), pairs = [], els = [];
-    for (const d of [1.25, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6]) {
+    for (const d of process.env.DS?.split(',').map(Number) ?? [1.25, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6]) {
       const row = hub.lookup(d - EXIT.s);
       if (!row) continue;
       const el = row.theta / DEG;
@@ -305,7 +313,13 @@ const tests = {
       const res = [];
       for (let seed = 1; seed <= SEEDS; seed++) res.push(pathRun(seed, { n: 24, sec: 6, speed }));
       console.log(`1690 intaking only (rollers 100%, the intake out), 24 FUEL at ${speed} m/s: ${res.map((x) => x.inside).join(', ')} in it after 6 s; past the bumper each second ${res.map((x) => x.timeline.join('/')).join(', ')}; intake X60 down to ${med(res.map((x) => x.minIntake * 100)).toFixed(0)}% (median)`);
-      if (process.env.STUCK) for (const x of res) console.log('   left', x.left.map((p) => p.map((v) => v.toFixed(2)).join(',')).join(' | '));
+      const st = res.reduce((a, x) => a + x.stalls.length, 0), jm = res.reduce((a, x) => a + x.jams.length, 0);
+      console.log(`   ${st} stalls (rollers under 30% for 0.2 s), ${jm} jams (a FUEL in the intake not moving 1 cm in 1 s) in ${res.length} runs; the kicker bar's arms lifted up to ${med(res.map((x) => x.kickMax)).toFixed(1)} deg off their stop (median)`);
+      if (process.env.STUCK) for (const x of res) {
+        for (const q of x.stalls) console.log(`   stall at ${q.t.toFixed(2)} s: ${q.roller}, ${q.amps.toFixed(0)} A; FUEL on it at ${q.at.map((p) => p.map((v) => v.toFixed(2)).join(',')).join(' ')}`);
+        for (const q of x.jams) console.log(`   jam from ${(q.t - 1).toFixed(2)} s at ${q.at.map((v) => v.toFixed(3)).join(',')}: ${q.on.join(', ')}`);
+        console.log('   left', x.left.map((q) => q.at.map((v) => v.toFixed(2)).join(',') + ' [' + q.on.join(', ') + ']').join(' | '));
+      }
     }
   },
   async intakefull() {
@@ -313,15 +327,24 @@ const tests = {
     for (let seed = 1; seed <= SEEDS; seed++) {
       const r = rig();
       r.t.intake.cmd = 1;
+      const fl = env('FLOORIN', FLOOR_INTAKE);
+      speedLoop(r.t.floor, fl ? rps(fl, r.t.floor) : null);
       const esc = escapeWatch(r);
-      const res = fillRun(RAPIER, { world: () => world({ carpet: false }), ball, path: { step: (dt, l) => { r.step(l); esc.check(l); }, get contacts() { return r.path.contacts; } }, DT, held: held1690, own: own1690, top: TOP1690, speed: SPEED, sec: env('SEC', 12), seed, front: 0.40, keep: !!process.env.SNAP });
-      if (process.env.SNAP && seed === 1) (await import('node:fs')).writeFileSync(process.env.SNAP, JSON.stringify({ load: res.balls.map(P).filter(held1690) }));
-      if (res.world) res.world.free();
-      console.log(fillReport(`1690 intaking at ${SPEED} m/s, seed ${seed}`, res) + `; ${esc.report()}`);
-      runs.push({ ...res, esc: esc.out.size, loadTop: esc.top, tallAt: esc.tallAt });
+      const res = fillRun(RAPIER, { world: () => world({ carpet: false }), ball, path: { step: (dt, l) => { r.step(l); esc.check(l); }, get contacts() { return r.path.contacts; } }, DT, held: held1690, own: own1690, top: TOP1690, speed: SPEED, sec: env('SEC', 12), seed, front: 0.40, keep: true });
+      if (process.env.SNAP && seed === 1) (await import('node:fs')).writeFileSync(process.env.SNAP, JSON.stringify({ load: res.balls.map(P).filter(held1690), bow: r.s.net.bow }));
+      // (then the intake stopped and the load left to settle for 2 s: how far the top plate stays
+      // bowed, the load's top then)
+      const bow0 = r.s.net.bow;
+      r.t.intake.cmd = 0;
+      const inIt = res.balls.filter((b) => held1690(P(b)));
+      for (let k = 0; k < 2 / DT; k++) { r.step(inIt); res.world.step(); }
+      const settled = { bow: r.s.net.bow, top: Math.max(...inIt.filter((b) => held1690(P(b))).map((b) => P(b)[1] + R)), n: inIt.filter((b) => held1690(P(b))).length };
+      res.world.free();
+      console.log(fillReport(`1690 intaking at ${SPEED} m/s, seed ${seed}`, res) + `; ${esc.report()}; the intake stopped, 2 s later: the plate bowed ${(settled.bow * 1000).toFixed(0)} mm (${(bow0 * 1000).toFixed(0)} as it stopped), the load's top ${settled.top.toFixed(3)} m, ${settled.n} in it`);
+      runs.push({ ...res, esc: esc.out.size, loadTop: esc.top, tallAt: esc.tallAt, settled, bowMax: r.bowMax });
     }
     const f = runs.map((x) => x.fulls[0]?.n).filter((n) => n !== undefined);
-    console.log(`1690 through its intake (${runs.length} fills): the most it held ${Math.min(...runs.map((x) => x.most))}-${Math.max(...runs.map((x) => x.most))} (mean ${(runs.reduce((a, x) => a + x.most, 0) / runs.length).toFixed(1)}), full at ${f.length ? `${Math.min(...f)}-${Math.max(...f)}` : '-'} (${f.length} of ${runs.length}); ${runs.reduce((a, x) => a + x.esc, 0)} escaped in all; the load's top under the net ${Math.min(...runs.map((x) => x.loadTop)).toFixed(3)}-${Math.max(...runs.map((x) => x.loadTop)).toFixed(3)} m, taller than the TRENCH from ${runs.map((x) => x.tallAt ?? '-').join(', ')} in it`);
+    console.log(`1690 through its intake (${runs.length} fills): the most it held ${Math.min(...runs.map((x) => x.most))}-${Math.max(...runs.map((x) => x.most))} (mean ${(runs.reduce((a, x) => a + x.most, 0) / runs.length).toFixed(1)}), full at ${f.length ? `${Math.min(...f)}-${Math.max(...f)}` : '-'} (${f.length} of ${runs.length}); ${runs.reduce((a, x) => a + x.esc, 0)} escaped in all; the load's top ${Math.min(...runs.map((x) => x.loadTop)).toFixed(3)}-${Math.max(...runs.map((x) => x.loadTop)).toFixed(3)} m, taller than the TRENCH from ${runs.map((x) => x.tallAt ?? '-').join(', ')} in it; the top plate bowed up to ${runs.map((x) => ((x.bowMax ?? 0) * 1000).toFixed(0)).join(', ')} mm intaking, settled to ${runs.map((x) => (x.settled.bow * 1000).toFixed(0)).join(', ')} mm (the load's top ${runs.map((x) => x.settled.top.toFixed(3)).join(', ')} m) 2 s after the intake stopped`);
   },
   hold() {
     const r = rig();
@@ -438,15 +461,15 @@ function fireSome(h, surf) {
 
 // FUEL fed in a stream: n laid on the floor, the indexer on for sec s, the shooter at hood angle h
 // and wheel surface speed surf (seeds 1..SEEDS pooled): the median exit, as fireSome
-function fedSome(h, surf, { n = 9, sec = 2.5 } = {}) {
+function fedSome(h, surf, { n = 9, sec = 2.5, yaw = env('YAW', 0) * DEG } = {}) {
   const all = [];
   for (let seed = 1; seed <= SEEDS; seed++) {
-    const r = rig({ hood: h }), w = world({ carpet: false }), balls = [];
+    const r = rig({ hood: h, yaw }), w = world({ carpet: false }), balls = [];
     let sd = seed; const rnd = () => ((sd = (sd * 16807) % 2147483647) / 2147483647 - 0.5);
     for (let i = 0; i < n; i++) balls.push(ball(w, 0.2 - 0.155 * (Math.floor(i / 3) % 2) + 0.01 * rnd(), 0.26 + 0.16 * Math.floor(i / 6), -0.09 + 0.155 * (i % 3) + 0.01 * rnd()));
     for (let i = 0; i < 1 / DT; i++) { r.spin(surf); r.step(live(balls)); w.step(); }
     const watch = shotWatch(r);
-    for (let k = 0; k < sec / DT; k++) { r.spin(surf); r.index(true); r.t.intake.cmd = 1; const l = live(balls); r.step(l); w.step(); watch.check(l, k * DT); }
+    for (let k = 0; k < sec / DT; k++) { r.spin(surf); r.index(true); r.t.intake.cmd = 1; const l = live(balls); r.step(l); w.step(); watch.check(l, k * DT); if (process.env.TRACEFED && seed === 1 && k * DT < Number(process.env.TRACEFED)) for (const b of l) { const [x, y, z] = P(b), v = b.linvel(); if (y > 0.34 && y < 0.9 && Math.hypot(x - TURRET.at[0], z - TURRET.at[1]) < 0.2) console.log(`   ${(k * DT).toFixed(3)} ${balls.indexOf(b)} ${(x - TURRET.at[0]).toFixed(3)},${y.toFixed(3)},${(z - TURRET.at[1]).toFixed(3)} v ${v.x.toFixed(2)},${v.y.toFixed(2)},${v.z.toFixed(2)}: ${[...r.path.contacts, ...r.shooter.contacts].filter((c) => c.ball === b).map((c) => c.wheel.name + " " + c.force.toFixed(0)).join(", ")}`); } }
     w.free();
     all.push(...watch.shots);
   }
@@ -464,16 +487,39 @@ function pathRun(seed, { n = 20, sec = 7, speed = SPEED } = {}) {
   w.createCollider(RAPIER.ColliderDesc.cuboid(15, 0.01, 1).setTranslation(0.4 + 15, -0.01, 0).setFriction(0.3).setRestitution(0.2), carpet);
   w.createCollider(RAPIER.ColliderDesc.cuboid(0.4, 0.01, 1).setTranslation(0, -0.01, 0).setFriction(0.3), w.createRigidBody(RAPIER.RigidBodyDesc.fixed()));
   r.t.intake.cmd = 1;
+  // (the floor running with it, as phys1690 has it; FLOORIN=0: coasting)
+  const fl = env('FLOORIN', FLOOR_INTAKE);
+  speedLoop(r.t.floor, fl ? rps(fl, r.t.floor) : null);
   for (let i = 0; i < 1 / DT; i++) r.step([]);
   const free = Math.abs(r.t.intake.omega) || 1;
   const balls = [];
   for (let i = 0; i < n; i++) balls.push(ball(w, 0.9 + 0.17 * Math.floor(i / 4) + 0.02 * rnd(), R + 0.003, ((i % 4) - 1.5) * 0.16 + 0.02 * rnd(), [-speed, 0, 0]));
   let minIntake = 1;
   const timeline = [];
+  // stalls: the rollers under 30% of their free speed for 0.2 s (which roller's contacts are firmest,
+  // the X60's current, where the FUEL on them sit); jams: a FUEL in the intake's mouth (in front of
+  // the bumper, under its top) that hasn't moved 1 cm in 1 s
+  const stalls = [], jams = [], last = new Map();
+  let slow = 0;
   for (let k = 0; k < sec / DT; k++) {
     const l = balls.filter((b) => b.translation().y < 3 && b.translation().y > -1);
     r.step(l); w.step();
     minIntake = Math.min(minIntake, Math.abs(r.t.intake.omega) / free);
+    slow = Math.abs(r.t.intake.omega) / free < 0.3 ? slow + DT : 0;
+    if (slow >= 0.2 && (!stalls.length || k * DT - stalls[stalls.length - 1].t > 0.5)) {
+      const on = r.path.contacts.filter((c) => /intake roller/.test(c.wheel.name));
+      const firm = on.reduce((m, c) => (c.force > (m?.force ?? -1) ? c : m), null);
+      stalls.push({ t: k * DT, amps: Math.abs(r.t.intake.motor.current || 0), roller: firm?.wheel.name, at: on.map((c) => P(c.ball)) });
+    }
+    if (k % Math.round(0.25 / DT) === 0) for (const b of l) {
+      const p = P(b);
+      if (!(p[0] > 0.40 && p[0] < 0.75 && p[1] < 0.2 && p[1] > 0)) { last.delete(b); continue; }
+      const h = last.get(b) || [];
+      h.push([k * DT, p]);
+      while (h.length && k * DT - h[0][0] > 1.001) h.shift();
+      last.set(b, h);
+      if (h.length >= 5 && h.every(([, q]) => Math.hypot(q[0] - p[0], q[1] - p[1], q[2] - p[2]) < 0.01) && !jams.some((j) => j.b === b)) jams.push({ b, t: k * DT, at: p, on: r.path.contacts.filter((c) => c.ball === b).map((c) => c.wheel.name.replace(/ \((CAD|silicone|aluminum, fixed)\)/, '') + ' ' + c.force.toFixed(0)) });
+    }
     if (k % Math.round(1 / DT) === Math.round(1 / DT) - 1) timeline.push(balls.filter((b) => { const [x, y] = P(b); return y < 3 && x < 0.40 && y > 0.16; }).length);
     for (const b of l) { const p = b.translation(); if (p.x < -0.8) b.setTranslation({ x: 50, y: -5, z: 0 }, true); }
     if (process.env.TRACE && k % 6 === 0) {
@@ -481,10 +527,11 @@ function pathRun(seed, { n = 20, sec = 7, speed = SPEED } = {}) {
       console.log(`   ${(k * DT).toFixed(2)} ${x.toFixed(3)},${y.toFixed(3)},${z.toFixed(3)} v ${v.x.toFixed(2)},${v.y.toFixed(2)}: ${r.path.contacts.filter((c) => c.ball === b).map((c) => c.wheel.name + ' ' + c.force.toFixed(0)).join(', ')}`);
     }
   }
+  if (process.env.DUMPALL) console.log('   all', balls.map((b) => P(b).map((v) => v.toFixed(2)).join(',')).join(' '));
   const inside = balls.filter((b) => { const [x, y] = P(b); return y < 3 && x < HALF_L && y > 0.12; }).length;
-  const left = balls.filter((b) => { const [x, y] = P(b); return y < 3 && x >= HALF_L && x < 1; }).map(P);
+  const left = balls.filter((b) => { const [x, y] = P(b); return y < 3 && x >= HALF_L && x < 1; }).map((b) => ({ at: P(b), on: r.path.contacts.filter((c) => c.ball === b).map((c) => c.wheel.name.replace(/ \((CAD|silicone|aluminum, fixed)\)/, '') + ' ' + c.force.toFixed(0)) }));
   w.free();
-  return { inside, timeline, minIntake, left };
+  return { inside, timeline, minIntake, left, stalls, jams, kickMax: r.ks.kickMax ?? 0 };
 }
 
 const which = process.argv.slice(2);

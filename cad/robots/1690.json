@@ -10,20 +10,41 @@
         "Compliant Wheel", "Stealth Wheel", "HTD5 22", "Belt", "^1690-26-253-", "^1690-26-254-", "^Part 161$", "^Part 156$", "^1690-26-432-", "^1690-26-443-08A", "^Part 70$",
         "^1690-26-25[12]-", "X60 Brushless Motor \\(5\\)", "^Part 10[4-8]$", "^Part 153$", "^Part 157", "^12-18-4", "^motor pulley",
         "^Part 15[49]$", "^1690-26-44\\d", "^1690-26-451", "^1690-26-43\\d", "Kraken X60 Brushless Motor \\(3\\)", "X60 Brushless Motor-Mirrored", "X44 Brushless Motor-Mirrored",
-        "VersaPlanetary", "^Part 1(1[7-9]|2\\d)$", "Spur gear", "14t Aluminum",
+        "VersaPlanetary", "^Part 1(1[7-9]|2\\d)(-Mirrored)?$", "Spur gear", "14t Aluminum",
         "Bumper - IGNORE", "Length \\d Plate", "Width \\d Plate", "^Part (1[7-9]|20)$", "^\\*\\d", "114-0", "^Part 11[07]$",
         "bearing", "Hex \\(", "Hex Shaft", "Pulley", "PDP",
         "^Part 149$", "^1690-26-423-0[4-7]A"
       ],
-      "skipBox": [[0.12, 0.18, 0.30, 0.36, -0.40, 0.40], [0.16, 0.36, 0, 0.17, 0.16, 0.40], [0.16, 0.36, 0, 0.17, -0.40, -0.16], [-0.36, -0.16, 0, 0.17, 0.16, 0.40], [-0.36, -0.16, 0, 0.17, -0.40, -0.16]],
+      "skipBox": [[0.12, 0.18, 0.30, 0.36, -0.40, 0.40], [0.16, 0.36, 0, 0.17, 0.16, 0.40], [0.16, 0.36, 0, 0.17, -0.40, -0.16], [-0.36, -0.16, 0, 0.17, 0.16, 0.40], [-0.36, -0.16, 0, 0.17, -0.40, -0.16],
+        [-0.008, 0.012, 0.32, 0.34, 0.363, 0.383], [-0.008, 0.012, 0.32, 0.34, -0.383, -0.363], [-0.327, -0.307, 0.327, 0.347, 0.224, 0.244], [-0.327, -0.307, 0.254, 0.274, -0.221, -0.201],
+        [0.006, 0.026, 0.523, 0.543, -0.01, 0.01], [-0.056, -0.029, 0.455, 0.474, -0.236, -0.205], [-0.111, -0.084, 0.455, 0.474, -0.113, -0.082]],
       "smooth": true,
       "ratio": 0.08,
       "error": 0.004
     },
     {
+      "out": "cad/robots/1690-panels.glb",
+      "include": ["Kepler A bot bumper assembly <1>"],
+      "onlyBox": [[-0.008, 0.012, 0.32, 0.34, 0.363, 0.383], [-0.008, 0.012, 0.32, 0.34, -0.383, -0.363], [-0.327, -0.307, 0.327, 0.347, 0.224, 0.244], [-0.327, -0.307, 0.254, 0.274, -0.221, -0.201]],
+      "glass": ["."],
+      "smooth": true,
+      "ratio": 0.08,
+      "error": 0.004
+    },
+    {
+      "out": "cad/robots/1690-top.glb",
+      "include": ["Kepler A bot bumper assembly <1>"],
+      "onlyBox": [[0.006, 0.026, 0.523, 0.543, -0.01, 0.01]],
+      "glass": ["."],
+      "smooth": true,
+      "ratio": 1,
+      "error": 0.0005
+    },
+    {
       "out": "cad/robots/1690-turret.glb",
       "include": ["1690-26-400 <1>"],
-      "onlyName": ["^1690-26-43\\d", "^1690-26-451-0[1348]", "^1690-26-423-0[67]A", "Kraken X60 Brushless Motor \\(3\\)", "X60 Brushless Motor-Mirrored", "X44 Brushless Motor-Mirrored", "VersaPlanetary", "^Part 1(1[7-9]|2\\d)$"],
+      "onlyName": ["^1690-26-43\\d", "^1690-26-451-0[1348]", "^1690-26-423-0[67]A", "Kraken X60 Brushless Motor \\(3\\)", "X60 Brushless Motor-Mirrored", "X44 Brushless Motor-Mirrored", "VersaPlanetary", "^Part 1(1[7-9]|2\\d)(-Mirrored)?$"],
+      "onlyBox": [[-0.056, -0.029, 0.455, 0.474, -0.236, -0.205], [-0.111, -0.084, 0.455, 0.474, -0.113, -0.082]],
       "exclude": ["^1690-26-432-", "^Part 70$", "bearing"],
       "origin": [-0.134, 0, -0.1872],
       "smooth": true,
@@ -45,6 +66,7 @@
       "include": ["1690-26-200 <1>"],
       "onlyName": ["^1690-26-25[12]-", "X60 Brushless Motor \\(5\\)", "^Part 10[4-8]$", "^Part 153$", "^Part 157", "^12-18-4", "^motor pulley", "46T", "68T"],
       "exclude": ["^1690-26-253-05A", "^1690-26-254-05A", "bearing"],
+      "glass": ["^1690-26-251-1[345]A"],
       "smooth": true,
       "ratio": 0.12,
       "error": 0.003

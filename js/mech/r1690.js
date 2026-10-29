@@ -25,7 +25,8 @@
 //     side plates, folded up behind the intake in Closed; in Open it has fallen 163.0 deg about the pin
 //     (its tube at the same 0.200 m from it), held down by surgical tubing ("tangent to the intake
 //     plate"), so FUEL are pinched between it and the rollers and climb the bumper.
-//   - the hopper: its side and back panels and a lattice frame over the top, 0.55 m up
+//   - the hopper: its polycarbonate side and back panels (aluminum corner brackets) and a thin
+//     polycarbonate lattice plate over the top, 0.55 m up, that the load bows up (PLATE)
 //   - the roller floor (300): nine silicone-wrapped rollers sloping down from front to back (in Open
 //     its front five are 2.1 deg lower, the floor's front hinged at the sixth). Its X60 (low at the back
 //     right) drives up through a 16T:58T gear stage, 24T:24T (55T 5M) up to a shaft over the floor's
@@ -68,7 +69,7 @@ const DEG = Math.PI / 180, R = FUEL.radius;
 // as possible"), the printed hood (PLA), the net's cord
 export const MU = { silicone: 1.2, compliant: 1.3, tread: 1.3, belt: 1.0, polycarb: 0.5, alu: 0.4, ptfe: 0.1, pla: 0.3, wall: 0.25, net: 0.25 };
 // and how far each gives where a FUEL presses it (N/m)
-export const TREAD = { silicone: 20000, compliant: 12000, tread: 30000, belt: 3000, net: 10000 };
+export const TREAD = { silicone: 20000, compliant: 12000, tread: 30000, belt: 3000, plate: 100000 }; // (the top plate where a FUEL presses it, its bow aside (PLATE): the FUEL's own foam gives)
 
 // ------------------------------------------------------------------ the layout (robot frame, m: the CAD's)
 export const HALF_L = 12.5 * IN, HALF_W = 14.5 * IN; // 25 x 29in frame
@@ -121,14 +122,27 @@ export const YAW0 = -23.99 * DEG, HOOD0 = 172.47;
 // wide), the hood's feeder wheels (2in Stealth wheels over a 2in roller, both 2in wide, on the hood's
 // arms 0.2068 m from the axle: the roller 18.8 deg below), the hood's travel as the shot's elevation
 // (its steep end is the CAD's pose: 82.5 deg; the low end isn't in the CAD: 35, an estimate), the
-// wheel's gearing (28T:42T), what turns (the custom wheel: 6e-4 kg m^2, an estimate); the hood's
-// wheels' turns per the shooter wheel's (k: its 42T gear to a 30T on the hood's arm, 21T:19T, 40T:40T;
-// the other way round)
+// wheel's gearing (28T:42T); the hood's wheels' turns per the shooter wheel's (k: its 42T gear to a
+// 30T on the hood's arm, 21T:19T, 40T:40T; the other way round). What turns, from the CAD's solids
+// (their volumes and second moments about each shaft's axis; the X_T names no materials, so each part's
+// is by its kind and CAD color, estimates): on the wheel's axle (the axle itself a dead 20 mm tube on
+// 20x27x4 bearings) the tread band (432-03A, 103 cc, rubber 1200 kg/m^3: 2.70e-4 kg m^2), the hub
+// (432-01A, 84 cc, aluminum: 2.39e-4) and the two 42T gears (aluminum: 3.4e-5): 0.42 kg, J 5.43e-4;
+// the hood's Stealth wheels' shaft (two 2in Stealth wheels, 38 cc each at 1100 kg/m^3, a 40T GT2 and
+// the 19T (aluminum), the 3/8 hex (steel), 14T gears, printed spacers): 4.18e-5; its 2in roller (the
+// aluminum tube and sleeve, two 40T GT2 pulleys; it turns on its own bearings round the hood
+// actuator's cross shaft): 7.09e-5; the 30T/21T shaft on the hood's arm (k 42/30): 9.0e-6. The hood
+// itself: its X44 rides on the hood's arm, a VersaPlanetary (4:1, their thread: the CAD has its ring
+// gear, not its planets) and a 1:1 bevel pair (442-02A/09A) turning a cross shaft along the roller's
+// axis with a 12T pinion each end (442-04A and a "Spur gear (12 teeth)": 11.85 mm tip radius, module
+// ~1.69) on racks cut in the turret's side plates (431-06A/07A) round the wheel's axle (pitch radius
+// ~0.197 m): 19.3:1, their "19.333:1"; 77:1 in all
 export const SHOOTER = {
   axle: [0.070, 0.464], r: 0.0502, w: 0.05,
   feeder: { R: 0.2068, r: 0.0254, w: 0.05, lower: 18.82, k: (42 / 30) * (21 / 19) },
-  elMin: 35, elMax: HOOD0 - 90, ratio: 1.5, J: 6e-4,
-  // the hood's X44: 4:1 VersaPlanetary and 19.333:1 gears (their thread); its profile (estimates)
+  elMin: 35, elMax: HOOD0 - 90, ratio: 1.5, J: 5.43e-4, hoodJ: [4.18e-5, 7.09e-5], armJ: 9.0e-6,
+  // the hood's X44: 4:1 VersaPlanetary, a 1:1 bevel and 12T pinions on racks round the axle (19.333:1,
+  // their thread; the CAD's geometry: 19.3); its profile (estimates)
   hoodRatio: 4 * 19.333, hoodV: 350, hoodA: 3500,
   // the wheel's velocity loop's gain; ready: within 3% of the wheel's target surface speed, 1.5 deg
   // of hood (estimates)
@@ -142,7 +156,15 @@ export const INTAKE = {
   slide: [0.3120, -0.0691], width: 0.647,
   rollers: [[0.2473, 0.2301, 0.021], [0.1993, 0.3290, 0.021]], ratio: 28 / 14,
   frame: { front: 0.617, sides: 0.362, top: 0.482 },
-  kick: { pivot: [0.2723, 0.1703], tube: [0.1499, 0.3283, 0.0127], fall: -163.0, width: 0.675 },
+  // (the kicker bar: a fixed aluminum tube (not a roller: the user) on its two arms, which swing on
+  // their pin. What turns: the tube (Part 162, 87.7 cc of aluminum, 0.200 m out), the two outer arms
+  // (Parts 154/159, 22 cc each) and the inner brackets (Part 157, 16 cc each): 0.44 kg, its center
+  // 0.173 m out along the tube's line, 0.015 kg m^2 about the pin. The surgical tubing isn't in the
+  // CAD: 1/4in latex tubing (1/16in wall, ~36 N per unit strain), one a side stretched ~40% at the
+  // arms' stop, pulling at ~5 cm from the pin: 1.4 N m of preload holding them down, 1.2 N m more
+  // per radian they're lifted (estimates). rigid (KICKRIGID=1, headless): the arms posed by the
+  // carriage, as before, for comparison)
+  kick: { pivot: [0.2723, 0.1703], tube: [0.1499, 0.3283, 0.0127], fall: -163.0, width: 0.675, mass: 0.44, com: 0.173, J: 0.015, tubing: { preload: 1.4, rate: 1.2 }, rigid: typeof process !== 'undefined' && process.env?.KICKRIGID === '1' },
 };
 // the carriage's drive: its X44 through a MAXPlanetary 4:1 and 18T:28T (45T 5M) to a cross shaft
 // whose 28T 20 DP pinions (0.7in pitch radius) run in the side bars' racks; what it moves (the
@@ -158,7 +180,9 @@ export function build1690() {
   const lim = { statorLimit: 80, supplyLimit: 40 };
   const intake = new Train({ name: 'intake rollers', motor: new Motor('krakenX60', { ratio: INTAKE.ratio, ...lim }) });
   const rollers = INTAKE.rollers.map((_, i) => intake.add(new Shaft({ name: `intake roller ${i ? 'top' : 'bottom'}`, inertia: 1.5e-4 }), -1));
-  const tube = new Shaft({ name: 'kicker bar (free)', inertia: 4e-5, drag: 2e-4 });
+  // (the kicker bar's arms on their pin: no motor; the tubing and their weight its load, the
+  // carriage and their stop its stops: phys1690's moveKick)
+  const kickArm = new Shaft({ name: 'kicker bar arms (pin)', inertia: INTAKE.kick.J, drag: 0.02 });
   // (the carriage on its racks: + out; the bars' rollers' friction, an estimate)
   const slide = new Shaft({ name: 'carriage racks (pinions)', motor: new Motor('krakenX44', { ratio: SLIDE.ratio, statorLimit: 40, supplyLimit: 30 }), inertia: SLIDE.mass * SLIDE.pinion ** 2, drag: 0.005, friction: 0.05 });
   const floor = new Train({ name: 'roller floor', motor: new Motor('krakenX60', { ratio: FLOOR.ratio, ...lim }) });
@@ -171,8 +195,10 @@ export function build1690() {
   const shooter = new Train({ name: 'shooter', motor: new Motor('krakenX60', { count: 2, ratio: SHOOTER.ratio, statorLimit: 80, supplyLimit: 30 }) });
   const wheel = shooter.add(new Shaft({ name: '4in shooter wheel', inertia: SHOOTER.J, drag: 2e-4 }), 1);
   // (the hood's wheels on the shooter's train: geared to its wheel)
-  const hoodWheels = ['upper', 'lower'].map((k) => shooter.add(new Shaft({ name: `hood wheel ${k}`, inertia: 4e-5, drag: 1e-4 }), SHOOTER.feeder.k));
-  return { intake, rollers, tube, slide, floor, top, belts, vkick, feed, feedShafts, shooter, wheel, hoodWheels };
+  const hoodWheels = ['upper', 'lower'].map((k, i) => shooter.add(new Shaft({ name: `hood wheel ${k}`, inertia: SHOOTER.hoodJ[i], drag: 1e-4 }), SHOOTER.feeder.k));
+  // (and the 30T/21T shaft between, on the hood's arm)
+  shooter.add(new Shaft({ name: 'hood 30T/21T shaft', inertia: SHOOTER.armJ }), 42 / 30);
+  return { intake, rollers, kickArm, slide, floor, top, belts, vkick, feed, feedShafts, shooter, wheel, hoodWheels };
 }
 
 const Z = [0, 0, 1];
@@ -181,7 +207,6 @@ export function wheels1690(t) {
   const K = INTAKE.kick;
   const intake = [
     ...INTAKE.rollers.map(([x, y, r], i) => new Wheel({ name: `intake roller ${i ? 'top' : 'bottom'} (silicone)`, shaft: t.rollers[i], center: [x, y, 0], axis: Z, radius: r, width: INTAKE.width, mu: MU.silicone, tread: TREAD.silicone })),
-    new Wheel({ name: 'kicker bar (aluminum, free)', shaft: t.tube, center: [K.tube[0], K.tube[1], 0], axis: Z, radius: K.tube[2], width: K.width, mu: MU.alu }),
   ];
   intake.forEach((w) => { w.home = w.center.slice(); });
   // (the floor's top runs back: +z axes; the rollers over it turn the other way, their undersides
@@ -262,19 +287,34 @@ export function pathSurfaces1690(t, mesh = PATH) {
   // (the carriage on its racks: what FUEL push on its U-frame pushes back on its X44)
   const carriage = cad('carriage').onSlide(t.slide, SLIDE.dir);
   carriage.slideK = SLIDE.pinion;
-  const kick = cad('kick', { pos: [...INTAKE.kick.pivot, 0] });
+  // (the kicker bar's arms and its fixed aluminum tube, on their pin: what FUEL push on them swings
+  // them against the tubing, phys1690's moveKick; posed by placeIntake)
+  const K = INTAKE.kick, piv = [...K.pivot, 0];
+  const kick = cad('kick', { pos: piv });
+  const [tx, ty] = [K.tube[0] - K.pivot[0], K.tube[1] - K.pivot[1]];
+  const kickTube = s('kicker bar tube (aluminum, fixed)', grid(16, 12, (u, v) => [tx + K.tube[2] * Math.cos(2 * Math.PI * u), ty + K.tube[2] * Math.sin(2 * Math.PI * u), (v - 0.5) * K.width]), { mu: MU.alu, pos: piv });
+  if (!K.rigid) { kick.onShaft(t.kickArm, piv); kickTube.onShaft(t.kickArm, piv); }
   const turret = cad('turret', { mu: MU.pla, pos: [TURRET.at[0], 0, TURRET.at[1]] });
   const hood = cad('hood', { mu: MU.pla });
-  return { body, bodyFine, ptfe, bottom, top, carriage, kick, turret, hood, bumper: bumper1690(), net: new Net1690() };
+  return { body, bodyFine, ptfe, bottom, top, carriage, kick, kickTube, turret, hood, bumper: bumper1690(), net: new Net1690() };
 }
 // how far the kicker bar has fallen (deg) with the carriage ext of the way out (it falls once the
 // carriage has cleared it, a third of the way: an estimate)
 export const kickAt = (ext) => INTAKE.kick.fall * Math.min(1, Math.max(0, (ext - 0.2) / 0.25));
+// the kicker bar's arms' load (N m about the pin, + lifting them back up) at angle deg (from folded,
+// Closed; down is negative): their weight, and the tubing pulling them down toward their stop
+export function kickLoad(deg) {
+  const K = INTAKE.kick, a0 = Math.atan2(K.tube[1] - K.pivot[1], K.tube[0] - K.pivot[0]), a = a0 + deg * DEG;
+  const gravity = -K.mass * 9.81 * K.com * Math.cos(a);
+  const tubing = -(K.tubing.preload + K.tubing.rate * Math.max(0, (deg - K.fall) * DEG));
+  return gravity + tubing;
+}
 // the intake ext (0 in, 1 out) of the way out: the carriage, its rollers, the kicker bar
-export function placeIntake(sf, wheels, ext) {
-  const [dx, dy] = INTAKE.slide, K = INTAKE.kick, a = kickAt(ext) * DEG, c = Math.cos(a), sn = Math.sin(a);
+export function placeIntake(sf, wheels, ext, kickDeg = kickAt(ext)) {
+  const [dx, dy] = INTAKE.slide, K = INTAKE.kick, a = kickDeg * DEG, c = Math.cos(a), sn = Math.sin(a);
   sf.carriage.setPose([dx * ext, dy * ext, 0]);
   sf.kick.setPose([...K.pivot, 0], 0, a);
+  sf.kickTube.setPose([...K.pivot, 0], 0, a);
   wheels.forEach((w, i) => {
     const [x, y, z] = w.home;
     if (i < 2) w.center = [x + dx * ext, y + dy * ext, z];
@@ -302,37 +342,86 @@ export function placeTurret(sf, wheels, yaw, hoodDeg) {
   });
 }
 
-// The net over the top (the team: "the balls tend to bounce up and out ... we'll do some tests with
-// netting, but it could cause some issues with trench crossing"; their CAD has none): slack cord tied
-// along the lattice frame over the top (0.551 m) and out over the U-frame's top edges (it slides with
-// the carriage). The load lifts it freely as far as NET.bulge over its ties in its middle (the shape a
-// dome of cord takes, as 1706's), and there it goes taut (TREAD.net). NET.bulge, 0.01 m: the lattice's
-// bars are under it, so it can't dome much (an estimate). In the robot's frame: x0, the back tie (the
-// electronics box's face); x1, the front tie (the U-frame's front, out); hw, half its width
-export const NET = { x0: BACK.box, x1: INTAKE.frame.front, y: WALL.top, hw: 0.355, bulge: 0.01, hang: { sag: 0.02, sagOut: 0.06 } };
-export function netAt(x, z, x1 = NET.x1) {
+// The top: the hopper's top plate (the bumper assembly's Part 51), a 2.0 mm polycarbonate sheet (the
+// CAD's: its two faces 0.549 and 0.551 m up) cut to a lattice (0.13 m^2 of its 0.6 x 0.77 m: open over
+// the turret at the back left, its windows elsewhere narrower than a FUEL), its edges bent down at
+// the sides and riveted to the side panels' tops; at the back it sits on the back panel (the right
+// half: the turret's opening is the left), and its front edge (over the frame's front, x 0.316) is
+// free once the carriage is out (the U-frame's lattice top is under it only when it's in). It flexes
+// "quite a bit to allow more storage" (the user): the load bows it up, most at its free front edge's
+// middle (bow, m: across between the side panels a half sine, back to front a quarter one from the
+// electronics box's face), against its stiffness: a strip of the lattice across the 0.716 m between
+// the side panels (E 2.4 GPa, about 40% of its width solid) is ~100 N/m pressed at its middle, and as
+// it bows its riveted edges pull in and it stiffens (membrane: k3, so 3 cm takes ~20 N and 5 cm ~80
+// N), both estimates. Past it, out over the U-frame, the net (the team: "the balls tend to bounce up
+// and out ... we'll do some tests with netting, but it could cause some issues with trench
+// crossing"; their CAD has none) from the plate's front edge down to the U-frame's top edges (it
+// slides out with the carriage). NET.bulge: lifted further (a fill, the benches': the top held up out
+// of the way while they settle). In the robot's frame: x0, the back of the bow (the electronics box's
+// face); x1, the front (the U-frame's front, out); hw, half the span
+export const NET = { x0: BACK.box, x1: INTAKE.frame.front, y: WALL.top, hw: 0.358, bulge: 0, hang: { sag: 0.02, sagOut: 0.06 } };
+// (press: how far a TRENCH's arm riding over it can press it back down onto the load, the FUEL's
+// foam giving: 2 cm, an estimate)
+export const PLATE = { t: 0.002, k: 100, k3: 6e5, max: 0.08, tau: 0.05, press: 0.02, back: -0.284, openZ: 0.09 };
+// the top's bow shape at (x, z): 1 at the plate's front edge's middle, 0 at its supports
+export const bowShape = (x, z) => {
+  const v = Math.min(1, Math.max(0, (z + NET.hw) / (2 * NET.hw))), u = Math.min(1, Math.max(0, (x - NET.x0) / (HALF_L - NET.x0)));
+  return Math.sin(Math.PI * v) * Math.sin((Math.PI / 2) * u);
+};
+// the top's height at (x, z) with the plate bowed `bow` (m at its front edge's middle), and its slopes
+function topY(x, z, x1, bow) {
   const L = x1 - NET.x0, W = 2 * NET.hw, B = NET.bulge;
   const u = Math.min(1, Math.max(0, (x - NET.x0) / L)), v = Math.min(1, Math.max(0, (z + NET.hw) / W));
-  const su = Math.sin(Math.PI * u), sv = Math.sin(Math.PI * v);
-  // (out over the U-frame, whose top is 0.07 m lower, it slopes down to it)
-  const y0 = x > HALF_L ? NET.y - (NET.y - INTAKE.frame.top) * Math.min(1, (x - HALF_L) / 0.06) : NET.y;
-  return [y0 + B * su * sv, (B * Math.PI * Math.cos(Math.PI * u) * sv) / L, (B * su * Math.PI * Math.cos(Math.PI * v)) / W];
+  const lift = B * Math.sin(Math.PI * u) * Math.sin(Math.PI * v);
+  if (x <= HALF_L) return NET.y + bow * bowShape(x, z) + lift;
+  // (out over the U-frame, whose top is 0.07 m lower, the net slopes down to it from the plate's edge)
+  const edge = NET.y + bow * bowShape(HALF_L, z);
+  return edge - (edge - INTAKE.frame.top) * Math.min(1, (x - HALF_L) / 0.06) + lift;
 }
-export const netY = (x, z, x1) => netAt(x, z, x1)[0];
+export function netAt(x, z, x1 = NET.x1, bow = 0) {
+  const e = 1e-3, y = topY(x, z, x1, bow);
+  return [y, (topY(x + e, z, x1, bow) - y) / e, (topY(x, z + e, x1, bow) - y) / e];
+}
+export const netY = (x, z, x1, bow) => topY(x, z, x1 ?? NET.x1, bow ?? 0);
+// the plate's force (N, at its front edge's middle) bowed b, and its stiffness there
+export const plateForce = (b) => PLATE.k * b + PLATE.k3 * b ** 3;
+const plateK = (b) => PLATE.k + 3 * PLATE.k3 * b * b;
 class Net1690 extends Surface {
   constructor() {
-    super({ name: 'net', vertices: [0, 0, 0, 0.01, 0, 0, 0, 0, 0.01], indices: [0, 1, 2], mu: MU.net, tread: TREAD.net });
+    super({ name: 'top plate (polycarbonate) and net', vertices: [0, 0, 0, 0.01, 0, 0, 0, 0, 0.01], indices: [0, 1, 2], mu: MU.wall, tread: TREAD.plate });
     this.x1 = NET.x1;
+    this.bow = 0; this.force = 0; this.cap = PLATE.max;
+    this.seen = new Map();
   }
   // (the U-frame's front, where the carriage puts it)
   place(x1) { this.x1 = x1; }
-  at(x, z) { return netAt(x, z, this.x1); }
-  touches(p) {
+  at(x, z) { return netAt(x, z, this.x1, this.bow); }
+  touches(p, b) {
     const [x, y, z] = p;
-    if (x <= NET.x0 || x >= this.x1 || Math.abs(z) >= NET.hw) return [];
+    // (behind the bow, the plate flat over the hopper's back right to its back edge; the back left is
+    // its opening for the turret)
+    if (x >= this.x1 || Math.abs(z) >= NET.hw || (x <= NET.x0 && !(x > PLATE.back && z > PLATE.openZ))) return [];
     const [h, hx, hz] = this.at(x, z), l = Math.hypot(hx, 1, hz), dist = (h - y) / l;
     if (dist >= R || dist < -0.03) return [];
+    // (how far the plate's bow moves the top here: out on the net, less toward the U-frame)
+    if (b) this.seen.set(b, x <= HALF_L ? bowShape(x, z) : bowShape(HALF_L, z) * Math.max(0, 1 - (x - HALF_L) / 0.06));
     return [{ depth: R - dist, n: [hx / l, -1 / l, hz / l] }];
+  }
+  // after a step: the plate bowed as far as the load pressing on it (contacts: the step's) balances
+  // its stiffness (a Newton step on the two, the FUEL's own give in series, eased over PLATE.tau)
+  flex(dt, contacts) {
+    let F = 0, K = 0;
+    for (const c of contacts) {
+      if (c.wheel !== this || !(c.force > 0)) continue;
+      const w = (this.seen.get(c.ball) ?? 0) * Math.abs(c.n[1]);
+      F += c.force * w;
+      K += ((2 * c.force) / Math.max(c.depth, 1e-4)) * w * w;
+    }
+    this.seen.clear();
+    this.force = F;
+    const step = (F - plateForce(this.bow)) / (K + plateK(this.bow));
+    // (cap: held down, a TRENCH's arm over it)
+    this.bow = Math.min(this.cap, Math.max(0, this.bow + step * Math.min(1, dt / PLATE.tau)));
   }
 }
 export { Net1690 };

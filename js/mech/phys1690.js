@@ -2,8 +2,10 @@
 // js/mech/physical.js). Their code isn't public, so its controls are what the team said on Chief
 // Delphi about how it runs (their CAD release and reveal threads), the rest estimates:
 //   - intake: the carriage slides out on its racks at the start of the match (its X44 under a
-//     position loop: driveCarriage) and the kicker bar under its rollers falls on surgical tubing and
-//     stays down; its rollers at 12 V while intaking, back out to outtake. While it shoots and isn't
+//     position loop: driveCarriage) and the kicker bar under its rollers falls on its pin onto its
+//     stop, its arms held there by their weight and the surgical tubing (driveKick: FUEL pushing up
+//     under the bar lift it); its rollers at 12 V while intaking, back out to outtake, and the floor
+//     running with them (FLOOR_INTAKE). While it shoots and isn't
 //     intaking, the rollers run and the carriage agitates: "they oscillate intake retraction about 4
 //     times a second and run the intake rollers (the intake doesn't go all the way in)" (the user,
 //     from watching them; the depth is an estimate: STROKE).
@@ -25,17 +27,19 @@
 //     reverse the kicker": the vertical kicker over 60 A under a fifth of its speed for 5 cycles (0.1
 //     s), back for 0.15 s (estimates).
 //   - not shooting: the indexer stops, the wheel coasts, the hood goes to its steep end (low: under
-//     a TRENCH; "travel ... stows the hood").
+//     a TRENCH; "travel ... stows the hood"). Under a TRENCH it doesn't feed and the hood stays
+//     stowed, and the arm holds the top plate down (r1690.js PLATE).
 //   - unjam (the AI's outtake): everything backward.
 import { Mechanism } from './mechanism.js';
 import { PhysicalRobot } from './physical.js';
 import {
-  build1690, wheels1690, shooterWheel, feederWheels, pathSurfaces1690, placeIntake, placeTurret, turretPoint, intakeFront, kickAt,
-  HALF_L, HALF_W, INTAKE, FLOOR, TOP, BELT, VKICK, FEED, SHOOTER, TURRET, NET, WALL, PRELOAD, SLIDE,
+  build1690, wheels1690, shooterWheel, feederWheels, pathSurfaces1690, placeIntake, placeTurret, turretPoint, intakeFront, kickAt, kickLoad,
+  HALF_L, HALF_W, INTAKE, FLOOR, TOP, BELT, VKICK, FEED, SHOOTER, TURRET, NET, WALL, PRELOAD, SLIDE, PLATE, bowShape,
 } from './r1690.js';
 import { speedLoop, profile } from './phys1706.js';
 import { Field } from '../field.js';
-import { FUEL } from '../constants.js';
+import { underTrench } from '../nav.js';
+import { FUEL, TRENCH } from '../constants.js';
 import { clamp, wrapAngle } from '../util.js';
 import { drive1690 } from './turretDrive.js';
 
@@ -77,6 +81,8 @@ const SLIDE_KP = 4;
 // for the first half of each 1/hz s, back out for the second, at up to `volts` (estimates: "about 4
 // times a second", "doesn't go all the way in": a quarter of its 0.32 m). STROKE.on false: none
 export const STROKE = { on: true, hz: 4, depth: 0.08, volts: 12 };
+// the floor's motor's RPS while it intakes and isn't feeding (their scoring speed: an estimate)
+export const FLOOR_INTAKE = 75;
 // (held out: pushed against its stop at least this (V: ~60 N), so the load on the U-frame doesn't push it in)
 const HOLD_V = 0.5;
 // its X44 for the carriage's state st ({ pos (m out), strokeT, strokes }): out once deployed and
@@ -103,12 +109,33 @@ export function moveCarriage(st, slide, dt) {
   if (st.pos > SLIDE.travel) { st.pos = SLIDE.travel; if (slide._omega > 0) slide._omega = 0; }
 }
 
+// ---- the kicker bar's arms on their pin (st.kick: their angle, deg from folded; down is negative):
+// as far down as the carriage lets them (kickAt: it holds them up until it's out past them) and no
+// further than their stop (INTAKE.kick.fall); their weight and the tubing pull them down, what FUEL
+// push on the bar lifts them. rigid: posed by the carriage
+export function driveKick(st, arm, ext) {
+  const lim = kickAt(ext);
+  if (INTAKE.kick.rigid) { st.kick = lim; arm._omega = 0; arm.stop(0, 0); return; }
+  if (st.kick < lim) st.kick = lim;
+  if (st.kick <= lim + 1e-6) arm.stop(0, Infinity); else if (st.kick >= 0) arm.stop(-Infinity, 0); else arm.stop();
+  arm.load = kickLoad(st.kick);
+  arm.cmd = null;
+}
+export function moveKick(st, arm, dt, ext) {
+  if (INTAKE.kick.rigid) return;
+  st.kick += (arm.omega * dt) / DEG;
+  const lim = kickAt(ext);
+  if (st.kick < lim) { st.kick = lim; if (arm._omega < 0) arm._omega = 0; }
+  if (st.kick > 0) { st.kick = 0; if (arm._omega > 0) arm._omega = 0; }
+  st.kickMax = Math.max(st.kickMax ?? -Infinity, st.kick - INTAKE.kick.fall);
+}
+
 export class Physical1690 extends PhysicalRobot {
   constructor(robot) {
     const t = build1690(), w = wheels1690(t), s = pathSurfaces1690(t), sw = { wheel: shooterWheel(t), feeder: feederWheels(t) };
     const pathWheels = [...w.intake, ...w.floor, w.vkick, ...w.feed];
     super(robot, {
-      path: new Mechanism({ body: robot.body, substeps: 6, shafts: [...new Set(pathWheels.map((x) => x.shaft)), ...t.belts, t.slide], wheels: pathWheels, surfaces: [s.body, s.bodyFine, s.ptfe, s.bottom, s.top, s.carriage, s.kick, s.bumper, s.net] }),
+      path: new Mechanism({ body: robot.body, substeps: 6, shafts: [...new Set(pathWheels.map((x) => x.shaft)), ...t.belts, t.slide, t.kickArm], wheels: pathWheels, surfaces: [s.body, s.bodyFine, s.ptfe, s.bottom, s.top, s.carriage, s.kick, s.kickTube, s.bumper, s.net] }),
       // (the turret and the hood with the wheel and the hood's feeder wheels: a FUEL leaves at up to 12
       // m/s, too far in a step to follow without sub-steps)
       shooter: new Mechanism({ body: robot.body, substeps: 6, sub: 8, shafts: [t.wheel, ...t.hoodWheels], wheels: [sw.wheel, ...sw.feeder], surfaces: [s.turret, s.hood] }),
@@ -123,13 +150,13 @@ export class Physical1690 extends PhysicalRobot {
   reset() {
     super.reset();
     // the intake folded in (inside the frame, as it starts its matches), the hood stowed
-    this.deploy = 0; this.pos = 0; this.deployed = false; this.agitating = false; this.strokeT = null;
+    this.deploy = 0; this.pos = 0; this.kick = 0; this.deployed = false; this.agitating = false; this.strokeT = null;
     this.hood = HOOD_STOW; this.hoodSet = [HOOD_STOW, 0]; this.hoodGoal = HOOD_STOW;
     this.feedingNow = false; this.slowT = 0; this.jamT = 0; this.backT = 0; this.ready = false;
     this.want = null; this.aimPsi = null;
     const T = this.t;
     for (const tr of [T.intake, T.floor, T.feed, T.shooter]) { tr.omega = 0; tr.cmd = null; tr.vel = null; }
-    for (const sh of [T.tube, T.vkick, T.slide, ...T.belts]) { sh._omega = 0; sh.cmd = null; sh.vel = null; }
+    for (const sh of [T.kickArm, T.vkick, T.slide, ...T.belts]) { sh._omega = 0; sh.cmd = null; sh.vel = null; }
   }
 
   // its FUEL: in the frame (the hopper over the floor, the belts, the corridor, up into the turret),
@@ -156,23 +183,27 @@ export class Physical1690 extends PhysicalRobot {
   preStep(dt, t) {
     const r = this.r;
     // (put somewhere by the game, not by its motors: a staged scene, its intake out or in)
-    if (this.lastDeploy !== undefined && Math.abs(r.intakeDeploy - this.lastDeploy) > 1e-6) { this.pos = SLIDE.travel * r.intakeDeploy; this.deployed = r.intakeDeploy > 0.5; this.t.slide._omega = 0; }
+    if (this.lastDeploy !== undefined && Math.abs(r.intakeDeploy - this.lastDeploy) > 1e-6) { this.pos = SLIDE.travel * r.intakeDeploy; this.kick = kickAt(r.intakeDeploy); this.deployed = r.intakeDeploy > 0.5; this.t.slide._omega = 0; this.t.kickArm._omega = 0; }
     // out on its racks at the start of the match, and out from then on (agitating while it shoots
     // and isn't intaking: postStep's agitating)
     if (r.enabled) this.deployed = true;
     driveCarriage(this, this.t.slide, dt, { on: r.enabled && this.deployed, agitate: this.agitating });
     this.deploy = this.pos / SLIDE.travel;
+    driveKick(this, this.t.kickArm, this.deploy);
     this.hoodSet = profile(...this.hoodSet, this.hoodGoal, SHOOTER.hoodV, SHOOTER.hoodA, dt);
     this.hood = this.hoodSet[0];
     this._place(r.turretYaw || 0);
     this.stepMechanisms(dt, t);
+    // (the top plate bowed by what the load pressed on it this step)
+    this.s.net.flex(dt, this.path.contacts);
     moveCarriage(this, this.t.slide, dt);
     this.deploy = this.pos / SLIDE.travel;
+    moveKick(this, this.t.kickArm, dt, this.deploy);
     r.intakeDeploy = this.lastDeploy = this.deploy;
   }
   _place(yaw) {
     const s = this.s;
-    placeIntake(s, this.w.intake, this.deploy);
+    placeIntake(s, this.w.intake, this.deploy, this.kick);
     s.net.place(Math.max(HALF_L, this._front()));
     placeTurret(s, this.sw, yaw, this.hood);
   }
@@ -214,18 +245,23 @@ export class Physical1690 extends PhysicalRobot {
     this.agitating = !!sol && !intaking && !unjam;
     this.aimPsi = sol ? sol.psi : null;
     const surf = sol ? surfFor(sol.v) : 0;
-    if (sol) { this.hoodGoal = hoodFor(sol.el); speedLoop(T.shooter, surf / S.r, S.kP); }
+    // (under a TRENCH, or about to be, the hood stays stowed and nothing's fed: their "travel" stows
+    // the hood; lowered for a shot, its arms would rise past the TRENCH's arm)
+    const inTrench = underTrench(r.pos.x, r.pos.z, 0.45);
+    // (and its arm, riding over the top plate, holds it down: the load under it pressed down too)
+    this.s.net.cap = inTrench ? Math.max(0, TRENCH.clearHeight - 0.003 - NET.y) : PLATE.max;
+    if (sol) { this.hoodGoal = inTrench ? HOOD_STOW : hoodFor(sol.el); speedLoop(T.shooter, surf / S.r, S.kP); }
     else { this.hoodGoal = HOOD_STOW; speedLoop(T.shooter, null); }
     const wheelSurf = Math.abs(T.wheel.omega) * S.r;
     const atV = !!sol && Math.abs(wheelSurf - surf) < S.tolV * surf;
     const atHood = Math.abs(this.hood - this.hoodGoal) < S.tolHood;
     const tol = pass ? 4 * DEG : Math.max(0.8 * DEG, Math.atan2(0.14, sol?.d || 1));
     const atYaw = Math.abs(r.aimErr ?? Infinity) < tol;
-    this.ready = !!sol && atV && atHood && atYaw;
+    this.ready = !!sol && atV && atHood && atYaw && !inTrench;
     // (it starts feeding once ready, and keeps on through the wheel's dip as each shot leaves: their
     // code slows the conveyor for a wheel that stays low, it doesn't stop it; off the aim or the hood,
     // it stops)
-    this.feedingNow = on && feeding && !!sol && !unjam && atYaw && atHood && (atV || this.feedingNow);
+    this.feedingNow = on && feeding && !!sol && !unjam && !inTrench && atYaw && atHood && (atV || this.feedingNow);
     // ---- the indexer
     this.slowT = sol && wheelSurf < 0.92 * surf ? this.slowT + dt : 0;
     const slow = this.slowT > 0.1 ? 0.6 : 1, k = pass ? 1 : 0;
@@ -245,6 +281,10 @@ export class Physical1690 extends PhysicalRobot {
       speedLoop(T.feed, (Math.max(FEED_MIN, FEED_SHARE * surf) / FEED.topR) * slow);
     } else {
       for (const a of [T.floor, ...T.belts, vk, T.feed]) speedLoop(a, null);
+      // (intaking, the floor runs too: what comes over the bumper stops on its top, out of the intake
+      // rollers' reach and short of the floor's first roller, until the floor's front rollers draw it
+      // in; FLOOR_INTAKE, an estimate: their code isn't public)
+      if (intaking) speedLoop(T.floor, rps(FLOOR_INTAKE, T.floor));
     }
     // what the robot's aiming, its HUD and drawing see
     r.hoodDeg = elevationAt(this.hood);
@@ -257,13 +297,23 @@ export class Physical1690 extends PhysicalRobot {
   // how far the U-frame is out past the frame (m), for the hopper's collider and drawing it
   extNow() { return Math.max(0, this._front() - HALF_L); }
   // the other moving parts, for drawing them: how far the carriage is out (0 to 1) and the kicker
-  // bar's fall (rad), the hood's angle (rad about the axle), the wheels' and belts' speeds
+  // bar's fall (rad), the top plate's bow (m), the hood's angle (rad about the axle), the wheels' and belts' speeds
   mechPose() {
     const T = this.t;
-    return { ext: this.deploy, kick: kickAt(this.deploy) * DEG, hood: this.hood * DEG, wheel: T.wheel.omega, feeder: T.hoodWheels[0].omega, floor: T.floor.omega, top: T.top[0].omega, belts: T.belts.map((b) => b.omega * BELT.pitch), vkick: T.vkick.omega, feed: T.feed.omega, intakeRollers: T.intake.omega, tube: T.tube.omega };
+    return { ext: this.deploy, kick: this.kick * DEG, hood: this.hood * DEG, wheel: T.wheel.omega, feeder: T.hoodWheels[0].omega, floor: T.floor.omega, top: T.top[0].omega, belts: T.belts.map((b) => b.omega * BELT.pitch), vkick: T.vkick.omega, feed: T.feed.omega, intakeRollers: T.intake.omega, bow: this.s.net.bow };
   }
-  // the load's top (for the net and the TRENCH)
-  loadTop() { let top = 0; for (const b of this.held) { const y = this._local(b.pos)[1]; if (y + R > top) top = y + R; } return top; }
+  // the load's top (for the TRENCH): where the top plate's bowed over a FUEL, as far down as a
+  // TRENCH's arm could press it (PLATE.press)
+  loadTop() {
+    const bow = this.s.net.bow;
+    let top = 0;
+    for (const b of this.held) {
+      const [x, y, z] = this._local(b.pos);
+      const t = y + R - (bow > 0 && x > NET.x0 && Math.abs(z) < NET.hw ? Math.min(PLATE.press, bow * bowShape(Math.min(x, HALF_L), z)) : 0);
+      if (t > top) top = t;
+    }
+    return top;
+  }
   // how many it holds (tools/mechlab1690.mjs intakefull and hold)
   capacity() { return 50; }
 

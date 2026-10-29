@@ -488,13 +488,19 @@ export const ROBOTS = {
     teamName: 'Orbit',
     robotName: 'Kepler',
     archetype: 'Compact turret',
-    blurb: 'A compact gear-driven turret on an 8in bearing shoots on the move while the intake keeps running. A roller floor pushes FUEL back into two belts along the back, which carry them to flex wheels that kick them up into the turret, where a 4in wheel throws them out against wheels on its hood, geared to it. The intake slides out with the hopper\'s lattice front, under a lattice frame over the top.',
+    blurb: 'A compact gear-driven turret on an 8in bearing shoots on the move while the intake keeps running. A roller floor pushes FUEL back into two belts along the back, which carry them to flex wheels that kick them up into the turret, where a 4in wheel throws them out against wheels on its hood, geared to it. The intake slides out with the hopper\'s lattice front, under a thin polycarbonate top that bows up over a full load.',
     // built of its physical mechanisms (js/mech/r1690.js, phys1690.js) from their CAD (their X_T
     // release): its FUEL go through the ball path's own surfaces, moved by its rollers, belts,
     // kickers, shooter wheel and the hood's wheels, each on the drive its CAD traces
     physical: '1690',
     frame: { length: 25.0 * IN, width: 29.0 * IN },
-    height: 22.2 * IN, // the CAD's: the lattice frame over the top at 0.551 m, the turret's hood (stowed) at 0.565
+    // the CAD's driving pose (Closed: the climber down, the hood stowed at its steep end): its top, the
+    // turret's side plates, 0.553 m at any yaw (the polycarbonate top plate 0.551). The frame's
+    // collider is a prism to this height over the whole frame, which meets a TRENCH arm's edge in
+    // Rapier's contact margin within ~1 cm of it: 21.5in, the team's own figure, 7 mm under the
+    // turret's plates. Under a TRENCH the hood stays stowed (phys1690): lowered for a shot, its arms
+    // rise to ~0.65 m
+    height: 21.5 * IN,
     mass: 63, // robot (up to 115 lb) + bumpers + battery
     // they geared down (and spiked wheels) mid-season for the BUMP, TRENCH and defense: 13.1 ft/s free
     drive: { ratio: 7.73 },
@@ -502,11 +508,13 @@ export const ROBOTS = {
     // and the hopper's lattice front, over the kicker bar that surgical tubing pulls down once it's out
     intake: { width: 25.5 * IN, reach: 0.2, rate: 200, pull: 5, deployTime: 0.3, side: 'front', latched: true },
     // the lattice U-frame on the carriage reaches out over the intake (0.30 m past the frame)
-    storage: { extLen: 0.30, extend: 'latched' },
+    // (box: the U-frame's extents from its CAD, 0.2 to 0.482 m up, its plates 0.362 m out each side:
+    // a real one to the field and robots, not to its own FUEL, which meet its ball path's surfaces)
+    storage: { extLen: 0.30, extend: 'latched', box: { y0: 0.2, y1: 0.482, hw: 0.362 } },
     // their CAD: the roller floor (nine rollers, 0.18 to 0.14 m up, front to back) between the side
-    // panels (0.716 m apart) to the lattice frame over the top (0.551 m); the belts along the back
+    // panels (0.716 m apart) to the top plate (0.551 m: 2 mm polycarbonate that the load bows up); the belts along the back
     // (0.159 and 0.302 m), the kickers up into the turret at the back left; the electronics box at the
-    // back right. Netting over the top (js/mech/r1690.js NET)
+    // back right. The top plate and netting out over the U-frame (js/mech/r1690.js NET, PLATE)
     bay: {
       x0: -0.21, x1: 0.3175, hw: 0.355, top: 0.551,
       dome: { h: 0.01, x0: -0.02, cx: 0, cz: 0, rHole: -1 },

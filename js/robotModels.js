@@ -2214,14 +2214,16 @@ function build1678(cfg, alliance) {
 // From 1690's public X_T release (their CAD release thread's Drive folder), imported into Onshape and
 // split by tools/extract-parts.mjs (cad/robots/1690.json): the body (the chassis, the roller floor's
 // plates, the belts' housing and backing plate, the kickers' frames, the turret's fixed deck and the
-// energy chain's tray and spring, the electronics box, the hopper's side and back panels and the
-// lattice frame over the top), the turret (its base and plates, the two X60s), the hood (its lattice
-// arms and printed "hollow hood", turning about the 4in wheel's axle), the intake's carriage (the
-// lattice U-frame, the black side bars, the rollers' motor and belts) and the kicker bar's arms. The
+// energy chain's tray and spring, the electronics box), the hopper's polycarbonate side and back
+// panels (1690-panels: clear; their aluminum corner brackets stay in the body) and its polycarbonate
+// lattice top plate (1690-top, bowed by the load), the turret (its base and plates, the two X60s), the
+// hood (its lattice arms and printed "hollow hood", turning about the 4in wheel's axle), the intake's
+// carriage (its polycarbonate lattice U-frame, clear; the black side bars, the rollers' motor and
+// belts) and the kicker bar's arms. The
 // X_T has no mates: the carriage slides out and down 12 deg (js/mech/r1690.js INTAKE.slide), the
 // kicker bar falls on its pin, the hood turns about the wheel's axle. What turns is drawn here, at the
 // CAD's axes, so it spins about them: the floor's rollers and the two over its back, the intake's
-// rollers and the kicker bar's tube, the belts' pulleys, the vertical kicker, the bottom and top
+// rollers, the belts' pulleys, the vertical kicker, the bottom and top
 // kickers' wheels, the 4in shooter wheel and the hood's wheels. The energy chain round the turret
 // is js/echainModel.js (the X_T has its tray, spring, guide and swivel, not its links). Until the CAD loads
 // (and at the Lowest graphics), a drawn stand-in.
@@ -2337,11 +2339,50 @@ function build1690(cfg, alliance) {
   const kDrawn = new THREE.Group();
   kick.add(kDrawn);
   for (const s of [-1, 1]) rod(kDrawn, new THREE.Vector3(0, 0, s * 0.338), new THREE.Vector3(K.tube[0] - K.pivot[0], K.tube[1] - K.pivot[1], s * 0.338), 0.008, std(0x17181b, 0.5, 0.3));
-  const tube = rollerZ(kick, K.tube[0] - K.pivot[0], K.tube[1] - K.pivot[1], 0, K.tube[2], K.width, M.alu);
+  rollerZ(kick, K.tube[0] - K.pivot[0], K.tube[1] - K.pivot[1], 0, K.tube[2], K.width, M.alu);
 
-  // ---- the net over the top (their CAD has none: js/mech/r1690.js NET), tied along the lattice
-  // frame's top and out over the U-frame's top edges
-  const net = hopperNet(root, { x0: D.NET.x0, x1: D.HALF_L, x1Out: D.NET.x1, xFixed: D.HALF_L, hw: D.NET.hw, y: D.NET.y + 0.004, yFront: FR.top + 0.004, NX: 30, NZ: 30, slack: D.NET.hang });
+  // ---- the hopper's polycarbonate: its side and back panels (1690-panels) and the lattice top
+  // plate (1690-top, 2 mm), which the load bows up (js/mech/r1690.js PLATE: mp.bow at its free front
+  // edge's middle, bowShape over it): its triangles moved into the plate's group unquantized, so
+  // their corners can follow the bow
+  cadPart(root, 'robots/1690-panels.glb', () => {});
+  const plate = new THREE.Group();
+  root.add(plate);
+  const plateParts = [];
+  let plateBow = 0;
+  cadPart(plate, 'robots/1690-top.glb', (sc) => {
+    plate.updateMatrixWorld(true);
+    const inv = new THREE.Matrix4().copy(plate.matrixWorld).invert();
+    const meshes = [];
+    sc.traverse((o) => { if (o.isMesh) meshes.push(o); });
+    for (const o of meshes) {
+      const g = o.geometry.clone(), src = g.attributes.position, a = new Float32Array(src.count * 3);
+      for (let i = 0; i < src.count; i++) a.set([src.getX(i), src.getY(i), src.getZ(i)], i * 3);
+      g.setAttribute('position', new THREE.BufferAttribute(a, 3));
+      g.deleteAttribute('normal');
+      g.applyMatrix4(new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld));
+      g.computeVertexNormals();
+      o.geometry = g;
+      o.position.set(0, 0, 0); o.quaternion.identity(); o.scale.set(1, 1, 1);
+      plate.add(o);
+      plateParts.push({ g, base: a.slice() });
+    }
+    plate.remove(sc);
+    plateBow = -1;
+  });
+  const bowPlate = (bow) => {
+    if (Math.abs(bow - plateBow) < 0.0005) return;
+    plateBow = bow;
+    for (const { g, base } of plateParts) {
+      const a = g.attributes.position.array;
+      for (let i = 0; i < a.length; i += 3) a[i + 1] = base[i + 1] + bow * D.bowShape(base[i], base[i + 2]);
+      g.attributes.position.needsUpdate = true;
+      g.computeVertexNormals();
+    }
+  };
+  // ---- the net out over the U-frame (their CAD has none: js/mech/r1690.js NET), from the top
+  // plate's front edge to the U-frame's top edges
+  const net = hopperNet(root, { x0: D.HALF_L, x1: D.HALF_L, x1Out: D.NET.x1, xFixed: D.HALF_L, hw: D.NET.hw, y: D.NET.y + 0.004, yFront: FR.top + 0.004, NX: 16, NZ: 30, slack: D.NET.hang });
 
   // ---- the CAD
   cadPart(root, 'robots/1690-body.glb', () => { drawn.visible = false; });
@@ -2361,7 +2402,6 @@ function build1690(cfg, alliance) {
     // -x (their runs toward the FUEL go left); the vertical kicker about -y; the kickers' wheels about
     // their fore-aft axles; the shooter wheel about the turret's -z and the feeder wheels about +z)
     for (const r of intakeRollers) r.rotation.z -= (mp ? mp.intakeRollers : st.intakeSpeed * 300) * dt;
-    if (mp) tube.rotation.z += mp.tube * dt;
     floorRollers.forEach((r, i) => { r.rotation.z += (mp ? mp.floor * D.FLOOR.k[i] : st.feeding * 30) * dt; });
     topRollers.forEach((r, i) => { r.rotation.z += (mp ? mp.floor * D.TOP.k[i] : -st.feeding * 30) * dt; });
     // (the bottom belt's pulleys are under its run, the top belt's over its: they turn opposite ways)
@@ -2375,7 +2415,9 @@ function build1690(cfg, alliance) {
     const h = mp ? mp.hood : ((st.hoodDeg + 90) * Math.PI) / 180;
     hood.rotation.z = h - (D.HOOD0 * Math.PI) / 180;
     for (const w of feeder) w.rotation.z += (mp ? mp.feeder : st.flywheel * 6) * dt;
-    net.drape(st.load, Math.max(0, ext * I.slide[0] - 0.01));
+    const bow = mp?.bow ?? 0;
+    bowPlate(bow);
+    net.drape(st.load, Math.max(0, ext * I.slide[0] - 0.01), { y: D.NET.y + 0.004 + (2 / Math.PI) * bow });
   };
   return { root, anim, stored: [], modules, extLen: cfg.storage.extLen };
 }

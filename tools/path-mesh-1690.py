@@ -101,7 +101,9 @@ CARRIAGE = re.compile(r'^1690-26-25[12]-|X60 Brushless Motor \(5\)|^Part 10[4-8]
 KICK = re.compile(r'^Part 15[49]$')
 HOOD = re.compile(r'^1690-26-44\d|^1690-26-451-05A')
 TURRET_RX = re.compile(r'^1690-26-43\d|^1690-26-451|Kraken X60 Brushless Motor \(3\)|X60 Brushless Motor-Mirrored|X44 Brushless Motor-Mirrored|'
-                       r'^Part 1(1[7-9]|2\d)$|^1690-26-423-0[67]A')
+                       r'^Part 1(1[7-9]|2\d)(-Mirrored)?$|^1690-26-423-0[67]A')
+# (and the two 411-10A spacers up on the turret, over its bearing; the third is under it, on the deck)
+ON_TURRET = lambda n0, T: TURRET_RX.search(n0) or (n0.startswith('1690-26-411-10A') and T[..., 1].mean() > 0.4)
 
 if __name__ == '__main__':
     parts = load(SRC)
@@ -121,7 +123,7 @@ if __name__ == '__main__':
             k = 'carriage' if CARRIAGE.search(names[0]) else 'kick' if KICK.search(names[0]) else 'body'
         elif sub.startswith('1690-26-400'):
             n0 = names[0]
-            k = 'hood' if HOOD.search(n0) else 'turret' if TURRET_RX.search(n0) else 'body'
+            k = 'hood' if HOOD.search(n0) else 'turret' if ON_TURRET(n0, T) else 'body'
         else:
             k = 'ptfe' if re.match(r'1690-26-313-10A', names[0]) else 'body'
         groups[k].append(T)
