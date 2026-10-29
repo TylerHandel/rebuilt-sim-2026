@@ -11,8 +11,10 @@
 //     turret's own velocity a latency ahead: "tangential and radial velocity ... derivative of the
 //     desired flywheel speed"); once the turret, the hood and the wheel are there, the indexer runs:
 //     the floor at 75 RPS and the top and bottom belts at 95 RPS (passing: 85 and 100), the vertical
-//     kicker at 60 RPS, the feeder's wheels at 60% of the shooter wheel's surface speed and at least
-//     5 m/s (all the team's numbers, their motors' speeds), each a velocity loop on its Talon.
+//     kicker at 60 RPS (all the team's numbers, their motors' speeds), the feeder wheels (the bottom
+//     and top kicker's X60: r1690.js) at 60% of the shooter wheel's surface speed and at least 5 m/s
+//     at the top kicker's Stealth wheels (the team's), each a velocity loop on its Talon. The hood's
+//     wheels have no motor: they're geared to the shooter wheel.
 //   - "if our shooter wheels stay below their target velocity for a sustained period, we
 //     automatically slow down the conveyor": under 92% for 0.1 s, the floor and belts at 60% until
 //     it's back (estimates).
@@ -37,7 +39,7 @@ import { drive1690 } from './turretDrive.js';
 const DEG = Math.PI / 180, TAU = 2 * Math.PI, R = FUEL.radius;
 // the indexer's speeds (their motors' RPS: the team), scoring and passing
 export const RPS = { floor: [75, 85], belts: [95, 100], vkick: 60 };
-// the feeder's surface: a share of the shooter wheel's, and at least this (m/s)
+// the feeder wheels' surface (the top kicker's): a share of the shooter wheel's, and at least this (m/s)
 export const FEED_SHARE = 0.6, FEED_MIN = 5;
 const LATENCY = 0.05; // s: their loop and the turret's lag (estimate)
 // Its shots, as the bench measures them (tools/mechlab1690.mjs shooter and calibrate): where the FUEL
@@ -45,10 +47,10 @@ const LATENCY = 0.05; // s: their loop and the turret's lag (estimate)
 // gives (deg: the hood's angle about the axle, 90 + its geometric elevation, -> the FUEL's), and the
 // wheel's surface speed each exit speed takes (m/s). Tuned on FUEL fed up the bore in a stream by the
 // indexer (calibrate FED=1), the way it fires: those leave about 4% faster than lone FUEL thrown up
-// the bore, pressed into the wheel by the next one. Past 9.3 m/s, lone FUEL (the wheel saturates).
+// the bore, pressed into the wheel by the next one. Past 9.1 m/s, lone FUEL (the wheel saturates).
 export const EXIT = { s: 0.03, y: 0.66 };
-export const EL_MAP = [[125, 37.4], [144.2, 57.6], [144.9, 58], [145.9, 59.1], [147, 60.2], [148.3, 61], [150.4, 62.9], [151.6, 64], [153.8, 65.9], [156.9, 68.6], [160.5, 71.7], [163.4, 75], [172, 84.9]];
-export const EXIT_MAP = [[0, 0], [4, 6], [6.05, 9.02], [6.4, 9.57], [6.79, 10.22], [7.15, 10.87], [7.56, 11.66], [7.89, 12.15], [8.26, 13.04], [8.61, 13.7], [8.95, 14.2], [9.3, 15.71], [9.8, 19.14]];
+export const EL_MAP = [[125, 37.4], [144.4, 57.6], [145.1, 58], [146.3, 59], [146.8, 60], [148.2, 61.3], [150.6, 62.9], [151.8, 63.9], [153.8, 66.1], [156.6, 68.6], [160.1, 72], [163.2, 75], [172, 84.9]];
+export const EXIT_MAP = [[0, 0], [4, 5], [5.95, 7.47], [6.04, 7.54], [6.43, 8.14], [6.76, 8.6], [7.15, 9.28], [7.54, 10.13], [7.94, 10.72], [8.2, 12.97], [8.52, 14.03], [9.03, 16.22], [9.14, 17.55], [9.8, 20]];
 const interp = (t, x, a = 0, b = 1) => {
   if (x <= t[0][a]) return t[0][b];
   for (let k = 1; k < t.length; k++) if (x <= t[k][a]) return t[k - 1][b] + ((t[k][b] - t[k - 1][b]) * (x - t[k - 1][a])) / (t[k][a] - t[k - 1][a]);
@@ -89,7 +91,7 @@ export class Physical1690 extends PhysicalRobot {
     this.feedingNow = false; this.slowT = 0; this.jamT = 0; this.backT = 0; this.ready = false;
     this.want = null; this.aimPsi = null;
     const T = this.t;
-    for (const tr of [T.intake, T.floor, T.feed, T.shooter, T.hoodTrain]) { tr.omega = 0; tr.cmd = null; tr.vel = null; }
+    for (const tr of [T.intake, T.floor, T.feed, T.shooter]) { tr.omega = 0; tr.cmd = null; tr.vel = null; }
     for (const sh of [T.tube, T.vkick, ...T.belts]) { sh._omega = 0; sh.cmd = null; sh.vel = null; }
   }
 
@@ -167,9 +169,8 @@ export class Physical1690 extends PhysicalRobot {
     this.want = sol;
     this.aimPsi = sol ? sol.psi : null;
     const surf = sol ? surfFor(sol.v) : 0;
-    // (the hood's feeder wheels at 60% of the wheel's target, at least 5 m/s)
-    if (sol) { this.hoodGoal = hoodFor(sol.el); speedLoop(T.shooter, surf / S.r, S.kP); speedLoop(T.hoodTrain, Math.max(FEED_MIN, FEED_SHARE * surf) / S.feeder.r); }
-    else { this.hoodGoal = HOOD_STOW; speedLoop(T.shooter, null); speedLoop(T.hoodTrain, unjam ? -3 / S.feeder.r : null); }
+    if (sol) { this.hoodGoal = hoodFor(sol.el); speedLoop(T.shooter, surf / S.r, S.kP); }
+    else { this.hoodGoal = HOOD_STOW; speedLoop(T.shooter, null); }
     const wheelSurf = Math.abs(T.wheel.omega) * S.r;
     const atV = !!sol && Math.abs(wheelSurf - surf) < S.tolV * surf;
     const atHood = Math.abs(this.hood - this.hoodGoal) < S.tolHood;
@@ -195,8 +196,8 @@ export class Physical1690 extends PhysicalRobot {
       speedLoop(T.floor, rps(RPS.floor[k], T.floor) * slow);
       for (const b of T.belts) speedLoop(b, rps(RPS.belts[k], b) * slow);
       speedLoop(vk, (this.backT > 0 ? -1 : 1) * rps(RPS.vkick, vk));
-      // (the bottom and top kickers: their speed isn't public; at the belts' motor speed, an estimate)
-      speedLoop(T.feed, rps(RPS.belts[k], T.feed) * slow);
+      // (the feeder wheels: the top kicker's surface at their share of the shot's wheel speed)
+      speedLoop(T.feed, (Math.max(FEED_MIN, FEED_SHARE * surf) / FEED.topR) * slow);
     } else {
       for (const a of [T.floor, ...T.belts, vk, T.feed]) speedLoop(a, null);
     }
@@ -214,12 +215,12 @@ export class Physical1690 extends PhysicalRobot {
   // bar's fall (rad), the hood's angle (rad about the axle), the wheels' and belts' speeds
   mechPose() {
     const T = this.t;
-    return { ext: this.deploy, kick: kickAt(this.deploy) * DEG, hood: this.hood * DEG, wheel: T.wheel.omega, feeder: T.hoodTrain.omega, floor: T.floor.omega, top: T.top[0].omega, belts: T.belts.map((b) => b.omega * 0.0175), vkick: T.vkick.omega, feed: T.feed.omega, intakeRollers: T.intake.omega, tube: T.tube.omega };
+    return { ext: this.deploy, kick: kickAt(this.deploy) * DEG, hood: this.hood * DEG, wheel: T.wheel.omega, feeder: T.hoodWheels[0].omega, floor: T.floor.omega, top: T.top[0].omega, belts: T.belts.map((b) => b.omega * BELT.pitch), vkick: T.vkick.omega, feed: T.feed.omega, intakeRollers: T.intake.omega, tube: T.tube.omega };
   }
   // the load's top (for the net and the TRENCH)
   loadTop() { let top = 0; for (const b of this.held) { const y = this._local(b.pos)[1]; if (y + R > top) top = y + R; } return top; }
   // how many it holds (tools/mechlab1690.mjs intakefull and hold)
-  capacity() { return 47; }
+  capacity() { return 50; }
 
   // The turret on its motor (js/mech/turretDrive.js): its X60 under a position loop, against its
   // bearings and its energy chain (js/echain.js). js/robot.js asks it each step where the turret gets

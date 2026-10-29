@@ -1,43 +1,62 @@
 // 1690's Kepler as physical mechanisms (js/mech/mechanism.js), from their CAD: the X_T release their
-// CAD thread on Chief Delphi links ("1690-26-Top Level Closed.x_t", in their public Drive folder),
-// imported into Onshape and exported as STEP (cad/README.md). The X_T carries no mates, so the axes
-// below are the parts' own cylinders, read with OpenCascade, and the surfaces FUEL touch are the CAD's
-// (tools/path-mesh-1690.py -> js/mech/path1690.js). The speeds are what the team posted in their CAD
-// release thread: the hopper floor at 75 RPS and the top and bottom belts at 95 RPS scoring (85 / 100
-// passing), the vertical kicker at 60 RPS, the shooter's feeder wheels at 60% of the shooter wheel's
-// surface speed, at least 5 m/s. Their code isn't public ("software is our competitive edge").
-// Everything marked is an estimate. Robot frame: x forward (the intake end), y up, z to its right; the
-// CAD's X is the robot's left, Y forward, Z down.
+// CAD thread on Chief Delphi links ("1690-26-Top Level Closed.x_t" and "...Open.x_t", in their public
+// Drive folder), imported into Onshape and exported as STEP (cad/README.md). The X_T carries no mates,
+// so the axes below are the parts' own cylinders, read with OpenCascade (tools/step-axes.py); the
+// moves are the Closed and Open poses compared part by part; the surfaces FUEL touch are the CAD's
+// (tools/path-mesh-1690.py -> js/mech/path1690.js). Every drive is traced from its motor through each
+// gear, pulley and belt to what it turns: tooth counts from the BOM's names, from each belt's own
+// length and wrap radii (its pulleys' pitch circles: the belt's length then checks to 0.1 mm), and from
+// the gears' outside diameters and center distances (20 DP: (N1 + N2) / 40 in apart). The speeds are
+// what the team posted in their CAD release thread, their motors' RPS (the reductions below put any
+// mechanism at those RPS far past a Kraken's free speed): the hopper floor at 75 RPS and the top and
+// bottom belts at 95 RPS scoring (85 / 100 passing), the vertical kicker at 60 RPS, the "feeder
+// wheels" at 60% of the shooter wheel's surface speed, at least 5 m/s. Their code isn't public
+// ("software is our competitive edge"). Everything marked is an estimate. Robot frame: x forward (the
+// intake end), y up, z to its right; the CAD's X is the robot's left, Y forward, Z down.
 //
-// The ball path:
-//   - intake (sub-assembly 200): a carriage that slides out of the frame and down 12 deg on its black
-//     side bars (they run on rollers fixed to the side plates, driven by a pinion: an X44 and a
-//     MAXPlanetary), 0.318 m from "Closed" (the X_T's pose, inside the frame: travel) to out. On it,
-//     two silicone-wrapped polycarbonate rollers (an X60 belted 15t:31t) and the lattice U-frame that
-//     is the hopper's front and sides out over the intake. Under the rollers, the "kicker bar": an
-//     aluminum tube on two arms turning on a pin fixed to the side plates, stowed folded up behind
-//     the intake; when the carriage comes out it falls and surgical tubing holds it down ("tangent to
-//     the intake plate"), so FUEL are pinched between it and the rollers and climb the bumper.
+// The ball path and its drives:
+//   - intake (sub-assembly 200): a carriage that slides out of the frame on its black side bars,
+//     0.3196 m and 12.5 deg down from "Closed" (inside the frame: travel) to "Open" (the two X_Ts'
+//     carriage parts all moved by that one vector), driven by an X44 through a MAXPlanetary 4:1 and an
+//     18T:28T 5M belt to pinions on a cross shaft. On it, two silicone-wrapped polycarbonate rollers
+//     and the lattice U-frame that is the hopper's front and sides out over the intake: an X60 on the
+//     carriage, 14T:28T (46T 5M belt) to the top roller and 24T:24T (68T 5M) on to the bottom one.
+//     Under the rollers, the "kicker bar": an aluminum tube on two arms turning on a pin fixed to the
+//     side plates, folded up behind the intake in Closed; in Open it has fallen 163.0 deg about the pin
+//     (its tube at the same 0.200 m from it), held down by surgical tubing ("tangent to the intake
+//     plate"), so FUEL are pinched between it and the rollers and climb the bumper.
 //   - the hopper: its side and back panels and a lattice frame over the top, 0.55 m up
-//   - the roller floor (300): nine silicone-wrapped rollers belted roller to roller, sloping down 5 cm
-//     from front to back, with two more rollers 0.18 m over its back two that push FUEL down and
-//     back into
-//   - the belts along the back: two 30 mm HTD belts (180T and 160T 5M) on 22t pulleys on fore-aft
-//     axles, each its own X44 (16t:48t). The bottom belt's top run (0.159 m up) and the top belt's
-//     bottom run (0.302 m) pinch FUEL between them (0.144 m apart: 6 mm of squeeze), against the
-//     backing plate behind (polycarbonate under PTFE film), and carry them to the robot's left.
+//   - the roller floor (300): nine silicone-wrapped rollers sloping down from front to back (in Open
+//     its front five are 2.1 deg lower, the floor's front hinged at the sixth). Its X60 (low at the back
+//     right) drives up through a 16T:58T gear stage, 24T:24T (55T 5M) up to a shaft over the floor's
+//     back, which drives the back top roller (28T:28T, 75T 5M) and, through 34T:34T gears (turning it
+//     back), 18T:18T (62T 5M) down and 28T:28T (75T 5M) to the back floor roller; roller to roller by
+//     60T 3M belts on 28T pulleys, but 30T on the second roller and three 29T:32T steps in front, so the
+//     front rollers turn at 0.69 of the back one's speed: FUEL speed up toward the back. The two top
+//     rollers over the floor's back turn the other way (28T:30T between them).
+//   - the belts along the back: two 30 mm HTD belts (180T and 160T 5M) on 24T pulleys on fore-aft
+//     axles, each its own X44 through 16T:48T (89T and 80T 3M belts). The bottom belt's top run (0.159
+//     m up) and the top belt's bottom run (0.302 m) pinch FUEL between them, against the backing plate
+//     behind (polycarbonate under PTFE film), and carry them to the robot's left.
 //   - the vertical kicker: a 1in tube standing at the belts' left end in front of them (an X44,
-//     16t:45t), "it spins clockwise (toward the belts)".
-//   - the "bottom and top kicker" ("the polycarb ramp replaced by flex wheels"): off the belts' end,
-//     three stacks of 2.25in compliant wheels on fore-aft shafts step up to the left, and two 2in
-//     Stealth wheels flank the turret's bore (left and right), squeezing FUEL up into it (an X60).
-//   - the turret (400): on an 8in bearing (its opening 0.176 m across). FUEL come up under the 4in
-//     shooter wheel (custom, swerve tread, two X60s geared 28t:42t, no flywheel), which turns them up
-//     its back face into the "feeder wheels" on the hood: 2in Stealth wheels with a 2in roller under
-//     them, on the hood's lattice arms, which turn about the wheel's axle (an X44 through a
-//     VersaPlanetary 4:1 and 19.333:1 gears). The FUEL leave the pinch along the wheel's face at the
-//     hood's angle ("the difference between hood angle and ball exit angle was negligible"), between
-//     the "hollow hood" that guides them from the sides.
+//     16T:40T on a 120T 3M belt), "it spins clockwise (toward the belts)".
+//   - the "bottom and top kicker" ("the polycarb ramp replaced by flex wheels"), the team's "feeder
+//     wheels": off the belts' end, three stacks of 2.25in compliant wheels on fore-aft shafts step up
+//     to the left, and two 2in Stealth wheels flank the turret's bore (left and right), squeezing FUEL
+//     up into it. One X60: an 18T pulley on a 140T 5M belt round both top-kicker shafts' 28T pulleys
+//     (and an idler); the right one turns the left one's way back through 28T:28T gears; the left one's
+//     22T pulleys drive the three compliant stacks 22T:22T (50T 5M belts) one to the next.
+//   - the turret (400): on an 8in bearing (its opening 0.176 m across), turned by an X60 low in the
+//     frame: 12T:60T gears, 18T:28T 5M (a 45T belt fits the centers to 0.1 mm; the X_T leaves it out)
+//     up a vertical shaft to a 14T 10 DP pinion on the turret's 90T ring: 50:1. FUEL come up under the
+//     4in shooter wheel (custom, swerve tread, two X60s geared 28T:42T, no flywheel), which turns them
+//     up its back face into the hood's wheels: 2in Stealth wheels with a 2in roller under them on the
+//     hood's lattice arms, which turn about the wheel's axle (an X44 through a VersaPlanetary 4:1 and
+//     19.333:1 gears, their thread). Those wheels have no motor: the wheel's 42T gear drives a 30T on
+//     the hood's arm, its 21T pulley a 19T on the Stealth wheels' shaft (110T 5M), and 40T:40T (85T 3M)
+//     the roller: 1.55 times the wheel's turns, the other way, 0.78 of its surface speed. The FUEL leave
+//     the pinch along the wheel's face at the hood's angle ("the difference between hood angle and ball
+//     exit angle was negligible"), between the "hollow hood" that guides them from the sides.
 import { IN, FUEL } from '../constants.js';
 import { Block, Motor, Shaft, Surface, Train, Wheel, BUMPER_MU } from './mechanism.js';
 import PATH from './path1690.js';
@@ -55,40 +74,42 @@ export const TREAD = { silicone: 20000, compliant: 12000, tread: 30000, belt: 30
 export const HALF_L = 12.5 * IN, HALF_W = 14.5 * IN; // 25 x 29in frame
 // the hopper: its side panels' inside faces (the bumper assembly's panels), the lattice frame's top
 export const WALL = { left: -0.358, right: 0.358, top: 0.551 };
-// the roller floor: [x, y] of each roller's axle, front to back (their 1.3in silicone-wrapped tubes);
-// the back three stop short of the left side (the vertical kicker and the feeder are there): z from
-// each one's left end to its right; an X60, belted roller to roller (60T 3M belts on ~37t pulleys):
-// its reduction isn't clear in the CAD (a gear stage, 21t:31t and 34t:34t stages): 1.5:1, an estimate
-// (5 m/s at their 75 RPS)
+// the roller floor: [x, y] of each roller's axle, front to back (their 1.3in silicone-wrapped tubes),
+// as the Open X_T has them (the front five 2.1 deg lower than in Closed); the back three stop short of
+// the left side (the vertical kicker and the feeder are there): z from each one's left end to its
+// right. Its X60: 16T:58T to the drive shaft over the floor's back (ratio), which turns the back roller
+// 1:1 (through 34T:34T, 18T:18T and 28T:28T); each roller's turns per the drive shaft's (k: the 60T 3M
+// belts' 28T, 30T and 29T:32T pulleys)
 export const FLOOR = {
   r: 0.0165,
-  at: [[0.2797, 0.1899], [0.2324, 0.1814], [0.1852, 0.1729], [0.1417, 0.1650], [0.0982, 0.1572], [0.0546, 0.1493], [0.0071, 0.1425], [-0.0409, 0.1425], [-0.0874, 0.1425]],
+  at: [[0.2810, 0.1817], [0.2335, 0.1749], [0.1860, 0.1681], [0.1422, 0.1618], [0.0984, 0.1556], [0.0546, 0.1493], [0.0071, 0.1425], [-0.0409, 0.1425], [-0.0874, 0.1425]],
   z0: [-0.322, -0.322, -0.322, -0.322, -0.322, -0.322, -0.132, -0.132, -0.132], z1: [0.31, 0.298, 0.298, 0.298, 0.298, 0.298, 0.298, 0.276, 0.276],
-  ratio: 1.5,
+  ratio: 58 / 16,
+  k: [28 / 30 * (29 / 32) ** 3, 28 / 30 * (29 / 32) ** 3, 28 / 30 * (29 / 32) ** 3, 28 / 30 * (29 / 32) ** 2, 28 / 30 * 29 / 32, 28 / 30, 28 / 30, 28 / 30, 1],
 };
-// the two rollers over the floor's back (the floor's motor: 31t:31t from its second shaft, so they turn
-// the other way at ~1.48 the floor's speed, an estimate from the CAD's pulleys)
-export const TOP = { at: [[-0.0409, 0.3191], [-0.0874, 0.3183]], r: 0.016, z: [-0.066, 0.291], k: -1.48 };
+// the two rollers over the floor's back: the drive shaft turns the back one 28T:28T, which turns the
+// front one 28T:30T; they turn the other way from the floor (k, per the drive shaft's turns)
+export const TOP = { at: [[-0.0409, 0.3191], [-0.0874, 0.3183]], r: 0.016, z: [-0.066, 0.291], k: [-28 / 30, -1] };
 // the belts along the back: across their 30 mm (x), each one's run against the FUEL (its outer
-// face's height, z from pulley to pulley), the belt's outer radius round its 22t pulleys; X44s at
-// 16t:48t (3:1)
+// face's height, z from pulley to pulley), the belt's outer radius round its 24T pulleys and their
+// pitch radius (the belt's speed per radian); X44s through 16T:48T (3:1)
 export const BELT = {
-  x: [-0.149, -0.119], r: 0.0203, ratio: 3,
+  x: [-0.149, -0.119], r: 0.0203, pitch: (24 * 0.005) / (2 * Math.PI), ratio: 3,
   bottom: { y: 0.1586, z: [-0.1158, 0.2742] }, // its top run (the 180T)
   top: { y: 0.3022, z: [-0.0423, 0.2977] },    // its bottom run (the 160T)
 };
 // the backing plate behind the belts (its PTFE face), the electronics box's face
 export const BACK = { x: -0.2105, box: -0.043 };
-// the vertical kicker: a 1in tube standing in front of the belts' left end (an X44, 16t:45t)
-export const VKICK = { at: [-0.0155, -0.1525], y: [0.088, 0.367], r: 0.0125, ratio: 45 / 16 };
+// the vertical kicker: a 1in tube standing in front of the belts' left end (an X44, 16T:40T)
+export const VKICK = { at: [-0.0155, -0.1525], y: [0.088, 0.367], r: 0.0125, ratio: 40 / 16 };
 // the bottom kicker (2.25in compliant wheels, two 1in wide on each fore-aft shaft, [z, y]) and the top
-// kicker (2in Stealth wheels either side of the turret's bore); an X60 (its reduction isn't readable:
-// 2.85:1, an estimate: 6 m/s at the belts' 95 RPS)
+// kicker (2in Stealth wheels either side of the turret's bore): the team's feeder wheels, one X60
+// through 18T:28T (the 140T belt), every shaft at that speed (the 22T:22T belts, the 28T:28T gears)
 export const FEED = {
   x: -0.134, w: 0.05,
   wheels: [[-0.1806, 0.1600], [-0.2358, 0.2031], [-0.2721, 0.2629]], r: 0.0286,
   top: [[-0.2837, 0.3319], [-0.0909, 0.3319]], topR: 0.0254,
-  ratio: 2.85,
+  ratio: 28 / 18,
 };
 // the turret: its axis (the 8in bearing's), the opening up through it (its rings' bore), where the
 // bearing is, the deck it turns on; its travel (+-200 deg, as the sim's config has it)
@@ -100,11 +121,12 @@ export const YAW0 = -23.99 * DEG, HOOD0 = 172.47;
 // wide), the hood's feeder wheels (2in Stealth wheels over a 2in roller, both 2in wide, on the hood's
 // arms 0.2068 m from the axle: the roller 18.8 deg below), the hood's travel as the shot's elevation
 // (its steep end is the CAD's pose: 82.5 deg; the low end isn't in the CAD: 35, an estimate), the
-// wheel's gearing (28t:42t), what turns (the custom wheel: 6e-4 kg m^2, an estimate); the feeder
-// wheels' drive (an X44, 1:1, an estimate: their motor and gearing aren't clear in the CAD)
+// wheel's gearing (28T:42T), what turns (the custom wheel: 6e-4 kg m^2, an estimate); the hood's
+// wheels' turns per the shooter wheel's (k: its 42T gear to a 30T on the hood's arm, 21T:19T, 40T:40T;
+// the other way round)
 export const SHOOTER = {
   axle: [0.070, 0.464], r: 0.0502, w: 0.05,
-  feeder: { R: 0.2068, r: 0.0254, w: 0.05, lower: 18.82, ratio: 1 },
+  feeder: { R: 0.2068, r: 0.0254, w: 0.05, lower: 18.82, k: (42 / 30) * (21 / 19) },
   elMin: 35, elMax: HOOD0 - 90, ratio: 1.5, J: 6e-4,
   // the hood's X44: 4:1 VersaPlanetary and 19.333:1 gears (their thread); its profile (estimates)
   hoodRatio: 4 * 19.333, hoodV: 350, hoodA: 3500,
@@ -112,14 +134,15 @@ export const SHOOTER = {
   // of hood (estimates)
   kP: 0.25, tolV: 0.03, tolHood: 1.5,
 };
-// the intake: the carriage's travel out (Closed -> out), the rollers on it as exported (in), their X60's
-// belting (15t:31t), the U-frame's front and half width out (its plates' outside), the kicker bar: its
-// arms' pin, its tube as exported (folded up) and how far it falls (deg)
+// the intake: the carriage's travel out (Closed -> Open: its parts' move between the two X_Ts), the
+// rollers on it as exported (in), their X60's belting (14T:28T, then 24T:24T), the U-frame's front and
+// half width out (its plates' outside), the kicker bar: its arms' pin, its tube as exported (folded
+// up) and how far it falls (deg: Closed -> Open)
 export const INTAKE = {
-  slide: [0.311, -0.068], width: 0.647,
-  rollers: [[0.2473, 0.2301, 0.021], [0.1993, 0.3290, 0.021]], ratio: 31 / 15,
+  slide: [0.3120, -0.0691], width: 0.647,
+  rollers: [[0.2473, 0.2301, 0.021], [0.1993, 0.3290, 0.021]], ratio: 28 / 14,
   frame: { front: 0.617, sides: 0.362, top: 0.482 },
-  kick: { pivot: [0.2723, 0.1703], tube: [0.1499, 0.3283, 0.0127], fall: -164.6, width: 0.675 },
+  kick: { pivot: [0.2723, 0.1703], tube: [0.1499, 0.3283, 0.0127], fall: -163.0, width: 0.675 },
 };
 export const PRELOAD = [0, 1, 2, 3, 4, 5, 6, 7].map((k) => [0.21 - 0.155 * Math.floor(k / 4), 0.36, -0.24 + 0.155 * (k % 4)]);
 
@@ -132,17 +155,17 @@ export function build1690() {
   const rollers = INTAKE.rollers.map((_, i) => intake.add(new Shaft({ name: `intake roller ${i ? 'top' : 'bottom'}`, inertia: 1.5e-4 }), -1));
   const tube = new Shaft({ name: 'kicker bar (free)', inertia: 4e-5, drag: 2e-4 });
   const floor = new Train({ name: 'roller floor', motor: new Motor('krakenX60', { ratio: FLOOR.ratio, ...lim }) });
-  FLOOR.at.forEach((_, i) => floor.add(new Shaft({ name: `floor roller ${i + 1}`, inertia: 1.2e-4 }), 1));
-  const top = TOP.at.map((_, i) => floor.add(new Shaft({ name: `top roller ${i + 1}`, inertia: 1.2e-4 }), TOP.k));
+  FLOOR.at.forEach((_, i) => floor.add(new Shaft({ name: `floor roller ${i + 1}`, inertia: 1.2e-4 }), FLOOR.k[i]));
+  const top = TOP.at.map((_, i) => floor.add(new Shaft({ name: `top roller ${i + 1}`, inertia: 1.2e-4 }), TOP.k[i]));
   const belts = ['bottom', 'top'].map((k) => new Shaft({ name: `${k} belt`, motor: new Motor('krakenX44', { ratio: BELT.ratio, ...lim }), inertia: 5e-5, drag: 4e-4 }));
   const vkick = new Shaft({ name: 'vertical kicker', motor: new Motor('krakenX44', { ratio: VKICK.ratio, ...lim }), inertia: 6e-5 });
   const feed = new Train({ name: 'bottom and top kicker', motor: new Motor('krakenX60', { ratio: FEED.ratio, ...lim }) });
   const feedShafts = [...FEED.wheels, ...FEED.top].map((_, i) => feed.add(new Shaft({ name: i < 3 ? `bottom kicker ${i + 1}` : `top kicker ${i - 2}`, inertia: 6e-5 }), 1));
   const shooter = new Train({ name: 'shooter', motor: new Motor('krakenX60', { count: 2, ratio: SHOOTER.ratio, statorLimit: 80, supplyLimit: 30 }) });
   const wheel = shooter.add(new Shaft({ name: '4in shooter wheel', inertia: SHOOTER.J, drag: 2e-4 }), 1);
-  const hoodTrain = new Train({ name: 'feeder wheels (hood)', motor: new Motor('krakenX44', { ratio: SHOOTER.feeder.ratio, statorLimit: 60, supplyLimit: 30 }) });
-  const hoodWheels = ['upper', 'lower'].map((k) => hoodTrain.add(new Shaft({ name: `feeder wheel ${k}`, inertia: 4e-5, drag: 1e-4 }), 1));
-  return { intake, rollers, tube, floor, top, belts, vkick, feed, feedShafts, shooter, wheel, hoodTrain, hoodWheels };
+  // (the hood's wheels on the shooter's train: geared to its wheel)
+  const hoodWheels = ['upper', 'lower'].map((k) => shooter.add(new Shaft({ name: `hood wheel ${k}`, inertia: 4e-5, drag: 1e-4 }), SHOOTER.feeder.k));
+  return { intake, rollers, tube, floor, top, belts, vkick, feed, feedShafts, shooter, wheel, hoodWheels };
 }
 
 const Z = [0, 0, 1];
@@ -174,7 +197,7 @@ export function shooterWheel(t) {
 }
 export function feederWheels(t) {
   const F = SHOOTER.feeder;
-  return t.hoodWheels.map((sh, i) => new Wheel({ name: `feeder wheel ${i ? 'lower (2in roller)' : 'upper (2in Stealth)'}`, shaft: sh, center: [0, 0, 0], axis: Z, radius: F.r, width: F.w, mu: MU.compliant, tread: TREAD.compliant }));
+  return t.hoodWheels.map((sh, i) => new Wheel({ name: `hood wheel ${i ? 'lower (2in roller)' : 'upper (2in Stealth)'}`, shaft: sh, center: [0, 0, 0], axis: Z, radius: F.r, width: F.w, mu: MU.compliant, tread: TREAD.compliant }));
 }
 // a turret-frame point (s along the shot, y up, z across) where the turret is at yaw (rad, three.js
 // sense: + turns it to the left)
@@ -226,8 +249,8 @@ export function pathSurfaces1690(t, mesh = PATH) {
   const s = (name, m, o = {}) => new Surface({ name, vertices: m.v, indices: m.i, mu: MU.wall, ...o });
   const body = cad('body'), bodyFine = cad('bodyFine');
   const ptfe = cad('ptfe', { mu: MU.ptfe });
-  // the belts: their runs slide along -z as their shafts turn (the pulleys' pitch radius, 17.5 mm, a radian)
-  const belt = (k, m) => { const sf = s(`${k} belt`, m, { mu: MU.belt, tread: TREAD.belt }).onSlide(t.belts[k === 'bottom' ? 0 : 1], [0, 0, -1]); sf.slideK = 0.0175; return sf; };
+  // the belts: their runs slide along -z as their shafts turn (the 24T pulleys' pitch radius, a radian)
+  const belt = (k, m) => { const sf = s(`${k} belt`, m, { mu: MU.belt, tread: TREAD.belt }).onSlide(t.belts[k === 'bottom' ? 0 : 1], [0, 0, -1]); sf.slideK = BELT.pitch; return sf; };
   const bottom = belt('bottom', beltRun(BELT.bottom.y, ...BELT.bottom.z, true)), top = belt('top', beltRun(BELT.top.y, ...BELT.top.z, false));
   const carriage = cad('carriage');
   const kick = cad('kick', { pos: [...INTAKE.kick.pivot, 0] });

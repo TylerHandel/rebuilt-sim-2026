@@ -74,9 +74,9 @@ def robot(T):  # CAD (X: the robot's left, Y forward, Z down) -> robot (x forwar
 TURRET = np.array([-0.1340, 0.0, -0.1872])       # the 8in bearing's axis
 YAW0 = np.radians(-23.99)                        # the turret's shot as exported (three.js's sense: + to the left)
 AXLE = np.array([0.0700, 0.4640])                # the 4in wheel's axle, turret frame (x along the shot, y up)
-SLIDE = np.array([0.311, -0.068])                # the carriage's travel out (Closed -> Open)
+SLIDE = np.array([0.3120, -0.0691])              # the carriage's travel out (Closed -> Open: the two X_Ts)
 KICK_PIVOT = np.array([0.2723, 0.1703])          # the kicker bar's arms' pin
-KICK_OUT = -164.6                                # deg: folded (as exported) -> down on the carpet side
+KICK_OUT = -163.0                                # deg: folded (Closed) -> down (Open)
 F = np.array([np.cos(YAW0), 0, -np.sin(YAW0)])   # the shot's direction
 L = np.array([np.sin(YAW0), 0, np.cos(YAW0)])    # the turret's z (to the shot's right)
 
@@ -96,12 +96,12 @@ HW = re.compile(r'screw|bolt|\bnut\b|locknut|washer|rivet|spacer|standoff|bearin
 # what r1690.js turns (rollers, wheels, the belts' runs) and the FUEL in the CAD
 TURNS = re.compile(r'^1690-26-321-(0[67]|1[0-5])|^1690-26-315-0[3-7]|^1690-26-314-0[2-8]|^1690-26-31[012]-01A|^1690-26-331-04A|'
                    r'^1690-26-332-0[5-7]|Compliant Wheel|Stealth Wheel|HTD5 22|Hex \(|Hex Shaft|^1690-26-253-|^1690-26-254-|'
-                   r'^Part 16[12]$|^Part 156$|^1690-26-432-|^1690-26-443-08A|^Part 70$|^1690-26-313-09A')
+                   r'^Part 156$|^1690-26-432-|^1690-26-443-08A|^Part 70$|^1690-26-313-09A')
 CARRIAGE = re.compile(r'^1690-26-25[12]-|X60 Brushless Motor \(5\)|^Part 10[4-8]$|^Part 153$|^Part 157|^12-18-4|^motor pulley')
 KICK = re.compile(r'^Part 15[49]$')
 HOOD = re.compile(r'^1690-26-44\d|^1690-26-451-05A')
 TURRET_RX = re.compile(r'^1690-26-43\d|^1690-26-451|Kraken X60 Brushless Motor \(3\)|X60 Brushless Motor-Mirrored|X44 Brushless Motor-Mirrored|'
-                       r'^Part 1(1[7-9]|2\d|6[23]|99)|^Part 15$')
+                       r'^Part 1(1[7-9]|2\d)$|^1690-26-423-0[67]A')
 
 if __name__ == '__main__':
     parts = load(SRC)
@@ -114,6 +114,8 @@ if __name__ == '__main__':
         # is the hopper's side and back panels and the lattice frame over the top)
         if 'bumper' in sub.lower() and re.search(r'Bumper|Length|Width|^Part (1[7-9]|20|11[07])$|^\*|114-', names[0]): continue
         if any(HW.search(x) for x in names) or any(TURNS.search(x) for x in names): continue
+        # (the kicker bar's tube and its end cap: turned, js/mech/r1690.js; 400's Part 162 is the chain's guard)
+        if sub.startswith('1690-26-200') and re.match(r'Part 16[12]$', names[0]): continue
         T = robot(T)
         if sub.startswith('1690-26-200'):
             k = 'carriage' if CARRIAGE.search(names[0]) else 'kick' if KICK.search(names[0]) else 'body'

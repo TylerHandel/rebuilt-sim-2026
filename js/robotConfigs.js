@@ -488,29 +488,29 @@ export const ROBOTS = {
     teamName: 'Orbit',
     robotName: 'Kepler',
     archetype: 'Compact turret',
-    blurb: 'A compact gear-driven turret on an 8in bearing shoots on the move while the intake keeps running. A roller floor pushes FUEL back into two belts along the back, which carry them to flex wheels that kick them up into the turret, where a 4in wheel throws them past feeder wheels on its hood. The intake slides out with the hopper\'s lattice front, under a lattice frame over the top.',
+    blurb: 'A compact gear-driven turret on an 8in bearing shoots on the move while the intake keeps running. A roller floor pushes FUEL back into two belts along the back, which carry them to flex wheels that kick them up into the turret, where a 4in wheel throws them out against wheels on its hood, geared to it. The intake slides out with the hopper\'s lattice front, under a lattice frame over the top.',
     // built of its physical mechanisms (js/mech/r1690.js, phys1690.js) from their CAD (their X_T
     // release): its FUEL go through the ball path's own surfaces, moved by its rollers, belts,
-    // kickers, shooter wheel and the hood's feeder wheels
+    // kickers, shooter wheel and the hood's wheels, each on the drive its CAD traces
     physical: '1690',
     frame: { length: 25.0 * IN, width: 29.0 * IN },
     height: 22.2 * IN, // the CAD's: the lattice frame over the top at 0.551 m, the turret's hood (stowed) at 0.565
     mass: 63, // robot (up to 115 lb) + bumpers + battery
     // they geared down (and spiked wheels) mid-season for the BUMP, TRENCH and defense: 13.1 ft/s free
     drive: { ratio: 7.73 },
-    // over-bumper: a carriage that slides out (0.318 m, down 12 deg) with two silicone-wrapped rollers
+    // over-bumper: a carriage that slides out (0.320 m, down 12.5 deg: their Open X_T) with two silicone-wrapped rollers
     // and the hopper's lattice front, over the kicker bar that surgical tubing pulls down once it's out
     intake: { width: 25.5 * IN, reach: 0.2, rate: 200, pull: 5, deployTime: 0.3, side: 'front', latched: true },
     // the lattice U-frame on the carriage reaches out over the intake (0.30 m past the frame)
     storage: { extLen: 0.30, extend: 'latched' },
-    // their CAD: the roller floor (nine rollers, 0.19 to 0.14 m up, front to back) between the side
+    // their CAD: the roller floor (nine rollers, 0.18 to 0.14 m up, front to back) between the side
     // panels (0.716 m apart) to the lattice frame over the top (0.551 m); the belts along the back
     // (0.159 and 0.302 m), the kickers up into the turret at the back left; the electronics box at the
     // back right. Netting over the top (js/mech/r1690.js NET)
     bay: {
       x0: -0.21, x1: 0.3175, hw: 0.355, top: 0.551,
       dome: { h: 0.01, x0: -0.02, cx: 0, cz: 0, rHole: -1 },
-      floor: { a: 0.16, b: 0.07, lo: 0.14, hi: 0.19 },
+      floor: { a: 0.16, b: 0.07, lo: 0.14, hi: 0.18 },
       drive: 'floor', driveSpeed: 2.0,
       feed: { x: -0.134, z: -0.187, via: [[-0.134, 0.3, -0.19], [-0.134, 0.45, -0.187]] },
     },

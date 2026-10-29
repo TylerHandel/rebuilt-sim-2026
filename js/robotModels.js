@@ -2222,8 +2222,8 @@ function build1678(cfg, alliance) {
 // kicker bar falls on its pin, the hood turns about the wheel's axle. What turns is drawn here, at the
 // CAD's axes, so it spins about them: the floor's rollers and the two over its back, the intake's
 // rollers and the kicker bar's tube, the belts' pulleys, the vertical kicker, the bottom and top
-// kickers' wheels, the 4in shooter wheel and the hood's feeder wheels. The energy chain round the
-// turret is js/echainModel.js (the X_T has its spring and tray, not its links). Until the CAD loads
+// kickers' wheels, the 4in shooter wheel and the hood's wheels. The energy chain round the turret
+// is js/echainModel.js (the X_T has its tray, spring, guide and swivel, not its links). Until the CAD loads
 // (and at the Lowest graphics), a drawn stand-in.
 function build1690(cfg, alliance) {
   const root = new THREE.Group();
@@ -2319,7 +2319,7 @@ function build1690(cfg, alliance) {
     return g;
   });
   limelight(turret, -0.08, turretY + 0.13, -0.1, Math.PI, { tilt: 0.3 });
-  // the energy chain (js/echain.js SPOOL1690)
+  // the energy chain (js/echain.js SWIVEL1690: either way round the turret from its swivel)
   const echain = chain1690(root, turret, turretY, M);
 
   // ---- the intake: the carriage (slides out), its rollers, the kicker bar on its pin
@@ -2362,10 +2362,10 @@ function build1690(cfg, alliance) {
     // their fore-aft axles; the shooter wheel about the turret's -z and the feeder wheels about +z)
     for (const r of intakeRollers) r.rotation.z -= (mp ? mp.intakeRollers : st.intakeSpeed * 300) * dt;
     if (mp) tube.rotation.z += mp.tube * dt;
-    for (const r of floorRollers) r.rotation.z += (mp ? mp.floor : st.feeding * 30) * dt;
-    for (const r of topRollers) r.rotation.z += (mp ? mp.top : -st.feeding * 45) * dt;
+    floorRollers.forEach((r, i) => { r.rotation.z += (mp ? mp.floor * D.FLOOR.k[i] : st.feeding * 30) * dt; });
+    topRollers.forEach((r, i) => { r.rotation.z += (mp ? mp.floor * D.TOP.k[i] : -st.feeding * 30) * dt; });
     // (the bottom belt's pulleys are under its run, the top belt's over its: they turn opposite ways)
-    pulleys.forEach((p, i) => { p.rotation.x += (i < 2 ? -1 : 1) * (mp ? mp.belts[i >> 1] / 0.0175 : st.feeding * 60) * dt; });
+    pulleys.forEach((p, i) => { p.rotation.x += (i < 2 ? -1 : 1) * (mp ? mp.belts[i >> 1] / D.BELT.pitch : st.feeding * 60) * dt; });
     vkick.rotation.y -= (mp ? mp.vkick : st.feeding * 60) * dt;
     feedWheels.forEach((w) => { w.rotation.x -= (mp ? mp.feed : st.feeding * 60) * dt; });
     topKick.forEach((w, i) => { w.rotation.x += (i ? 1 : -1) * (mp ? mp.feed : st.feeding * 60) * dt; });

@@ -20,7 +20,7 @@ import { Mechanism } from '../js/mech/mechanism.js';
 import { sim2D, ShotTable } from '../js/ballistics.js';
 import {
   build1690, wheels1690, shooterWheel, feederWheels, pathSurfaces1690, placeIntake, placeTurret, turretPoint, netY, hoodElevation,
-  HALF_L, HALF_W, INTAKE, FLOOR, BELT, BACK, VKICK, FEED, SHOOTER, TURRET, NET, WALL, MU as GRIP, TREAD,
+  HALF_L, HALF_W, INTAKE, FLOOR, TOP, BELT, BACK, VKICK, FEED, SHOOTER, TURRET, NET, WALL, MU as GRIP, TREAD,
 } from '../js/mech/r1690.js';
 import { speedLoop } from '../js/mech/phys1706.js';
 import { RPS, FEED_SHARE, FEED_MIN, EXIT, hoodFor, elevationAt, surfFor, exitAt, HOOD_STOW } from '../js/mech/phys1690.js';
@@ -65,7 +65,7 @@ function rig({ ext = 1, yaw = 0, hood = HOOD_STOW } = {}) {
   const pathW = [...wh.intake, ...wh.floor, wh.vkick, ...wh.feed];
   const path = new Mechanism({ substeps: 6, shafts: [...new Set(pathW.map((x) => x.shaft)), ...t.belts], wheels: pathW, surfaces: [s.body, s.bodyFine, s.ptfe, s.bottom, s.top, s.carriage, s.kick, s.bumper, s.net] });
   const shooter = new Mechanism({ substeps: 6, sub: Number(process.env.SUB ?? 8), shafts: [t.wheel, ...t.hoodWheels], wheels: [sw, ...fw], surfaces: [s.turret, s.hood] });
-  for (const a of [t.intake, t.floor, t.feed, t.shooter, t.hoodTrain, t.vkick, ...t.belts]) a.cmd = null;
+  for (const a of [t.intake, t.floor, t.feed, t.shooter, t.vkick, ...t.belts]) a.cmd = null;
   const r = { t, wh, s, sw, fw, path, shooter, ext, yaw, hood };
   r.pose = () => { placeIntake(s, wh.intake, r.ext); placeTurret(s, { wheel: sw, feeder: fw }, r.yaw, r.hood); };
   r.step = (balls, together = balls) => {
@@ -73,11 +73,12 @@ function rig({ ext = 1, yaw = 0, hood = HOOD_STOW } = {}) {
     path.step(DT, balls, together);
     shooter.step(DT, balls.filter((b) => { const [x, y, z] = P(b); return y > TURRET.bore.y[0] && Math.hypot(x - TURRET.at[0], z - TURRET.at[1]) < 0.25; }));
   };
-  // the shooter at a wheel surface speed (m/s; null: coast); the indexer feeding (as phys1690 runs it)
-  // (the hood's feeder wheels at their share of the wheel's target)
+  // the shooter at a wheel surface speed (m/s; null: coast; the hood's wheels geared to it); the
+  // indexer feeding (as phys1690 runs it: the feeder wheels at their share of the wheel's target)
+  r.surf = 0;
   r.spin = (surf) => {
+    r.surf = surf || 0;
     speedLoop(t.shooter, surf ? surf / SHOOTER.r : null, SHOOTER.kP);
-    speedLoop(t.hoodTrain, surf ? Math.max(FEED_MIN, FEED_SHARE * surf) / SHOOTER.feeder.r : null);
   };
   r.index = (on, pass = false) => {
     const k = pass ? 1 : 0;
@@ -85,7 +86,7 @@ function rig({ ext = 1, yaw = 0, hood = HOOD_STOW } = {}) {
     speedLoop(t.floor, rps(RPS.floor[k], t.floor));
     for (const b of t.belts) speedLoop(b, rps(RPS.belts[k], b));
     speedLoop(t.vkick, rps(RPS.vkick, t.vkick));
-    speedLoop(t.feed, rps(RPS.belts[k], t.feed));
+    speedLoop(t.feed, Math.max(FEED_MIN, FEED_SHARE * r.surf) / FEED.topR);
   };
   r.pose();
   return r;
@@ -168,6 +169,7 @@ function fill(w, balls, step, layers = 6, y = WALL.top - R - 0.01) {
     for (let i = 0; i < 6; i++) for (let k = 0; k < 5; k++) {
       const x = -0.02 + 0.125 * i, z = -0.29 + 0.145 * k;
       if (x > INTAKE.frame.front - 0.08) continue;
+      if (Math.hypot(x - TURRET.at[0], z - TURRET.at[1]) < 0.22) continue; // (not into the turret's plates)
       const yy = Math.min(y, netY(x, z) - R - 0.005);
       if (balls.some((b) => { const p = b.translation(); return Math.hypot(p.x - x, p.y - yy, p.z - z) < 2 * R; })) continue;
       balls.push(ball(w, x, yy, z));
@@ -186,12 +188,12 @@ const tests = {
     const surf = (sh, rr) => Math.abs(sh.omega) * rr;
     console.log(`1690's rollers, free (intake 100%, the indexer at the team's speeds, the shooter wheel at 16 m/s):`);
     console.log(`  intake X60 ${RPM(t.intake.omega * t.intake.motor.ratio).toFixed(0)} rpm: rollers ${surf(t.rollers[0], INTAKE.rollers[0][2]).toFixed(2)} m/s at their surface`);
-    console.log(`  floor X60 ${(t.floor.omega * t.floor.motor.ratio / TAU).toFixed(1)} rps (theirs ${RPS.floor[0]}): ${surf(t.floor.shafts[0], FLOOR.r).toFixed(2)} m/s at the rollers' surface`);
-    console.log(`  top rollers ${surf(t.top[0], 0.016).toFixed(2)} m/s at their surface`);
-    console.log(`  belts X44s ${t.belts.map((b) => (b.omega * b.motor.ratio / TAU).toFixed(1)).join('/')} rps (theirs ${RPS.belts[0]}): ${t.belts.map((b) => surf(b, BELT.r).toFixed(2)).join('/')} m/s at their outer face`);
+    console.log(`  floor X60 ${(t.floor.omega * t.floor.motor.ratio / TAU).toFixed(1)} rps (theirs ${RPS.floor[0]}): ${t.floor.shafts.slice(0, FLOOR.at.length).map((sh) => surf(sh, FLOOR.r).toFixed(2)).join('/')} m/s at the rollers' surface, front to back`);
+    console.log(`  top rollers ${t.top.map((sh) => surf(sh, TOP.r).toFixed(2)).join('/')} m/s at their surface (front, back)`);
+    console.log(`  belts X44s ${t.belts.map((b) => (b.omega * b.motor.ratio / TAU).toFixed(1)).join('/')} rps (theirs ${RPS.belts[0]}): ${t.belts.map((b) => surf(b, BELT.pitch).toFixed(2)).join('/')} m/s (the belts' pitch line)`);
     console.log(`  vertical kicker X44 ${(t.vkick.omega * t.vkick.motor.ratio / TAU).toFixed(1)} rps (theirs ${RPS.vkick}): ${surf(t.vkick, VKICK.r).toFixed(2)} m/s`);
-    console.log(`  bottom kicker ${surf(t.feedShafts[0], FEED.r).toFixed(2)} m/s, top kicker ${surf(t.feedShafts[3], FEED.topR).toFixed(2)} m/s at their wheels`);
-    console.log(`  the hood's feeder wheels ${surf(t.hoodWheels[0], SHOOTER.feeder.r).toFixed(2)} m/s (60% of the shooter's ${surf(t.wheel, SHOOTER.r).toFixed(2)}, at least ${FEED_MIN})`);
+    console.log(`  feeder wheels (the kickers' X60, ${(t.feed.omega * t.feed.motor.ratio / TAU).toFixed(1)} rps): bottom kicker ${surf(t.feedShafts[0], FEED.r).toFixed(2)} m/s, top kicker ${surf(t.feedShafts[3], FEED.topR).toFixed(2)} m/s at their wheels (60% of the shooter's ${surf(t.wheel, SHOOTER.r).toFixed(2)}, at least ${FEED_MIN})`);
+    console.log(`  the hood's wheels (geared to the shooter wheel) ${surf(t.hoodWheels[0], SHOOTER.feeder.r).toFixed(2)} m/s`);
     for (const v of [12, 16, 20, 24]) {
       const r2 = rig();
       let T = 0;
