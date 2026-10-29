@@ -22,6 +22,10 @@ const q = (a, f) => { const b = [...a].sort((x, y) => x - y); return b.length ? 
 // (the window ends with the last one in)
 export function intakeWatch({ path, t, primary, local, onCarpet, count, every = 0.25 }) {
   const steps = [], load = new Map(), at = new Map(), series = [], barLoad = new Map(), slip = [];
+  // (FUEL on the primary's top, 30-120 deg round it, where its face runs forward and would throw
+  // them back out (the ones coming up the bumper's face meet it from 140 deg on): FUEL-steps, and
+  // how many FUEL)
+  const top = { n: 0, b: new Set() };
   let first = null, last = null, tt = 0, win = [], nIn = 0;
   const free = { p: t.primary.motor.freeSpeed, b: t.bar.motor.freeSpeed };
   return {
@@ -39,6 +43,7 @@ export function intakeWatch({ path, t, primary, local, onCarpet, count, every = 
         const tq = -c.torque * Math.sign(t.primary.omega || 1); // (what it takes out of the primary)
         const i = balls.indexOf(c.ball), p = i >= 0 ? P[i] : local(c.ball);
         const ang = ((Math.atan2(p[1] - pc[1], p[0] - pc[0]) * 180) / Math.PI + 360) % 360;
+        if (ang > 30 && ang < 120) { top.n++; top.b.add(c.ball); }
         const who = new Set(C.filter((d) => d.ball === c.ball && d.wheel !== primary).map((d) => kind(d.wheel.name)));
         if (onCarpet(c.ball)) who.add('carpet');
         if (P.some((o, j) => j !== i && Math.hypot(o[0] - p[0], o[1] - p[1], o[2] - p[2]) < 2 * R - 0.002)) who.add('FUEL');
@@ -95,6 +100,8 @@ export function intakeWatch({ path, t, primary, local, onCarpet, count, every = 
       o.text = `over ${o.span.toFixed(2)} s from the first FUEL on the primary to the last one in: primary min ${(100 * o.pMin).toFixed(0)}%, 10th pct ${(100 * o.p10).toFixed(0)}%, median ${(100 * o.pMed).toFixed(0)}% of free; its X60s median ${o.pA.toFixed(0)} A, 90th ${o.pA90.toFixed(0)} A (both), at a current limit ${(100 * o.pLim).toFixed(0)}% (${o.pLimS.toFixed(2)} s); ` +
         `kick wheel/black roller min ${(100 * o.bMin).toFixed(0)}%, median ${(100 * o.bMed).toFixed(0)}%, limited ${(100 * o.bLim).toFixed(0)}%\n     the primary's load (torque x time) by what else holds the FUEL: ${share(load)}\n     by where round the primary: ${share(at)}\n     the kick wheel's and black roller's load: ${share(barLoad, [...barLoad.values()].reduce((a, v) => a + Math.max(0, v), 0) || 1)}`;
       o.series = series;
+      o.top = top.b.size;
+      o.text += `\n     FUEL on the primary's top (30-120 deg round it): ${top.b.size} (${top.n} FUEL-steps)`;
       // (the FUEL on the bumper's face: their along-face speed and slip, and how often one's spinning
       // in place, its center under 0.1 m/s along the face while it slips over 0.5 m/s)
       const S = slip.filter((x) => x.t >= first && x.t <= last);

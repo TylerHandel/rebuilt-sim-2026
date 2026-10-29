@@ -280,16 +280,34 @@ export const INTAKE = {
   // foam)
   primary: { dx: -0.056, y: 0.172, r: 1.5 * IN },
   bar: { r: 0.75 * IN, mu: 1.0, tread: 20000 },
-  kick: { gap: 0.035, y: 0.75 * IN + 0.006, r: 0.75 * IN, mu: 1.0, tread: 20000 },
+  // The kick wheel: close to the bumper, at the slot along its foot it deploys into (the user;
+  // INTAKE.slot), its back 10 mm out from the face and 21 mm off the carpet (0.040 m up, its top
+  // 6 mm under the slot's). It holds a FUEL against the face 0.122 m up, in the primary's reach.
+  // It was 35 mm out and 6 mm off the carpet; closer at that height it held them lower, under the
+  // primary's reach (10 mm out: 85-88 in 4 s on the NEUTRAL ZONE's line and the bench's fill
+  // 67-83; 10 mm into the bumper, 43-53 and 34-65); raised as well, 10 mm out takes 99-100 and
+  // fills 100-106; flush, 93-99 and 95-103; 5 mm into the slot, 95-97 and 82-93 (estimates: their
+  // CAD isn't public)
+  kick: { gap: 0.010, y: 0.040, r: 0.75 * IN, mu: 1.0, tread: 20000 },
   // two tubes across the box over the primary roller, each free on its bearings (the isolated
-  // intake render; the team): FUEL in the box can't pile on the primary's top, which runs forward
-  // and would throw them back out; ahead of the way up the bumper's face (estimates; the lower 26
-  // mm over the primary's top, under a FUEL's width)
-  guards: [{ dx: -0.03, y: 0.235 }, { dx: -0.07, y: 0.28 }],
+  // intake render; the team): FUEL in the box can't reach the primary's top, which runs forward and
+  // would throw them back out. The lower one out toward the box's front, over the primary's front:
+  // FUEL already in kept off it; the upper one back toward the bumper and the hopper, under the
+  // primary's X60s (at the box's sides): FUEL kept off them and off the primary's middle, where
+  // nothing else stops them dropping onto it (the user). Neither lets a FUEL by (the gaps between
+  // them, the primary and the chin are 30-60 mm), and the upper one clears the FUEL coming up the
+  // bumper's face and over the black roller by 4 mm and more (estimates; they were at -0.03, 0.235
+  // and -0.07, 0.28)
+  guards: [{ dx: -0.005, y: 0.235 }, { dx: -0.08, y: 0.268 }],
   guardR: 0.5 * IN,
   width: 0.8,
+  // the slot along the bumper's foot the kick wheel sits in (the user: "a small gap in the bumper
+  // where they deploy their kicker wheel"; the binder's intake page: it "deploys at the beginning of
+  // the match between ~1.3in wide bumper gaps and stays down via steel latches"): h tall from the
+  // bumper's bottom, depth into its face, as wide as the kick wheel (estimates, from the ~1.3in)
+  slot: { h: 1.3 * IN, depth: 1.0 * IN },
 };
-// the kick wheel's place: just in front of the bumper's face (the box's front is 0.2224 m out from it)
+// the kick wheel's place: at the bumper's face (the box's front is 0.2224 m out from it)
 INTAKE.kick.dx = INTAKE.kick.r + INTAKE.kick.gap - 0.2224;
 // the black roller's: sitting on the bumper's top (0.16, bumper4414), a mm over it, its front flush
 // with the bumper's face (the team; it was 11 mm out past the face and 2 cm over the top)
@@ -441,9 +459,22 @@ export function placeShooter([fly, ...rest], yaw, hoodDeg) {
   for (const w of [fly, ...rollers, ...feeders]) { const k = rollers.includes(w) ? 1 : -1; w.axis = [k * s, 0, k * c]; }
 }
 // the front bumper: solid foam (2.5in on its 3/4in backing, 1.25in to 5in up), across the front and
-// round to the side bumpers' faces; soft (20 kN/m, as 341's)
+// round to the side bumpers' faces; soft (20 kN/m, as 341's). The slot the kick wheel sits in
+// (INTAKE.slot) cut along its foot: the bumper over it, beside it, and behind it
 export function bumper4414() {
-  return new Block({ name: 'bumper', x0: HALF_L + 0.75 * IN, x1: HALF_L + 3.25 * IN, y0: 0.032, y1: 0.16, hw: HALF_W + 3.25 * IN, mu: BUMPER_MU, tread: 20000 });
+  const x0 = HALF_L + 0.75 * IN, x1 = HALF_L + 3.25 * IN, y0 = 0.032, y1 = 0.16, hw = HALF_W + 3.25 * IN;
+  const S = INTAKE.slot, ys = y0 + (S?.h ?? 0), sw = INTAKE.width / 2 + 0.005, side = (hw - sw) / 2;
+  const b = (name, o) => new Block({ name, mu: BUMPER_MU, tread: 20000, ...o });
+  if (!S) return { bumper: b('bumper', { x0, x1, y0, y1, hw }) };
+  const out = {
+    bumper: b('bumper', { x0, x1, y0: ys, y1, hw }),
+    bumperBack: b("bumper (the slot's back)", { x0, x1: x1 - S.depth, y0, y1: ys, hw: sw, r: 0.005 }),
+  };
+  for (const [k, z] of [['bumperL', -1], ['bumperR', 1]]) {
+    out[k] = b('bumper (beside the slot)', { x0, x1, y0, y1: ys, hw: side, r: 0.005 });
+    out[k].setPose([0, 0, z * (sw + side)]);
+  }
+  return out;
 }
 
 // ------------------------------------------------------------------ the surfaces (built here: no CAD)
@@ -674,7 +705,7 @@ export function pathSurfaces4414(t) {
   boxS.slideK = RACK.pinion;
   const turretS = s('turret', turret(), { pos: [AXIS[0], 0, AXIS[1]] });
   const hoodS = s('hood backing', hood(), { pos: [AXIS[0] + SHOOTER.x, FLY.y, AXIS[1]] });
-  return { body, net: netS, hook: hookS, feed: feedS, bore: boreS, column: columnS, box: boxS, turret: turretS, hood: hoodS, bumper: bumper4414() };
+  return { body, net: netS, hook: hookS, feed: feedS, bore: boreS, column: columnS, box: boxS, turret: turretS, hood: hoodS, ...bumper4414() };
 }
 // the rotor's surfaces at phi (clockwise from above: a surface's yaw is the other way)
 export function placeRotorSurfaces({ hook, feed, bore, column }, phi) { for (const sf of [hook, feed, bore, column]) sf.setPose([AXIS[0], 0, AXIS[1]], -phi, 0); }
