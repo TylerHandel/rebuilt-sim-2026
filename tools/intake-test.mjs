@@ -10,16 +10,20 @@
 // 8793's, would otherwise land on the FUEL); the times and counts are from when it starts driving
 // INTAKELOG=1 (4414): its primary roller's and kick wheel's speed, current and what loads them
 // (tools/intakewatch4414.mjs); =2 each quarter second too
+// --contacts: loose FUEL against the robot's own simplified colliders (bumpers, frame, hopper box,
+// intake hull or block), where and what became of them (tools/fuel-contacts.mjs)
 import { createWorld, mulberry32 } from './headless.mjs';
 import { Robot } from '../js/robot.js';
 import { Match } from '../js/match.js';
 import { ROBOTS, ROBOT_ORDER } from '../js/robotConfigs.js';
 import { PHYSICS_DT, BLUE, FUEL } from '../js/constants.js';
 import { intakeWatch } from './intakewatch4414.mjs';
+import { contactLog } from './fuel-contacts.mjs';
 
 const speed = +(process.argv[2] || 1.5);
 const along = process.argv.includes('--along'), RETURN = process.argv.includes('--return'), TELEOP = process.argv.includes('--teleop');
 const arg = (name, def) => { const i = process.argv.indexOf(name); return i > 0 ? process.argv[i + 1] : def; };
+const CONTACTS = process.argv.includes('--contacts');
 const T = +arg('--time', 4), SETTLE = +arg('--settle', 0), OFF = +arg('--offset', 0);
 for (const key of arg('--robots', ROBOT_ORDER.join(',')).split(',')) {
   for (const z of along ? [0] : [-1.5, 0.4]) {
@@ -48,6 +52,8 @@ for (const key of arg('--robots', ROBOT_ORDER.join(',')).split(',')) {
     const t0 = t;
     // (INTAKELOG, 4414: its primary roller's speed, current and what loads it, tools/intakewatch4414.mjs)
     const ph = r.phys, iw = process.env.INTAKELOG && ph?.t?.primary ? intakeWatch({ path: ph.path, t: ph.t, primary: ph.w.intake[1], local: (b) => ph._local(b.translation()), onCarpet: (b) => b.translation().y < FUEL.radius + 0.002, count: () => r.stored.length }) : null;
+    // (--contacts: loose FUEL against the robot's own simplified colliders, tools/fuel-contacts.mjs)
+    const clog = CONTACTS ? contactLog(r, fuel, physics) : null;
     let leg = 'down';
     for (let i = 0; i < T / PHYSICS_DT; i++) {
       // (--return: at the end of the line it turns round and comes back up the other half's)
@@ -67,6 +73,7 @@ for (const key of arg('--robots', ROBOT_ORDER.join(',')).split(',')) {
       r.postStep(PHYSICS_DT, t);
       if (i % 2) fuel.update(2 * PHYSICS_DT, t);
       iw?.check(PHYSICS_DT, ph.near.map((b) => b.body));
+      clog?.step(t);
       if (first === null && r.stored.length) first = t - t0;
       if (full === null && r.full) full = t - t0;
       counts.push(r.stored.length);
@@ -81,6 +88,7 @@ for (const key of arg('--robots', ROBOT_ORDER.join(',')).split(',')) {
     const fullNote = !fulls.length ? '' : `; full at ${fulls.map((f) => `${f.t.toFixed(2)} s (${f.n}${f.by ? ', ' + f.by : ''})`).join(', ')}, ${((fulls[fulls.length - 1].t) - (iMost + 1) * PHYSICS_DT).toFixed(2)} s after it first held ${most}${early.length ? `, ${early.length} early (it took 2+ more after)` : ''}`;
     console.log(`  ${key}: the most it held ${most}, first at ${((iMost + 1) * PHYSICS_DT).toFixed(2)} s; its last 10 took ${((iMost - i10) * PHYSICS_DT).toFixed(2)} s${fullNote}`);
     console.log(`${key} z=${z}: collected ${r.stored.length}/${r.capacity()} (in rollers ${r.captured?.length}, dropped ${r.stats.dropped}), first after ${first?.toFixed(2)}s, ${full ? `stalled after ${full.toFixed(2)}s` : 'not stalled'}, every 0.5 s ${curve.join(' ')}, ended at x=${r.pos.x.toFixed(2)} z=${r.pos.z.toFixed(2)}`);
+    if (clog) { clog.finish(t); console.log(clog.report()); }
     if (iw) { const o = iw.report(); console.log('   ' + o.text); if (process.env.INTAKELOG === '2') console.log((o.series || []).map((x) => '     ' + x).join('\n')); }
     physics.world.free();
   }
