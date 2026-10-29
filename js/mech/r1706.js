@@ -100,9 +100,13 @@ export const SHOOTER = {
   // the gearing: the accelerators 22/24 of the X60 (and the 5in flywheel, on the same belt), the 1in
   // wheels twice the accelerators the other way
   kAccel: 22 / 24, kHood: 2,
-  // what turns with them: the 5in aluminum flywheel (0.43 kg, 8.7e-4 kg m^2: its CAD solid), the
-  // accelerators (two 3in urethane wheels, their shaft and gears: 1.5e-4), the 1in wheels (2e-5)
-  Jfly: 8.7e-4, Jaccel: 1.5e-4, Jhood: 2e-5,
+  // what turns with them (kg m^2), each part about its own axis from the CAD's solids (OpenCascade's
+  // volume properties on the STEP) and the BOM's materials; README, *1706*, has the table: the 5in
+  // 6061 flywheel (0.15 kg, its rim 56-64 mm out), its 24t pulley and the 100T belt; the
+  // accelerators (two 3in solid urethane wheels, 28t gears, the hex) with the shafts and pulleys
+  // geared 1:1 to them and the X60's (its 18t, the 22t pulleys, the 34t, the 56T and 83T belts);
+  // the hood's two shafts of 1in urethane wheels with their 18t gears and 15t pulley
+  Jfly: 4.28e-4, Jaccel: 1.90e-4, Jhood: 9.5e-6,
   // the hood's swing about the accelerators' axle (deg, up and over: the CAD's mates' 45 deg, from
   // the steep end as exported); the shot's elevation by the CAD's geometry at 0 is 88 deg (the nip,
   // 178 deg round from the shot about the accelerators' axle)

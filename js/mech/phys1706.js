@@ -47,7 +47,11 @@ export const KICK_RPM = Number(globalThis.process?.env?.KICK_RPM ?? 3000);
 // it tops out near 8.6 m/s, the X60 near its free speed
 export const EXIT = { x: 0.06, y: 0.62 };
 export const EL_MAP = [[0, 84.5], [5.3, 76.6], [8.3, 72.3], [11.3, 69.7], [14.8, 65.0], [19.3, 61.1], [22.5, 55.2], [30, 48.4], [40, 40.5], [45, 37.5]];
-export const EXIT_MAP = [[0, 0], [4.7, 5.9], [5.6, 7.0], [6.1, 7.75], [6.45, 8.27], [6.84, 8.83], [7.17, 9.87], [7.5, 12.44], [7.9, 14.52], [8.28, 16.9], [8.44, 18.19], [8.6, 19.5]];
+// (EXIT_MAP re-found by calibrate with the shooters' inertia from the CAD's solids, which took 40% off
+// what the X60 turns: each FUEL now takes more out of the wheels, and the same exit speed wants 4-5%
+// more surface speed up to 7 m/s; the two lowest points scaled with it; past 7.9 m/s, in the slip,
+// the table's 4, 4.5 and 5 m rows' surface speeds moved until `shooter` lands them, 15.6, 18.4, 20.6)
+export const EXIT_MAP = [[0, 0], [4.7, 6.15], [5.6, 7.3], [6.1, 8.06], [6.46, 8.63], [6.86, 9.23], [7.09, 10.53], [7.52, 12.18], [7.91, 14.88], [7.95, 15.6], [8.31, 18.4], [8.48, 20.6], [8.6, 21.9]];
 const interp = (t, x, a = 0, b = 1) => {
   if (x <= t[0][a]) return t[0][b];
   for (let k = 1; k < t.length; k++) if (x <= t[k][a]) return t[k - 1][b] + ((t[k][b] - t[k - 1][b]) * (x - t[k - 1][a])) / (t[k][a] - t[k - 1][a]);
