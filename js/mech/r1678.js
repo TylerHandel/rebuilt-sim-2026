@@ -82,8 +82,18 @@ export const SHOOTER = {
   // from the drum). Past that it's eased so their ferry angles (43-52.5) come out at 35-45 deg.
   hoodTurn: [[17.5, 0], [26.5, 20], [52.5, 37]],
   drumPerMotor: 18 / 24,
-  // the drum and what turns with it (their sim: 0.0167 kg m^2 at the drum)
-  drumJ: 0.016,
+  // inertia (kg m^2), each about its own axis from the CAD's solids (OpenCascade's volume
+  // properties on the STEP) and the BOM's materials; README, *1678*, has the table. The drum: its
+  // 3.5in tube (the BOM's 1020 steel, 2.0 kg), the silicone over it, its 6061 end pieces and shaft,
+  // the two 24t pulleys, the 18t to the hood and the 50t PLA pulley, and the belts. The inertia
+  // flywheel the 50t drives 50t:15t (3.33 times the drum; it isn't in their sim): a 5in bronze ring
+  // (the BOM's leaded bronze, 0.57 kg) round a 4in 6061 disk, 2.30e-3 about its axis, 0.0256 seen
+  // at the drum. The drum and flywheel together are 0.0304 at the drum: their sim's 0.0167 is that
+  // seen at the motors (0.0171), not at the drum, where its FlywheelSim puts it. The hood: the
+  // three rollers (aluminum tubes and shafts, the silicone over them, 28t gears, 18t pulleys) and
+  // the idler that drives them, 5.2e-4 at the drum's speed. The motors' 18t and 12t pulleys and
+  // their 40T belts (at the motors' speed). (The motors' rotors are added by the Train.)
+  drumJ: 4.85e-3, flywheelJ: 2.30e-3, flywheelPerDrum: 50 / 15, hoodJ: 5.18e-4, motorJ: 7.9e-6,
   // their velocity loop (Slot1, volts; drum rotations/s): kV x target + kP x error + kS
   kV: (12 / 100) * (24 / 18) * 0.995, kP: 0.8, kS: 0.32,
   slow: 2100, // their kSlow: where it idles between shots
@@ -152,7 +162,11 @@ export function build1678() {
   const shooter = new Train({ name: 'shooter', motor: new Motor('krakenX60', { count: 4, statorLimit: 80, supplyLimit: 30 }) });
   const S = SHOOTER;
   const drum = shooter.add(new Shaft({ name: 'drum', inertia: S.drumJ }), S.drumPerMotor);
-  const hood = shooter.add(new Shaft({ name: 'hood rollers', inertia: 3e-4 }), -S.drumPerMotor);
+  // (the inertia flywheel and the motors' pulleys: inertia only, the train's drag stays the two
+  // shafts' it was tuned with)
+  shooter.add(new Shaft({ name: 'bronze inertia flywheel (50t:15t)', inertia: S.flywheelJ, drag: 0 }), S.drumPerMotor * S.flywheelPerDrum);
+  shooter.add(new Shaft({ name: 'motors\' pulleys', inertia: S.motorJ, drag: 0 }), 1);
+  const hood = shooter.add(new Shaft({ name: 'hood rollers', inertia: S.hoodJ }), -S.drumPerMotor);
   // the intake's pivot (positive turns the arm up, toward stowed)
   const pivot = new Shaft({ name: 'intake pivot', motor: new Motor('krakenX60', { ratio: (62 / 8) * (68 / 18) * (15 / 9), statorLimit: 60, supplyLimit: 40 }), inertia: INTAKE.J, drag: 0.5 });
   return { intake, main, kicker, idlers, floor, flex, rollers, tunnel, back, front, feederT, feeder, shooter, drum, hood, pivot };
