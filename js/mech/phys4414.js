@@ -41,6 +41,7 @@ import { sim2D } from '../ballistics.js';
 import { Field } from '../field.js';
 import { FUEL, HUB } from '../constants.js';
 import { clamp } from '../util.js';
+import { drive4414 } from './turretDrive.js';
 
 const DEG = Math.PI / 180, TAU = 2 * Math.PI, R = FUEL.radius;
 const ROTOR_RPS = 2.25, AGITATE_RPS = -0.15;
@@ -347,4 +348,12 @@ export class Physical4414 extends PhysicalRobot {
   loadTop() { let top = 0; for (const b of this.held) { const y = this._local(b.pos)[1]; if (y + R > top) top = y + R; } return top; }
   // how many it holds (tools/mechlab4414.mjs hold)
   capacity() { return 62; }
+
+  // The turret on its motor (js/mech/turretDrive.js): its X44 under a position loop, against its
+  // bearings and its energy chain (js/echain.js). js/robot.js asks it each step where the turret
+  // gets to on its way from cur to goal (rad, its yaw on the robot; t: the time, s).
+  turretStep(cur, goal, dt, t) {
+    this.turretDrive ||= drive4414();
+    return this.turretDrive.step(cur, goal, dt, t);
+  }
 }

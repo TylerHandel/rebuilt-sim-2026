@@ -1160,7 +1160,10 @@ export class Robot {
           const cands = [rel, rel + 2 * Math.PI, rel - 2 * Math.PI].filter((a) => Math.abs(a) <= lim);
           const cur = this.turretYaw - mid;
           const goal = cands.length ? cands.reduce((a, b) => (Math.abs(b - cur) < Math.abs(a - cur) ? b : a)) : clamp(rel, -lim, lim);
-          this.turretYaw = this.turretYaws[0] = mid + approach(cur, goal, sh.turretRate * DEG * dt);
+          // (a physical robot's turret on its motor, against its energy chain: phys.turretStep)
+          this.turretYaw = this.turretYaws[0] = this.phys?.turretStep
+            ? this.phys.turretStep(mid + cur, mid + goal, dt, t)
+            : mid + approach(cur, goal, sh.turretRate * DEG * dt);
           aimErr = wrapAngle(psi - (this.yaw + this.turretYaw));
         }
         this._lastPsi = sol.psi;

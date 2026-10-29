@@ -17,6 +17,7 @@ import PATH from './path8793.js';
 import * as THREE from 'three';
 import { TRENCH } from '../constants.js';
 import { TRENCH_ARMS } from '../nav.js';
+import { drive8793 } from './turretDrive.js';
 
 const DEG = Math.PI / 180;
 const _q = new THREE.Quaternion(), _v = new THREE.Vector3();
@@ -281,4 +282,12 @@ export class Physical8793 extends PhysicalRobot {
   // how many it holds, about, with the arm down: 7 in the frame (tools/mechlab.mjs slots) and a
   // couple more up on its arm (what it carries in matches)
   capacity() { return 9; }
+
+  // The turret on its motor (js/mech/turretDrive.js): its X60 under their position loop, against its
+  // bearings and its energy chain (js/echain.js). js/robot.js asks it each step where the turret
+  // gets to on its way from cur to goal (rad, its yaw on the robot; t: the time, s).
+  turretStep(cur, goal, dt, t) {
+    this.turretDrive ||= drive8793();
+    return this.turretDrive.step(cur, goal, dt, t);
+  }
 }

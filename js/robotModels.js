@@ -18,6 +18,7 @@ import { NET as NET_1706 } from './mech/r1706.js';
 import { NET as NET_581 } from './mech/r581.js';
 import { fuelTexture, squashable } from './fuelSkin.js';
 import { ALUMINUM_COLORS } from './aluminumColors.js';
+import { chain8793, chain4414 } from './echainModel.js';
 
 export const BUMP_Y0 = BUMPER_Y0, BUMP_Y1 = BUMPER_Y1;
 const lerp = THREE.MathUtils.lerp;
@@ -1732,10 +1733,10 @@ function build4414(cfg, alliance) {
   // flywheel, centered across the shooter, sunk into the notch in the turret's top plate, its top
   // about flush with it, looking out along the shot and a little up (ShooterV10, V11, Turret PT)
   limelight(body, ax + F4s.r + 0.03, -0.014, 0, 0, { tilt: 0.75, ll4: true });
-  // cable chain to the turret
-  const chain = mesh(new THREE.TorusGeometry(0.17, 0.008, 4, 24, Math.PI * 0.8), std(0x111214, 0.8, 0.05), turret, 0, 0.018, 0);
-  chain.rotation.x = Math.PI / 2;
-  chain.rotation.z = Math.PI * 0.6;
+  // the energy chain from the left of the robot round the tensioner, back round the compliant wheel
+  // and on round the guides at the shooter's corners (js/echainModel.js; the links where js/echain.js
+  // puts them for the turret's yaw)
+  const echain = chain4414(root, turret, wallTop, M);
 
   // ---- net over the top: pinned to the wall tops, the top plate's front edge and the turret
   // ring. It drapes over the load and stretches up where the FUEL bulges it (the hopper physics
@@ -1761,6 +1762,7 @@ function build4414(cfg, alliance) {
     bendAxle.userData.spin.rotation.z += st.feeding * dt * 144; // (2.4 times the stack's speed)
     for (const w of ttbSpin) w.rotation.y += st.feeding * dt * 60; // (the stack turns about +y: its face toward the channel runs in)
     turret.rotation.y = st.turretYaw;
+    echain.update(st.turretYaw);
     fly.rotation.z -= st.flywheel * dt * 10;
     // (the stubs and the roller against it, 1.5 times as fast: the ~30:20 mesh, 1:1 belts)
     hoodRoller.rotation.z += st.flywheel * dt * 15;
@@ -1886,6 +1888,13 @@ function build8793(cfg, alliance) {
   cadPart(root, 'robots/8793-mount.glb', (sc) => cutCad(sc, root, cutters));
   cadPart(cadArm, 'robots/8793-intake.glb', (sc) => { intake.visible = false; cutCad(sc, cadArm, pivotCuts); });
   cadPart(cadTurret, 'robots/8793-turret.glb', () => { turret.visible = false; });
+  // the energy chain's track (fixed on the tower: tools/split-8793-track.py took it out of the
+  // turret's file) and the chain in it (js/echainModel.js)
+  const cadTrack = new THREE.Group();
+  cadTrack.position.set(cfg.shooter.turretPos.x, 0, cfg.shooter.turretPos.z);
+  root.add(cadTrack);
+  cadPart(cadTrack, 'robots/8793-track.glb', () => {});
+  const echain = chain8793(root, [cfg.shooter.turretPos.x, cfg.shooter.turretPos.z]);
 
   // FUEL in the ball path (intake -> conveyor -> turret)
   const stored = [];
@@ -1902,6 +1911,7 @@ function build8793(cfg, alliance) {
     // (where its pivot's motors and the FUEL under it have the arm: js/mech/phys8793.js)
     cadArm.rotation.z = st.armTurn ?? (1 - st.intakeDeploy) * fold.stowDeg * Math.PI / 180;
     cadTurret.rotation.y = st.turretYaw;
+    echain.update(st.turretYaw);
     fly.rotation.z -= st.flywheel * dt * 8;
     hood.rotation.z = (st.hoodDeg - 62) * Math.PI / 180 * 0.8;
   };
