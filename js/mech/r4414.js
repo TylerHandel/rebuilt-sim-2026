@@ -211,10 +211,11 @@ export const SHOOTER = {
   // the hood roller at the hood's tip, the wheel opposite the flywheel: n 1in sushi wheels side by
   // side on its shaft, seg wide each (the renders: three over ~4in of the middle, estimate), its
   // center at the angle the hood lets FUEL go (at, deg past it), 1in into the FUEL; it turns k
-  // times a flywheel turn (the binder's 50% surface speed), J its shaft's (three wheels, the hex,
-  // two pulleys: estimate). The hood's backing stops gap deg short of it (the renders: the print
-  // runs up to the roller)
-  roller: { r: 0.5 * IN, n: 3, seg: 1.4 * IN, at: 0, k: 1.5, J: 1e-5, gap: 6 },
+  // times a flywheel turn (the binder's 50% surface speed), J what turns with it, from the parts'
+  // sizes (not CAD): the three wheels (TPU), the hex, its two GT2 pulleys, the two stubs' 20T gears
+  // and pulleys and the two belts. The hood's backing stops gap deg short of it (the renders: the
+  // print runs up to the roller)
+  roller: { r: 0.5 * IN, n: 3, seg: 1.4 * IN, at: 0, k: 1.5, J: 9.8e-6, gap: 6 },
   get rollerR() { return this.hoodR + this.roller.r - (SQ.roller - SQ.hood); },
   // the sushi feeder: three 1in wheels on the column's front side, midway up it (the team: "feeder
   // wheels midway up the column not easily seen in the CAD"; Shooter PT's gears down the turret's
@@ -226,9 +227,14 @@ export const SHOOTER = {
   // 10 kN/m), the top one is a harder durometer (mu 0.9, 25 kN/m) (the team; the values are
   // estimates about the generic sushi wheel's 1.0, 15 kN/m). mu, tread: each wheel's, bottom up
   feeder: { r: 0.5 * IN, ys: [0.32, 0.347, 0.374], w: 0.06, mu: [1.2, 1.2, 0.9], tread: [10000, 10000, 25000] },
-  // what turns with the flywheel: four stealth wheels with copper and mass disks between (estimate:
-  // six 3in x 1/4in copper disks, 0.26 kg each, and the wheels), the rotors are added
-  J: 1.25e-3,
+  // what turns with the flywheel (their CAD isn't public: the binder's parts with their makers'
+  // published specs, not CAD solids; README, *4414*, has the table): four AndyMark 3in Stealth
+  // Wheels (1in wide, TPU on a polycarbonate core: 0.27e-3 kg m^2 the four, modelled, as AndyMark
+  // publishes no 3in mass), the "mass disks inside the stealth wheels", AndyMark's flywheel for the
+  // 3in Stealth Wheel (2.3in, 0.38in thick, 0.38 lb each: 0.34e-3 the four), the ".25in copper
+  // flywheels", one at each end of the stack in the renders (3in, 0.25 kg each: 0.38e-3), the hex
+  // shaft and the 20DP gears turning 1:1 with it (0.03e-3); the X44s' rotors are added
+  J: 1.01e-3,
   // the hood: where it lets FUEL go, deg round the axle from forward (90 is straight up over it):
   // a shot leaves about 90 below that (the tangent); its travel for shots (estimate, from the
   // renders), and stowed: folded back flat, flush with the robot's top (the team: it pokes up only
@@ -349,7 +355,8 @@ export function build4414() {
   const hoodRoller = launcher.add(new Shaft({ name: 'hood sushi roller (belted up the hood)', inertia: SHOOTER.roller.J }), SHOOTER.roller.k);
   // the sushi feeder: geared down 16:14 off the flywheel (its gears down the turret's side, in the
   // renders), so it feeds as fast as the shot's speed lets it: "the main bps regulator"
-  const feeder = launcher.add(new Shaft({ name: 'shooter sushi feeder', inertia: 1e-5 }), 14 / 16);
+  // (three 1in sushi wheels, the hex and a 14T gear: 2.9e-6, from their sizes)
+  const feeder = launcher.add(new Shaft({ name: 'shooter sushi feeder', inertia: 2.9e-6 }), 14 / 16);
   // the box's racks: an X44 a side through 3.33:1 to the 10t pinions (positive runs the box out);
   // what slides seen at the pinions. Their current limits aren't public: 40 A stator, 30 A supply
   // (estimates). The racks ride on bearing stacks ("allowed our intake to slide smoothly", the
