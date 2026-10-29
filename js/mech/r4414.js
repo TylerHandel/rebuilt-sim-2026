@@ -291,14 +291,15 @@ export const INTAKE = {
   kick: { gap: 0.010, y: 0.040, r: 0.75 * IN, mu: 1.0, tread: 20000 },
   // two tubes across the box over the primary roller, each free on its bearings (the isolated
   // intake render; the team): FUEL in the box can't reach the primary's top, which runs forward and
-  // would throw them back out. The lower one out toward the box's front, over the primary's front:
-  // FUEL already in kept off it; the upper one back toward the bumper and the hopper, under the
-  // primary's X60s (at the box's sides): FUEL kept off them and off the primary's middle, where
-  // nothing else stops them dropping onto it (the user). Neither lets a FUEL by (the gaps between
-  // them, the primary and the chin are 30-60 mm), and the upper one clears the FUEL coming up the
-  // bumper's face and over the black roller by 4 mm and more (estimates; they were at -0.03, 0.235
-  // and -0.07, 0.28)
-  guards: [{ dx: -0.005, y: 0.235 }, { dx: -0.08, y: 0.268 }],
+  // would throw them back out. The lower one back toward the robot (-x), over the primary's back
+  // between it and the FUEL coming up the bumper's face: those, already coming in, kept off the
+  // primary; the upper one out toward the box's front panel (+x, the hopper's wall there), under
+  // its chin: the primary's X60s shielded and FUEL kept from dropping onto the primary's middle
+  // (the user). Neither lets a FUEL by (the gaps between them and the primary are 20-55 mm,
+  // the upper one 27 mm under the chin), and the lower one clears the FUEL coming up the face and
+  // over the black roller by 4 mm and more (estimates; they were at -0.03, 0.235 and -0.07, 0.28,
+  // then the wrong way round at -0.005, 0.235 and -0.08, 0.268)
+  guards: [{ dx: -0.066, y: 0.242 }, { dx: -0.015, y: 0.27 }],
   guardR: 0.5 * IN,
   width: 0.8,
   // the slot along the bumper's foot the kick wheel sits in (the user: "a small gap in the bumper
