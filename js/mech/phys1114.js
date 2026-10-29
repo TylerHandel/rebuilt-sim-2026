@@ -36,7 +36,7 @@
 import { Mechanism } from './mechanism.js';
 import { PhysicalRobot } from './physical.js';
 import {
-  build1114, wheels1114, pathSurfaces1114, placeSlide, placeIntake, placeHood, hoodElevation, hoodRot, kickerRot, shotFor, slideTurns,
+  build1114, wheels1114, pathSurfaces1114, placeSlide, placeIntake, placeHood, hoodElevation, hoodRot, kickerRot, shotFor, slideTurns, slideStops,
   SLIDE, SLIDE_POS, SHOOTER, BALLEVATOR, RANGE, PRELOAD, FLY,
 } from './r1114.js';
 import PATH from './path1114.js';
@@ -118,6 +118,7 @@ export class Physical1114 extends PhysicalRobot {
   // the box's weight down its racks (they rise 8.7 deg toward the robot)
   _slideStep(dt, on) {
     const T = this.t, m = T.slide.motor, M = this.slideMode;
+    slideStops(T.slide, this.ext);
     if (!on) T.slide.cmd = null;
     else if (M.kind === 'volts') T.slide.cmd = M.v === 0 ? null : M.v / 12;
     else if (M.kind === 'pos') T.slide.cmd = clamp((4 * (M.turns - slideTurns(this.ext))) / 12, -1, 1);

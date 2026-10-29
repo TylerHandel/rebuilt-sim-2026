@@ -13,6 +13,9 @@
 // tune (their LUT's rows re-found by shooting: js/mech/r1114.js SIM_HUB, SIM_PASS). spinup (the
 // flywheel from their ShooterIdle's 1000 RPM up to their 2.34, 3.02 and 4 m shots at their 50 A
 // stator limit and higher ones: LIMITS=a,b,..; BATT=1 with the battery sagging under it).
+// fullshake (full through the intake, then driven about: SHAKE_A, SHAKE_W, SHAKE_INTAKE=1 with the
+// roller at 12 V), knock (full, then stopped dead against a wall: KNOCK times, KNOCK_A m/s^2 for
+// KNOCK_T s), panel (one FUEL thrown at the box's front panel from inside, or pressed against it).
 // Env: SEEDS (6), SPEED (path's 1 m/s; intake's 1,3), SEC (intakefull's 10 s), STUCK (where the
 // ones left over are), SHOT=rpm,hood (one shot of your own), MAP=1 (shooter: a grid of RPMs and
 // hoods), THEIR_RPM=1 (their LUT's own RPMs), NOAGITATE=1 (the dump without the box coming in),
@@ -33,8 +36,8 @@ import { FUEL, GROUP, groups, HUB } from '../js/constants.js';
 import { Mechanism } from '../js/mech/mechanism.js';
 import { sim2D } from '../js/ballistics.js';
 import {
-  build1114, wheels1114, pathSurfaces1114, placeSlide, placeIntake, placeHood, hoodRot, hoodElevation, shotFor, slideTurns, kickerRot,
-  HUB_LUT, PASS_LUT, SLIDE, SLIDE_POS, SHOOTER, BALLEVATOR, FLOOR, ELEV, SQUISH, SIDE, INTAKE, FLY, RANGE, BLANKET,
+  build1114, wheels1114, pathSurfaces1114, placeSlide, placeIntake, placeHood, hoodRot, hoodElevation, shotFor, slideTurns, kickerRot, slideOffset, slideStops,
+  HUB_LUT, PASS_LUT, SLIDE, SLIDE_POS, SHOOTER, BALLEVATOR, FLOOR, ELEV, SQUISH, SIDE, INTAKE, FLY, RANGE, BLANKET, PANEL,
 } from '../js/mech/r1114.js';
 import PATH from '../js/mech/path1114.js';
 import { EXIT_PER_FLY_SURFACE } from '../js/mech/phys1114.js';
@@ -94,6 +97,7 @@ function feed(t, on) {
 // torque current amps; its weight down the racks; the box moving as its pinions turn
 function slide(r, { volts = null, turns = null, amps = null } = {}) {
   const T = r.t;
+  slideStops(T.slide, r.ext);
   if (turns !== null) T.slide.cmd = Math.max(-1, Math.min(1, (4 * (turns - slideTurns(r.ext))) / 12));
   else if (amps !== null) { const m = T.slide.motor; T.slide.cmd = Math.max(-1, Math.min(1, (amps * m.Rm + (T.slide._omega * m.ratio) / m.kV) / 12)); }
   else T.slide.cmd = volts ? volts / 12 : null;
@@ -151,9 +155,13 @@ const TOP = { topX: 0.3, topN: 6 }; // (js/mech/phys1114.js naturalFull)
 // FUEL that got out, not as shots (each once it's been in it): where it left the robot's volume
 // (the frame, 0.80 m up, and the box as far out as it is): over the top (behind the blanket, x
 // under its back edge, or through it), over a side, out the back, or out the front over the
-// intake; with ESC=1 where it crossed and how fast
+// intake, through the front panel or under it (along the slot over the bottom front tube: which
+// side of the panel's bottom edge its center first got past the panel's inner face); with ESC=1
+// where it crossed and how fast, and out the front its center's last steps in the box's frame as
+// exported (u: how far past the panel's inner face, mm; y: how high, m) and its dent on the panel
+// then (mm)
 function escapeWatch(rg) {
-  const seen = new Set(), out = new Map(), last = new Map();
+  const seen = new Set(), out = new Map(), last = new Map(), hist = new Map();
   const inVol = ([x, y, z], ext) => y > -0.02 && y < 0.8 && Math.abs(z) < 0.39 && x > -0.331 && x < 0.311 + ext + 0.05;
   return {
     out,
@@ -165,11 +173,21 @@ function escapeWatch(rg) {
         if (!seen.has(b)) { if (heldP(p, ext)) seen.add(b); else continue; }
         // (shot: on its way up off the flywheel; set aside)
         if (p[0] > 40 || p[1] > 3 || (b.linvel().y > 2 && p[1] > 0.55 && p[0] < 0.1)) { seen.delete(b); continue; }
+        {
+          const [dx, dy] = slideOffset(ext), h = hist.get(b) ?? [], c = rg.path.contacts.find((k) => k.ball === b && k.wheel === rg.s.panel);
+          h.push([(p[0] - dx - PANEL.x0) * 1000, p[1] - dy, c ? c.depth * 1000 : 0]);
+          if (h.length > 10) h.shift();
+          hist.set(b, h);
+        }
         if (inVol(p, ext)) { last.set(b, p); continue; }
         const q = last.get(b) ?? p;
-        const why = p[1] >= 0.8 ? (q[0] < bx0 ? 'top, behind the blanket' : 'top, through the blanket') : Math.abs(p[2]) >= 0.39 ? 'side' : p[0] <= -0.331 ? 'back' : p[0] >= 0.311 + ext + 0.05 ? 'front' : 'under';
+        let why = p[1] >= 0.8 ? (q[0] < bx0 ? 'top, behind the blanket' : 'top, through the blanket') : Math.abs(p[2]) >= 0.39 ? 'side' : p[0] <= -0.331 ? 'back' : p[0] >= 0.311 + ext + 0.05 ? 'front' : 'under';
+        // (out the front: through the panel if its center first got past the panel's inner face
+        // above the panel's bottom edge)
+        const h = hist.get(b) ?? [], past = h.find((e) => e[0] > 0);
+        if (why === 'front' && past) why = past[1] >= PANEL.y0 ? 'front, through the panel' : 'front, under the panel';
         out.set(b, why);
-        if (process.env.ESC) { const v = b.linvel(); console.log(`   escaped (${why}): last in at ${q.map((u) => u.toFixed(3)).join(',')}, now ${p.map((u) => u.toFixed(3)).join(',')} v ${v.x.toFixed(1)},${v.y.toFixed(1)},${v.z.toFixed(1)}; the box ${slideTurns(ext).toFixed(1)} turns out`); }
+        if (process.env.ESC) { const v = b.linvel(); console.log(`   escaped (${why}): last in at ${q.map((u) => u.toFixed(3)).join(',')}, now ${p.map((u) => u.toFixed(3)).join(',')} v ${v.x.toFixed(1)},${v.y.toFixed(1)},${v.z.toFixed(1)}; the box ${slideTurns(ext).toFixed(1)} turns out${why.startsWith('front') ? `; its last steps (u mm, y m, dent on the panel mm): ${h.map((e) => `${e[0].toFixed(0)} ${e[1].toFixed(3)} ${e[2].toFixed(0)}`).join(' | ')}` : ''}`); }
       }
     },
     report() {
@@ -366,7 +384,8 @@ const tests = {
       const rg = rig({ ext }), { path } = rg, esc = escapeWatch(rg);
       const w = world();
       const balls = [];
-      const step = (n) => { for (let i = 0; i < n; i++) { path.step(DT, balls, balls); w.step(); esc.check(balls); } };
+      // (the box held where it is: its pinions locked, so FUEL pressing on it meet a fixed box)
+      const step = (n) => { for (let i = 0; i < n; i++) { rg.t.slide.lo = rg.t.slide.hi = 0; path.step(DT, balls, balls); w.step(); esc.check(balls); } };
       fill(w, balls, step, { ext });
       step(2 / DT);
       const n = balls.filter((b) => inIt(b, ext)).length, top = Math.max(...balls.filter((b) => inIt(b, ext)).map((b) => b.translation().y));
@@ -374,6 +393,52 @@ const tests = {
       console.log(`1114 holds ${n} with the box ${ext ? 'out' : 'in'}, dropped in a layer at a time, everything off (the load's top ${(top + R).toFixed(2)} m); ${esc.report()}`);
       if (process.env.SHAKE) shake(rg, w, balls, esc, `dropped in, the box ${ext ? 'out' : 'in'}`);
       w.free();
+    }
+  },
+  // the front panel alone (js/mech/r1114.js FrontPanel), the box out, rollers off: one FUEL thrown
+  // at it from inside the box at 3-20 m/s, and one pressed against it from inside with 200-800 N
+  // (0.6 s each): does it stay in, and how far past the panel's inner face did its center get?
+  panel() {
+    const one = ({ at, v = 0, F = 0 }) => {
+      const rg = rig(), { path } = rg, w = world(), b = ball(w, ...at, [v, 0, 0]);
+      let far = -Infinity;
+      for (let k = 0; k < 0.6 / DT; k++) {
+        if (F) b.applyImpulse({ x: F * DT, y: 0, z: 0 }, true);
+        slide(rg, {}); path.step(DT, [b], [b]); w.step(); moveSlide(rg);
+        far = Math.max(far, b.translation().x - PANEL.x0);
+      }
+      const x = b.translation().x;
+      w.free();
+      return `${x > PANEL.x1 ? 'OUT' : 'in'} (its center at most ${(far * 1000).toFixed(0)} mm past the panel's inner face)`;
+    };
+    console.log(`1114's front panel, one FUEL from inside the box (the box out):`);
+    for (const v of [3, 6, 10, 15, 20]) console.log(`  thrown at it at ${v} m/s: ${one({ at: [0.45, 0.45, 0], v })}`);
+    for (const F of [200, 400, 800]) console.log(`  pressed against it with ${F} N: ${one({ at: [0.535, 0.45, 0], F })}`);
+  },
+  // hard knocks: full through its intake (the box out), then stopped dead against a wall KNOCK
+  // times (3), 0.6 s apart: its load thrown forward at KNOCK_A m/s^2 (250) for KNOCK_T s (0.03:
+  // 7.5 m/s each, harder than its 4.5 m/s stopped on its bumper, for a margin); SHAKE_INTAKE=1
+  // with the roller at 12 V
+  knock() {
+    const A = Number(process.env.KNOCK_A ?? 250), T = Number(process.env.KNOCK_T ?? 0.03), N = Number(process.env.KNOCK ?? 3);
+    for (let seed = 1; seed <= Math.min(SEEDS, 4); seed++) {
+      const f = intakeFull(seed, { keep: true, until: (full) => full, sec: 14 });
+      f.carpet.setLinvel({ x: 0, y: 0, z: 0 }, true);
+      const balls = [];
+      for (const b of f.balls) { if (ownP(pos(b), f.rig.ext)) balls.push(b); else b.setEnabled(false); }
+      f.rig.t.intake.cmd = process.env.SHAKE_INTAKE ? 1 : null; f.rig.t.floor.cmd = null;
+      const rg = f.rig, n0 = balls.filter((b) => inIt(b, rg.ext)).length, before = f.esc.out.size;
+      const stepAll = () => { rg.path.step(DT, balls, balls); slide(rg, {}); moveSlide(rg); f.world.step(); f.esc.check(balls); };
+      for (let i = 0; i < N; i++) {
+        for (let k = 0; k < Math.round(T / DT); k++) {
+          for (const b of balls) { const p = b.translation(); if (p.x < 40 && p.y < 3) b.applyImpulse({ x: FUEL.mass * A * DT, y: 0, z: 0 }, true); }
+          stepAll();
+        }
+        for (let k = 0; k < 0.6 / DT; k++) stepAll();
+      }
+      const n1 = balls.filter((b) => inIt(b, rg.ext)).length;
+      console.log(`1114 full through its intake (seed ${seed}), knocked ${N} times (${A} m/s^2 for ${T} s${process.env.SHAKE_INTAKE ? ', the roller at 12 V' : ''}): ${n1} of ${n0} still in it, ${f.esc.out.size - before} escaped; in all ${f.esc.report()}`);
+      f.world.free();
     }
   },
   // full through its intake, then driven about with the load in it (the box out, everything off):

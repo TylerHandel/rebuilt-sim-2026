@@ -375,7 +375,8 @@ export class Surface {
   }
   // where a FUEL at p (the surface's coordinates) touches it: [{ depth, n (out of the surface,
   // toward the FUEL) }], one per face it's against (neighboring triangles of one face, and a thin
-  // plate's far side, merged into the deepest)
+  // plate's far side, merged into the deepest). (The mechanism also passes the FUEL itself, its
+  // body: a surface that remembers which side of it each FUEL is on uses it; a mesh doesn't)
   touches(p) {
     const [px, py, pz] = p, r = R;
     if (px < this.lo[0] || px > this.hi[0] || py < this.lo[1] || py > this.hi[1] || pz < this.lo[2] || pz > this.hi[2]) return NONE;
@@ -546,7 +547,7 @@ export class Mechanism {
         if (W.some(({ wh, c, a }) => {
           const d = sub(bc, c), s = dot(d, a);
           return Math.abs(s) < wh.width / 2 + R + reach && len(sub(d, mul(a, s))) < wh.radius + R + reach;
-        }) || (this.surfaces.length && this.surfaces.some((sf) => sf.touches(sf.toLocal(qrotInv(fr.q, sub(bc, fr.p)))).length))) state(b);
+        }) || (this.surfaces.length && this.surfaces.some((sf) => sf.touches(sf.toLocal(qrotInv(fr.q, sub(bc, fr.p))), b).length))) state(b);
       }
     }
     const reaction = [];
@@ -596,7 +597,7 @@ export class Mechanism {
     const C = [];
     for (const [b, bc] of at) {
       for (const sf of this.surfaces) {
-        const hits = sf.touches(sf.toLocal(qrotInv(fr.q, sub(bc, fr.p))));
+        const hits = sf.touches(sf.toLocal(qrotInv(fr.q, sub(bc, fr.p))), b);
         for (const { depth, n: nl } of hits) {
           const st = state(b), n = qrot(fr.q, sf.dirToFrame(nl));
           const x = sub(bc, mul(n, R - depth / 2)), rb = sub(x, bc);

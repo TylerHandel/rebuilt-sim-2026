@@ -125,6 +125,11 @@ export const KICKER = { pin: [0.4513, 0.196], len: 0.153, barR: 0.016, max: Math
 // the bumper: their CAD's 1/2in wood (0.317-0.329 m out, 0.048 to 0.172 m up) and 2.5in of foam on
 // it, to the side bumpers' faces (0.399 m + 2.5in); the foam isn't in the CAD
 export const BUMPER = { x0: 0.3294, x1: 0.3294 + 2.5 * 0.0254, y0: 0.0476, y1: 0.1721, hw: 0.399 + 2.5 * 0.0254 };
+// the box's front panel: the front of its clear polycarbonate (S26-IN-P322, 1/16in), its inner face
+// 0.6044 m out as exported, from its bottom edge 0.2692 m up (on the 5/8in bottom rail S26-IN-P306;
+// under that the 5.3 cm slot down to the 1.25in bottom front tube S26-IN-P305, open in the CAD) to
+// the box's top at 0.701 m, and across the box to its side walls' outer faces (0.3766 m either side)
+export const PANEL = { x0: 0.6044, x1: 0.606, y0: 0.2692, y1: 0.701, hw: 0.3766 };
 // the blanket: the box's top (S26-IN-P330, 0.115 to 0.598 m out as exported, 0.701 up, 0.74 m
 // across), red plush tied round its edges; FUEL under it push it up (bulge, an estimate), and past
 // that it gives as a taut cloth does (tread: 6 kN/m, an estimate; at the 1.5 kN/m of 1678's and
@@ -217,7 +222,7 @@ export function build1114() {
   // the box's slide: the racks' pinions (positive runs the box out); what slides seen at the
   // pinion; the racks' friction (an estimate: enough that the box doesn't run out down its racks
   // on its own with the X44 coasting)
-  const slide = new Shaft({ name: 'slide pinions', motor: new Motor('krakenX44', { ratio: SLIDE.ratio, statorLimit: 60, supplyLimit: SUPPLY }), inertia: SLIDE.mass * SLIDE.pinion ** 2, drag: 0.05, friction: 0.15 });
+  const slide = new Racks({ name: 'slide pinions', motor: new Motor('krakenX44', { ratio: SLIDE.ratio, statorLimit: 60, supplyLimit: SUPPLY }), inertia: SLIDE.mass * SLIDE.pinion ** 2, drag: 0.05, friction: 0.15 });
   // the passive side rollers: free (their bearings' running friction an estimate)
   const passive = PASSIVE.at.flatMap(() => [-1, 1]).map((_, i) => new Shaft({ name: `passive side roller ${i + 1}`, inertia: 4e-6, drag: 2e-5, friction: 0.002 }));
   return { intake, roller, floor, rollers, squish, sideT, side, elev, front, back, wall, passive, shooter, fly, hood, slide };
@@ -245,6 +250,30 @@ export function wheels1114(t) {
 const rot = ([x, y], [cx, cy], a) => { const c = Math.cos(a), s = Math.sin(a), dx = x - cx, dy = y - cy; return [cx + dx * c - dy * s, cy + dx * s + dy * c]; };
 // the box's offset from the CAD's pose (all the way out) with it ext m out along its racks
 export function slideOffset(ext) { const d = SLIDE.out - ext; return [SLIDE.dir[0] * d, SLIDE.dir[1] * d]; }
+// the racks' ends: with the box all the way out (or in) its pinions can't turn it on past there, so
+// what the load pushes it with that way goes into the stop (set before each step: the box against
+// its stop is as fixed as the robot, not a 6 kg box recoiling from the load within the step; that
+// recoil let a hard knock press its load further into its front)
+export function slideStops(shaft, ext) { shaft.lo = ext <= 1e-9 ? 0 : -Infinity; shaft.hi = ext >= SLIDE.out - 1e-9 ? 0 : Infinity; }
+// the slide's pinions: a Shaft whose racks' friction holds it still against small pushes as the
+// shared one's does, and its stops (lo, hi: slideStops) as well (the shared Shaft drops its
+// friction against a stop)
+class Racks extends Shaft {
+  integrate(dt, V) {
+    const { lo, hi } = this;
+    this.lo = -Infinity; this.hi = Infinity;
+    super.integrate(dt, V);
+    Object.assign(this, { lo, hi });
+    this._omega = Math.min(hi, Math.max(lo, this._omega));
+  }
+  impulse(L) {
+    const { lo, hi } = this;
+    this.lo = -Infinity; this.hi = Infinity;
+    super.impulse(L);
+    Object.assign(this, { lo, hi });
+    this._omega = Math.min(hi, Math.max(lo, this._omega));
+  }
+}
 export function placeIntake(wheels, ext) {
   const [dx, dy] = slideOffset(ext);
   for (const w of wheels) w.center = [w.home[0] + dx, w.home[1] + dy, w.home[2]];
@@ -278,22 +307,71 @@ export function hoodElevation(deg) {
 // bumper (solid foam: a Block). FUEL slide on the CAD's polycarbonate and aluminum at 0.25 (an
 // estimate, 2910's and 604's: at 0.3 a full box dumped at 12 FUEL/s, at 0.2 at 15), and on the
 // kicker's "safety walk" grip at 1.0
+// The box's front panel is its own solid (FrontPanel), not the mesh's: the mesh's panel is two
+// sheets 1 cm apart (its 1/16in snapped to the 1 cm grid), and a FUEL pressed far enough into it
+// that its center passed their middle was pushed out the far side, out of the box (in play, the
+// packed load thrown at it in a hard knock; on the bench one FUEL pressed on it with 800 N, or
+// thrown at it at 20 m/s: tools/mechlab1114.mjs panel). So the mesh's panel (every triangle on
+// those two sheets, 0.60 and 0.61 m out, from its bottom edge up) is left out here.
+const panelTri = (V, I, t) => [0, 1, 2].every((k) => { const x = V[I[t * 3 + k] * 3], y = V[I[t * 3 + k] * 3 + 1]; return x >= 600 && x <= 610 && y >= 270; });
 export function pathSurfaces1114(mesh, t, { mu = 0.25 } = {}) {
-  const s = (k, pos, m = mu) => new Surface({ name: `${k} (CAD)`, vertices: mesh[k].v.map((x) => x / 1000), indices: mesh[k].i, mu: m, pos });
+  const s = (k, pos, m = mu, keep = () => true) => {
+    const I = mesh[k].i, n = I.length / 3, idx = [];
+    for (let j = 0; j < n; j++) if (keep(mesh[k].v, I, j)) idx.push(I[j * 3], I[j * 3 + 1], I[j * 3 + 2]);
+    return new Surface({ name: `${k} (CAD)`, vertices: mesh[k].v.map((x) => x / 1000), indices: idx, mu: m, pos });
+  };
   const body = s('body', [0, 0, 0]);
-  const slide = s('slide', [0, 0, 0]).onSlide(t.slide, [-SLIDE.dir[0], -SLIDE.dir[1], 0]);
+  const slide = s('slide', [0, 0, 0], mu, (V, I, j) => !panelTri(V, I, j)).onSlide(t.slide, [-SLIDE.dir[0], -SLIDE.dir[1], 0]);
   slide.slideK = SLIDE.pinion;
+  const panel = new FrontPanel({ mu }).onSlide(t.slide, [-SLIDE.dir[0], -SLIDE.dir[1], 0]);
+  panel.slideK = SLIDE.pinion;
   const kicker = s('kicker', [...KICKER.pin, 0], 1.0);
   const hood = s('hood', [...FLY, 0]);
   const blanket = new Blanket();
   const bumper = new Block({ name: 'bumper', ...BUMPER, mu: BUMPER_MU, tread: 20000 });
-  return { body, slide, kicker, hood, blanket, bumper };
+  return { body, slide, panel, kicker, hood, blanket, bumper };
 }
 export function placeSlide(s, ext) {
   const [dx, dy] = slideOffset(ext);
   s.slide.setPose([dx, dy, 0]);
+  s.panel.setPose([dx, dy, 0]);
   s.kicker.setPose([KICKER.pin[0] + dx, KICKER.pin[1] + dy, 0], 0, kickerRot(ext));
   s.blanket.place(dx, dy);
+}
+// The box's front panel (PANEL, in the box's frame as exported; it slides with the box): a solid
+// sheet as thick as the CAD's polycarbonate that a FUEL can't pass through. Against its face a
+// FUEL is pushed back to the side it came from, however far the load has pressed it in: each
+// FUEL's side is remembered from step to step (as a collision engine's continuous detection
+// does), so one whose center a hard knock has pressed past the sheet is still pushed back into
+// the box (its dent deeper than its radius), not out the far side. Past its edges (under its
+// bottom edge, along the slot over the bottom tube) it's a rounded edge like any other.
+class FrontPanel extends Surface {
+  constructor({ mu }) {
+    const { x0, x1, y0, y1, hw } = PANEL, V = [], I = [];
+    for (const z of [-hw, hw]) for (const [x, y] of [[x0, y0], [x1, y0], [x1, y1], [x0, y1]]) V.push(x, y, z);
+    for (const [a, b, c, d] of [[1, 2, 6, 5], [2, 3, 7, 6], [0, 1, 5, 4], [0, 4, 7, 3], [0, 3, 2, 1], [4, 5, 6, 7]]) I.push(a, b, c, a, c, d);
+    super({ name: 'front panel (CAD)', vertices: V, indices: I, mu });
+    this.side = new WeakMap(); // FUEL (body) -> { s: -1 in the box, 1 out front, p: where it was }
+  }
+  touches(p, who) {
+    const [x, y, z] = p, { x0, x1, y0, y1, hw } = PANEL;
+    const span = y >= y0 && y <= y1 && Math.abs(z) <= hw;
+    // (which side: the one it was on last step, if it was here then (not a FUEL that's been
+    // elsewhere since: shot, or round the panel's edge), else the one its center's on)
+    let s = x < (x0 + x1) / 2 ? -1 : 1;
+    const m = who && this.side.get(who);
+    if (span && m && Math.abs(x - m.p[0]) + Math.abs(y - m.p[1]) + Math.abs(z - m.p[2]) < 0.2) s = m.s;
+    if (who) { if (m) { m.s = s; m.p[0] = x; m.p[1] = y; m.p[2] = z; } else this.side.set(who, { s, p: [x, y, z] }); }
+    let dist, n;
+    if (span) { dist = s < 0 ? x0 - x : x - x1; n = [s, 0, 0]; }
+    else {
+      const cx = Math.min(x1, Math.max(x0, x)), cy = Math.min(y1, Math.max(y0, y)), cz = Math.min(hw, Math.max(-hw, z));
+      const dx = x - cx, dy = y - cy, dz = z - cz;
+      dist = Math.hypot(dx, dy, dz);
+      n = dist > 0 ? [dx / dist, dy / dist, dz / dist] : [s, 0, 0];
+    }
+    return dist < R ? [{ depth: R - dist, n }] : [];
+  }
 }
 // The blanket: red plush tied round the box's top edges (their reveal, after 1124's 2008 "magic
 // blanket"), soft: a FUEL under it presses it up, as far as BLANKET.bulge at its middle (an
