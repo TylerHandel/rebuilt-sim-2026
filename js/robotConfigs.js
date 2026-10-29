@@ -813,7 +813,9 @@ export const ROBOTS = {
     },
     // the arm swinging out pushes the hopper box's front wall out ahead of it (0.34 m in their CAD,
     // and the box's side plates have slots long enough); the 12in extension limit stops it at 0.3 m
-    storage: { extLen: 0.3, extend: 'intake' },
+    // (lip: the box's front plate comes down to 0.20 m over the intake's roller, the bar behind it
+    // to 0.17: its collider's front bottom edge is cut back to there, js/robot.js)
+    storage: { extLen: 0.3, extend: 'intake', lip: [0.575, 0.20] },
     // their CAD: walls to 0.548 m round two spindexers side by side (flat discs, r 0.138 m, 0.16 m
     // up) with a hub over each; the floor slopes down into them from the corners. Each spindexer
     // carries FUEL round to its back edge, where a ramp takes it up into the turret behind it.
@@ -968,7 +970,9 @@ export const ROBOTS = {
     // (their CAD's mate, tilted 8.7deg up toward the robot); a kicker bar hangs in front of the
     // rollers on arms that swing up 90deg
     intake: { width: 25 * IN, reach: 0.2, rate: 200, pull: 5, deployTime: 0.35, retractTime: 0.5, side: 'front', latched: false },
-    storage: { extLen: 0.2945, extend: 'intake' },
+    // (lip: over the roller the box's front is its crossbar, 0.19 m up from 0.555 m out: its
+    // collider's front bottom edge is cut back to there, js/robot.js)
+    storage: { extLen: 0.2945, extend: 'intake', lip: [0.555, 0.19] },
     // their CAD: the box is the hopper (clear walls to 0.70 m, the blanket over the top); a roller
     // floor slopes down to the foot of the tower, where rollers and an "active wall" take FUEL
     // into the ball elevator

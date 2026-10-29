@@ -219,8 +219,21 @@ export class Robot {
       const y0 = box ? box.y0 : 0.17, y1 = box ? box.y1 : this.height;
       this.hopperHalfH = (y1 - y0) / 2;
       this.hopperY = y0 + this.hopperHalfH;
+      const hx = st.extLen / 2, hy = this.hopperHalfH, hz = box ? box.hw : cfg.frame.width / 2 - 0.02;
+      // (storage.lip: [x, y], robot frame with it all the way out: its front's bottom edge cut back
+      // from x along its bottom to y up its front, where its CAD's front comes down only to y over
+      // the intake's roller (1114's crossbar, 1706's front plate) and loose FUEL the roller was
+      // lifting into the mouth caught on the box's corner there; tools/fuel-contacts.mjs)
+      let shape = RAPIER.ColliderDesc.cuboid(hx, hy, hz);
+      if (st.lip) {
+        const cx = cfg.frame.length / 2 + hx, pts = [];
+        for (const z of [-hz, hz]) {
+          for (const [x, y] of [[-hx, -hy], [-hx, hy], [hx, hy], [hx, st.lip[1] - this.hopperY], [st.lip[0] - cx, -hy]]) pts.push(x, y, z);
+        }
+        shape = RAPIER.ColliderDesc.convexHull(new Float32Array(pts));
+      }
       this.hopperCollider = world.createCollider(
-        RAPIER.ColliderDesc.cuboid(st.extLen / 2, this.hopperHalfH, box ? box.hw : cfg.frame.width / 2 - 0.02)
+        shape
           .setTranslation(cfg.frame.length / 2 - st.extLen / 2, this.hopperY, 0)
           // (a box whose CAD gives it: its weight's in cfg.mass already, 604's BOM)
           .setMass(box ? 0 : 0.5)
