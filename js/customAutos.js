@@ -99,6 +99,8 @@ export function customSteps(a, mirror, maxSpeed) {
       // start or end; and one whose flywheel runs only where its code runs it: 1114's)
       if (a.flow) cur.flow = true;
       if (a.spinPts) cur.spinPts = true;
+      // (a target position that trails its trajectory by posLag s, PathPlanner's: js/auto.js _timed)
+      if (a.posLag) cur.posLag = a.posLag;
     }
     // (its flywheel up to the HUB shot on the way to this point: spin)
     cur.pts.push(hasV ? (a.spinPts ? [p.fx, fy(p.fy), speed, !!p.spin] : [p.fx, fy(p.fy), speed]) : [p.fx, fy(p.fy)]);

@@ -35,6 +35,15 @@ export function startPose(key, robot, alliance, custom = null) {
   return { x: w.x, z: w.z, yaw: wrapAngle(yaw + (alliance === 'blue' ? 0 : Math.PI)) };
 }
 
+// A timed trajectory's stretch k (chain c: AutoRunner._chain) at time tau: w, how far through its
+// time, and f, how far along its length, at an even acceleration from its start speed to its end's
+function along(c, k, tau) {
+  const h = c.T[k + 1] - c.T[k];
+  const w = h > 1e-6 ? clamp((tau - c.T[k]) / h, 0, 1) : 1;
+  const v0 = c.V[k], v1 = c.V[k + 1], vm = (v0 + v1) / 2;
+  return { w, f: vm > 1e-6 ? (v0 * w + 0.5 * (v1 - v0) * w * w) / vm : w };
+}
+
 // a heading in blue field coordinates (deg) as the robot's yaw on this ALLIANCE's side
 const yawOf = (deg, alliance) => wrapAngle((deg * Math.PI) / 180 + (alliance === 'blue' ? 0 : Math.PI));
 
@@ -223,6 +232,9 @@ export class AutoRunner {
       steps.push({ type: 'shoot', timeout: 2.5 });
     };
     if (routine === 'best' && this.plan) return this._planSteps(this.plan);
+    // (best for a robot with neither its team's own AUTO nor a plan found for it: the preload and
+    // a sweep of the NEUTRAL ZONE, rather than sitting still)
+    if (routine === 'best') routine = 'sweep';
     switch (routine) {
       case 'preload':
         shootPreload();
@@ -497,10 +509,8 @@ export class AutoRunner {
     const st = this.steps[this.i], j = this.i - c.i0;
     while (c.k + 2 < c.T.length && c.T[c.k + 1] <= tau) c.k++;
     const k = c.k, h = c.T[k + 1] - c.T[k];
-    const w = h > 1e-6 ? clamp((tau - c.T[k]) / h, 0, 1) : 1;
+    const { w, f } = along(c, k, tau);
     const v0 = c.V[k], v1 = c.V[k + 1], vm = (v0 + v1) / 2;
-    // (the way along this stretch by now at an even acceleration from v0 to v1, and the speed there)
-    const f = vm > 1e-6 ? (v0 * w + 0.5 * (v1 - v0) * w * w) / vm : w;
     const A = c.C[k], B = c.C[k + 1], L = Math.hypot(B.x - A.x, B.z - A.z);
     const v = h > 1e-6 ? (vm > 1e-6 ? ((L / h) * (v0 + (v1 - v0) * w)) / vm : L / h) : 0;
     const ux = L > 1e-6 ? (B.x - A.x) / L : 0, uz = L > 1e-6 ? (B.z - A.z) / L : 0;
@@ -508,6 +518,16 @@ export class AutoRunner {
     const turn = wrapAngle(c.R[k + 1] - c.R[k]);
     // (where it should be by now, how fast, facing which way: the setpoint)
     const sp0 = this.setpoint = { x: A.x + (B.x - A.x) * f, z: A.z + (B.z - A.z) * f, vx: ux * v, vz: uz * v, yaw: wrapAngle(c.R[k] + turn * w) };
+    // (PathPlanner's target position trails its trajectory by st.posLag: PathPlannerTrajectory's
+    // sample() integrates the speed between two states 0.01 s at a time and leaves the first 0.01 s
+    // out, in their Java as in its Python; its speeds and rotation are where they should be)
+    if (st.posLag && tau > st.posLag) {
+      const t2 = tau - st.posLag;
+      let k2 = k;
+      while (k2 > 0 && c.T[k2] > t2) k2--;
+      const p = along(c, k2, t2), A2 = c.C[k2], B2 = c.C[k2 + 1];
+      sp0.x = A2.x + (B2.x - A2.x) * p.f; sp0.z = A2.z + (B2.z - A2.z) * p.f;
+    }
     let vx = sp0.vx + kp * (sp0.x - r.pos.x), vz = sp0.vz + kp * (sp0.z - r.pos.z);
     const sp = Math.hypot(vx, vz);
     if (sp > d.maxSpeed) { vx *= d.maxSpeed / sp; vz *= d.maxSpeed / sp; }
