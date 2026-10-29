@@ -41,7 +41,7 @@ import {
   hoodElevation, chan, rotorPoint, hookCurve, hookBack, stadiumY, netY, AXIS, CH, HOOK, YB, FLY, SHOOTER, FEED, BORE, BOX, HALF_L, HALF_W, BAY, INTAKE, BEND, RAMP, STADIUM, FLOOR, COLUMN,
 } from '../js/mech/r4414.js';
 import { velocityDuty } from '../js/mech/phys604.js';
-import { launchFor, shooterFor, rotorLoop, driveBox, moveBox, STROKE } from '../js/mech/phys4414.js';
+import { launchFor, shooterFor, rotorLoop, driveBox, moveBox, STROKE, INTAKE_RPS } from '../js/mech/phys4414.js';
 import { intakeWatch } from './intakewatch4414.mjs';
 
 await RAPIER.init();
@@ -801,7 +801,8 @@ function pathRun(seed, { shoot = true, n = 20, sec = 8 } = {}) {
   const iw = process.env.INTAKELOG ? intakeWatch({ path: r.path, t: r.t, primary: r.wh.intake[1], local: (b) => { const p = b.translation(); return [p.x, p.y, p.z]; }, onCarpet: (b) => b.translation().y < R + 0.002, count: () => balls.filter((b) => { const p = b.translation(); return p.y < 3 && p.x < HALF_L && p.y > 0.1; }).length }) : null;
   for (let k = 0; k < sec / DT; k++) {
     const live = balls.filter((b) => b.translation().y < 3);
-    if (shoot) { launcher(r.t, rad); feed(r); } else feed(r, -0.15, 0);
+    // (intaking, the rotor turns back at INTAKE_RPS as play has it: js/mech/phys4414.js; INTAKE_ROTOR=rps)
+    if (shoot) { launcher(r.t, rad); feed(r); } else feed(r, INTAKE_RPS, 0);
     r.step(live); w.step();
     watch.check(live, k * DT); walls.check(live);
     iw?.check(DT, live);

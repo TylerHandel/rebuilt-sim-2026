@@ -45,6 +45,10 @@ import { drive4414 } from './turretDrive.js';
 
 const DEG = Math.PI / 180, TAU = 2 * Math.PI, R = FUEL.radius;
 const ROTOR_RPS = 2.25, AGITATE_RPS = -0.15;
+// intaking (and not feeding a shot), the rotor turns back faster so the FUEL coming in spread round
+// to the back of the hopper instead of piling up at its front (the user; their code isn't public:
+// the speed is the bench's pick, tools/mechlab4414.mjs intakefull, INTAKE_ROTOR=rps)
+export const INTAKE_RPS = Number(globalThis.process?.env?.INTAKE_ROTOR ?? -0.5);
 const LATENCY = 0.03; // s: their loop and the turret's lag (estimate)
 const PASS_HOOD = 135;  // a pass's hood (about 45 deg)
 // tilt compensation (their getTiltCompensatedAim: over `min` of tilt; the shoot-on-the-fly lockout,
@@ -310,6 +314,7 @@ export class Physical4414 extends PhysicalRobot {
     // the box strokes as soon as it's shooting, never while it's intaking (its driver asking for
     // the intake: the user)
     this.agitating = launch && !r.cmd.intake;
+    this.intakingNow = intaking;
     this._rotor(dt, on, unjam);
     // what the robot's aiming and drawing see
     r.hoodDeg = hoodElevation(this.hoodDeg);
@@ -333,7 +338,7 @@ export class Physical4414 extends PhysicalRobot {
     if (this.rollerJam > 0.3) { this.rollerBack = 0.15; this.rollerJam = 0; this.r.stats.unjams = (this.r.stats.unjams || 0) + 1; }
     this.rotorBack = Math.max(0, this.rotorBack - dt); this.rollerBack = Math.max(0, this.rollerBack - dt);
     if (unjam) { rotorLoop(rotor, -0.5); rollers.cmd = -0.5; return; }
-    rotorLoop(rotor, this.rotorBack > 0 ? -1 : this.feedingNow ? ROTOR_RPS : AGITATE_RPS);
+    rotorLoop(rotor, this.rotorBack > 0 ? -1 : this.feedingNow ? ROTOR_RPS : this.intakingNow ? INTAKE_RPS : AGITATE_RPS);
     rollers.cmd = this.rollerBack > 0 ? -0.6 : this.feedingNow ? 1 : null;
   }
 
