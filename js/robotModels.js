@@ -916,24 +916,26 @@ function fineNetTexture() {
   return t;
 }
 
-// strip with triangular cutouts (the teal truss), len along x, w along y, t thick (centered on z)
-function trussStrip(len, w, t, mat, parent) {
+// strip with triangular cutouts (the teal truss), len along x, w along y, t thick (centered on z): a
+// Warren truss, its chords m wide, its triangular pockets' corners rounded (r, as the renders'
+// machined pockets); mesh.userData.nodes: where its webs meet the chords ([x, y], for rivets)
+function trussStrip(len, w, t, mat, parent, { m = 0.006, r = 0.004, pitch = 0.9 } = {}) {
   const s = new THREE.Shape();
   s.moveTo(0, 0); s.lineTo(len, 0); s.lineTo(len, w); s.lineTo(0, w); s.closePath();
-  const m = 0.006, n = Math.max(1, Math.floor((len - m) / (w * 0.9)));
-  const p = (len - m) / n;
+  const n = Math.max(1, Math.floor((len - m) / (w * pitch)));
+  const p = (len - m) / n, nodes = [[m / 2, w - m / 2], [m / 2, m / 2]];
   for (let i = 0; i < n; i++) {
     const x0 = m + i * p, x1 = x0 + p - m;
     if (x1 - x0 < 0.01) continue;
-    const h = new THREE.Path();
-    if (i % 2) { h.moveTo(x0, w - m); h.lineTo(x1, w - m); h.lineTo((x0 + x1) / 2, m); }
-    else { h.moveTo(x0, m); h.lineTo(x1, m); h.lineTo((x0 + x1) / 2, w - m); }
-    h.closePath();
-    s.holes.push(h);
+    const tri = i % 2 ? [[x0, w - m], [x1, w - m], [(x0 + x1) / 2, m]] : [[x0, m], [x1, m], [(x0 + x1) / 2, w - m]];
+    s.holes.push(new THREE.Path(roundPts(tri, r).map(([x, y]) => new THREE.Vector2(x, y))));
+    nodes.push([(x0 + x1) / 2, i % 2 ? m / 2 : w - m / 2], [x1 + m / 2, i % 2 ? w - m / 2 : m / 2]);
   }
-  const g = new THREE.ExtrudeGeometry(s, { depth: t, bevelEnabled: false });
+  const g = new THREE.ExtrudeGeometry(s, { depth: t, bevelEnabled: false, curveSegments: 4 });
   g.translate(0, 0, -t / 2);
-  return mesh(g, mat, parent);
+  const mm = mesh(g, mat, parent);
+  mm.userData.nodes = nodes;
+  return mm;
 }
 
 // button-head bolts, all in one instanced mesh: add(position, outward normal)
@@ -964,6 +966,20 @@ function flatPart(outline, holes, t, mat, parent, y) {
 }
 
 const arcPts = (cx, cz, r, a0, a1, n) => Array.from({ length: n + 1 }, (_, i) => { const a = a0 + ((a1 - a0) * i) / n; return [cx + r * Math.cos(a), cz - r * Math.sin(a)]; });
+
+// a polygon ([x, z] or [x, y] points) with its corners rounded off: radius r (at most nearly half
+// of either side), n segments round each (a machined pocket's corners)
+function roundPts(pts, r, n = 3) {
+  const out = [], m = pts.length;
+  for (let i = 0; i < m; i++) {
+    const P = pts[i], A = pts[(i + m - 1) % m], B = pts[(i + 1) % m];
+    const la = Math.hypot(A[0] - P[0], A[1] - P[1]) || 1, lb = Math.hypot(B[0] - P[0], B[1] - P[1]) || 1;
+    const rr = Math.min(r, la * 0.45, lb * 0.45);
+    const a = [P[0] + ((A[0] - P[0]) * rr) / la, P[1] + ((A[1] - P[1]) * rr) / la], b = [P[0] + ((B[0] - P[0]) * rr) / lb, P[1] + ((B[1] - P[1]) * rr) / lb];
+    for (let k = 0; k <= n; k++) { const t = k / n, u = 1 - t; out.push([u * u * a[0] + 2 * u * t * P[0] + t * t * b[0], u * u * a[1] + 2 * u * t * P[1] + t * t * b[1]]); }
+  }
+  return out;
+}
 
 // spur gear lying flat (axis along y), top at y = 0
 function spurGear(r, teeth, t, mat, parent, holes = 0) {
@@ -1192,8 +1208,11 @@ function build4414(cfg, alliance) {
     const lip = bx(len, 0.004, 0.018, blackAl, root, (x0 + x1) / 2 - n.x * 0.009, wallTop - 0.002, (z0 + z1) / 2 - n.z * 0.009);
     lip.rotation.y = ry;
   }
-  // the teal truss: an angle along the top of the back and chamfer walls (flange on top, web on
-  // the wall), and truss columns down the four back corners
+  // The teal truss (the binder's renders): a bent angle along the top of the back and chamfer walls,
+  // its web down the wall's face and its flange over the top, each a Warren truss of round-cornered
+  // triangular pockets riveted at its nodes; down each back corner a bent angle round the corner, a
+  // flange on each wall's face with the same truss and rivets down its outer edge; and over the top
+  // of each corner a gusset joining the flanges, fanned with pockets
   for (const sgm of wallSegs.slice(1, 4)) {
     const { x0, z0, x1, z1, len, ry, n } = sgm;
     const g = new THREE.Group();
@@ -1202,26 +1221,59 @@ function build4414(cfg, alliance) {
     root.add(g);
     // which way is out in the group's frame
     const zs = new THREE.Vector3(0, 0, 1).applyAxisAngle(up, ry).dot(n) > 0 ? 1 : -1;
-    trussStrip(len, 0.05, 0.004, teal, g).position.set(0, wallTop - 0.05, zs * 0.004);
-    const fl = trussStrip(len, 0.042, 0.004, teal, g);
+    const web = trussStrip(len, 0.05, 0.004, teal, g, { r: 0.005 });
+    web.position.set(0, wallTop - 0.05, zs * 0.004);
+    for (const [u, v] of web.userData.nodes) {
+      if (u < 0.03 || u > len - 0.03) continue;
+      bolts.add(new THREE.Vector3(x0 + ((x1 - x0) * u) / len + n.x * 0.0065, wallTop - 0.05 + v, z0 + ((z1 - z0) * u) / len + n.z * 0.0065), n);
+    }
+    const fl = trussStrip(len, 0.042, 0.004, teal, g, { r: 0.005 });
     fl.rotation.x = zs > 0 ? -Math.PI / 2 : Math.PI / 2;
     fl.position.set(0, wallTop + 0.002, zs * 0.004);
-    const k = Math.round(len / 0.06);
-    for (let j = 1; j < k; j++) {
-      const t = j / k;
-      bolts.add(new THREE.Vector3(x0 + (x1 - x0) * t + n.x * 0.007, wallTop - 0.025, z0 + (z1 - z0) * t + n.z * 0.007), n);
-    }
   }
   for (const i of [1, 2, 3, 4]) {
     const [x, z] = wallPts[i];
-    const n = wallSegs[i - 1].n.clone().add(wallSegs[i].n).normalize();
-    const g = new THREE.Group();
-    g.position.set(x + n.x * 0.007, hY - 0.01, z + n.z * 0.007);
-    g.rotation.y = Math.atan2(n.x, n.z);
-    root.add(g);
-    const c = trussStrip(wallTop - hY + 0.01, 0.045, 0.004, teal, g);
-    c.rotation.z = Math.PI / 2;
-    c.position.x = 0.0225;
+    const sa = wallSegs[i - 1], sb = wallSegs[i];
+    // the corner's angle: a flange down each wall's face, from the corner along the wall
+    for (const [sg, away] of [[sa, [sa.x0 - sa.x1, sa.z0 - sa.z1]], [sb, [sb.x1 - sb.x0, sb.z1 - sb.z0]]]) {
+      const ux = away[0] / sg.len, uz = away[1] / sg.len, H = wallTop - hY + 0.01, fw = 0.042;
+      const g = new THREE.Group();
+      g.position.set(x + sg.n.x * 0.006, hY - 0.01, z + sg.n.z * 0.006);
+      g.rotation.y = Math.atan2(-uz, ux);
+      root.add(g);
+      const c = trussStrip(H, fw, 0.004, teal, g, { r: 0.005, pitch: 1.1 });
+      c.rotation.z = Math.PI / 2;
+      c.position.x = fw;
+      for (const [u, v] of c.userData.nodes) {
+        if (v < fw / 2 || u < 0.02 || u > H - 0.06) continue; // (the outer edge's; the top's under the gusset)
+        const d = fw - v;
+        bolts.add(new THREE.Vector3(g.position.x + ux * d + sg.n.x * 0.0025, g.position.y + u, g.position.z + uz * d + sg.n.z * 0.0025), sg.n);
+      }
+    }
+    // the gusset over the corner, on the flanges: from the corner along both walls, in to a point
+    {
+      const P = new THREE.Vector2(x, z), a1 = new THREE.Vector2(sa.x0 - sa.x1, sa.z0 - sa.z1).normalize(), a2 = new THREE.Vector2(sb.x1 - sb.x0, sb.z1 - sb.z0).normalize();
+      const n1 = new THREE.Vector2(sa.n.x, sa.n.z), n2 = new THREE.Vector2(sb.n.x, sb.n.z), bi = n1.clone().add(n2).normalize().negate();
+      const at = (v) => [v.x, v.y];
+      const L = 0.1, D = 0.04;
+      const out = [
+        at(P.clone().addScaledVector(n1.clone().add(n2).normalize(), 0.006)),
+        at(P.clone().addScaledVector(a2, L)), at(P.clone().addScaledVector(a2, L).addScaledVector(n2, -D)),
+        at(P.clone().addScaledVector(bi, 0.07)),
+        at(P.clone().addScaledVector(a1, L).addScaledVector(n1, -D)), at(P.clone().addScaledVector(a1, L)),
+      ];
+      // its pockets: a fan out from near the corner
+      const O = P.clone().addScaledVector(bi, 0.016), dirs = [];
+      const d1 = a1.clone().addScaledVector(n1, -0.25).normalize(), d2 = a2.clone().addScaledVector(n2, -0.25).normalize();
+      for (let k = 0; k <= 3; k++) dirs.push(d1.clone().lerp(d2, k / 3).normalize());
+      const holes = [];
+      for (let k = 0; k < 3; k++) {
+        const q = [at(O.clone().addScaledVector(dirs[k], 0.012)), at(O.clone().addScaledVector(dirs[k], k === 0 ? 0.075 : 0.05)), at(O.clone().addScaledVector(dirs[k + 1], k === 2 ? 0.075 : 0.05)), at(O.clone().addScaledVector(dirs[k + 1], 0.012))];
+        holes.push(roundPts(q, 0.004));
+      }
+      flatPart(roundPts(out, 0.006), holes, 0.004, teal, root, wallTop + 0.008);
+      for (const v of [P.clone().addScaledVector(a1, L - 0.01).addScaledVector(n1, -0.01), P.clone().addScaledVector(a2, L - 0.01).addScaledVector(n2, -0.01), P.clone().addScaledVector(bi, 0.055)]) bolts.add(new THREE.Vector3(v.x, wallTop + 0.008, v.y), up);
+    }
   }
 
   // ---- top plate: pocketed, from the back truss forward to the turret bearing (a keyhole)
@@ -1230,36 +1282,81 @@ function build4414(cfg, alliance) {
   // the shroud the shooter hangs in, down inside the ring (the physical model's: the load can't come
   // up round the turret)
   const [shY, shR] = D4.BAY.shroud;
-  mesh(new THREE.CylinderGeometry(shR, shR, wallTop - shY, 40, 1, true), clearSmoke, root, tx, (wallTop + shY) / 2, tz).castShadow = false;
+  // (drawn up to just under the energy chain, which runs round the shooter just under the plate)
+  const shTop = D4.BAY.top - 0.06;
+  mesh(new THREE.CylinderGeometry(shR, shR, shTop - shY, 40, 1, true), clearSmoke, root, tx, (shTop + shY) / 2, tz).castShadow = false;
   {
-    const aJ = 2.3; // where the ring meets the strip
+    // The top plate (the binder's renders: Turret, Turret PT): the back strip a Warren truss between
+    // chords lined with small slots, the ring round the turret's bearing with a band of slots, the
+    // strip and ring joined by concave fillets, and behind the turret, where the two overlap, a web
+    // of pockets between ribs running out from the bearing (under it the energy chain's compliant
+    // wheel). The plate's outline: the chamfered back, the strip's front edge, the fillets, the ring.
+    const rf = 0.035, dxc = xs + rf - tx, zc = Math.sqrt((ro + rf) ** 2 - dxc ** 2);
+    const a1 = Math.atan2(zc, dxc), b1 = Math.atan2(zc, -dxc);
     const outline = [
-      [back, -cz], [cx, -wallZ], [xs, -wallZ], [xs, -0.2],
-      ...arcPts(tx, tz, ro, aJ, -aJ, 40),
-      [xs, 0.2], [xs, wallZ], [cx, wallZ], [back, cz],
+      [back, -cz], [cx, -wallZ], [xs, -wallZ],
+      ...arcPts(xs + rf, -zc, rf, Math.PI, 2 * Math.PI - b1, 10),
+      ...arcPts(tx, tz, ro, a1, -a1, 48),
+      ...arcPts(xs + rf, zc, rf, b1, Math.PI, 10),
+      [xs, wallZ], [cx, wallZ], [back, cz],
     ];
     const holes = [arcPts(tx, tz, riT, 0, Math.PI * 2, 48)];
-    // truss pockets across the back strip
-    const px0 = back + 0.018, px1 = xs - 0.016;
-    const zs = [];
-    for (let z = -wallZ + 0.03; z < wallZ - 0.03; z += 0.062) zs.push(z);
-    zs.forEach((z, i) => {
-      const z1 = z + 0.052;
-      if (Math.abs(z + 0.026) < 0.2 + 0.03) {
-        // the neck: pockets between the strip and the ring
-        return;
-      }
-      const inChamfer = (x, zz) => (x - back) + (wallZ - Math.abs(zz)) < chamfer + 0.03;
-      const tri = i % 2 ? [[px0, z], [px0, z1], [px1, (z + z1) / 2]] : [[px1, z], [px1, z1], [px0, (z + z1) / 2]];
-      if (tri.some(([x, zz]) => inChamfer(x, zz))) return;
-      holes.push(tri);
-    });
-    for (const s of [-1, 1]) holes.push([[-0.225, s * 0.035], [-0.225, s * 0.17], [-0.285, s * 0.1]]);
-    flatPart(outline, holes, 0.005, blackAl, root, wallTop);
-    for (let i = 0; i < 24; i++) {
-      const a = (i / 24) * Math.PI * 2;
-      bolts.add(new THREE.Vector3(tx + Math.cos(a) * 0.18, wallTop, tz - Math.sin(a) * 0.18), up);
+    const inChamfer = (x, z) => (x - back) + (wallZ - Math.abs(z)) < chamfer + 0.02;
+    const inside = (pts) => !pts.some(([x, z]) => inChamfer(x, z));
+    // the ring's band of slots, the bolts between them
+    for (let k = 0; k < 24; k++) {
+      const a = (k / 24) * Math.PI * 2, da = 4.2 / 57.3;
+      const pts = [...arcPts(tx, tz, 0.176, a - da, a + da, 3), ...arcPts(tx, tz, 0.19, a + da, a - da, 3)];
+      if (pts.every(([x]) => x > xs - 0.01) || pts.every(([x, z]) => Math.hypot(x - tx, z - tz) < 0.2)) holes.push(roundPts(pts, 0.003, 2));
+      const ab = a + Math.PI / 24;
+      bolts.add(new THREE.Vector3(tx + Math.cos(ab) * 0.183, wallTop, tz - Math.sin(ab) * 0.183), up);
     }
+    // the strip's truss either side of the turret, its chords 20 mm
+    const px0 = back + 0.02, px1 = xs - 0.02, zIn = zc + 0.01, pw = 0.075;
+    for (const sd of [-1, 1]) {
+      const zA = zIn, zB = wallZ - 0.025, n = Math.max(1, Math.round((zB - zA) / pw)), p = (zB - zA) / n;
+      for (let i = 0; i < n; i++) {
+        const z0 = zA + i * p + 0.004, z1 = z0 + p - 0.008, zm = (z0 + z1) / 2;
+        const tri = i % 2 ? [[px0, z0], [px0, z1], [px1, zm]] : [[px1, z0], [px1, z1], [px0, zm]];
+        const pts = tri.map(([x, z]) => [x, sd * z]);
+        if (inside(pts)) holes.push(roundPts(pts, 0.006));
+        else {
+          // (by the chamfer: a smaller pocket clear of it)
+          const sh = pts.map(([x, z]) => [x + (px1 - x) * 0.35, z]);
+          if (inside(sh)) holes.push(roundPts(sh, 0.005));
+        }
+      }
+      // the chords' slots: along the back edge and the strip's front edge
+      for (let z = zIn + 0.01; z < wallZ - 0.02; z += 0.03) {
+        for (const x of [back + 0.009, xs - 0.009]) {
+          const pts = [[x - 0.002, sd * (z - 0.006)], [x + 0.002, sd * (z - 0.006)], [x + 0.002, sd * (z + 0.006)], [x - 0.002, sd * (z + 0.006)]];
+          if (inside(pts)) holes.push(roundPts(pts, 0.0019, 2));
+        }
+      }
+    }
+    for (let z = -zIn + 0.015; z < zIn - 0.01; z += 0.03) {
+      const x = back + 0.009, pts = [[x - 0.002, z - 0.006], [x + 0.002, z - 0.006], [x + 0.002, z + 0.006], [x - 0.002, z + 0.006]];
+      holes.push(roundPts(pts, 0.0019, 2));
+    }
+    // behind the turret, between the ring and the back chord: the web, two rows of pockets between
+    // ribs running out from the bearing
+    const rib = 0.008, xb = back + 0.02;
+    const rows = [[ro + 0.012, ro + 0.045], [ro + 0.045 + rib, 0.4]];
+    for (const [r0, r1] of rows) {
+      for (let k = -4; k < 4; k++) {
+        const aa = Math.PI + (k * 13) / 57.3 + 0.5 * rib / r0, ab = Math.PI + ((k + 1) * 13) / 57.3 - 0.5 * rib / r0;
+        const pts = [];
+        for (const a of [aa, (aa + ab) / 2, ab]) pts.push([tx + r0 * Math.cos(a), tz - r0 * Math.sin(a)]);
+        for (const a of [ab, (aa + ab) / 2, aa]) {
+          // (out to r1, or to the back chord)
+          const c = Math.cos(a), r = c < 0 ? Math.min(r1, (xb - tx) / c) : r1;
+          pts.push([tx + r * c, tz - r * Math.sin(a)]);
+        }
+        const ok = pts.every(([x, z]) => Math.abs(z) < zIn - rib && x >= xb - 1e-6) && Math.hypot(pts[3][0] - pts[2][0], pts[3][1] - pts[2][1]) > 0.012 && inside(pts);
+        if (ok && Math.hypot(pts[0][0] - pts[5][0], pts[0][1] - pts[5][1]) > 0.012) holes.push(roundPts(pts, 0.005));
+      }
+    }
+    flatPart(outline, holes, 0.005, blackAl, root, wallTop);
   }
 
   // ---- intake box: slides out on its racks (at the start of the match) and stays out
@@ -1601,13 +1698,43 @@ function build4414(cfg, alliance) {
   turret.position.set(tx, wallTop, tz);
   root.add(turret);
   {
-    // (notched at the front for the Limelight, recessed in it just ahead of the flywheel)
-    const nz = 0.056, na = Math.asin(nz / 0.14);
-    const ring = flatPart(arcPts(0, 0, 0.19, 0, Math.PI * 2, 48), [[...arcPts(0, 0, 0.14, na, Math.PI * 2 - na, 44), [0.178, nz], [0.178, -nz]]], 0.006, darkPlate, turret, 0.008);
-    ring.castShadow = true;
+    // The turret's top plate (the binder's Turret renders): round, its opening a rounded square the
+    // shooter's side plates come up through (tighter corners at the front, where they reach out to
+    // the flywheel), notched at the front for the Limelight sunk in just ahead of the flywheel; a
+    // row of short slots round its rim and long ones inside it where the plate is wide (the sides
+    // and back), bolts between the rim's slots
+    const R0 = 0.198, x0 = -0.125, x1 = 0.165, hz = 0.12, rb = 0.05, rf = 0.03, nz = 0.056, xn = 0.178;
+    const open = [
+      ...arcPts(x1 - rf, hz - rf, rf, -Math.PI / 2, 0, 6), [x1, nz], [xn, nz], [xn, -nz], [x1, -nz],
+      ...arcPts(x1 - rf, -(hz - rf), rf, 0, Math.PI / 2, 6),
+      ...arcPts(x0 + rb, -(hz - rb), rb, Math.PI / 2, Math.PI, 8),
+      ...arcPts(x0 + rb, hz - rb, rb, Math.PI, 1.5 * Math.PI, 8),
+    ];
+    // (how far a point is outside the opening: the rounded square's distance, the notch's box)
+    const sdOpen = (x, z) => {
+      const r = x > 0 ? rf : rb, cx = (x0 + x1) / 2, qx = Math.abs(x - cx) - ((x1 - x0) / 2 - r), qz = Math.abs(z) - (hz - r);
+      const box = Math.hypot(Math.max(qx, 0), Math.max(qz, 0)) + Math.min(Math.max(qx, qz), 0) - r;
+      const notch = Math.max(Math.abs(x - (x1 + xn) / 2) - (xn - x1) / 2, Math.abs(z) - nz);
+      return Math.min(box, notch);
+    };
+    const clear = (pts, m) => pts.every(([x, z]) => sdOpen(x, z) > m);
+    const holes = [open];
     const tb = boltSet(turret, std(0xc4c8ce, 0.3, 0.9));
-    for (let i = 1; i < 16; i++) { const a = (i / 16) * Math.PI * 2; tb.add(new THREE.Vector3(Math.cos(a) * 0.165, 0.008, Math.sin(a) * 0.165), up); }
+    for (let k = 0; k < 36; k++) {
+      const a = (k / 36) * Math.PI * 2, da = 3 / 57.3;
+      const sl = [...arcPts(0, 0, 0.181, a - da, a + da, 3), ...arcPts(0, 0, 0.191, a + da, a - da, 3)];
+      if (clear(sl, 0.007)) holes.push(roundPts(sl, 0.0045, 2));
+      const ab = a + Math.PI / 36, bp = [Math.cos(ab) * 0.186, -Math.sin(ab) * 0.186];
+      if (k % 2 === 0 && clear([bp], 0.01)) tb.add(new THREE.Vector3(bp[0], 0.008, bp[1]), up);
+    }
+    for (let k = 0; k < 12; k++) {
+      const a = (k / 12) * Math.PI * 2 + Math.PI / 12, da = 12 / 57.3;
+      const sl = [...arcPts(0, 0, 0.152, a - da, a + da, 6), ...arcPts(0, 0, 0.166, a + da, a - da, 6)];
+      if (clear(sl, 0.01)) holes.push(roundPts(sl, 0.006, 2));
+    }
     tb.done();
+    const ring = flatPart(arcPts(0, 0, R0, 0, Math.PI * 2, 64), holes, 0.006, darkPlate, turret, 0.008);
+    ring.castShadow = true;
     // the column under the shooter, down inside the hub's skin to the bore's top (it turns with
     // the turret, not the rotor): a ring up to the sushi feeder, then open at the front where the
     // feeder's wheels reach in (js/mech/r4414.js turret())
