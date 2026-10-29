@@ -25,7 +25,9 @@
 // SNAPFILE (where the FUEL low round the rotor are, in its frame, nine times from t s), PARKED (the
 // ones that stay put while it feeds; =file writes them), ROTORLOG (the rotor's speed and current
 // each tenth of a second, and the torque each part on it takes from the FUEL it touches: torqueTally;
-// ROTORLOG=n lists n of them); hold: HSEEDS, HOLDFILE (where the first fill's FUEL are at the end, and
+// ROTORLOG=n lists n of them), STROKE (the box's strokes in and out while it dumps, as in play: =0 none,
+// the box held out; =in,volts[,outVolts] your own), STROKELOG (where the box is each 0.05 s), ESCLOG
+// (each FUEL that gets out other than shot: its last second), INTAKE=0 (its rollers off); hold: HSEEDS, HOLDFILE (where the first fill's FUEL are at the end, and
 // where they're pressed, for drawing); hold, intakefull: WALLS (wallWatch); bend, column, pillar:
 // PATHLOG=file (each step, each FUEL's place and everything touching it, and the surfaces and
 // wheels round the path, for drawing; pillar: PILLAR=tag picks the run it logs)
