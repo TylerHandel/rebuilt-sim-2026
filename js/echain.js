@@ -431,32 +431,127 @@ function armAt(chain, psi) {
   return t.a[i] + (t.a[i + 1] - t.a[i]) * (f - i);
 }
 
-// ---------------------------------------------------------------- 1690: a spool with a tensioner
-// The user: 1690's chain "works very similarly to how 4414's does, with a constant force spring".
-// Their CAD (view-only: its renders, js/mech/r1690.js) has the spring (the BOM's "Constant Force
-// Spring (6 lbs, 40in Travel, 3/4in Width)") and printed guides on the curved guard round the
-// turret's front, but not the chain or where its runs go. So the routing is 4414's, laid out in the
-// room 1690 has (estimates throughout): the fixed end at the back left (by the frame's corner behind
-// the turret), the chain running right along the back of the frame round the spring's 1.5in wheel
-// (it slides along the back; the spring pulls it right), back left round a 1.5in wheel behind the
-// turret's right side, and on round the guides of the turret's rotating base (a rounded box round
-// its plates) to its end there. The turret's +-200 deg of travel winds on or pays out ~0.9 m of
-// chain; the spring's wheel takes up half of that (0.45 m of its travel; the spring's is 40in). Its
-// chain: WCP's 15x30 (small: "the tiny form factor of the echain", their thread).
-export const SPOOL1690 = {
-  axis: [-0.134, 0.1872],         // the turret's (robot frame, [x, w]): the CAD's 8in bearing
-  y: 0.391,                       // the chain's middle (on its side): the CAD's spring and tray
-  entry: [-0.30, 0.355],          // the fixed end's pin, the chain heading right from it
-  tensionR: 0.025,                // the spring's wheel (the CAD's 2in)
-  tension: [-0.33, 0.175],        // its travel along w (the CAD's tray ends at -0.328)
-  wheel: { at: 0.185, r: 0.75 * 0.0254 }, // the wheel the chain turns back round (w; its x: just in front of run B)
-  box: { x: [-0.12, 0.13], z: [-0.095, 0.095], r: 0.03 },
-  spring: 6 * 4.448,              // N: the one 6 lb constant-force spring (the CAD's)
+// ---------------------------------------------------------------- 1690: a swivel end, either way round
+// From their CAD (the X_T release: js/mech/r1690.js; the chain's links aren't in it, the rest is). In
+// the robot's frame ([x, w]), at the chain's middle height (0.391 m, its tray's and spring's):
+//   - the tray along the back to the right of the turret (423-09A): the chain's fixed end at its left
+//     end (by the "ze" end link), run B along it to the right, round the 2in wheel (Part 149) on its
+//     carriage (the 6 lb constant-force spring, its drum at the tray's right end, pulls it right),
+//     run A back left to the tray's mouth;
+//   - from there round the guide channel in front of the turret (the printed lip, Part 15, 0.154-0.161
+//     m from its axis, and the curved guard, 422-04A, 0.186-0.198 m; both stay put between the Closed
+//     and Open X_Ts while the turret turns 24 deg): counterclockwise round the front to the guard's far
+//     end on the turret's left;
+//   - from there to the swivel on the turret (423-06A/07A on two 20x27x4 bearings, its pin vertical,
+//     0.104 m out on the shot's left), where the chain's end link is: the swivel lets the chain leave
+//     its end either way, so as the turret turns it wraps round the turret's hub clockwise or
+//     counterclockwise, whichever way it has turned from where the swivel faces the guard's end.
+// Wrapping winds chain on (either way), pulling the spring's wheel left, half as far; the spring takes
+// it up as it unwinds. In the CAD (the turret at -24 deg) the swivel is 15 deg past the guard's end and
+// the wheel near the tray's right end (0.275 m right of center): that sets the chain's length. The
+// sim's +-200 deg is -161 to +239 deg from where the swivel faces the guard's end: the wheel slides
+// 0.20 m of the tray's 0.29 m.
+export const SWIVEL1690 = {
+  axis: [-0.134, 0.1872],          // the turret's (the 8in bearing's)
+  y: 0.391,                        // the chain's middle (on its side)
+  swivel: { r: 0.104, a: 90 * DEG }, // on the turret: radius, angle from the shot (counterclockwise: its left)
+  hub: 0.104,                      // the radius it wraps round the turret at (its pitch line, through the swivel's pin)
+  guide: { r: 0.1735, a1: 51 * DEG }, // the channel's pitch radius (between the lip and the guard), its far end's angle
+  wheel: { x: -0.134, r: 0.025, w: [-0.315, -0.03] }, // the spring's wheel: its line, radius, travel along w
+  fixed: 0.010,                    // w of the fixed end (on run B)
+  cad: { yaw: -23.99 * DEG, w: -0.275 }, // the CAD's pose: the turret's yaw and the wheel's w there
+  spring: 6 * 4.448,               // N: the 6 lb constant-force spring
   yaw: [-200 * DEG, 200 * DEG],
-  wrapMin: 0.05,
 };
-// 1690: as 4414's (chainLoad4414: the spring's pull at the arm the chain leaves the turret's guides
-// along, the pins and the wires' hysteresis at its bends, the spring wheel's slide), with its own
-// spring, its wires (two X60s on the shooter on 14 AWG, the hood's X44, CAN, the turret's camera: EI
-// 3e-3, as 4414's) and the slide's friction (2 N, estimate)
-export function chainLoad1690(chain, psi, { EI = 3e-3, bushing = 2 } = {}) { return chainLoad4414(chain, psi, { EI, bushing }); }
+export class SwivelChain {
+  constructor(o = SWIVEL1690, link = LINK) {
+    Object.assign(this, { o, link });
+    const h = link.height;
+    this.rho = o.wheel.r + h / 2;                    // round the spring's wheel (pin line)
+    this.xA = o.wheel.x + this.rho; this.xB = o.wheel.x - this.rho; // run A (to the turret), run B (to the fixed end)
+    const [ax, aw] = o.axis, G = o.guide.r;
+    // where run A meets the guide's circle, and its angle there
+    this.wC = aw - Math.sqrt(G * G - (this.xA - ax) ** 2);
+    this.a0 = Math.atan2(this.wC - aw, this.xA - ax);
+    this.beta = Math.acos(o.hub / G);               // from the guide's end, the hub's tangent this far round
+    this.path = new Path();
+    this.wT = o.cad.w;
+    const L = this._build(o.cad.yaw, o.cad.w).length;
+    this.n = Math.floor(L / link.pitch);
+    this.Ltot = this.n * link.pitch;
+    this.pins = new Float64Array(2 * (this.n + 1));
+  }
+  // how far round from the guide's end the swivel is at yaw psi (rad, + counterclockwise; unwrapped)
+  rel(psi) { return psi + this.o.swivel.a - this.o.guide.a1; }
+  // the path from the fixed end to the swivel, the turret at psi, the wheel at wT
+  _build(psi, wT) {
+    const o = this.o, P = this.path.reset(), [ax, aw] = o.axis, G = o.guide.r, H = o.hub, rho = this.rho;
+    P.push(this.xB, o.fixed);
+    P.line(this.xB, wT);
+    P.arc(o.wheel.x, wT, rho, Math.PI, 2 * Math.PI);
+    P.line(this.xA, this.wC);
+    P.arc(ax, aw, G, this.a0, o.guide.a1, 0.002);
+    const rel = this.rel(psi), aS = psi + o.swivel.a, b = this.beta;
+    const S = [ax + o.swivel.r * Math.cos(aS), aw + o.swivel.r * Math.sin(aS)];
+    if (Math.abs(rel) <= b) { P.line(S[0], S[1]); this.side = 0; }
+    else {
+      const sg = Math.sign(rel), aT = o.guide.a1 + sg * b;
+      P.line(ax + H * Math.cos(aT), aw + H * Math.sin(aT));
+      P.arc(ax, aw, H, aT, aS, 0.002);
+      P.line(S[0], S[1]);
+      this.side = sg;
+    }
+    this.S = S;
+    return P;
+  }
+  // the pins for yaw psi; also this.wT (the wheel), this.side (+1 wound counterclockwise, -1
+  // clockwise, 0 straight off the guide), this.arm (the chain's pull's lever arm about the turret's
+  // axis, m, + turning it counterclockwise), this.ok (the wheel within its travel)
+  solve(psi) {
+    const o = this.o;
+    let wT = this.wT;
+    for (let it = 0; it < 6; it++) {
+      const L = this._build(psi, wT).length, res = L - this.Ltot;
+      if (Math.abs(res) < 1e-7) break;
+      wT += res / 2; // (the wheel left: both runs shorter)
+    }
+    this.wT = wT;
+    const P = this._build(psi, wT);
+    chordStep(P, this.n, this.link.pitch, this.pins);
+    this.ok = wT >= o.wheel.w[0] - 2e-3 && wT <= o.wheel.w[1] + 2e-3;
+    // the pull: along the last straight toward the guide's end (or off the hub's tangent)
+    const [ax, aw] = o.axis, H = o.hub;
+    if (this.side) this.arm = -this.side * H;
+    else {
+      const G = o.guide.r, a1 = o.guide.a1, E = [ax + G * Math.cos(a1), aw + G * Math.sin(a1)], [sx, sw] = this.S;
+      const dx = E[0] - sx, dw = E[1] - sw, l = Math.hypot(dx, dw) || 1;
+      this.arm = ((sx - ax) * dw - (sw - aw) * dx) / l;
+    }
+    return this.pins;
+  }
+}
+// 1690's chain on its turret: the spring's pull (half of it: the chain's two runs round its wheel) at
+// the arm it leaves the turret along, always back toward where the swivel faces the guard's end; and
+// against the turret's motion, the work of winding chain on or off (per m: the links round the
+// spring's wheel, onto the hub and through the guide's turn: the pins under the tension and the wires'
+// hysteresis, as 4414's), the guide's grip on the chain round its 129 deg (a capstan, mu 0.15 on its
+// printed walls: an estimate) and the wheel's carriage sliding (2 N, estimate)
+const swivelTables = new Map();
+export function chainLoad1690(chain, psi, { EI = 3e-3, slide = 2, muGuide = 0.15 } = {}) {
+  const c = chain, o = c.o, p = c.link.pitch, L = CHAIN_LOSS;
+  let tb = swivelTables.get(o);
+  if (!tb) {
+    const ch = new SwivelChain(o, c.link), [y0, y1] = o.yaw, n = Math.round((y1 - y0) / DEG);
+    tb = { y0, n, a: Float64Array.from({ length: n + 1 }, (_, i) => { ch.solve(y0 + i * DEG); return ch.arm; }) };
+    swivelTables.set(o, tb);
+  }
+  const f = Math.min(tb.n, Math.max(0, (psi - tb.y0) / DEG)), i = Math.min(tb.n - 1, Math.floor(f));
+  const arm = tb.a[i] + (tb.a[i + 1] - tb.a[i]) * (f - i), T = o.spring / 2;
+  const jW = 2 * Math.asin(p / (2 * c.rho)), jH = 2 * Math.asin(p / (2 * o.hub));
+  const guideTurn = o.guide.a1 - c.a0;
+  const hyst = L.eta * EI * ((0.5 / p) * 2 * jW / c.rho + (1 / p) * jH / o.hub + guideTurn / (2 * Math.PI) / o.guide.r);
+  const pin = L.muPin * L.rPin * T * ((0.5 / p) * 2 * jW + (1 / p) * jH);
+  const capstan = T * (Math.exp(muGuide * guideTurn) - 1);
+  const a = Math.abs(arm);
+  return { torque: T * arm, friction: (hyst + pin + capstan + slide / 2) * a, viscous: 0, parts: { hyst: hyst * a, pin: pin * a, capstan: capstan * a, slide: (slide / 2) * a, spring: T * arm, arm } };
+}

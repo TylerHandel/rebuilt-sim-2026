@@ -3,7 +3,7 @@
 // turret's yaw, and the pieces that hold its ends.
 import * as THREE from 'three';
 import { LINK_POS, LINK_IDX } from './echainLink.js';
-import { TrackChain, SpoolChain, LINK, SPOOL1690 } from './echain.js';
+import { TrackChain, SpoolChain, SwivelChain, LINK, SWIVEL1690 } from './echain.js';
 
 const DEG = Math.PI / 180;
 
@@ -142,9 +142,56 @@ export function chain8793(parent, axis, { linkMat, bracketMat, screwMat } = {}) 
 // corner guides round the shooter and the end's bracket on them. update(yaw) moves the chain and the
 // tensioner.
 export function chain4414(parent, turret, wallTop, M) { return spoolChainModel(parent, turret, { ch: new SpoolChain(), top: wallTop - 0.005, turretY: wallTop, name: '4414', M }); }
-// 1690's (js/echain.js SPOOL1690: its routing an estimate): the same pieces, along the back of its frame
-// behind the turret, hung from a strip just over the chain; turretY: the turret group's height
-export function chain1690(parent, turret, turretY, M) { return spoolChainModel(parent, turret, { ch: new SpoolChain(SPOOL1690, LINK), top: SPOOL1690.y + 0.035, turretY, name: '1690', M }); }
+// 1690's (js/echain.js SWIVEL1690): the links from the fixed end in the tray round the spring's wheel,
+// round the guide channel in front of the turret (their CAD, cad/robots/1690-body.glb) to the swivel
+// on the turret (cad/robots/1690-turret.glb), either way round its hub; the spring's wheel on its
+// carriage (it slides along the tray) and the spring's band to its drum (the drum is the CAD's).
+// turret: the turret's group (rotating), its origin on the axis at turretY. update(yaw) moves them.
+export function chain1690(parent, turret, turretY, M) {
+  const ch = new SwivelChain(SWIVEL1690, LINK), o = ch.o, link = ch.link;
+  const g = new THREE.Group();
+  g.name = 'echain 1690';
+  parent.add(g);
+  const linkMat = new THREE.MeshStandardMaterial({ color: 0x1c1d21, roughness: 0.62, metalness: 0.05 });
+  const dark = new THREE.MeshStandardMaterial({ color: 0x2a2d33, roughness: 0.55, metalness: 0.35 });
+  const print = new THREE.MeshStandardMaterial({ color: 0x24272c, roughness: 0.8, metalness: 0.02 });
+  const steel = new THREE.MeshStandardMaterial({ color: 0xc9ccd1, roughness: 0.3, metalness: 0.9 });
+  const y = o.y, wid = link.width;
+  const links = chainMesh(ch.n, wid, linkMat);
+  g.add(links.mesh);
+  // the spring's wheel on its carriage, and the spring's band from it to the drum at the tray's right end
+  const slider = new THREE.Group();
+  slider.name = 'echain 1690 spring wheel';
+  g.add(slider);
+  cyl(o.wheel.r, wid * 0.9, M?.compliant || print, slider, 0, 0, 0, 24);
+  cyl(0.004, wid + 0.012, steel, slider, 0, 0, 0, 8);
+  box(0.07, 0.004, 0.06, dark, slider, 0, wid / 2 + 0.004, 0);
+  const drumZ = 0.3545;
+  const band = box(0.0025, 0.019, 1, steel, g, o.wheel.x, y, 0);
+  band.name = 'echain 1690 spring band';
+  // the end's bracket on the swivel (in the turret's frame)
+  const endB = endBracket(wid, -0.01, 0.03, print, steel);
+  endB.name = 'echain 1690 swivel end';
+  endB.rotation.order = 'YXZ';
+  turret.add(endB);
+  let last = null;
+  const update = (yaw) => {
+    if (last !== null && Math.abs(yaw - last) < 2e-4) return;
+    last = yaw;
+    const P = ch.solve(yaw), n = ch.n;
+    links.place(P, y);
+    slider.position.set(o.wheel.x, y, -ch.wT);
+    const z0 = -ch.wT + o.wheel.r, z1 = drumZ - 0.012;
+    band.scale.z = Math.max(0.001, z1 - z0); band.position.z = (z0 + z1) / 2;
+    // the bracket from the last pin on along the chain to the swivel, in the turret's frame
+    const hd = Math.atan2(P[2 * n + 1] - P[2 * n - 1], P[2 * n] - P[2 * n - 2]) - yaw;
+    const dx = P[2 * n] - o.axis[0], dw = P[2 * n + 1] - o.axis[1], c = Math.cos(-yaw), s = Math.sin(-yaw);
+    endB.position.set(c * dx - s * dw, y - turretY, -(s * dx + c * dw));
+    endB.rotation.y = hd;
+  };
+  update(0);
+  return { group: g, chain: ch, update };
+}
 function spoolChainModel(parent, turret, { ch, top, turretY, name, M }) {
   const o = ch.o, link = ch.link;
   const g = new THREE.Group();

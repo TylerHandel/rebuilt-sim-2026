@@ -4,7 +4,7 @@
 // physical robots' turretStep (js/mech/phys8793.js, phys4414.js) runs one, so the turret gets where
 // the aim asks as fast as its motor can take it there, instead of at a set rate (js/robot.js).
 import { Motor } from './mechanism.js';
-import { TrackChain, SpoolChain, chainLoad8793, chainLoad4414, chainLoad1690, SPOOL1690, LINK } from '../echain.js';
+import { TrackChain, SpoolChain, SwivelChain, chainLoad8793, chainLoad4414, chainLoad1690, SWIVEL1690, LINK } from '../echain.js';
 
 const DEG = Math.PI / 180, TURN = 2 * Math.PI;
 const sgn = (x) => (x > 0 ? 1 : x < 0 ? -1 : 0);
@@ -108,19 +108,20 @@ export function drive4414({ chain = true } = {}) {
 // Their code isn't public. Their CAD release thread: the turret on position control, Motion Magic
 // when it wraps, a feedforward of the target's tracking rate less the robot's own; a REV Through Bore
 // encoder geared to it, the Kraken's own encoder for the loop. Its CAD (their X_T release): an X60 low
-// in the frame, a 12t steel pinion into a ~56t gear (their centers 43.5 mm apart), up a long shaft to a
-// ~13t pinion 0.132 m from the turret's axis on a ~194t ring under the deck (gear teeth aren't
-// modeled in the X_T: the tooth counts are from the parts' radii and centers), about 70:1 (~515 deg/s
-// free). The loop as 8793's (an X60): kP 3 V per motor rotation, kD 0.1, kV the X60's 1/Kv
-// (0.124), kS 0.15 V, the commanded angle's own rate fed forward (bounded at 360 deg/s); stator 40 A,
-// supply 30 A; what turns: the shooter on its plates with its two X60s, the hood's X44 and the camera
-// (~6 kg, J 0.07); its thin-section 8in bearing ("tight tolerance on its slots made it significantly
-// stiffer so we had to scrape it quite a lot until it got smooth"): 1.0 N m. All estimates; travel
-// +-200 deg (the sim's config). Its chain: js/echain.js SPOOL1690.
+// in the frame (fixed), a 12T steel pinion into a 60T gear (78.8 mm across: 20 DP; their centers 45.8
+// mm apart, 72 teeth's worth), an 18T 5M pulley on that shaft, 28T on a vertical shaft beside the
+// turret (54.4 mm apart: a 45T belt fits to 0.1 mm; the belt isn't in the X_T), up to a 14T 10 DP
+// pinion (40.6 mm across) 0.132 m from the turret's axis on its 90T ring (233.6 mm across): 5 x 1.556
+// x 6.43 = 50:1 (~720 deg/s free). The loop as 8793's (an X60): kP 3 V per motor rotation, kD 0.1, kV
+// the X60's 1/Kv (0.124), kS 0.15 V, the commanded angle's own rate fed forward (bounded at 360
+// deg/s); stator 40 A, supply 30 A; what turns: the shooter on its plates with its two X60s, the
+// hood's X44 and the camera (~6 kg, J 0.07); its thin-section 8in bearing ("tight tolerance on its
+// slots made it significantly stiffer so we had to scrape it quite a lot until it got smooth"): 1.0
+// N m. All estimates; travel +-200 deg (the sim's config). Its chain: js/echain.js SWIVEL1690.
 export function drive1690({ chain = true } = {}) {
-  const ch = new SpoolChain(SPOOL1690, LINK);
+  const ch = new SwivelChain(SWIVEL1690, LINK);
   return new TurretDrive({
-    motor: new Motor('krakenX60', { ratio: 70, statorLimit: 40, supplyLimit: 30, eff: 0.9 }),
+    motor: new Motor('krakenX60', { ratio: 50, statorLimit: 40, supplyLimit: 30, eff: 0.9 }),
     J: 0.07, friction: 1.0, viscous: 0.02,
     gains: { kP: 3, kD: 0.1, kV: 0.124, kS: 0.15 },
     maxRate: 360 * DEG, limits: [-200 * DEG, 200 * DEG],
