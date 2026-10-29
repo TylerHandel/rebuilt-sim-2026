@@ -33,7 +33,7 @@
 import { Mechanism } from './mechanism.js';
 import { PhysicalRobot } from './physical.js';
 import {
-  build1690, wheels1690, shooterWheel, feederWheels, pathSurfaces1690, placeIntake, placeTurret, turretPoint, intakeFront, kickAt, kickLoad,
+  build1690, wheels1690, shooterWheel, feederWheels, pathSurfaces1690, placeIntake, placeTurret, turretPoint, intakeFront, kickAt, kickLoad, floorRoll,
   HALF_L, HALF_W, INTAKE, FLOOR, TOP, BELT, VKICK, FEED, SHOOTER, TURRET, NET, WALL, PRELOAD, SLIDE, PLATE, bowShape,
 } from './r1690.js';
 import { speedLoop, profile } from './phys1706.js';
@@ -135,7 +135,7 @@ export class Physical1690 extends PhysicalRobot {
     const t = build1690(), w = wheels1690(t), s = pathSurfaces1690(t), sw = { wheel: shooterWheel(t), feeder: feederWheels(t) };
     const pathWheels = [...w.intake, ...w.floor, w.vkick, ...w.feed];
     super(robot, {
-      path: new Mechanism({ body: robot.body, substeps: 6, shafts: [...new Set(pathWheels.map((x) => x.shaft)), ...t.belts, t.slide, t.kickArm], wheels: pathWheels, surfaces: [s.body, s.bodyFine, s.ptfe, s.bottom, s.top, s.carriage, s.kick, s.kickTube, s.bumper, s.net] }),
+      path: new Mechanism({ body: robot.body, substeps: 6, shafts: [...new Set(pathWheels.map((x) => x.shaft)), ...t.belts, t.slide, t.kickArm], wheels: pathWheels, surfaces: [s.body, s.bodyFine, s.ptfe, s.bottom, s.top, s.carriage, s.kick, s.kickTube, s.funnelLid, s.bumper, s.net] }),
       // (the turret and the hood with the wheel and the hood's feeder wheels: a FUEL leaves at up to 12
       // m/s, too far in a step to follow without sub-steps)
       shooter: new Mechanism({ body: robot.body, substeps: 6, sub: 8, shafts: [t.wheel, ...t.hoodWheels], wheels: [sw.wheel, ...sw.feeder], surfaces: [s.turret, s.hood] }),
@@ -194,8 +194,10 @@ export class Physical1690 extends PhysicalRobot {
     this.hood = this.hoodSet[0];
     this._place(r.turretYaw || 0);
     this.stepMechanisms(dt, t);
-    // (the top plate bowed by what the load pressed on it this step)
+    // (the top plate bowed by what the load pressed on it this step; the foam's rolling resistance
+    // on the floor's rollers)
     this.s.net.flex(dt, this.path.contacts);
+    floorRoll(this.path.contacts, dt);
     moveCarriage(this, this.t.slide, dt);
     this.deploy = this.pos / SLIDE.travel;
     moveKick(this, this.t.kickArm, dt, this.deploy);

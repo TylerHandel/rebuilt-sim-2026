@@ -91,6 +91,13 @@ export const FLOOR = {
 // the two rollers over the floor's back: the drive shaft turns the back one 28T:28T, which turns the
 // front one 28T:30T; they turn the other way from the floor (k, per the drive shaft's turns)
 export const TOP = { at: [[-0.0409, 0.3191], [-0.0874, 0.3183]], r: 0.016, z: [-0.066, 0.291], k: [-28 / 30, -1] };
+// The foam rolling over the floor's rollers loses some of each turn (its hysteresis: rolling
+// resistance, ROLL.rr times what presses it there: 0.08, an estimate, about twice the carpet's,
+// FUEL.rollDecel 0.35 m/s^2 being 0.036 g, as the foam wraps the 33 mm rollers). Without it a FUEL resting between two rollers turning at the same speed (the front three,
+// and the three before the back one: the CAD's 1:1 belts) spins in place like an idler gear meshed
+// with them, its surface matching both, and never moves: every contact without slip. Resisting that
+// spin, the rollers keep dragging its bottom back, and it goes (floorRoll, after each step)
+export const ROLL = { rr: 0.08 };
 // the belts along the back: across their 30 mm (x), each one's run against the FUEL (its outer
 // face's height, z from pulley to pulley), the belt's outer radius round its 24T pulleys and their
 // pitch radius (the belt's speed per radian); X44s through 16T:48T (3:1)
@@ -171,7 +178,24 @@ export const INTAKE = {
 // carriage, its rollers, their X60 and the U-frame: ~4 kg, an estimate from its parts' volumes); its
 // travel (Closed -> Open)
 export const SLIDE = { pinion: 0.7 * IN, ratio: (4 * 28) / 18, mass: 4, travel: Math.hypot(...INTAKE.slide), dir: [INTAKE.slide[0] / Math.hypot(...INTAKE.slide), INTAKE.slide[1] / Math.hypot(...INTAKE.slide), 0] };
-export const PRELOAD = [0, 1, 2, 3, 4, 5, 6, 7].map((k) => [0.21 - 0.155 * Math.floor(k / 4), 0.36, -0.24 + 0.155 * (k % 4)]);
+// the preload, as it starts (the carriage in, its rollers and the kicker bar folded up behind them
+// filling the hopper's front: the old slots there started FUEL 5-7 cm into them, and the back row's
+// left one in the corner funnel's wall, Part 234, landing behind it): three staged in the belts'
+// channel, three on the floor between the top rollers over its back and the folded kicker bar (clear
+// of the vertical kicker), two on top of those (clear of the energy chain's guard round the turret
+// and the electronics box)
+export const PRELOAD = [
+  ...[-0.06, 0.09, 0.24].map((z) => [-0.135, 0.23, z]),
+  ...[-0.07, 0.08, 0.23].map((z) => [0.05, 0.27, z]),
+  ...[0.03, 0.18].map((z) => [0.06, 0.42, z]),
+];
+// The corner funnel (Part 234, a printed diagonal wall at the floor's front left, leaning in as it
+// rises: at 0.2 m up from (0.18, -0.36) to (0.01, -0.18), at its top, 0.342 m, from (0.103, -0.36)
+// to (0.031, -0.275)) leaves a pocket behind it, against the left side panel and the plate before
+// the kickers (Part 252, x -0.05), open at the top, too small for a FUEL (it would have to squeeze
+// ~15%) but a FUEL pressed down by the load gets in and sits on the floor's front rollers. A lid over
+// it at the wall's top (the sim's: the CAD has none) keeps them out
+export const FUNNEL_LID = { y: 0.342, pts: [[0.105, -0.358], [-0.05, -0.358], [-0.05, -0.178]] };
 
 // ------------------------------------------------------------------ the drives
 // (current limits aren't public: 80 A stator, 40 A supply, estimates; the shooter's 30 A supply, as
@@ -294,15 +318,25 @@ export function pathSurfaces1690(t, mesh = PATH) {
   const [tx, ty] = [K.tube[0] - K.pivot[0], K.tube[1] - K.pivot[1]];
   const kickTube = s('kicker bar tube (aluminum, fixed)', grid(16, 12, (u, v) => [tx + K.tube[2] * Math.cos(2 * Math.PI * u), ty + K.tube[2] * Math.sin(2 * Math.PI * u), (v - 0.5) * K.width]), { mu: MU.alu, pos: piv });
   if (!K.rigid) { kick.onShaft(t.kickArm, piv); kickTube.onShaft(t.kickArm, piv); }
+  const L = FUNNEL_LID, funnelLid = s('corner funnel lid (the sim\'s)', { v: L.pts.flatMap(([x, z]) => [x, L.y, z]), i: [0, 1, 2] }, { mu: MU.pla });
   const turret = cad('turret', { mu: MU.pla, pos: [TURRET.at[0], 0, TURRET.at[1]] });
   const hood = cad('hood', { mu: MU.pla });
-  return { body, bodyFine, ptfe, bottom, top, carriage, kick, kickTube, turret, hood, bumper: bumper1690(), net: new Net1690() };
+  return { body, bodyFine, ptfe, bottom, top, carriage, kick, kickTube, funnelLid, turret, hood, bumper: bumper1690(), net: new Net1690() };
 }
 // how far the kicker bar has fallen (deg) with the carriage ext of the way out (it falls once the
 // carriage has cleared it, a third of the way: an estimate)
 export const kickAt = (ext) => INTAKE.kick.fall * Math.min(1, Math.max(0, (ext - 0.2) / 0.25));
 // the kicker bar's arms' load (N m about the pin, + lifting them back up) at angle deg (from folded,
 // Closed; down is negative): their weight, and the tubing pulling them down toward their stop
+export function floorRoll(contacts, dt) {
+  for (const c of contacts) {
+    if (!/^(floor|top) roller/.test(c.wheel.name) || !(c.force > 0)) continue;
+    const b = c.ball, w = b.angvel(), dw = (ROLL.rr * c.force * R * dt) / (0.4 * FUEL.mass * R * R);
+    // (about the rollers' axis, z: toward no spin, not past it)
+    const wz = Math.sign(w.z) * Math.max(0, Math.abs(w.z) - dw);
+    b.setAngvel({ x: w.x, y: w.y, z: wz }, true);
+  }
+}
 export function kickLoad(deg) {
   const K = INTAKE.kick, a0 = Math.atan2(K.tube[1] - K.pivot[1], K.tube[0] - K.pivot[0]), a = a0 + deg * DEG;
   const gravity = -K.mass * 9.81 * K.com * Math.cos(a);
