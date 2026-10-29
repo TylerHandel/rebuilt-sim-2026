@@ -108,9 +108,13 @@ export const SHOOTER = {
   main: { at: [0.0744, 0.5969], r: 0.027, w: 0.114 },
   hoodRoller: { at: [-0.0686, 0.6971], r: 0.01745, w: 0.115 },
   hoodPerMain: 28 / 20,
-  // what turns with the main roller: the two 4in brass flywheels (0.7 kg, 9.2e-4 kg m^2 each), the
-  // roller, pulleys and shafts (the motors' rotors are added)
-  J: 1.95e-3,
+  // what turns with the main roller (kg m^2), each part about its own axis from the CAD's solids
+  // (OpenCascade's volume properties on the STEP) and the BOM's materials; README, *604*, has the
+  // table: the two 4in brass flywheels on their stubs, 1:1 on their belts (SDS's, 0.70 kg each in
+  // the CAD as in their BOM; 1.17e-3 each, SDS's own 4.0 lb in^2), their 18t pulleys and stubs; the
+  // roller (PETG halves in silicone tubing, the 7075 hex, four 18t PETG pulleys) and the four
+  // belts; the motors' pulleys seen through the 15:18 (the motors' rotors are added)
+  J: 2.456e-3,
   // their velocity loop (kP 0.2, kV 0.12 V per motor rotation/s)
   kP: 0.2, kV: 0.12,
   // their hood angles (deg): 15 to 35; the CAD has it at 35 (the nip between the rollers aims the
@@ -206,7 +210,8 @@ export function build604() {
   // other way
   const launcher = new Train({ name: 'launcher', motor: new Motor('krakenX60', { count: 2, ratio: 15 / 18, statorLimit: 80, supplyLimit: 40 }) });
   const main = launcher.add(new Shaft({ name: 'main roller and brass flywheels', inertia: SHOOTER.J }), -1);
-  const hoodRoller = launcher.add(new Shaft({ name: 'hood roller', inertia: 1.5e-5 }), SHOOTER.hoodPerMain);
+  // (the hood roller: PETG halves in silicone tubing, the 3/8in hex, two 20t gears: the CAD's solids)
+  const hoodRoller = launcher.add(new Shaft({ name: 'hood roller', inertia: 2.17e-5 }), SHOOTER.hoodPerMain);
   return { intake, front, back, pivot, rotor, roller, infeed, upfeed, launcher, main, hoodRoller };
 }
 
