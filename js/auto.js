@@ -20,19 +20,15 @@ export const START_ORDER = ['leftTrench', 'leftBump', 'hub', 'rightBump', 'right
 
 // Starting pose: BUMPERS overlapping the ROBOT STARTING LINE, not touching the BUMP (G303). A
 // team's own auto starts where theirs does (its startFx, as far past the line as the BUMPERS still
-// overlap it), except a robot that only fits under the TRENCH with its intake down, which starts
-// clear of the TRENCH; and facing as theirs does (its startYaw, deg in blue field coordinates: their
-// trajectory's first heading), or else forward, toward the NEUTRAL ZONE.
+// overlap it: 8793's under the TRENCH's arm, its stowed intake behind it), facing as theirs does
+// (its startYaw, deg in blue field coordinates: their trajectory's first heading), or else
+// forward, toward the NEUTRAL ZONE.
 export function startPose(key, robot, alliance, custom = null) {
   let fy, fx = ALLIANCE_ZONE_DEPTH - 0.02 - robot.halfL, yaw = 0;
   if (custom) {
     fy = custom.mirror ? FIELD_W - custom.auto.startFy : custom.auto.startFy;
     fy = clamp(fy, robot.halfW + 0.02, FIELD_W - robot.halfW - 0.02);
-    if (custom.auto.startFx !== undefined) {
-      const at = clamp(custom.auto.startFx, ALLIANCE_ZONE_DEPTH - robot.halfL - 0.02, ALLIANCE_ZONE_DEPTH + robot.halfL - 0.05);
-      const w = fw(at, fy, alliance);
-      if (!robot.cfg.intake.fold || !underTrench(w.x, w.z, robot.halfL)) fx = at;
-    }
+    if (custom.auto.startFx !== undefined) fx = clamp(custom.auto.startFx, ALLIANCE_ZONE_DEPTH - robot.halfL - 0.02, ALLIANCE_ZONE_DEPTH + robot.halfL - 0.05);
     if (custom.auto.startYaw !== undefined) yaw = ((custom.mirror ? -1 : 1) * custom.auto.startYaw * Math.PI) / 180;
   } else fy = START_POSITIONS[key].fy;
   const w = fw(fx, fy, alliance);
@@ -545,11 +541,7 @@ export class AutoRunner {
       st.pts.forEach(([fx, fy], q) => {
         const tp = st.tp[q];
         C.push(this.P(fx, fy, st.mirror !== false));
-        let dt = tp.dt;
-        // (where it sets out from further than their trajectory has it, as a robot that starts
-        // clear of the TRENCH: the first stretch longer, at the same acceleration)
-        if (C.length === 2) { const L = Math.hypot(C[1].x - C[0].x, C[1].z - C[0].z); if (L > tp.ds + 0.05 && tp.ds > 0.05) dt *= Math.sqrt(L / tp.ds); }
-        T.push(T[T.length - 1] + dt);
+        T.push(T[T.length - 1] + tp.dt);
         V.push(tp.v);
         R.push(tp.rot === undefined ? R[R.length - 1] : yawOf(tp.rot, this.alliance));
       });

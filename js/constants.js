@@ -229,7 +229,10 @@ export const GROUP = {
   TERRAIN: 0x0040,       // low floor features (BUMPS, DEPOT barriers, TOWER BASE)
   HELD: 0x0080,          // FUEL in a physical robot's ball path: their touching each other is its
                          // mechanism's to work out (foam on foam), not the world's
+  TRENCH_ARM: 0x0100,    // the TRENCH arms over the openings: met by whatever meets the field (groups()
+                         // adds it wherever STATIC is), but an intake arm the TRENCH arm pushes down
+                         // on its pivot instead (8793's: js/mech/phys8793.js trenchArm)
 };
-export const groups = (member, filter) => ((member & 0xffff) << 16) | (filter & 0xffff);
+export const groups = (member, filter) => ((member & 0xffff) << 16) | ((filter & GROUP.STATIC ? filter | GROUP.TRENCH_ARM : filter) & 0xffff);
 
 export const PHYSICS_DT = 1 / 120;

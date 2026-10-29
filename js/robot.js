@@ -252,9 +252,14 @@ export class Robot {
     if (ic.fold) {
       const pts = [];
       for (const [x, y] of ic.fold.hull) for (const z of [-ic.width / 2 - 0.01, ic.width / 2 + 0.01]) pts.push(x, y, z);
+      // (an arm on a pivot the TRENCH arm can push it down on, 8793's: fold.yields, it passes
+      // through the TRENCH arm here, and its mechanisms work out what the TRENCH arm does to it,
+      // putting it back in the TRENCH arm's way only where it can't give: js/mech/phys8793.js)
+      this.armGroupsRigid = intakeGroups;
+      this.armGroups = ic.fold.yields ? intakeGroups & ~GROUP.TRENCH_ARM : intakeGroups;
       this.armCollider = world.createCollider(
         RAPIER.ColliderDesc.convexHull(new Float32Array(pts)).setTranslation(ic.fold.pivot[0], ic.fold.pivot[1], 0)
-          .setDensity(0).setFriction(0.1).setRestitution(0.05).setCollisionGroups(intakeGroups),
+          .setDensity(0).setFriction(0.1).setRestitution(0.05).setCollisionGroups(this.armGroups),
         this.body,
       );
     } else {

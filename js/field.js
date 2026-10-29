@@ -584,11 +584,11 @@ export class Field {
       boxC(hx, TRENCH.armTop / 2, postZ, at, TRENCH.armTop / 2, postW / 2, { restitution: 0.4 });
       box(TRENCH.armThick, armH, TRENCH.clearWidth, col, hx, TRENCH.clearHeight + armH / 2, armZ, grp);
       box(TRENCH.armThick + 0.02, 0.03, TRENCH.clearWidth, mats.alu, hx, TRENCH.clearHeight + 0.015, armZ, grp);
-      boxC(hx, TRENCH.clearHeight + armH / 2, armZ, at, armH / 2, TRENCH.clearWidth / 2, { restitution: 0.4 });
+      boxC(hx, TRENCH.clearHeight + armH / 2, armZ, at, armH / 2, TRENCH.clearWidth / 2, { restitution: 0.4, groups: P.trenchArmGroups });
       // the AprilTag mount standing on the arm over the middle of the opening
       const tagH = TRENCH.height - TRENCH.armTop;
       box(TRENCH.tagThick, tagH, TRENCH.tagWidth, mats.alu, hx, TRENCH.armTop + tagH / 2, armZ, grp);
-      boxC(hx, TRENCH.armTop + tagH / 2, armZ, TRENCH.tagThick / 2, tagH / 2, TRENCH.tagWidth / 2, { restitution: 0.4 });
+      boxC(hx, TRENCH.armTop + tagH / 2, armZ, TRENCH.tagThick / 2, tagH / 2, TRENCH.tagWidth / 2, { restitution: 0.4, groups: P.trenchArmGroups });
       // floor rails (feet) of the trench, too low to matter for driving
       for (const fx of [-td + 0.02, td - 0.02]) box(0.04, 0.012, TRENCH.clearWidth, mats.alu, hx + fx, 0.006, armZ, grp, false);
       // AprilTags on the mount
