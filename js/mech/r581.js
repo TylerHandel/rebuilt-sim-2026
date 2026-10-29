@@ -32,14 +32,15 @@
 //     1.64 times the drum)
 //   hood: an X44 through 8:62 and a 10t pinion on the hood plates' 154t sectors about the drum's
 //     axle (119.4:1)
-import { IN } from '../constants.js';
+import { FUEL, IN } from '../constants.js';
 import { Motor, Shaft, Surface, Train, Wheel } from './mechanism.js';
 
 // what each grips FUEL with (estimates, in the order 8793's team gave): the intake rollers' grip
 // tape ("Cat Tongue" in the CAD); the drum, hood and tower rollers are drawn as bare tubes, but
 // shooters are wrapped, so grip tape there too (an estimate); the floor's 1in tubes are black in
-// the CAD (anodized or sleeved; an estimate)
-export const MU = { gripTape: 1.3, floor: 0.6, polycarb: 0.5 };
+// the CAD (anodized or sleeved; an estimate); the net's cord (NET below: bungee cord in a braided
+// sheath, slick and round, as 1706's net's cord: 0.25, js/mech/r1706.js)
+export const MU = { gripTape: 1.3, floor: 0.6, polycarb: 0.5, net: 0.25 };
 
 // ------------------------------------------------------------------ the layout (robot frame)
 export const DRUM = [-0.2883, 0.4788];   // the drum's axle, which the hood turns about
@@ -205,7 +206,7 @@ export function hoodElevation(deg) {
 // the ball path's surfaces from their CAD (js/mech/path581.js): the body; the intake on its racks
 // (it slides, on the deploy's pinions); the floor on its pivot (it turns as the intake's ramps lift
 // it: on the deploy too, through the cam); the hood on the drum's axle; and the net from the
-// hopper's polycarbonate top down to the intake's front plate (a plane, placed with placeNet)
+// hopper's polycarbonate top down to the intake's front plate (NET below, placed with placeNet)
 export function pathSurfaces581(mesh, t, { mu = 0.35 } = {}) {
   const s = (k, pos) => new Surface({ name: `${k} (CAD)`, vertices: mesh[k].v.map((x) => x / 1000), indices: mesh[k].i, mu, pos });
   const body = s('body', [0, 0, 0]);
@@ -217,20 +218,60 @@ export function pathSurfaces581(mesh, t, { mu = 0.35 } = {}) {
   const floor = s('floor', [PIVOT[0], PIVOT[1], 0]).onShaft(cam, [PIVOT[0], PIVOT[1], 0]);
   floor.cam = cam;
   const hood = s('hood', [DRUM[0], DRUM[1], 0]);
-  const net = new Surface({ name: 'net', vertices: [0, 0, -0.35, 0, 0, 0.35, -0.45, 0, 0.35, -0.45, 0, -0.35], indices: [0, 1, 2, 0, 2, 3], mu: 0.3, pos: [0, -10, 0] });
-  return { body, slide, floor, hood, net };
+  return { body, slide, floor, hood, net: new Net581() };
 }
 export function placeFloorSurface(sf, ext) {
   sf.setPose([PIVOT[0], PIVOT[1], 0], 0, floorRot(ext));
   // (the pinion turning out lowers the floor: d(floor)/d(pinion) = -floorRate x pinion radius)
   sf.cam.k = -floorRate(ext) * SLIDE.pinion;
 }
-// the net: zip-tied along the polycarbonate top's front edge, down to the top of the intake's
-// front plate (it rides out and in with it)
-export const NET = { topX: 0.302, topY: 0.55, frontX: 0.643, frontY: 0.49 };
-export function placeNet(net, ext) {
-  const [dx, dy] = slideOffset(ext), fx = NET.frontX + dx, fy = NET.frontY + dy, len = fx - NET.topX;
-  if (len < 0.03) { net.setPose([0, -10, 0]); return; }
-  net.setPose([fx, fy, 0], 0, -Math.atan2(NET.topY - fy, len));
-  net.len = Math.hypot(len, NET.topY - fy);
+// The net. Their CAD release thread: a "trucker net added to the top of the hopper that spans each
+// side, mounted to the top 1x1 tubes by zip-ties, extends to front intake plate"; the CAD has the
+// polycarbonate top over the fixed part (0.55 m up, from the shooter tower's front at x -0.06 to
+// its front edge at 0.302, the full width), so the net covers only what's left: from the top's front
+// edge (topX, topY) down to the top of the intake's front plate (frontX, frontY with the intake all
+// the way out; it rides out and in with it), across the hopper between the intake's side panels
+// (hw: their inside faces, 0.34 m out; the panels' tops, 0.49-0.50 m, stand within 4 cm of the
+// net's sides, under a FUEL's radius). Tied along its four edges.
+// A trucker net is bungee cord, and it's tied on loose: the load lifts it freely (it weighs next to
+// nothing) until its slack is taken up, as far as NET.bulge over the line between its ties at its
+// middle, tapering to them (the shape a dome of cord takes: 1706's net, js/mech/r1706.js), and
+// there it goes taut: a FUEL pressing on it then gives as far as the stretching bungee lets it
+// (NET.tread, N/m). Nothing pushes the load back down below that. Both are estimates, sized to the
+// reveal's photo of the Champs robot full (Chief Delphi, "581 Blazing Bulldogs 2026 CAD and Code
+// Release", Rubble_2): its load standing ~4-5 cm over the side rails near the front, 0.59-0.60 m
+// up. With 0.05 m of slack (about 2in of rise at its middle; as much hanging empty, as the net on
+// their earlier robot hangs between its zip ties in the same thread) and 8 kN/m (bungee: softer
+// than 1706's braided cord, 10 kN/m, stiffer than 4414's stretchy net, 1.5, which let the load 2-5
+// cm past it), the load the intake crams in stands 0.58-0.60 m (tools/mechlab581.mjs intakefull);
+// 0.04-0.08 m and 4-15 kN/m all hold the same 69-72 there, the slack only moves how tall it stands
+export const NET = { topX: 0.302, topY: 0.55, frontX: 0.643, frontY: 0.49, hw: 0.34, bulge: 0.05, tread: 8000 };
+const R = FUEL.radius;
+// the net's front tie with the intake ext m out
+export function netFront(ext) { const [dx, dy] = slideOffset(ext); return [NET.frontX + dx, NET.frontY + dy]; }
+// the net's height at (x, z) with its slack all taken up, the intake ext m out; and its slope
+// (d/dx, d/dz)
+export function netAt(x, z, ext) {
+  const [fx, fy] = netFront(ext), L = Math.max(0.01, fx - NET.topX), W = 2 * NET.hw, B = NET.bulge;
+  const u = Math.min(1, Math.max(0, (x - NET.topX) / L)), v = Math.min(1, Math.max(0, (z + NET.hw) / W));
+  const su = Math.sin(Math.PI * u), sv = Math.sin(Math.PI * v), slope = (fy - NET.topY) / L;
+  return [NET.topY + slope * L * u + B * su * sv, slope + (B * Math.PI * Math.cos(Math.PI * u) * sv) / L, (B * su * Math.PI * Math.cos(Math.PI * v)) / W];
 }
+// (its cord: MU.net; it gives NET.tread once taut)
+class Net581 extends Surface {
+  constructor() {
+    super({ name: 'net', vertices: [0, 0, 0, 0.01, 0, 0, 0, 0, 0.01], indices: [0, 1, 2], mu: MU.net, tread: NET.tread });
+    this.place(SLIDE.out);
+  }
+  place(ext) { this.ext = ext; this.x1 = netFront(ext)[0]; }
+  under(x, z) { return x > NET.topX && x < this.x1 && Math.abs(z) < NET.hw; }
+  at(x, z) { return netAt(x, z, this.ext); }
+  touches(p) {
+    const [x, y, z] = p;
+    if (!this.under(x, z)) return [];
+    const [h, hx, hz] = this.at(x, z), l = Math.hypot(hx, 1, hz), dist = (h - y) / l;
+    if (dist >= R || dist < -0.03) return [];
+    return [{ depth: R - dist, n: [hx / l, -1 / l, hz / l] }];
+  }
+}
+export function placeNet(net, ext) { net.place(ext); }

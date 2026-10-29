@@ -10,20 +10,24 @@
 // Env: SEEDS (6), SPEED (1 m/s), STUCK (where the ones left over are), SHOT=rpm,hood (one shot of
 // your own), NOCOMPACT=1 (the dump without the intake coming in)
 import { RAPIER } from '../js/physics.js';
-import { FUEL, GROUP, groups, HUB, IN } from '../js/constants.js';
+import { FUEL, GROUP, groups, HUB, IN, TRENCH } from '../js/constants.js';
 import { Mechanism } from '../js/mech/mechanism.js';
 import { sim2D } from '../js/ballistics.js';
 import {
   build581, wheels581, pathSurfaces581, placeIntake, placeFloor, placeFloorSurface, placeHood, placeNet, slideOffset, floorRot, hoodRot, hoodElevation, shotFor,
-  SCORE_RPM, FEED_RPM, SLIDE, FLOOR, TOWER, INTAKE, SHOOTER, DEPLOY, DRUM,
+  SCORE_RPM, FEED_RPM, SLIDE, FLOOR, TOWER, INTAKE, SHOOTER, DEPLOY, DRUM, NET,
 } from '../js/mech/r581.js';
 import PATH from '../js/mech/path581.js';
 import { EXIT_PER_DRUM_SURFACE, dutyFor } from '../js/mech/phys581.js';
+import { fillRun, fillReport } from './fillbench.mjs';
 
 await RAPIER.init();
 const R = FUEL.radius, DT = 1 / 120, SEEDS = Number(process.env.SEEDS ?? 6), SPEED = Number(process.env.SPEED ?? 1);
 const HELD = groups(GROUP.HELD, 0xffff & ~GROUP.HELD);
 const OUT = DEPLOY.INTAKE * IN; // their INTAKE: 11.8in out
+// (BULGE=m, TREAD=N/m: the net's slack and give, js/mech/r581.js NET, to try others)
+if (process.env.BULGE) NET.bulge = Number(process.env.BULGE);
+if (process.env.TREAD) NET.tread = Number(process.env.TREAD);
 
 function world({ carpet = true } = {}) {
   const w = new RAPIER.World({ x: 0, y: -9.81, z: 0 });
@@ -110,6 +114,70 @@ function shotWatch(shooter) {
   };
 }
 const inHopper = (b, ext = OUT) => { const p = b.translation(); return p.x > -0.36 && p.x < 0.36 + ext && Math.abs(p.z) < 0.37 && p.y > 0.08 && p.y < 0.75; };
+// as js/mech/phys581.js where() has it: in it (held), and the intake's (own: in its mouth too)
+const HALF_L = 0.343, HALF_W = 0.362;
+const inFrame = ([x, y, z]) => Math.abs(x) < HALF_L && Math.abs(z) < HALF_W && y > 0.09 && y < 0.75;
+const inFront = (ext) => ([x, y, z]) => x >= HALF_L && x < HALF_L + ext + 0.05 && Math.abs(z) < 0.345 && y < 0.56;
+const held581 = (ext) => (p) => inFrame(p) || (inFront(ext)(p) && p[1] > 0.2);
+const own581 = (ext) => (p) => inFrame(p) || inFront(ext)(p);
+const P = (b) => { const p = b.translation(); return [p.x, p.y, p.z]; };
+const LIMIT = 30 * IN; // the height limit (30in)
+const TOWER_X = -0.06; // the hopper's back: the shooter tower's front (the top's back edge, their CAD)
+// the net's height over (x, z) (as far as its slack lets the load lift it), or null where it isn't
+const netTop = (r, x, z) => (r.s.net.under(x, z) ? r.s.net.at(x, z)[0] : null);
+// FUEL that got out of it, not as shots (each once it's been in it): up through the net (its
+// center 3 cm over the net there: past where the net holds it), over the hopper's top elsewhere
+// (its center over the walls' and the front plate's tops), out a side, out the front over the
+// front plate, out through the drum and hood (up the tower and out over them, too slow to count as
+// a shot), or out the back below them; and how high the load stands (the top of any FUEL in the
+// hopper, ahead of the tower, the most it got; and under the net), and how many it held when the load first
+// stood taller than a TRENCH arm's underside (22.25in) for a quarter second, or the 30in limit
+function escapeWatch(r) {
+  const seen = new Set(), out = new Map();
+  let top = 0, topNet = 0, tallT = 0, tallAt = null, overAt = null, playT = 0, playAt = null, nearT = 0, nearAt = null;
+  return {
+    out,
+    get top() { return top; }, get topNet() { return topNet; }, get tallAt() { return tallAt; }, get overAt() { return overAt; }, get playAt() { return playAt; }, get nearAt() { return nearAt; },
+    check(balls) {
+      const isHeld = held581(r.ext);
+      let now = 0, held = 0, net = 0;
+      const [dx] = slideOffset(r.ext), front = NET.frontX + dx;
+      for (const b of balls) {
+        const p = P(b), [x, y, z] = p;
+        // (the load's top: in the hopper, not one in the tower)
+        if (isHeld(p)) { held++; if (x > TOWER_X) now = Math.max(now, y + R); }
+        // (as js/mech/phys581.js loadTop() has it, for play: how high the load holds the net up)
+        if (isHeld(p) && r.s.net.under(x, z)) net = Math.max(net, Math.min(y + R, r.s.net.at(x, z)[0]));
+        if (out.has(b) || x > 40) continue;
+        if (!seen.has(b)) { if (isHeld(p)) seen.add(b); else continue; }
+        const h = netTop(r, x, z);
+        if (isHeld(p) && x > TOWER_X) { top = Math.max(top, y + R); if (h !== null) topNet = Math.max(topNet, y + R); }
+        if (b.linvel().y > 2 && x < -0.03) continue; // (on its way up into the drum)
+        // (out the back over the tower: through the drum and hood, idling or not, or over them)
+        const why = h !== null && y > h + 0.03 ? 'through the net' : h === null && y > 0.56 && x > TOWER_X ? 'over the top' : x < TOWER_X && y > 0.6 ? 'out through the drum'
+          : Math.abs(z) > HALF_W + 0.03 && y > 0.2 ? 'out a side' : x > front + 0.03 && y > 0.3 ? 'out the front' : x < -HALF_L - 0.05 && y > 0.3 ? 'over the back' : null;
+        if (why) out.set(b, why);
+        if (why && process.env.ESC) { const v = b.linvel(); console.log(`   escaped (${why}) at ${x.toFixed(3)},${y.toFixed(3)},${z.toFixed(3)} v ${v.x.toFixed(1)},${v.y.toFixed(1)},${v.z.toFixed(1)}; the net there ${h === null ? '-' : h.toFixed(3)}; the intake ${(r.ext / IN).toFixed(1)}in out`); }
+      }
+      tallT = now > TRENCH.clearHeight ? tallT + DT : 0;
+      if (tallAt === null && tallT >= 0.25) tallAt = held;
+      if (overAt === null && now > LIMIT) overAt = held;
+      // (in play, js/robot.js: too tall to get under a TRENCH arm once the net's top is within 5 mm
+      // of it with the 5 mm it adds; nearly up to it at 3.5 cm under it, for 0.3 s)
+      playT = net + 0.005 > TRENCH.clearHeight - 0.005 ? playT + DT : 0;
+      if (playAt === null && playT >= 0.25) playAt = held;
+      nearT = net > TRENCH.clearHeight - 0.035 ? nearT + DT : 0;
+      if (nearAt === null && nearT >= 0.3) nearAt = held;
+    },
+    report() {
+      const c = {};
+      for (const w of out.values()) c[w] = (c[w] ?? 0) + 1;
+      return `${out.size} escaped${out.size ? ` (${Object.entries(c).map(([k, n]) => `${k}: ${n}`).join(', ')})` : ''}; the load's top ${top.toFixed(3)} m (under the net ${topNet.toFixed(3)})` +
+        `${tallAt !== null ? `, taller than the TRENCH from ${tallAt} in it` : ', never taller than the TRENCH'}${overAt !== null ? `, over 30in from ${overAt}` : ''}` +
+        `; in play (the net's top) nearly up to the TRENCH from ${nearAt ?? '-'}, too tall for it from ${playAt ?? '-'}`;
+    },
+  };
+}
 // fill it a layer at a time (FUEL set into the space over the ones already in, let settle)
 function fill(w, balls, step, layers = 8, y = 0.47, x1 = 0.6) {
   for (let layer = 0; layer < layers; layer++) {
@@ -199,18 +267,40 @@ const tests = {
       if (process.env.STUCK) console.log('   left', r.left.map((p) => p.map((v) => v.toFixed(2)).join(',')).join(' | '));
     }
   },
-  hold() {
-    const { path } = rig();
+  // filled through the intake until it can't put more in (tools/fillbench.mjs): the NEUTRAL ZONE's
+  // FUEL, five abreast, at SPEED; the intake out, their INTAKING (rollers 12 V, floor 2 V, tower
+  // -1 V), the drum idling; full when FUEL wait in its mouth pressed against the load and fewer than
+  // 2 more get in for 2 s (js/mech/physical.js FullWatch; it's rated, not naturalFull, in play)
+  async intakefull() {
+    const runs = [];
+    for (let seed = 1; seed <= SEEDS; seed++) {
+      const r = rig(), esc = escapeWatch(r), { t } = r;
+      t.intake.cmd = 1; t.floor.cmd = 2 / 12; t.feederT.cmd = -1 / 12;
+      const path = { step: (dt, l) => { drum(t, SHOOTER.idle); r.path.step(dt, l, l); r.shooter.step(dt, l); esc.check(l); }, get contacts() { return r.path.contacts; } };
+      const res = fillRun(RAPIER, { world: () => world({ carpet: false }), ball, path, DT, held: held581(r.ext), own: own581(r.ext), top: { topX: 0, topN: Infinity }, speed: SPEED, sec: Number(process.env.SEC ?? 12), seed, front: 0.62, keep: !!process.env.SNAP });
+      // (SNAP=file: where the FUEL in it are at the end (the first fill's), for a picture)
+      if (process.env.SNAP && seed === 1) (await import('node:fs')).writeFileSync(process.env.SNAP, JSON.stringify({ ext: r.ext, load: res.balls.map(P).filter(held581(r.ext)) }));
+      if (res.world) res.world.free();
+      console.log(fillReport(`581 intaking at ${SPEED} m/s, seed ${seed}`, res) + `; ${esc.report()}`);
+      runs.push({ ...res, esc: esc.out.size, loadTop: esc.top, tallAt: esc.tallAt, overAt: esc.overAt, playAt: esc.playAt, nearAt: esc.nearAt });
+    }
+    const f = runs.map((x) => x.fulls[0]?.n).filter((n) => n !== undefined);
+    console.log(`581 through its intake (${runs.length} fills): the most it held ${Math.min(...runs.map((x) => x.most))}-${Math.max(...runs.map((x) => x.most))} (mean ${(runs.reduce((a, x) => a + x.most, 0) / runs.length).toFixed(1)}), full at ${f.length ? `${Math.min(...f)}-${Math.max(...f)}` : '-'} (${f.length} of ${runs.length}); ${runs.reduce((a, x) => a + x.esc, 0)} escaped in all; the load's top ${Math.min(...runs.map((x) => x.loadTop)).toFixed(3)}-${Math.max(...runs.map((x) => x.loadTop)).toFixed(3)} m, taller than the TRENCH from ${runs.map((x) => x.tallAt ?? '-').join(', ')} in it; over 30in from ${runs.map((x) => x.overAt ?? '-').join(', ')}; in play nearly up to the TRENCH from ${runs.map((x) => x.nearAt ?? '-').join(', ')}, too tall for it from ${runs.map((x) => x.playAt ?? '-').join(', ')}`);
+  },
+  async hold() {
+    const r = rig(), { path } = r, esc = escapeWatch(r);
     const w = world();
     const balls = [];
-    const step = (n) => { for (let i = 0; i < n; i++) { path.step(DT, balls, balls); w.step(); } };
+    const step = (n) => { for (let i = 0; i < n; i++) { path.step(DT, balls, balls); w.step(); esc.check(balls); } };
     fill(w, balls, step, 8);
     step(2 / DT);
+    // (SNAP=file: where the FUEL in it are, for a picture)
+    if (process.env.SNAP) (await import('node:fs')).writeFileSync(process.env.SNAP, JSON.stringify({ ext: r.ext, load: balls.map(P).filter(held581(r.ext)) }));
     const t0 = performance.now();
     step(1 / DT);
     const ms = (performance.now() - t0) / (1 / DT);
     console.log(`  (its mechanisms with them all in: ${ms.toFixed(2)} ms a step)`);
-    console.log(`581 holds ${balls.filter((b) => inHopper(b)).length} with everything off and the intake out (a layer at a time)`);
+    console.log(`581 holds ${balls.filter((b) => inHopper(b)).length} with everything off and the intake out (a layer at a time); ${esc.report()}`);
     const lo = rig({ ext: DEPLOY.STOW * IN });
     const w2 = world(), b2 = [];
     const step2 = (n) => { for (let i = 0; i < n; i++) { lo.path.step(DT, b2, b2); w2.step(); } };
@@ -223,10 +313,10 @@ const tests = {
   dump() {
     const want = shotFor('score', 2.79);
     const r = rig({ hood: want.hood });
-    const { t, path, shooter } = r;
+    const { t, path, shooter } = r, esc = escapeWatch(r);
     const w = world();
     const balls = [];
-    const step = (n, run) => { for (let i = 0; i < n; i++) { if (run) run(); path.step(DT, balls, balls); shooter.step(DT, balls); w.step(); } };
+    const step = (n, run) => { for (let i = 0; i < n; i++) { if (run) run(); path.step(DT, balls, balls); shooter.step(DT, balls); w.step(); esc.check(balls); } };
     fill(w, balls, (n) => step(n, () => { drum(t, want.rpm); deploy(r, DEPLOY.INTAKE); }), 8);
     const n0 = balls.filter((b) => inHopper(b)).length;
     const watch = shotWatch(shooter);
@@ -241,13 +331,14 @@ const tests = {
       if (watch.shots.length) minRpm = Math.min(minRpm, RPM(t.drum.omega));
     }
     const s = watch.shots.map((x) => x.t), first = s[0] ?? 0, in1 = s.filter((x) => x - first < 1).length;
+    const best = s.reduce((m, x, i) => Math.max(m, s.slice(i).filter((y) => y < x + 1).length), 0);
     const left = balls.filter((b) => b.translation().y < 3 && b.translation().x < 40 && inHopper(b));
     if (process.env.STUCK) for (const b of left) { const p = b.translation(); console.log(`   left at ${p.x.toFixed(2)},${p.y.toFixed(2)},${p.z.toFixed(2)}: ${[...path.contacts, ...shooter.contacts].filter((c) => c.ball === b).map((c) => c.wheel.name + ' ' + c.force.toFixed(0)).join(', ')}`); }
     const land = watch.shots.map((o) => landing(o) - o.x).filter(Number.isFinite);
     const sh = watch.shots;
     console.log(`  (shots leave at ${med(sh.map((o) => o.v)).toFixed(2)} m/s (${Math.min(...sh.map((o) => o.v)).toFixed(2)}..${Math.max(...sh.map((o) => o.v)).toFixed(2)}), ${med(sh.map((o) => o.el)).toFixed(1)} deg (${Math.min(...sh.map((o) => o.el)).toFixed(1)}..${Math.max(...sh.map((o) => o.el)).toFixed(1)}))`);
     console.log(`  (${left.length} still in it, the intake ${(r.ext / IN).toFixed(1)}in out, the floor up ${(floorRot(r.ext) * 180 / Math.PI).toFixed(1)} deg; the drum down to ${minRpm.toFixed(0)} RPM of ${want.rpm.toFixed(0)}; shots come down at the rim ${med(land).toFixed(2)} m back (median; ${Math.min(...land).toFixed(2)}..${Math.max(...land).toFixed(2)}), the HUB's center 2.79)`);
-    console.log(`581 dumps ${s.length} of ${n0}: ${in1} in the first second, ${((s.length - 1) / (s[s.length - 1] - first)).toFixed(1)} FUEL/s over the whole dump`);
+    console.log(`581 dumps ${s.length} of ${n0}: ${in1} in the first second, ${best} in its best, ${((s.length - 1) / (s[s.length - 1] - first)).toFixed(1)} FUEL/s over the whole dump; ${esc.report()}`);
   },
 };
 
@@ -293,4 +384,4 @@ function pathRun(seed, { shoot = true, n = 20, sec = 7 } = {}) {
 }
 
 const pick = process.argv.slice(2);
-for (const [name, fn] of Object.entries(tests)) if (!pick.length || pick.includes(name)) fn();
+for (const [name, fn] of Object.entries(tests)) if (!pick.length || pick.includes(name)) await fn();

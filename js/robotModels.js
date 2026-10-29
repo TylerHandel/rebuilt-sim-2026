@@ -15,6 +15,7 @@ import { build8793 as trains8793, conveyorWheels as conveyorWheels8793 } from '.
 import { FLOOR as FLOOR_2910 } from './mech/r2910.js';
 import * as D4 from './mech/r4414.js';
 import { NET as NET_1706 } from './mech/r1706.js';
+import { NET as NET_581 } from './mech/r581.js';
 import { fuelTexture, squashable } from './fuelSkin.js';
 import { ALUMINUM_COLORS } from './aluminumColors.js';
 
@@ -2879,8 +2880,11 @@ function build581(cfg, alliance) {
   cadPart(kickerCad, 'robots/581-kicker.glb', () => {});
   cadPart(floor, 'robots/581-floor.glb', () => {});
   cadPart(hood, 'robots/581-hood.glb', () => {});
-  // the net over the top: zip-tied to the walls' top tubes, down to the intake's front plate
-  const net = hopperNet(root, { x0: -0.25, x1: bay.x1 + 0.01, x1Out: 0.645, xFixed: bay.x1, hw: bay.hw, y: bay.top, yFront: bay.slope.y, NX: 30, NZ: 24 });
+  // the net (js/mech/r581.js NET): only over the hopper's front, between the polycarbonate top's
+  // front edge and the top of the intake's front plate, across between the intake's side panels;
+  // slack bungee, its front riding out and in with the intake. Empty it hangs (as much as the load
+  // can lift it), and it drapes over the load as the load lifts it
+  const N = NET_581, net = hopperNet(root, { x0: N.topX, x1: N.frontX + S581.slide[0], x1Out: N.frontX, xFixed: N.topX, hw: N.hw, y: N.topY + 0.004, yFront: N.frontY + 0.004, NX: 16, NZ: 32, slack: { sag: N.bulge } });
   const xb = L / 2 + BUMPER_T, zc = BUMPER_Y1 + 0.006;
   const anim = (st, dt) => {
     // the slide: wherever the intake is, or further out while the load holds the hopper open
@@ -2902,7 +2906,7 @@ function build581(cfg, alliance) {
     floor.rotation.z = st.floorTurn ?? clamp01((0.35 - s) / 0.35, 0, 1) * S581.floorUp;
     // the hood opens up (flatter shots) from its stop at the steepest one
     hood.rotation.z = st.hoodTurn ?? clamp01((sh.hoodMax - st.hoodDeg) / (sh.hoodMax - sh.hoodMin), 0, 1) * S581.hoodTravel;
-    net.drape(st.load, s * extLen);
+    net.drape(st.load, -s * S581.slide[0], { yFront: N.frontY + 0.004 + (1 - s) * S581.slide[1] });
   };
   return { root, anim, stored: [], modules, extLen };
 }

@@ -862,7 +862,7 @@ export const ROBOTS = {
     teamName: 'Blazing Bulldogs',
     robotName: 'Rubble',
     archetype: 'Dumper',
-    blurb: 'Hopper Division finalist. Rebuilt mid-season from a turret into a dumper: a linear intake slides out on titanium racks and carries the front of the hopper with it, a roller floor that pivots up to compact the load (ramps on the intake lift it as it comes in) feeds a drum at the back, and an adjustable hood throws FUEL out over the back. Fits under the TRENCH.',
+    blurb: 'Hopper Division finalist. Rebuilt mid-season from a turret into a dumper: a linear intake slides out on titanium racks and carries the front of the hopper with it, a roller floor that pivots up to compact the load (ramps on the intake lift it as it comes in) feeds a drum at the back, and an adjustable hood throws FUEL out over the back. Fits under the TRENCH, until a full load bulges the net over its front.',
     // built of its physical mechanisms (js/mech/r581.js, phys581.js): its FUEL go through its
     // CAD's ball path, moved by its rollers under its code's controls
     physical: '581',
@@ -882,13 +882,14 @@ export const ROBOTS = {
     intake: { width: 22 * IN, reach: 0.28, rate: 200, pull: 5, deployTime: 0.3, retractTime: 0.5, side: 'front', latched: false, compacts: true },
     storage: { extLen: 0.305, extend: 'intake' },
     // their CAD: a roller floor sloping up from the shooter tower to the front (it pivots up at the
-    // tower to compact the load), smoked polycarbonate walls on the bumpers, a net over the top from
-    // the walls' top tubes down to the intake's front plate; FUEL goes up the tower's rollers to the
-    // drum at the back
+    // tower to compact the load), smoked polycarbonate walls on the bumpers, a polycarbonate top over
+    // the fixed part and a trucker net from its front edge down to the intake's front plate, riding
+    // out with it (js/mech/r581.js NET: slack bungee the load lifts 0.05 m at its middle before it's
+    // taut; only that part bulges); FUEL goes up the tower's rollers to the drum at the back
     bay: {
       x0: -0.09, x1: 0.33, hw: 0.33, top: 0.55,
       slope: { x: 0.33, y: 0.49 },
-      dome: { h: 0.15, x0: -0.09, cx: 0, cz: 0, rHole: -1 },
+      dome: { h: 0.05, x0: 0.302, cx: 0, cz: 0, rHole: -1 },
       floor: { a: 0.148, b: 0.25, lo: 0.125, hi: 0.205 },
       drive: 'floor', driveSpeed: 2.4,
       feed: { x: -0.09, via: [[-0.14, 0.2], [-0.2, 0.33], [-0.25, 0.47]] },
