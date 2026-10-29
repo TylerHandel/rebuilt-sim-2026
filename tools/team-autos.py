@@ -699,27 +699,38 @@ P2910 = {  # BLUE, the left side (FieldConstants.java); the right is (x, W - y)
     'center': (3.6, 4.0), 'depotRight': (0.65, 5.8), 'depotMiddle': (1.5, 6.0), 'depotLeft': (0.65, 6.2),
     'depotScoring': (1.4, 5.0), 'depotTrenchMid': (1.5, 6.0), 'depotTrenchEnter': (1.4, 7.7), 'depotNZ': (8.3, 7.7),
 }
+# each pose's rotation (deg, BLUE, the left side; the right's are times -1), their FieldConstants.
+# Their robot's front is the shooter's side (each bump score faces the HUB); the sim's 2910 has its
+# intake at the front and its drum facing back, so the sim heads 180 deg from these. 'a/b': pose a's
+# translation with pose b's rotation (their new Pose2d(a.getTranslation(), b.getRotation()));
+# firstCenter2 and bumpScore2: their ..._SECOND poses, the same place turned another way
+R2910 = {
+    'start': 90.0, 'firstEntry': 90.0, 'firstCenter': 90.0, 'firstCenter2': 180.0, 'secondEntry': 100.0,
+    'secondCenter': 100.0, 'sweepExit': -135.0, 'trenchEnter': 180.0, 'bumpScore': -90.0, 'bumpScore2': -45.0,
+    'curve': -170.0, 'center': 0.0, 'depotRight': -20.0, 'depotMiddle': 0.0, 'depotLeft': -10.0, 'depotScoring': -20.0,
+    'depotTrenchMid': 5.0, 'depotTrenchEnter': 180.0, 'depotNZ': 180.0,
+}
 # their createLeftNeutralZoneAuto / createRightNeutralZoneAuto / createDepotAuto: (kind, pose,
 # speed, tolerance, time limit). kind: 'in' driveToPointWhileIntaking, 'go' driveToPoint, 'shoot'
 # scoreStationary, 'pause' (driving to a point at 0.01 m/s for t: holding still, intaking),
 # 'wait' t s, 'until' t s into AUTO
-SCORE = [('go', 'sweepExit', MED, 0.5), ('go', 'bumpScore', MED, 1.0), ('go', 'bumpScore', MED, DEFAULT_TOL), ('shoot', 4)]
+SCORE = [('go', 'sweepExit', MED, 0.5), ('go', 'bumpScore', MED, 1.0), ('go', 'bumpScore/bumpScore2', MED, DEFAULT_TOL), ('shoot', 4)]
 LEFT_NZ = [
-    ('in', 'firstEntry', FAST, 3.5), ('in', 'firstEntry', FAST, 2.5), ('in', 'firstCenter', FAST, 3.0), ('in', 'firstCenter', FAST, 1.0),
+    ('in', 'firstEntry', FAST, 3.5), ('in', 'firstEntry/firstCenter', FAST, 2.5), ('in', 'firstCenter', FAST, 3.0), ('in', 'firstCenter/firstCenter2', FAST, 1.0),
     *SCORE,
-    ('in', 'trenchEnter', MED, 0.75, 2.0), ('in', 'secondEntry', FAST, 2.0), ('in', 'secondEntry', FAST, 1.0),
+    ('in', 'trenchEnter', MED, 0.75, 2.0), ('in', 'secondEntry/trenchEnter', FAST, 2.0), ('in', 'secondEntry/secondCenter', FAST, 1.0),
     ('in', 'secondCenter', MED, 1.5), ('pause', 0.5), ('in', 'curve', MED, 0.5),
     *SCORE,
-    ('in', 'trenchEnter', MED, 0.75, 2.0), ('in', 'secondEntry', FAST, 2.0), ('in', 'secondEntry', FAST, 1.0),
+    ('in', 'trenchEnter', MED, 0.75, 2.0), ('in', 'secondEntry/trenchEnter', FAST, 2.0), ('in', 'secondEntry/secondCenter', FAST, 1.0),
     ('in', 'firstCenter', MED, DEFAULT_TOL),
 ]
 RIGHT_NZ = [
-    ('in', 'firstEntry', FAST, 2.5), ('in', 'firstCenter', FAST, 2.0), ('in', 'firstCenter', FAST, 1.0),
+    ('in', 'firstEntry', FAST, 2.5), ('in', 'firstCenter', FAST, 2.0), ('in', 'firstCenter/firstCenter2', FAST, 1.0),
     *SCORE,
-    ('in', 'trenchEnter', MED, 0.75, 2.0), ('in', 'secondEntry', FAST, 2.0), ('in', 'secondEntry', FAST, 1.0),
+    ('in', 'trenchEnter', MED, 0.75, 2.0), ('in', 'secondEntry/trenchEnter', FAST, 2.0), ('in', 'secondEntry/secondCenter', FAST, 1.0),
     ('in', 'secondCenter', MED, 1.5), ('pause', 0.5), ('in', 'curve', MED, 0.5),
     *SCORE,
-    ('in', 'trenchEnter', MED, 0.75, 2.0), ('in', 'secondEntry', FAST, 2.0), ('in', 'secondEntry', FAST, 1.0),
+    ('in', 'trenchEnter', MED, 0.75, 2.0), ('in', 'secondEntry/trenchEnter', FAST, 2.0), ('in', 'secondEntry/secondCenter', FAST, 1.0),
     ('in', 'firstCenter', MED, DEFAULT_TOL),
 ]
 DEPOT = [
@@ -730,54 +741,40 @@ DEPOT = [
 ]
 
 
+# Each of their commands as a drive-to-point step of its own (the sim's AutoRunner 'dtp'): straight
+# at its target at 3 x the distance left, capped at its speed, turned to the target's rotation (their
+# heading controller holds it from the moment the command starts: they turn ahead of time, their
+# intake toward the TRENCH before they get there), done within its tolerance or at its time limit.
+# Their FAST 15 ft/s (4.57 m/s) is past the sim's 2910's 3.86 (js/robotConfigs.js: its drive's
+# maxSpeed): capped there
+VTOP_2910 = 3.86
+
+
 def auto_2910(seq, start, mirror):
     P = lambda k: (P2910[k][0], W - P2910[k][1]) if mirror else P2910[k]
-    pos, vel, dt, accel = list(P(start)), [0.0, 0.0], 0.02, 6.0
-    pts, trail = [], [tuple(pos)]
-    flags = (False, 0.0)
-
-    def flush(intake, v):
-        for q in resample(trail)[1:]:
-            pts.append(pt(q[0], q[1], intake, 'off', v))
-        trail[:] = [tuple(pos)]
-
+    # (the sim's heading for a pose: theirs turned 180 deg, its intake where their back is)
+    yaw = lambda k: round(((-1 if mirror else 1) * R2910[k] + 180.0 + 180.0) % 360.0 - 180.0, 1)
+    pts = []
     for cmd in seq:
         kind = cmd[0]
         if kind in ('shoot', 'wait', 'until', 'pause'):
-            if len(trail) > 1:
-                flush(*flags)
-            vel = [0.0, 0.0]
             if not pts:
-                pts.append(pt(pos[0], pos[1], flags[0], 'off', flags[1] or MED))
+                pts.append(pt(*P(start), False, 'off', MED, rot=yaw(start)))
+                pts[-1]['dtp'] = {'tol': 0.05}
             act = {'shoot': 'shoot', 'wait': 'wait', 'until': 'until', 'pause': 'wait'}[kind]
             if pts[-1]['action'] != 'none':  # (two in a row: a point of its own for the second)
-                pts.append(dict(pts[-1], action='none'))
+                pts.append(dict(pts[-1], action='none', dtp={'tol': 10.0}))
                 pts[-1].pop('t', None)
             pts[-1].update(action=act, t=cmd[1])
             if kind == 'pause':
                 pts[-1]['intake'] = True
             continue
         _, key, vmax, tol, *limit = cmd
-        intake = kind == 'in'
-        if (intake, vmax) != flags and len(trail) > 1:
-            flush(*flags)
-        flags = (intake, vmax)
-        tgt, t = P(key), 0.0
-        while math.dist(pos, tgt) >= tol and (not limit or t < limit[0]) and t < 8:
-            dx, dy = tgt[0] - pos[0], tgt[1] - pos[1]
-            dist = math.hypot(dx, dy)
-            sp = min(3.0 * dist, vmax)
-            want = (dx / dist * sp, dy / dist * sp)
-            dvx, dvy = want[0] - vel[0], want[1] - vel[1]
-            dv = math.hypot(dvx, dvy)
-            k = min(1.0, accel * dt / dv) if dv > 0 else 0
-            vel = [vel[0] + dvx * k, vel[1] + dvy * k]
-            pos = [pos[0] + vel[0] * dt, pos[1] + vel[1] * dt]
-            trail.append(tuple(pos))
-            t += dt
-    if len(trail) > 1:
-        flush(*flags)
-    return P(start), pts
+        key, rkey = key.split('/') if '/' in key else (key, key)
+        p = pt(*P(key), kind == 'in', 'off', min(vmax, VTOP_2910), rot=yaw(rkey))
+        p['dtp'] = {'tol': round(tol, 3), **({'limit': limit[0]} if limit else {})}
+        pts.append(p)
+    return P(start), pts, yaw(start)
 
 
 # ------------------------------------------------------------------ 581: Trailblazer
@@ -1194,9 +1191,9 @@ def main():
             ('left', LEFT_NZ, 'start', False, 'Left Neutral Zone', 'createLeftNeutralZoneAuto'),
             ('right', RIGHT_NZ, 'start', True, 'Right Neutral Zone', 'createRightNeutralZoneAuto'),
             ('center', DEPOT, 'center', False, 'Depot', 'createDepotAuto')]:
-        st, pts = auto_2910(seq, start, mirror)
+        st, pts, sy = auto_2910(seq, start, mirror)
         autos.setdefault('2910', []).append({'id': f'2910-{side}', 'name': name, 'side': side, 'source': f'AutoFactory.{src}',
-                                             'startFx': round(st[0], 3), 'startFy': round(st[1], 3), 'shootPreload': False, 'points': pts})
+                                             'startFx': round(st[0], 3), 'startFy': round(st[1], 3), 'startYaw': sy, 'shootPreload': False, 'points': pts})
     for side, mirror, name, src in [('left', False, 'Left Normal', 'LeftNormalAuto'), ('right', True, 'Right Normal', 'RightNormalAuto')]:
         st, pts = auto_581(mirror)
         autos.setdefault('581', []).append({'id': f'581-{side}', 'name': name, 'side': side, 'source': f'comp-bot autos/auto_state_machines/{src}.java',

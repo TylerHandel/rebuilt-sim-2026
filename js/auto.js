@@ -350,6 +350,32 @@ export class AutoRunner {
     // (a timed auto's wait or held shot keeps the heading its trajectory left it at, turning to it
     // if that turned on the spot: 604's; a chassis-aimed shooter's aim takes over as it shoots)
     if ((s.type === 'shoot' || s.type === 'wait') && s.rot !== undefined) cmd.omega = clamp(s.gains[1] * wrapAngle(yawOf(s.rot, this.alliance) - r.yaw), -r.cfg.drive.maxOmega, r.cfg.drive.maxOmega);
+    if (s.type === 'dtp') {
+      // a team's drive to point (2910's driveToPoint / driveToPointWhileIntaking): straight at its
+      // target at 3 x the distance left, no faster than its speed, turned to the target's heading;
+      // done once within its tolerance, or at its time limit (their raceWith a wait), or when its
+      // time's up (twice what it would take, and a second: so a robot it's pushing against can't
+      // pin it there for the rest of AUTO)
+      // (their targets as they are: a pose by the wall, their trenchEnter, is where they aim,
+      // within half the robot's width of it, not the waypoints' margin for turning)
+      const tgt = fw(s.fx, clamp(s.fy, r.halfW + 0.02, FIELD_W - r.halfW - 0.02), this.alliance);
+      const dx = tgt.x - r.pos.x, dz = tgt.z - r.pos.z, d = Math.hypot(dx, dz);
+      if (this.stepT <= dt) this.segBudget = 2 * (d / s.vmax + s.vmax / 6) + 1;
+      const sp = Math.min(3 * d, s.vmax);
+      // (how fast their robot's speed follows the command: 6 m/s^2, an estimate; it carries them
+      // round wide at speed, as their sweeps do, the first out past the middle of the NEUTRAL
+      // ZONE's FUEL, the second down its near side; the command, kept from step to step)
+      const want = d > 1e-3 ? { x: (dx / d) * sp, z: (dz / d) * sp } : { x: 0, z: 0 };
+      if (!this.dtpV || this.dtpI !== this.i - 1 && this.dtpI !== this.i) this.dtpV = { x: r.vel.x, z: r.vel.z };
+      const ex = want.x - this.dtpV.x, ez = want.z - this.dtpV.z, e = Math.hypot(ex, ez), k = e > 6 * dt ? (6 * dt) / e : 1;
+      this.dtpV.x += ex * k; this.dtpV.z += ez * k; this.dtpI = this.i;
+      cmd.vx = this.dtpV.x; cmd.vz = this.dtpV.z;
+      if (s.face !== undefined) cmd.omega = clamp(5 * wrapAngle((this.alliance === 'blue' ? s.face : s.face + Math.PI) - r.yaw), -r.cfg.drive.maxOmega, r.cfg.drive.maxOmega);
+      cmd.intake = !!s.intake;
+      // (on to the next command; this step's command stands for the step it ends on)
+      if (d < s.tol || (s.limit && this.stepT >= s.limit) || this.stepT >= this.segBudget) next();
+      return;
+    }
     if (s.type === 'shoot') {
       // (a team auto whose flywheel runs only where its code runs it: up for its shot here)
       if (s.spinPts) cmd.spin = cmd.prespin = true;

@@ -83,6 +83,16 @@ export function customSteps(a, mirror, maxSpeed) {
   let prev = { fx: a.startFx ?? ALLIANCE_ZONE_DEPTH - 0.4, fy: a.startFy };
   const flush = () => { if (cur) { steps.push(cur); cur = null; } };
   for (const p of a.points) {
+    // (a team's drive to point, 2910's: a step of its own, at its target pose)
+    if (p.dtp) {
+      flush();
+      steps.push({ type: 'dtp', fx: p.fx, fy: fy(p.fy), vmax: Math.min(p.v, maxSpeed), tol: p.dtp.tol, limit: p.dtp.limit, intake: !!p.intake, face: rot(p.rot) === undefined ? undefined : (rot(p.rot) * Math.PI) / 180 });
+      prev = p;
+      if (p.action === 'shoot') steps.push({ type: 'shoot', timeout: p.t ?? 3 });
+      else if (p.action === 'until') steps.push({ type: 'wait', until: p.t, intake: p.intake });
+      else if (p.action !== 'none') steps.push({ type: 'wait', t: waitTime(p.action, p.t), intake: p.intake });
+      continue;
+    }
     const shoot = p.shoot === 'hub' ? 'hub' : p.shoot === 'always';
     // (a team auto's speed is per point: its path speeds up and slows down without stopping; on a
     // timed one, a point's speed can be 0: where its path comes to a stop)
