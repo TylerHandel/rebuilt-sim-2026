@@ -293,7 +293,7 @@ export const PRELOAD = [[-0.052, 0.131, 0], [-0.137, 0.248, 0.006], [-0.122, 0.3
 export const INDEXER = {
   motor: globalThis.process?.env?.IDXMOTOR ?? 'krakenX44', // (the team: an X44, direct)
   ratio: 1,
-  shafts: [[-0.039, 0.226]],
+  shafts: [[-0.039, Number(globalThis.process?.env?.IDXY ?? 0.226)]],
   wheelZ: [-0.025, 0.001, 0.026],
 };
 export const DUTY_INDEXER = 0.65;

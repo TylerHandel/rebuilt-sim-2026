@@ -277,6 +277,16 @@ export class Physical8793 extends PhysicalRobot {
     // as it won't drop into a HUB (G407)
     this.feed = on && feeding && setpoint > 0 && Math.abs(r.aimErr ?? 0) < 10 * DEG && r.passClear !== false;
     this.t.indexer.cmd = this.feed ? (unjam ? -DUTY_INDEXER : DUTY_INDEXER) : on && outtake ? -DUTY_INDEXER : 0;
+    if (globalThis.process?.env?.JAMLOG) {
+      // (the turret indexer while it's fed forward: how long it runs under a fifth of its free
+      // speed, and how many FUEL go up to the shooter meanwhile)
+      const ix = this.t.indexer, irps = Math.abs(ix.omega) / (2 * Math.PI), st = (this.ixStat ||= { fed: 0, slow: 0, slowRun: 0, runs: 0, amps: 0 });
+      if (this.feed && !unjam) {
+        st.fed += dt; st.amps += Math.abs(ix.motor.current) * dt;
+        if (irps < 0.2 * 0.65 * 125.5) { st.slow += dt; st.slowRun += dt; if (st.slowRun > 0.125 && st.slowRun - dt <= 0.125) { st.runs++; if (st.runs <= 12) this.logJam(t, 'IXSTALL'); } } else st.slowRun = 0;
+      } else st.slowRun = 0;
+      if (t - (this.ixLast ?? 0) > 30) { this.ixLast = t; console.log(`IDX t ${t.toFixed(0)}: fed ${st.fed.toFixed(1)} s, under a fifth of its speed ${st.slow.toFixed(1)} s (${st.runs} stalls over 0.125 s), ${(st.amps / (st.fed || 1)).toFixed(0)} A on average`); }
+    }
     // the flywheel: toward the speed the shot wants while there's one to make (it holds that
     // speed a moment after); coasting otherwise (their code)
     if (setpoint > 0) { this.targetRps = Math.min(SHOOTER.maxRps, rpsFor(setpoint)); this.holdT = t; }
@@ -290,13 +300,14 @@ export class Physical8793 extends PhysicalRobot {
 
   // (JAMLOG=1: each unjam, when, whether it was feeding, the FUEL held, and the FUEL pressed
   // hardest, robot frame, and what by)
-  logJam(t) {
+  logJam(t, tag = 'JAM') {
     const body = this.r.body, p0 = body.translation(), q = body.rotation();
     _q.set(q.x, q.y, q.z, q.w).invert();
     const pts = new Map();
-    for (const c of this.path.contacts) if (c.force > 30) { const e = pts.get(c.ball) ?? []; e.push(c.wheel.name.replace(/ \(.*\)/, '') + ' ' + c.force.toFixed(0)); pts.set(c.ball, e); }
+    for (const c of this.path.contacts) if (c.force > (tag === 'JAM' ? 30 : 10)) { const e = pts.get(c.ball) ?? []; e.push(c.wheel.name.replace(/ \(.*\)/, '') + ' ' + c.force.toFixed(0)); pts.set(c.ball, e); }
     const out = [...pts].map(([b, e]) => { const p = b.translation(); _v.set(p.x - p0.x, p.y - p0.y, p.z - p0.z).applyQuaternion(_q); return `${_v.x.toFixed(2)},${_v.y.toFixed(2)},${_v.z.toFixed(2)} [${e.join('; ')}]`; });
-    console.log(`JAM t ${t.toFixed(1)} feed ${this.feed ? 1 : 0} held ${this.r.stored?.length ?? '?'}: ${out.join(' | ')}`);
+    const ix = this.t.indexer;
+    console.log(`${tag} t ${t.toFixed(1)} feed ${this.feed ? 1 : 0} indexer ${(Math.abs(ix.omega) / (2 * Math.PI)).toFixed(0)} rps ${Math.abs(ix.motor.current).toFixed(0)} A, rollers ${(Math.abs(this.t.horizontal.omega) / (2 * Math.PI)).toFixed(1)} rps ${Math.abs(this.t.horizontal.motor.current).toFixed(0)} A, held ${this.r.stored?.length ?? '?'}: ${out.join(' | ')}`);
   }
 
   // how many it holds, about, with the arm down: 7 in the frame (tools/mechlab.mjs slots) and a
