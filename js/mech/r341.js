@@ -24,7 +24,7 @@
 //   hood: an X44 through 44:11, 32:18 and its 188-tooth rack (133.7:1), about the flywheel's axle
 //   turret: an X44 through 40:8 and 92:10 (46:1)
 import { IN } from '../constants.js';
-import { Motor, Shaft, Surface, Train, Wheel, BUMPER_MU } from './mechanism.js';
+import { Block, Motor, Shaft, Surface, Train, Wheel, BUMPER_MU } from './mechanism.js';
 
 // what each grips FUEL with (estimates, as 8793's: compliant wheels most, then urethane and
 // silicone, mecanums' and omnis' rollers, bare polycarbonate least)
@@ -253,8 +253,9 @@ export function wheels341(t) {
   // against the left wall, dragging it forward, where the front top roller's compliant wheels slip
   // on it. At their 3 V the omni slows to a third of its speed against that FUEL and grinds it
   // into the lane (tools/mechlab341.mjs path: 12 of 48 runs lock; none with the feeder stopped;
-  // 3 at 6 V). Their unjam can't see it (nothing stalls), so in play the AI's driver lets go of
-  // the trigger and presses again (js/mech/phys341.js letGo).
+  // 3 at 6 V). Their unjam can't see it (nothing stalls); in play the feeder backs off a moment
+  // (js/mech/phys341.js FEED_BACKOFF, not their code), and the AI's driver lets go of the trigger
+  // and presses again (letGo).
   const omnis = [
     new Wheel({ name: 'feeder 6in omni', shaft: t.feeder, kind: 'omni', center: [OMNI.feeder[0], OMNI.y, OMNI.feeder[1]], axis: Y, radius: OMNI.d / 2, width: OMNI.w, mu: MU.omni }),
     ...OMNI.free.map(([x, z], i) => new Wheel({ name: t.omniFree[i].name, shaft: t.omniFree[i], kind: 'omni', center: [x, OMNI.y, z], axis: Y, radius: OMNI.d / 2, width: OMNI.w, mu: MU.omni })),
@@ -305,10 +306,17 @@ export function hoodElevation(deg) {
 // fabric (their binder: stiffer and more even than pool noodles), its face and top. (Its tread,
 // N/m, an estimate: a FUEL pressed into a 2.5in slab of foam that takes ~0.25 MPa at 25% squeeze
 // sinks in about 5-8 mm at 20-50 N, 13-18 kN/m; far stiffer than the FUEL, which does most of the
-// giving.)
+// giving.) A solid block (js/mech/mechanism.js Block) from the frame's edge to the foam's face:
+// pressed into it however far, a FUEL is pushed back out the nearest way. (It was the foam's face
+// and top alone, a sheet: the intake's bottom roller, at the bumper's foot, pressed FUEL through the
+// face, and they sat inside it pinned between it and the CAD's wood (bumper 220 N, wood 160 N, the
+// roller 90 N) for the rest of a match, or got out behind it into the belly under the serializer's
+// floor. OLD_BUMPER=1: the sheet.)
+const OLD_BUMPER = typeof process !== 'undefined' && !!process.env?.OLD_BUMPER;
 export function bumperSurface({ mu = BUMPER_MU, tread = 20000 } = {}) {
   // (the CAD's bumper wood: 0.345-0.364 m out, 0.041-0.168 m up; 2.5in of foam on it)
   const x0 = HALF, x1 = 0.364 + 2.5 * IN, hw = x1, y0 = 0.041, y1 = 0.168;
+  if (!OLD_BUMPER) return new Block({ name: 'bumper', x0, x1, y0, y1, hw, r: 0.01, mu, tread });
   const V = [x1, y0, -hw, x1, y0, hw, x1, y1, hw, x1, y1, -hw, x0, y1, -hw, x0, y1, hw];
   return new Surface({ name: 'bumper', vertices: V, indices: [0, 1, 2, 0, 2, 3, 3, 2, 5, 3, 5, 4], mu, tread });
 }
@@ -319,7 +327,18 @@ export function pathSurfaces341(mesh, t, { mu = 0.35 } = {}) {
   const intake = s('intake', [PIVOT[0], PIVOT[1], 0]).onShaft(t.pivot, [PIVOT[0], PIVOT[1], 0], [0, 0, -1]);
   const turret = s('turret', [TURRET[0], 0, TURRET[1]]);
   const hood = s('hood', [TURRET[0] + SHOOTER.fly.at[0], SHOOTER.fly.at[1], TURRET[1]]);
-  return { body, bumper, intake, turret, hood };
+  return { body, bumper, intake, turret, hood, ...guards341() };
+}
+// Panels NOT in their CAD (GUARDS=none leaves them out; GUARDS=lid,wall,omni picks): solid blocks
+// (mechanism.js Block) where FUEL got out of the ball path into places nothing reaches them
+const GUARDS = typeof process !== 'undefined' && process.env?.GUARDS != null ? process.env.GUARDS : 'lid,wall,omni';
+export function guards341(which = GUARDS) {
+  const want = new Set(which.split(',')), out = {};
+  const at = (b, z) => { b.setPose([0, 0, z]); return b; };
+  if (want.has('lid')) out.lid = at(new Block({ name: 'lane lid (not in the CAD)', x0: 0.008, x1: 0.062, y0: 0.326, y1: 0.345, hw: 0.07, r: 0.005, mu: 0.35 }), -0.075);
+  if (want.has('wall')) out.wall = at(new Block({ name: 'lane wall to the table (not in the CAD)', x0: -0.152, x1: 0.095, y0: 0.175, y1: 0.372, hw: 0.0475, r: 0.005, mu: 0.35 }), -0.1925);
+  if (want.has('omni')) out.omni = at(new Block({ name: 'feeder omni cover (not in the CAD)', x0: -0.094, x1: 0.006, y0: 0.272, y1: 0.37, hw: 0.05, r: 0.005, mu: 0.35 }), 0.075);
+  return out;
 }
 export function placeTurretSurfaces({ turret, hood }, yaw, hoodDeg) {
   turret.setPose([TURRET[0], 0, TURRET[1]], yaw, 0);

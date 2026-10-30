@@ -53,8 +53,15 @@ def load(f):
 
 # hardware and electronics, nothing a FUEL meets in the ball path
 SKIP = re.compile(r'screw|bolt|\bnut\b|locknut|washer|rivet|spacer|bearing|bushing|collar|chain|belt|sprocket|gear|pulley|kraken|motor|'
-                  r'cancoder|encoder|limelight|radio|signal light|battery|roborio|pdh|pigeon|canivore|breaker|grommet|candle|wago|'
+                  r'cancoder|encoder|limelight|radio|signal light|battery|roborio|simplified pdh|pigeon|canivore|breaker|grommet|candle|wago|'
                   r'shim|retaining|standoff|tube plug|adapter|zip|wire|swerve|x44 cover|cable|spring|cfs|hex', re.I)
+# ...but these plates are structure the hardware words above happen to be in (the floor plate under
+# the left free omni, "intake-pdh side wheel plate", was dropped by "pdh": FUEL fell through its hole
+# into the belly; the right side's wall over the free omni, "Tube Plug Gusset"; the plates either
+# side of the uptake and behind the floor, "Uptake Bearing Plate", "Gearbox Plate"; the bearing
+# retainers flush on the table's plates; the low wall round the feeder's gears). The flood fill
+# below keeps only what FUEL can reach.
+KEEP = re.compile(r'wheel plate|gear wall|gearbox plate|bearing plate|bearing retainer|tube plug gusset', re.I)
 parts = load(SRC)
 def robot(T):  # CAD (x across to the left, y back, z up) -> robot (x forward, y up, z right)
     return np.stack([-T[..., 1], T[..., 2], -T[..., 0]], -1)
@@ -68,7 +75,7 @@ body, intake, turret, hood = [], [], [], []
 for p, T in parts:
     name = ' / '.join(p)
     leaf = p[-1]
-    if SKIP.search(leaf): continue
+    if SKIP.search(leaf) and not KEEP.search(leaf): continue
     T = robot(T)
     if 'Intake Assembly' in name: (body if INTAKE_FIXED.search(name) else intake).append(T)
     elif HOOD_PART.search(leaf): hood.append(T)

@@ -17,6 +17,9 @@
 //     rollers stopped, and the top rollers and uptake run backward at 3 V (their DEPLOYED case
 //     has no break: it falls through into ZEROING's -3 V);
 //   - the AI's driver lets go and presses again when nothing comes out (letGo).
+//   - not their code: the feeder backed off a moment when nothing's come out for 0.3 s with FUEL
+//     in it (FEED_BACKOFF; FEED_BACKOFF=0: off), which clears the zipper's lock their unjam can't
+//     see; FEEDER_V (their 3 V) sets the feeder's voltage. JAMLOG=1: each let-go and unjam logged.
 // Their robot only intakes while it shoots (it's hopperless: the right trigger does both, and the
 // intake's default command runs its rollers only while the shooter's SHOOTING). The AI's intake
 // command without a shot runs just the intake's rollers, so what it picks up waits on the tray:
@@ -36,6 +39,9 @@ import { HALF_L, ALLIANCE_ZONE_DEPTH } from '../constants.js';
 
 const DEG = Math.PI / 180;
 const R = 0.075;
+const ENV = (typeof process !== 'undefined' && process.env) || {};
+const JAMLOG = !!ENV.JAMLOG;
+export const FEEDER_V = Number(ENV.FEEDER_V ?? 3);
 // the hood: an X44 through 133.7:1 (about 340 deg/s free), a profile toward its goal
 const HOOD_MM = { v: 300, a: 3000 };
 const profile = (p, v, goal, vmax, amax, dt) => {
@@ -55,6 +61,14 @@ export const EXIT_PER_FLY_SURFACE = 0.7, EXIT_SLIP = [8.0, 0.15];
 // the AI's driver letting go of the trigger when nothing comes out (letGo): after (s) without a
 // shot, for (s)
 export const LET_GO = { after: 0.8, for: 0.4 };
+// Not their code: the feeder backed off on its own (at FEEDER_V, the other way) for FEED_BACKOFF.for
+// s after FEED_BACKOFF.after s shooting with FUEL in it and nothing out, again each time. (The
+// zipper's last pair: one in the lane just short of the uptake's flex wheels, the other pressed
+// into it from the right by the powered omni and the front top roller's mecanums, the lane's
+// FUEL held against the left wall; nothing stalls, so their unjam can't see it. Backing the omni
+// off a moment lets go of the one from the right, and the lane's goes on into the uptake.
+// tools/mechlab341.mjs path; FEED_BACKOFF=0: off.)
+export const FEED_BACKOFF = { after: 0.3, for: Number(ENV.FEED_BACKOFF ?? 0.1) };
 
 // the arm's position loop toward goal (their angles, deg; positive swings it down), its X44 at 12 V
 // at most: their gentle slot while it's moving, the stiff one within 30 deg (holding it against
@@ -98,7 +112,7 @@ export class Physical341 extends PhysicalRobot {
     this.hoodDeg = 0; this.hoodSet = [0, 0]; this.hoodGoal = 0;
     this.state = 'stopped'; // their shooter: stopped, spinning up, shooting, at speed, pulsing out
     this.targetRpm = 0; this.atSpeedT = 0; this.turretT = 0; this.jamT = 0; this.pulseT = 0;
-    this.lastShotT = 0; this.shotsSeen = 0; this.letGoUntil = -1; this.now = 0;
+    this.lastShotT = 0; this.shotsSeen = 0; this.letGoUntil = -1; this.now = 0; this.backT = 0; this.backFrom = 0;
     for (const tr of [this.t.intake, this.t.serializer, this.t.feederT, this.t.shooter]) { tr.omega = 0; tr.cmd = 0; }
     this.t.pivot._omega = 0; this.t.pivot.cmd = 0;
   }
@@ -168,15 +182,19 @@ export class Physical341 extends PhysicalRobot {
     // (Intake.isStopped, Shooter.feederStopped: the leader motor's current, under 500 RPM)
     const stalled = (tr) => (Math.abs(tr.omega) * 60) / (2 * Math.PI) < 500 && Math.abs(tr.motor.current) / tr.motor.count > 75;
     this.jamT = intaking && shooting && (stalled(T.serializer) || stalled(T.feederT)) ? this.jamT + dt : 0;
-    if (this.jamT > 0.2 && this.pulseT <= 0) { this.pulseT = 0.25; this.jamT = 0; r.stats.unjams = (r.stats.unjams || 0) + 1; }
+    if (this.jamT > 0.2 && this.pulseT <= 0) { this.pulseT = 0.25; this.jamT = 0; r.stats.unjams = (r.stats.unjams || 0) + 1; if (JAMLOG) this.logJam(t, 'UNJAM'); }
     this.pulseT = Math.max(0, this.pulseT - dt);
     const pulsing = this.pulseT > 0;
+    // (the feeder's back-off: FEED_BACKOFF)
+    this.backFrom = Math.max(this.backFrom, this.lastShotT);
+    if (FEED_BACKOFF.for > 0 && this.state === 'shooting' && r.stored.length > 0 && t - this.backFrom > FEED_BACKOFF.after) { this.backT = FEED_BACKOFF.for; this.backFrom = t + FEED_BACKOFF.for; r.stats.feedBackoffs = (r.stats.feedBackoffs || 0) + 1; }
+    this.backT = Math.max(0, this.backT - dt);
     T.intake.cmd = !on ? 0 : outtake || pulsing ? -1 : intaking ? 1 : 0;
     // (not shooting, their intake's default command puts it in DEPLOYED, whose case falls through
     // into ZEROING's: the intake's rollers stopped and the top rollers and uptake run backward at
     // 3 V. The AI's intake command without a shot, which their code doesn't have, leaves them off.)
     T.serializer.cmd = !on ? 0 : outtake || pulsing ? -0.5 : shooting ? 1 : intaking ? 0 : -3 / 12;
-    T.feederT.cmd = !on ? 0 : pulsing ? -3 / 12 : this.state === 'shooting' && Math.abs(this.hoodDeg - this.hoodGoal) <= 3 ? 3 / 12 : 0;
+    T.feederT.cmd = !on ? 0 : pulsing ? -3 / 12 : this.backT > 0 && this.state === 'shooting' ? -FEEDER_V / 12 : this.state === 'shooting' && Math.abs(this.hoodDeg - this.hoodGoal) <= 3 ? FEEDER_V / 12 : 0;
     // the flywheel's velocity loop (no reverse voltage: it coasts down)
     if (this.state !== 'stopped' && this.targetRpm > 0) {
       const rps = T.fly.omega / (2 * Math.PI) * -1, tgt = this.targetRpm / 60;
@@ -222,9 +240,19 @@ export class Physical341 extends PhysicalRobot {
     if (this.state === 'shooting' && this.r.stored.length > 0 && t - this.lastShotT > LET_GO.after) {
       this.letGoUntil = t + LET_GO.for;
       this.r.stats.letGo = (this.r.stats.letGo || 0) + 1;
+      if (JAMLOG) this.logJam(t, 'LETGO');
       return true;
     }
     return false;
+  }
+  // (JAMLOG=1: each let-go and unjam: when, how many it holds, the top rollers' and the feeder's
+  // speed and current, and the FUEL pressed hardest (over 30 N), robot frame, and what by)
+  logJam(t, tag) {
+    const T = this.t, pts = new Map();
+    for (const c of this.path.contacts) if (c.force > 30) { const e = pts.get(c.ball) ?? []; e.push(`${c.wheel.name.replace(/ \(.*\)/, '')} ${c.force.toFixed(0)}`); pts.set(c.ball, e); }
+    const rps = (tr) => (Math.abs(tr.omega) / (2 * Math.PI)).toFixed(0);
+    const out = [...pts].map(([b, e]) => { const p = this._local(b.translation()); return `${p.map((v) => v.toFixed(2)).join(',')} [${e.join('; ')}]`; });
+    console.log(`${tag} t ${t.toFixed(1)} held ${this.r.stored.length}, top rollers ${rps(T.serializer)} rps ${Math.abs(T.serializer.motor.current).toFixed(0)} A, feeder ${rps(T.feederT)} rps ${Math.abs(T.feederT.motor.current).toFixed(0)} A: ${out.join(' | ')}`);
   }
   // the arm's turn from the CAD's pose (rad), for drawing it
   armTurn() { return intakeRot(this.armDeg); }

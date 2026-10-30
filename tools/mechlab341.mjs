@@ -14,7 +14,13 @@
 // holds), hold (how many it holds, everything off).
 // Env: SEEDS (6), SPEED (1 m/s), ARM (their angle down, 149), ABREAST (rate: 3 or 4), TRACE (a FUEL's index to follow),
 // STUCK (where the ones left over are), LEAK (how ones get out other than shot), EXIT (the exit/flywheel-surface ratio to report against),
-// LETGO (path: the AI driver letting go of the trigger when nothing comes out, as in play)
+// LETGO (path: the AI driver letting go of the trigger when nothing comes out, as in play),
+// SEED0 (the first seed, 1), FEEDV (path: the feeder's volts; js/mech/phys341.js FEEDER_V, their 3),
+// FEED_BACKOFF (path, as in play: the feeder backed off when nothing comes out; 0: off),
+// JAMLOG (path: the first time nothing's come out for 1 s, each FUEL in it, what presses it and the
+// FUEL it's pressed into). The path's summary: runs locked (12 or fewer of the 18 shot), runs that
+// ended with FUEL still in it, and where the shots come down through the HUB's rim (3 m away).
+// js/mech/r341.js's switches apply too: OLD_BUMPER=1, GUARDS=none
 // THEIR_SHOTS=1: their tables' own RPMs instead of the re-found ones (js/mech/r341.js)
 import { RAPIER } from '../js/physics.js';
 import { FUEL, GROUP, groups, HUB } from '../js/constants.js';
@@ -25,11 +31,12 @@ import {
   shotFor, REGRESSIONS, INTAKE, SHOOTER, OMNI, PIVOT, TURRET, HALF, PRELOAD,
 } from '../js/mech/r341.js';
 import PATH from '../js/mech/path341.js';
-import { EXIT_PER_FLY_SURFACE, LET_GO } from '../js/mech/phys341.js';
+import { EXIT_PER_FLY_SURFACE, LET_GO, FEEDER_V, FEED_BACKOFF } from '../js/mech/phys341.js';
 
 await RAPIER.init();
 const R = FUEL.radius, DT = 1 / 120, SEEDS = Number(process.env.SEEDS ?? 6), SPEED = Number(process.env.SPEED ?? 1);
 const HELD = groups(GROUP.HELD, 0xffff & ~GROUP.HELD);
+const FEEDV = Number(process.env.FEEDV ?? FEEDER_V); // (path: the feeder's volts, as in play: js/mech/phys341.js FEEDER_V)
 const DOWN = Number(process.env.ARM ?? INTAKE.down);
 
 function world({ carpet = true } = {}) {
@@ -235,9 +242,9 @@ const tests = {
   },
   path() {
     const runs = [];
-    for (let seed = 1; seed <= SEEDS; seed++) runs.push(pathRun(seed));
-    console.log(`341 carpet to shot (18 FUEL, three abreast, the robot at ${SPEED} m/s, ${process.env.LETGO ? 'shooting, the AI driver letting go when nothing comes out' : 'everything on'}, shooting at 3 m): a median ${med(runs.map((r) => r.shots))} shot (${Math.min(...runs.map((r) => r.shots))}..${Math.max(...runs.map((r) => r.shots))}; ${runs.filter((r) => r.shots <= 12).length} of ${runs.length} runs locked up with 12 or fewer), ` +
-      `${med(runs.map((r) => r.rate)).toFixed(1)} FUEL/s once they're coming; ${med(runs.map((r) => r.inside))} in it at the end; in each second ${runs[0].timeline.join(', ')} (seed 1); intake X60s down to ${med(runs.map((r) => r.minIntake)).toFixed(0)}%, top rollers to ${med(runs.map((r) => r.minSer)).toFixed(0)}%`);
+    for (let seed = Number(process.env.SEED0 ?? 1); seed <= SEEDS; seed++) runs.push(pathRun(seed));
+    console.log(`341 carpet to shot (18 FUEL, three abreast, the robot at ${SPEED} m/s, ${process.env.LETGO ? 'shooting, the AI driver letting go when nothing comes out' : 'everything on'}, shooting at 3 m): a median ${med(runs.map((r) => r.shots))} shot (${Math.min(...runs.map((r) => r.shots))}..${Math.max(...runs.map((r) => r.shots))}; ${runs.filter((r) => r.shots <= 12).length} of ${runs.length} runs locked up with 12 or fewer; ${runs.filter((r) => r.inside > 0).length} ended with FUEL still in it), ` +
+      `${med(runs.map((r) => r.rate)).toFixed(1)} FUEL/s once they're coming; ${med(runs.map((r) => r.inside))} in it at the end; their shots come down through the rim ${(() => { const L = runs.flatMap((r) => r.lands); return `${(med(L.map((d) => d - 3)) >= 0 ? "+" : "") + med(L.map((d) => d - 3)).toFixed(2)} m from the 3 m (median), ${Math.round((100 * L.filter((d) => Math.abs(d - 3) < 0.45).length) / (L.length || 1))}% within 0.45 m`; })()}; in each second ${runs[0].timeline.join(', ')} (seed 1); intake X60s down to ${med(runs.map((r) => r.minIntake)).toFixed(0)}%, top rollers to ${med(runs.map((r) => r.minSer)).toFixed(0)}%`);
     if (process.env.STUCK) for (const r of runs) console.log(`   ${r.shots} shot; left`, r.left.map((p) => p.map((v) => v.toFixed(2)).join(',')).join(' | '));
   },
   // intake only (the rollers and top rollers on, nothing fed): how many it takes in
@@ -298,7 +305,7 @@ function pathRun(seed, { shoot = true, n = 18, sec = 7, drain = false, abreast =
   w.createCollider(RAPIER.ColliderDesc.cuboid(15, 0.01, 1).setTranslation(0.45 + 15, -0.01, 0).setFriction(0.3).setRestitution(0.2), carpet);
   w.createCollider(RAPIER.ColliderDesc.cuboid(0.45, 0.01, 1).setTranslation(0, -0.01, 0).setFriction(0.3), w.createRigidBody(RAPIER.RigidBodyDesc.fixed()));
   t.intake.cmd = 1; t.serializer.cmd = 1;
-  if (shoot) t.feederT.cmd = 3 / 12;
+  if (shoot) t.feederT.cmd = FEEDV / 12;
   const run = () => { if (shoot) fly(t, want.rpm); };
   for (let i = 0; i < 3 / DT; i++) { run(); shooter.step(DT, []); path.step(DT, []); }
   const free = { intake: Math.abs(t.intake.omega), ser: Math.abs(t.serializer.omega) || 1 };
@@ -310,7 +317,7 @@ function pathRun(seed, { shoot = true, n = 18, sec = 7, drain = false, abreast =
   const watch = shotWatch(shooter);
   let minIntake = 1, minSer = 1;
   const timeline = [];
-  let letGoUntil = -1, sinceShot = 0;
+  let letGoUntil = -1, sinceShot = 0, jamLogged = false, backFrom = 0, backUntil = -1, backoffs = 0;
   for (let k = 0; k < sec / DT; k++) {
     const live = balls.filter((b) => b.translation().y < 3);
     run();
@@ -322,15 +329,38 @@ function pathRun(seed, { shoot = true, n = 18, sec = 7, drain = false, abreast =
       sinceShot = watch.shots.length && watch.shots[watch.shots.length - 1].t > now - DT * 1.5 ? 0 : sinceShot + DT;
       if (now < letGoUntil) { t.intake.cmd = 0; t.serializer.cmd = -3 / 12; t.feederT.cmd = 0; }
       else {
-        t.intake.cmd = 1; t.serializer.cmd = 1; t.feederT.cmd = 3 / 12;
+        t.intake.cmd = 1; t.serializer.cmd = 1; t.feederT.cmd = FEEDV / 12;
         if (sinceShot > LET_GO.after && now > 1 && live.some(inRobot)) { letGoUntil = now + LET_GO.for; sinceShot = -LET_GO.for; }
       }
+    }
+    // (as in play, the feeder backed off a moment when nothing's come out for a while with FUEL in
+    // it: js/mech/phys341.js FEED_BACKOFF; FEED_BACKOFF=0: off)
+    if (shoot && FEED_BACKOFF.for > 0 && !(k * DT < letGoUntil)) {
+      const now = k * DT, lastShot = watch.shots.length ? watch.shots[watch.shots.length - 1].t : 0;
+      backFrom = Math.max(backFrom, lastShot);
+      if (now > 1 && now - backFrom > FEED_BACKOFF.after && live.some(inRobot)) { backUntil = now + FEED_BACKOFF.for; backFrom = backUntil; backoffs++; }
+      t.feederT.cmd = now < backUntil ? -FEEDV / 12 : FEEDV / 12;
     }
     rollResist(live, SPEED);
     path.step(DT, live, live); shooter.step(DT, live); w.step();
     minIntake = Math.min(minIntake, Math.abs(t.intake.omega) / free.intake);
     minSer = Math.min(minSer, Math.abs(t.serializer.omega) / free.ser);
     watch.check(live, k * DT);
+    // (JAMLOG=1: the first time nothing's come out for a second with FUEL in it, each FUEL in it,
+    // what presses it over 10 N (and which way: the normal on it), and the FUEL it's pressed into)
+    if (process.env.JAMLOG && shoot && !jamLogged && k * DT > 1.5 && k * DT - (watch.shots.length ? watch.shots[watch.shots.length - 1].t : 0) > 1) {
+      const ins = live.filter(inRobot);
+      if (ins.length) {
+        jamLogged = true;
+        console.log(`  seed ${seed}: nothing out for 1 s at ${(k * DT).toFixed(2)} s, ${ins.length} in it (serializer ${RPM(t.serializer.omega).toFixed(0)} rpm, feeder ${RPM(t.feederT.omega).toFixed(0)} rpm)`);
+        for (const b of ins) {
+          const p = b.translation();
+          const cs = path.contacts.filter((c) => c.ball === b && c.force > 10).map((c) => `${c.wheel.name.replace(/ \(.*\)/, '')} ${c.force.toFixed(0)}N n(${c.n.map((v) => (-v).toFixed(1)).join(',')})`);
+          const fu = ins.filter((q) => q !== b && Math.hypot(q.translation().x - p.x, q.translation().y - p.y, q.translation().z - p.z) < 2 * R - 0.002).map((q) => { const o = q.translation(); return `${o.x.toFixed(2)},${o.z.toFixed(2)} ${((2 * R - Math.hypot(o.x - p.x, o.y - p.y, o.z - p.z)) * 1000).toFixed(0)}mm`; });
+          console.log(`    ${p.x.toFixed(3)},${p.y.toFixed(3)},${p.z.toFixed(3)}: ${cs.join('; ')}${fu.length ? ' | FUEL ' + fu.join(', ') : ''}`);
+        }
+      }
+    }
     // (rate: FUEL past the pivot's shaft, onto the serializer's floor, taken away)
     if (drain) for (const b of live) {
       const p = b.translation();
@@ -341,7 +371,7 @@ function pathRun(seed, { shoot = true, n = 18, sec = 7, drain = false, abreast =
       const p = b.translation(), v = b.linvel(), last = (b.last ??= { out: false, c: '' });
       const c = [...path.contacts, ...shooter.contacts].filter((q) => q.ball === b).map((q) => q.wheel.name).join(', ');
       if (c) last.c = `${(k * DT).toFixed(2)} s at ${p.x.toFixed(2)},${p.y.toFixed(2)},${p.z.toFixed(2)}: ${c}`;
-      if (!last.out && p.y < 3 && (Math.abs(p.z) > HALF + 0.12 || p.x < -HALF - 0.12 || p.y < -0.05) && last.c) { last.out = true; console.log(`   FUEL ${i} out at ${p.x.toFixed(2)},${p.y.toFixed(2)},${p.z.toFixed(2)} v ${v.x.toFixed(1)},${v.y.toFixed(1)},${v.z.toFixed(1)}; last touched ${last.c}`); }
+      if (!last.out && p.y < 3 && (Math.abs(p.z) > HALF + 0.12 || p.x < -HALF - 0.12 || p.y < -0.05 || (p.y < 0.12 && p.x < HALF - 0.02 && Math.abs(p.z) < HALF)) && last.c) { last.out = true; console.log(`   FUEL ${i} (seed ${seed}) out at ${p.x.toFixed(2)},${p.y.toFixed(2)},${p.z.toFixed(2)} v ${v.x.toFixed(1)},${v.y.toFixed(1)},${v.z.toFixed(1)}; last touched ${last.c}`); }
     }
     if (k % Math.round(1 / DT) === Math.round(1 / DT) - 1) timeline.push(balls.filter((b) => { const p = b.translation(); return p.y < 3 && p.x < HALF && p.y > 0.15; }).length);
     if (process.env.TRACE && k % 6 === 0) {
@@ -352,9 +382,10 @@ function pathRun(seed, { shoot = true, n = 18, sec = 7, drain = false, abreast =
   const s = watch.shots.map((x) => x.t);
   const inside = balls.filter((b) => b.translation().y < 3 && inRobot(b));
   const left = balls.filter((b) => b.translation().y < 3 && b.translation().x < 40 && !inside.includes(b)).map((b) => { const p = b.translation(); return [p.x, p.y, p.z]; });
-  if (process.env.STUCK) console.log('   inside', inside.map((b) => { const p = b.translation(); return `${p.x.toFixed(2)},${p.y.toFixed(2)},${p.z.toFixed(2)} ${[...path.contacts].filter((c) => c.ball === b).map((c) => c.wheel.name.replace(/ \(.*\)/, '') + ' ' + c.force.toFixed(0)).join('+')}`; }).join(' | '));
+  if (process.env.STUCK) console.log(`   seed ${seed} inside`, inside.map((b) => { const p = b.translation(); return `#${balls.indexOf(b)} ${p.x.toFixed(2)},${p.y.toFixed(2)},${p.z.toFixed(2)} ${[...path.contacts].filter((c) => c.ball === b).map((c) => c.wheel.name.replace(/ \(.*\)/, '') + ' ' + c.force.toFixed(0)).join('+')}`; }).join(' | '));
   w.free();
-  return { taken: taken.length, inRate: taken.length > 2 ? (taken.length - 1) / (taken[taken.length - 1] - taken[0]) : 0, timeline, shots: s.length, rate: s.length > 2 ? (s.length - 1) / (s[s.length - 1] - s[0]) : 0, inside: inside.length, minIntake: 100 * minIntake, minSer: 100 * minSer, left };
+  const lands = watch.shots.map((o) => landing(o) + (o.x - TURRET[0])).filter(Number.isFinite);
+  return { lands, taken: taken.length, inRate: taken.length > 2 ? (taken.length - 1) / (taken[taken.length - 1] - taken[0]) : 0, timeline, shots: s.length, rate: s.length > 2 ? (s.length - 1) / (s[s.length - 1] - s[0]) : 0, inside: inside.length, minIntake: 100 * minIntake, minSer: 100 * minSer, left };
 }
 
 const pick = process.argv.slice(2);
