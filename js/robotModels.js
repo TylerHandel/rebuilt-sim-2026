@@ -2211,8 +2211,50 @@ function build1678(cfg, alliance) {
 }
 
 // ============================================================ 1690 Kepler
+// 1690's swerve modules, from their CAD. Inverted: the X60 and X44 hang under the module's plate,
+// their shafts up into the gear housing over it (in 1690-body with the plates). What steers is the
+// fork (1690-fork) and the 4in wheel in it (1690-wheel), both exported from the back right module,
+// origin on the axle's middle, on the steering axis; at each corner's drive.moduleAt (modulePoints).
+// The CAD has the wheels' axles fore and aft (rolling sideways), and the front forks are the back
+// ones turned half round (their holes), so pivot.rotation.y = pi / 2 is the CAD's pose at every
+// corner. Returns the { pivot, wheel } robot.js steers and spins (the wheel about its local y).
+function modules1690(root, cfg) {
+  return modulePoints(cfg).map(([x, z]) => {
+    const g = new THREE.Group();
+    g.position.set(x, 0, z);
+    root.add(g);
+    const pivot = new THREE.Group();
+    g.add(pivot);
+    const psi = x > 0 ? Math.PI / 2 : -Math.PI / 2, axle = 0.0508;
+    const fork = new THREE.Group();
+    fork.position.y = axle;
+    fork.rotation.y = psi;
+    pivot.add(fork);
+    // (the wheel turns about pivot's z, as moduleWheel's; the CAD in it turned back to the fork's pose)
+    const spin = new THREE.Group();
+    spin.position.y = axle;
+    spin.rotation.x = Math.PI / 2;
+    pivot.add(spin);
+    const cad = new THREE.Group();
+    cad.quaternion.setFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0)).multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(0, psi, 0)));
+    spin.add(cad);
+    // (drawn until the CAD loads)
+    const wDrawn = new THREE.Group();
+    spin.add(wDrawn);
+    mesh(new THREE.CylinderGeometry(0.0508, 0.0508, 0.04, 24), M.tread, wDrawn);
+    for (let i = 0; i < 6; i++) bx(0.008, 0.042, 0.006, M.hubGrey, wDrawn, Math.cos((i * Math.PI) / 3) * 0.02, 0, Math.sin((i * Math.PI) / 3) * 0.02);
+    const fDrawn = new THREE.Group();
+    fork.add(fDrawn);
+    for (const s of [-1, 1]) bx(0.008, 0.05, 0.05, M.aluDark, fDrawn, s * 0.03, 0.02, 0);
+    cadPart(fork, 'robots/1690-fork.glb', () => { fDrawn.visible = false; });
+    cadPart(cad, 'robots/1690-wheel.glb', () => { wDrawn.visible = false; });
+    return { pivot, wheel: spin };
+  });
+}
+
 // From 1690's public X_T release (their CAD release thread's Drive folder), imported into Onshape and
-// split by tools/extract-parts.mjs (cad/robots/1690.json): the body (the chassis, the roller floor's
+// split by tools/extract-parts.mjs (cad/robots/1690.json): the body (the chassis and what's fixed of
+// its inverted swerve modules (modules1690 steers their forks and wheels), the roller floor's
 // plates, the belts' housing and backing plate, the kickers' frames, the turret's fixed deck and the
 // energy chain's tray and spring, the electronics box), the hopper's polycarbonate side and back
 // panels (1690-panels: clear; their aluminum corner brackets stay in the body) and its polycarbonate
@@ -2232,7 +2274,7 @@ function build1678(cfg, alliance) {
 function build1690(cfg, alliance) {
   const root = new THREE.Group();
   addBumpers(root, cfg, alliance);
-  const modules = addDrivebase(root, cfg, 0, false);
+  const modules = modules1690(root, cfg);
   const D = R1690, S = D.SHOOTER, F = S.feeder, I = D.INTAKE, [tx, tz] = D.TURRET.at;
   const green = std(0x62c94a, 0.7, 0.05), silicone = std(0x2a2c30, 0.75, 0.05), stripe = std(0x6a6f78, 0.6, 0.2);
   const beltMat = std(0x111214, 0.85, 0.05), tread = std(0x1f2022, 0.85, 0.05), lattice = std(cfg.colors.frame, 0.45, 0.55);
@@ -2255,7 +2297,8 @@ function build1690(cfg, alliance) {
   // ---- the drawn stand-in (hidden when the body's CAD loads)
   const drawn = new THREE.Group();
   root.add(drawn);
-  addDrivebase(drawn, cfg, 0, true).forEach((md) => md.pivot.parent.removeFromParent());
+  // (the frame, and drive.inverted's drawn modules' plates and motors at the CAD's axes)
+  addDrivebase(drawn, cfg, 0, true).forEach((md) => md.pivot.removeFromParent());
   for (const z of [D.WALL.left, D.WALL.right]) polyWall(drawn, 0.62, D.WALL.top - 0.1, 0, 0.1 + (D.WALL.top - 0.1) / 2, z, 0, M.poly, lattice);
   bx(0.6, 0.02, 0.76, lattice, drawn, 0, D.WALL.top - 0.01, 0);
   bx(0.06, 0.18, 0.66, M.poly, drawn, D.BACK.x, 0.23, 0);

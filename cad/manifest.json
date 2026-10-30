@@ -1,6 +1,6 @@
 {
   "models": [
     { "file": "field/field.glb", "kind": "field", "scale": 1, "rotationDeg": [-90, 0, 180], "position": [0, 0, 0] },
-    { "file": "robots/1690-body.glb", "kind": "robot", "team": 1690, "parts": ["robots/1690-body.glb", "robots/1690-turret.glb", "robots/1690-hood.glb", "robots/1690-carriage.glb", "robots/1690-kick.glb"], "recipe": "robots/1690.json", "source": "1690 Orbit's X_T release (1690-26-Top Level Closed.x_t) in the Google Drive folder https://drive.google.com/drive/folders/12x8BS28Hf7YlxVM24ocRf43Jw6wtTlyj linked from their CAD release thread https://www.chiefdelphi.com/t/520673, imported into Onshape and exported as STEP (cad/README.md); drawn by build1690 in js/robotModels.js, not loaded from here" }
+    { "file": "robots/1690-body.glb", "kind": "robot", "team": 1690, "parts": ["robots/1690-body.glb", "robots/1690-fork.glb", "robots/1690-wheel.glb", "robots/1690-turret.glb", "robots/1690-hood.glb", "robots/1690-carriage.glb", "robots/1690-kick.glb"], "recipe": "robots/1690.json", "source": "1690 Orbit's X_T release (1690-26-Top Level Closed.x_t) in the Google Drive folder https://drive.google.com/drive/folders/12x8BS28Hf7YlxVM24ocRf43Jw6wtTlyj linked from their CAD release thread https://www.chiefdelphi.com/t/520673, imported into Onshape and exported as STEP (cad/README.md); drawn by build1690 in js/robotModels.js, not loaded from here" }
   ]
 }

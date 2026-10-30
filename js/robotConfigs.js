@@ -84,9 +84,11 @@ export function offsetShape(pts, d) {
 
 // where the swerve modules sit (x, z): 3in in from the corners, or inside a round frame; at a cut
 // corner (frame.chamfer) a module made to fit the diagonal (4414's "2 custom swerve modules"), its
-// wheel just inside it
+// wheel just inside it; drive.moduleAt ([x, z]: the front right one's steering axis, mirrored to the
+// others) where the team's CAD places them
 export function modulePoints(cfg) {
   const f = cfg.frame, inset = 0.075;
+  if (cfg.drive?.moduleAt) { const [x, z] = cfg.drive.moduleAt; return [[x, z], [x, -z], [-x, z], [-x, -z]]; }
   const rw = (cfg.drive?.wheel ?? 4 * IN) / 2, cut = f.chamfer ? Math.max(inset, f.chamfer / 2 + (rw + 0.006) * Math.SQRT1_2) : inset;
   if (f.round) {
     const { r, cx } = f.round, d = (r - 0.1) * Math.SQRT1_2;
@@ -502,8 +504,11 @@ export const ROBOTS = {
     // rise to ~0.65 m
     height: 21.5 * IN,
     mass: 63, // robot (up to 115 lb) + bumpers + battery
-    // they geared down (and spiked wheels) mid-season for the BUMP, TRENCH and defense: 13.1 ft/s free
-    drive: { ratio: 7.73 },
+    // they geared down (and spiked wheels) mid-season for the BUMP, TRENCH and defense: 13.1 ft/s free.
+    // Their CAD's modules are inverted (the X60 and X44 hang under the module's plate, shafts up into
+    // the gear housing over it), 4in wheels; the steering axes 0.2505 m from the middle fore and aft,
+    // 0.3013 m to the sides (2.6in in from the frame's corners)
+    drive: { ratio: 7.73, inverted: true, moduleAt: [0.2505, 0.3013] },
     // over-bumper: a carriage that slides out (0.320 m, down 12.5 deg: their Open X_T) with two silicone-wrapped rollers
     // and the hopper's lattice front, over the kicker bar that surgical tubing pulls down once it's out
     intake: { width: 25.5 * IN, reach: 0.2, rate: 200, pull: 5, deployTime: 0.3, side: 'front', latched: true },
