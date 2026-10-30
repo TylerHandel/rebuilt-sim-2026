@@ -46,6 +46,9 @@ if (process.env.BOTY) BELT.bottom.y = Number(process.env.BOTY);
 if (process.env.BACKX) BACK.x = Number(process.env.BACKX);
 if (process.env.FLOORR) FLOOR.ratio = Number(process.env.FLOORR);
 if (process.env.BELTR) BELT.ratio = Number(process.env.BELTR);
+if (process.env.INTAKER) INTAKE.ratio = Number(process.env.INTAKER);
+if (process.env.TOPK) TOP.k = TOP.k.map((k) => k * Number(process.env.TOPK));
+if (process.env.VKR) VKICK.ratio = Number(process.env.VKR);
 // (AGITATE=0: the carriage held out while it dumps; DEPTH (m), HZ: its strokes')
 if (process.env.AGITATE === '0') STROKE.on = false;
 if (process.env.DEPTH) STROKE.depth = Number(process.env.DEPTH);
