@@ -1232,6 +1232,9 @@ export class Robot {
         ready = pass ? spinOk && (!flat || hoodOk) && this._passLands() : spinOk && hoodOk && aimOk;
         this.passClear = !pass || this._passLands(0, true);
         status = !spinOk ? 'Spinning up' : !aimOk ? 'Aiming' : !hoodOk ? 'Hood' : 'READY';
+        // (a physical robot whose own code says when it's ready to shoot says what it's waiting on)
+        const own = this.phys?.shotStatus?.();
+        if (own) status = own;
         if (tgt.mode === 'pass') status = ready ? 'PASS READY' : 'Pass: ' + status.toLowerCase();
         this.preview = { exit, lv, sol };
       } else {

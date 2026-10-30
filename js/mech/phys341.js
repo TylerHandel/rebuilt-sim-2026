@@ -164,6 +164,7 @@ export class Physical341 extends PhysicalRobot {
     // debounced 0.2 s)
     this.turretT = Math.abs(r.aimErr ?? Infinity) < 6 * DEG ? 0.2 : Math.max(0, this.turretT - dt);
     const turretReady = this.turretT > 0;
+    this.atSpeedNow = atSpeed; this.turretReadyNow = turretReady;
     const inTrench = underTrench(r.pos.x, r.pos.z, 0);
     if (!on) this.state = 'stopped';
     else if (wantShot) this.state = this.pulseT > 0 ? 'pulsing' : atSpeed && turretReady ? 'shooting' : 'spinning up';
@@ -207,6 +208,15 @@ export class Physical341 extends PhysicalRobot {
     r.ready = this.state === 'shooting';
     r.feeding = T.feederT.cmd > 0 ? 1 : 0;
     r.intakeSpeed = T.intake.cmd > 0 ? 1 : T.intake.cmd < 0 ? -1 : 0;
+  }
+
+  // the robot's status line: what their state machine is waiting on (not the generic flywheel
+  // check, which reads the exit speed against the aim's and doesn't know their 130 RPM)
+  shotStatus() {
+    if (this.state === 'pulsing') return 'Unjamming';
+    if (this.state === 'shooting') return Math.abs(this.hoodDeg - this.hoodGoal) <= 3 ? 'READY' : 'Hood';
+    if (this.state === 'spinning up') return !this.atSpeedNow ? 'Spinning up' : 'Aiming';
+    return null;
   }
 
   // where the turret aims and how far that is (their RobotState): the turret's field velocity
