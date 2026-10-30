@@ -37,6 +37,8 @@ export const MU = { compliant: 1.6, gripTape: 1.3, omni: 0.6, mecanum: 0.8, alum
 export const COMPLIANT_TREAD = 12000;
 // (THEIRTIP=1: the tip roller on their 20:28, as their CAD has it)
 const THEIR_TIP = !!globalThis.process?.env?.THEIRTIP;
+// (TIPSTAGE=a:b: the tip's last stage, to try others)
+const TIP_STAGE = globalThis.process?.env?.TIPSTAGE;
 export const HORIZONTAL = [
   ['conveyor 1', [18, 33], 2 * IN, MU.mecanum, '2in compliant wheel in the middle, two 2in mecanums each side, all pushing to the middle'],
   ['conveyor 2', [25, 24], 2 * IN, MU.mecanum, 'eight 2in mecanums, four each side, pushing to the middle'],
@@ -46,7 +48,7 @@ export const HORIZONTAL = [
   ['intake 3', [20, 20], 2 * IN, MU.aluminum, '2in aluminum roller'],
   // (the tip on 12:48, not their 20:28: it meters FUEL in at a third of the speed, so they come up
   // the arm spaced out and the neck takes them single file instead of grinding on a queue)
-  ['intake 4 (tip)', THEIR_TIP ? [20, 28] : [12, 48], 2 * IN, MU.gripTape, '2in aluminum roller in cat-tongue grip tape'],
+  ['intake 4 (tip)', THEIR_TIP ? [20, 28] : TIP_STAGE ? TIP_STAGE.split(':').map(Number) : [12, 48], 2 * IN, MU.gripTape, '2in aluminum roller in cat-tongue grip tape'],
 ];
 // beside conveyor 2, at the side walls: one 4in omni wheel, and 4in 45A compliant wheels
 // perX60: each X44's turns per turn of the X60 they're locked to. Their code runs the X44s at
