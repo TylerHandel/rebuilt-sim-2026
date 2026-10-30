@@ -46,9 +46,10 @@ export const HORIZONTAL = [
   ['intake 1', [23, 20], 2 * IN, MU.aluminum, '2in aluminum roller'],
   ['intake 2', [20, 20], 2 * IN, MU.aluminum, '2in aluminum roller'],
   ['intake 3', [20, 20], 2 * IN, MU.aluminum, '2in aluminum roller'],
-  // (the tip on 12:48, not their 20:28: it meters FUEL in at a third of the speed, so they come up
-  // the arm spaced out and the neck takes them single file instead of grinding on a queue)
-  ['intake 4 (tip)', THEIR_TIP ? [20, 28] : TIP_STAGE ? TIP_STAGE.split(':').map(Number) : [12, 48], 2 * IN, MU.gripTape, '2in aluminum roller in cat-tongue grip tape'],
+  // (the tip on 18:32, not their 20:28: it meters FUEL in at about three quarters of the speed, so
+  // they come up the arm spaced out and the neck takes them single file instead of grinding on a
+  // queue; 12:48 jammed least, 18:32 scored most: README, *8793*)
+  ['intake 4 (tip)', THEIR_TIP ? [20, 28] : TIP_STAGE ? TIP_STAGE.split(':').map(Number) : [18, 32], 2 * IN, MU.gripTape, '2in aluminum roller in cat-tongue grip tape'],
 ];
 // beside conveyor 2, at the side walls: one 4in omni wheel, and 4in 45A compliant wheels
 // perX60: each X44's turns per turn of the X60 they're locked to. Their code runs the X44s at
