@@ -132,6 +132,23 @@
       "smooth": true,
       "ratio": 0.25,
       "error": 0.0015
+    },
+    {
+      "out": "cad/robots/341-hubs.glb",
+      "include": [
+        "Shooter + Table",
+        "Intake Assembly"
+      ],
+      "like": {
+        "glb": "r341.glb",
+        "node": "Miss Daisy XXIV"
+      },
+      "onlyName": [
+        "Right Hub",
+        "Left Hub"
+      ],
+      "ratio": 0.06,
+      "error": 0.006
     }
   ]
 }

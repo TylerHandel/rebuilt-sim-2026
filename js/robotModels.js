@@ -2899,6 +2899,9 @@ function build341(cfg, alliance) {
   cadTurret.rotation.y = -TURRET_341_YAW;
   cadTurret.position.set(0, 0, 0);
   cadPart(root, 'robots/341-body.glb', () => { drawn.visible = false; });
+  // the printed hubs of the table's mecanums and of the left ones on the pivot's shaft (the body's
+  // and the arm's GLBs leave them out, so those wheels were only their little rollers)
+  cadPart(root, 'robots/341-hubs.glb', () => {});
   cadPart(arm, 'robots/341-intake.glb', () => { armDrawn.visible = false; });
   cadPart(cadTurret, 'robots/341-turret.glb', () => { tDrawn.visible = false; });
 
