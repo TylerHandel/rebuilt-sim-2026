@@ -441,7 +441,7 @@ const tests = {
       for (let i = 0; i < 1 / DT; i++) { r.spin(surf); const l = live(balls); r.step(l); w.step(); esc.check(l); }
       const n0 = balls.filter((b) => held1690(P(b))).length;
       const watch = shotWatch(r), fw = floorWatch(r);
-      let minSurf = Infinity, gates = null, lo = Infinity, entry = null;
+      let minSurf = Infinity, gates = null, lo = Infinity, entry = null, lowN, lowT, slowRun, slowN;
       r.slideAmps = 0; r.cs.strokes = 0;
       for (let k = 0; k < env('SEC2', 8) / DT; k++) {
         r.spin(surf); r.index(true, pass); r.t.intake.cmd = process.env.NOINTAKE ? null : 1;
@@ -462,6 +462,7 @@ const tests = {
           }
         }
         if (k > 60) minSurf = Math.min(minSurf, Math.abs(r.t.wheel.omega) * SHOOTER.r);
+        if (k > 60 && watch.shots.length && balls.some((b) => inRobot(b))) { const ws = Math.abs(r.t.wheel.omega) * SHOOTER.r; lowN = (lowN ?? 0) + 1; slowRun = ws < 0.92 * surf ? (slowRun ?? 0) + DT : 0; if (slowRun > 0.1) slowN = (slowN ?? 0) + 1; if (ws < 0.92 * surf) lowT = (lowT ?? 0) + 1; }
         // (JUNCTION=s: until s into the dump, every 0.1 s, the FUEL by the belts' left end, the vertical
         // kicker and the corridor, and what they touch)
         if (process.env.JUNCTION && k * DT < Number(process.env.JUNCTION) && k % 12 === 0) {
@@ -492,6 +493,7 @@ const tests = {
         }
       }
       if (process.env.SNAP && !process.env.SNAPAT) (await import("node:fs")).writeFileSync(process.env.SNAP, JSON.stringify(balls.filter(inRobot).map(P)));
+      console.log(`   the wheel under 92% of its speed ${(100 * (lowT ?? 0) / (lowN || 1)).toFixed(0)}% of the dump, that 0.1 s on (their conveyor slow-down) ${(100 * (slowN ?? 0) / (lowN || 1)).toFixed(0)}%`);
       if (entry?.pts) console.log(`   channel vz ${(entry.vz / entry.cn).toFixed(2)} m/s (${entry.cn}); bodyFine at ${[...entry.pts].sort((p, q) => q[1][0] - p[1][0]).slice(0, 12).map(([k, e]) => `${k} x${e[0]} ${(e[1] / e[0]).toFixed(0)} N`).join(' | ')}`);
       if (entry) console.log(`   entry: ${entry.n} samples, vx ${(entry.vx / entry.n).toFixed(2)} m/s, by x (front→back) ${entry.hist.join(' ')}; ${[...entry.on].sort((p, q) => q[1][0] - p[1][0]).slice(0, 10).map(([nm, e]) => `${nm} ${(e[0] / entry.n * 100).toFixed(0)}% ${(e[1] / e[0]).toFixed(0)} N`).join(', ')}`);
       if (gates) for (const [g, m] of Object.entries(gates)) { const ts = [...m.values()].sort((a, b) => a - b); console.log(`   ${g}: ${ts.length} in, ${ts.length > 1 ? ((ts.length - 1) / (ts[ts.length - 1] - ts[0])).toFixed(1) : '-'} a second; by the half second ${Array.from({ length: 16 }, (_, i) => ts.filter((x) => x < (i + 1) * 0.5 && x >= i * 0.5).length).join(' ')}`); }
