@@ -33,7 +33,10 @@ const HOLD_FULL = Number(globalThis.process?.env?.HOLDFULL ?? 0.5);
 // As a shot stops, their unjam (the whole path backward 0.125 s) runs once, so the FUEL left in the
 // rails aren't wedged under the indexer for the next one (not their code; the user's idea:
 // STOPUNJAM=0 for none, ix for the indexer alone)
-const EXIT_K = Number(globalThis.process?.env?.EXITK ?? 1);
+// In play FUEL leave ~5% faster than SHOT_TABLE gives for the flywheel's speed as the aim reads it
+// (a match's every shot, its exit against what was expected: median 1.05); scaled so the aim expects
+// what they do (EXITK=1 for the table as it is)
+const EXIT_K = Number(globalThis.process?.env?.EXITK ?? 1.05);
 const HOLD_SPEED = Number(globalThis.process?.env?.HOLDSPEED ?? 0);
 const _su = globalThis.process?.env?.STOPUNJAM ?? 'all', STOP_UNJAM = _su === '0' ? '' : _su;
 
