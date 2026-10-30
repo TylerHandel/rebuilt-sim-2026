@@ -138,10 +138,21 @@ export function shotFor(kind, d, { theirs = THEIR_SHOTS } = {}) {
   const rpm = interp(theirs ? REGRESSIONS[key] : SIM_SHOTS[key], d);
   return { rpm, hood: kind === 'ferry' ? REGRESSIONS.feedHood : interp(REGRESSIONS.hood, d) };
 }
-// the preload, eight on the serializer's floor
+// the preload, eight where they settle with the arm down and everything off (robot frame): one
+// staged in the uptake between its flex wheels, one in the lane behind it, three on the
+// serializer's floor under the pivot's top shaft (inside the two free omnis), three across the
+// arm's back over the bumper. Under the top rollers they're pressed ~7 mm between them and the
+// floor, as any FUEL there is (the gap is 13.3 cm), and the uptake's wheels press the one in it 6 mm
+// (it starts 6 mm into the one behind it too, which pushes it up into them). Started 6 mm higher,
+// where it comes to rest, or with the uptake empty and a fourth on the arm, the zipper locked up
+// more often in its AUTO (seed 1: on the preload's last four for 2 s; the AUTO doesn't let go of
+// the trigger as the AI's driver does): 24-26 AUTO FUEL on average over 6-12 seeds, 29.5 from here
+// (30.0 from the old slots, with six). The old slots started four 2-7.5 cm into the free and
+// powered omnis, the frame and the uptake's plate: two of them came out under the robot.
 export const PRELOAD = [
-  [0.22, 0.25, -0.225], [0.22, 0.25, -0.075], [0.22, 0.25, 0.075], [0.22, 0.25, 0.225],
-  [0.06, 0.25, -0.15], [0.06, 0.25, 0.0], [-0.1, 0.25, -0.077], [0.0, 0.25, 0.15],
+  [-0.095, 0.285, -0.077], [0.044, 0.248, -0.072],
+  [0.241, 0.242, -0.138], [0.21, 0.246, 0.008], [0.243, 0.242, 0.153],
+  [0.382, 0.241, -0.225], [0.382, 0.241, -0.075], [0.382, 0.241, 0.075],
 ];
 
 // ------------------------------------------------------------------ the drives
