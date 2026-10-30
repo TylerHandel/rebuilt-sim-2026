@@ -266,10 +266,14 @@ export function turnArm({ pivot }, st, dt) {
   if (st.roll >= st.stow) { st.roll = st.stow; if (pivot._omega > 0) pivot._omega = 0; }
   return st.roll;
 }
-// Where 8793 holds a preload with its arm stowed (they settle there, tools/mechlab.mjs): two on
-// the indexer's rails, one on the ramp down to them, two on the floor behind the pivot's rollers
-// (in front of those, the rollers' mecanums let a FUEL roll out over the bumper)
-export const PRELOAD = [[-0.06, 0.135, 0], [-0.14, 0.26, 0], [0.066, 0.21, 0], [0.21, 0.255, -0.085], [0.21, 0.255, 0.085]];
+// Where 8793 holds a preload with its arm stowed (where they settle, robot frame): two on the
+// indexer's rails, one up the turret's bore on them (against the shooter's 4in wheel, as the
+// indexer stages one), one on the ramp down to the rails, two on the floor behind the pivot's
+// rollers. That's all its ball path holds stowed: in front of those the rollers' mecanums let a
+// FUEL roll out over the bumper, and the conveyor's wheels are over the rest; the other two of
+// eight go to the human player (PhysicalRobot.load). Each is pressed up to 6 mm by the part it
+// rests against, as any FUEL there is (the rails, the bore and the conveyor are narrower than one)
+export const PRELOAD = [[-0.052, 0.131, 0], [-0.137, 0.248, 0.006], [-0.122, 0.392, 0], [0.073, 0.213, 0], [0.19, 0.25, -0.116], [0.193, 0.249, 0.082]];
 
 // ------------------------------------------------------------------ the turret indexer
 // Under the turntable (their CAD, Turret assembly): a shaft of three 2in 30A flex wheels, 1in
