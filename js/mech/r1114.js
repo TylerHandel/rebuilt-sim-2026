@@ -152,12 +152,16 @@ export const BLANKET = { x0: 0.115, x1: 0.598, y: 0.701, hw: 0.37, bulge: 0.05, 
 export const RANGE = { at: [-0.122, 0.33], half: 0.06 };
 // the preload, eight with the box in, staged in the indexer as their robot's loaded (robot frame;
 // they settle): two up the elevator side by side, where their RunIntakeBallevator stages FUEL
-// (until the hood CANrange sees one), three in the floor's valley under the squish wheels, three
-// on the floor in front of them
+// (until the hood CANrange sees one; the elevator's rollers are 14.2 cm apart, so they're pressed
+// 2 mm each side, as any FUEL there is), three on the floor's slope just in front of the squish
+// wheels, staged against them (3 mm clear: they roll 3 cm on into the valley and rest on the
+// wheels), and three on those, between them and the intake's roller (with the box in it stands in
+// the hopper's front). (The three staged in the valley started 2-3 cm into the squish wheels; out
+// of it, they take the room the three in front of them had.)
 export const PRELOAD = [
   [-0.122, 0.4, -0.1], [-0.122, 0.4, 0.1],
-  [-0.01, 0.18, -0.15], [-0.01, 0.18, 0], [-0.01, 0.18, 0.15],
-  [0.14, 0.22, -0.15], [0.14, 0.22, 0], [0.14, 0.22, 0.15],
+  [0.082, 0.193, -0.153], [0.082, 0.193, 0], [0.082, 0.193, 0.153],
+  [0.192, 0.3, -0.15], [0.192, 0.3, 0], [0.192, 0.3, 0.15],
 ];
 
 const interp = (t, x) => {
