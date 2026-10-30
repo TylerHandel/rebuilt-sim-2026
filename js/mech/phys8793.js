@@ -33,6 +33,7 @@ const HOLD_FULL = Number(globalThis.process?.env?.HOLDFULL ?? 0.5);
 // As a shot stops, their unjam (the whole path backward 0.125 s) runs once, so the FUEL left in the
 // rails aren't wedged under the indexer for the next one (not their code; the user's idea:
 // STOPUNJAM=0 for none, ix for the indexer alone)
+const HOLD_SPEED = Number(globalThis.process?.env?.HOLDSPEED ?? 0);
 const _su = globalThis.process?.env?.STOPUNJAM ?? 'all', STOP_UNJAM = _su === '0' ? '' : _su;
 
 // Points to test the intake arm with against a TRENCH arm (trenchArm): its side outline (hull,
@@ -288,7 +289,11 @@ export class Physical8793 extends PhysicalRobot {
       else { this.ixBackT = 0.15; r.stats.stopUnjams = (r.stats.stopUnjams || 0) + 1; }
     }
     if (this.ixBackT > 0) this.ixBackT -= dt;
-    this.t.indexer.cmd = this.feed ? (unjam ? -DUTY_INDEXER : DUTY_INDEXER) : on && (outtake || this.ixBackT > 0 || (STOP_UNJAM === 'all' && this.unjamT > 0)) ? -DUTY_INDEXER : 0;
+    // (HOLD_SPEED: their HOLD_FEED_UNTIL_AT_SPEED, off in their code: the indexer waits while the
+    // flywheel is under that share of its target, without the shot stopping)
+    const fwRps = Math.abs(this.t.shooter.omega) / (2 * Math.PI);
+    const atSpeed = !HOLD_SPEED || !this.targetRps || fwRps >= HOLD_SPEED * this.targetRps;
+    this.t.indexer.cmd = this.feed ? (unjam ? -DUTY_INDEXER : atSpeed ? DUTY_INDEXER : 0) : on && (outtake || this.ixBackT > 0 || (STOP_UNJAM === 'all' && this.unjamT > 0)) ? -DUTY_INDEXER : 0;
     if (globalThis.process?.env?.JAMLOG) {
       // (the turret indexer while it's fed forward: how long it runs under a fifth of its free
       // speed, and how many FUEL go up to the shooter meanwhile)
