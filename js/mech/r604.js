@@ -185,11 +185,14 @@ export const SERIALIZER = { rollerR: 0.5 * 1.625 * IN, ballV: 3.6, unjamV: -0.5,
 // the roller's shaft speed (rad/s) for a FUEL speed (m/s), as their setRollerVelocity
 export const rollerRad = (v) => v / (0.5 * SERIALIZER.rollerR);
 
-// the preload: eight on the bucket floor round the rotor
-export const PRELOAD = [0, 1, 2, 3, 4, 5, 6, 7].map((k) => {
-  const a = (k / 8) * 2 * Math.PI + 0.3;
-  return [AXIS[0] + 0.2 * Math.cos(a), 0.235, 0.2 * Math.sin(a)];
-});
+// the preload, eight in the bucket with the rotor at its start pose (robot frame): five on the
+// floor round its front and sides, three on those (the rotor's arm and the infeed's omnis fill the
+// floor behind the axis), each 3 mm clear of every part and of each other; they settle a few mm.
+// (The old ring round the axis started two 2-5 cm into the rotor and one into the infeed's omnis.)
+export const PRELOAD = [
+  [0.166, 0.23, 0.059], [0.068, 0.23, 0.177], [-0.085, 0.23, 0.191], [-0.099, 0.23, -0.197], [0.054, 0.23, -0.191],
+  [0.16, 0.275, -0.09], [0.18, 0.335, 0.17], [-0.02, 0.355, -0.24],
+];
 
 // ------------------------------------------------------------------ the drives
 export function build604() {
