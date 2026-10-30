@@ -33,6 +33,7 @@ const HOLD_FULL = Number(globalThis.process?.env?.HOLDFULL ?? 0.5);
 // As a shot stops, their unjam (the whole path backward 0.125 s) runs once, so the FUEL left in the
 // rails aren't wedged under the indexer for the next one (not their code; the user's idea:
 // STOPUNJAM=0 for none, ix for the indexer alone)
+const EXIT_K = Number(globalThis.process?.env?.EXITK ?? 1);
 const HOLD_SPEED = Number(globalThis.process?.env?.HOLDSPEED ?? 0);
 const _su = globalThis.process?.env?.STOPUNJAM ?? 'all', STOP_UNJAM = _su === '0' ? '' : _su;
 
@@ -310,7 +311,7 @@ export class Physical8793 extends PhysicalRobot {
     else if (!(on && this.targetRps && t - (this.holdT ?? -9) < 1.5)) this.targetRps = 0;
     this.t.shooter.cmd = on && this.targetRps > 0 ? flywheelDuty(this.t, this.targetRps) : 0;
     // what the robot's aiming sees: the exit speed its flywheel gives right now
-    r.flywheel = exitSpeed(Math.abs(this.t.shooter.omega) / (2 * Math.PI));
+    r.flywheel = EXIT_K * exitSpeed(Math.abs(this.t.shooter.omega) / (2 * Math.PI));
     r.intakeSpeed = h.cmd < 0 ? 1 : h.cmd > 0 ? -1 : 0;
     r.feeding = this.feed ? 1 : 0;
   }

@@ -302,7 +302,7 @@ export const INDEXER = {
   shafts: [[-0.039, Number(globalThis.process?.env?.IDXY ?? 0.220)]],
   wheelZ: [-0.025, 0.001, 0.026],
 };
-export const DUTY_INDEXER = 0.65;
+export const DUTY_INDEXER = Number(globalThis.process?.env?.IDXDUTY ?? 0.65);
 export function indexerWheels({ ishafts }) {
   const wheels = [];
   INDEXER.shafts.forEach(([x, y], i) => {
