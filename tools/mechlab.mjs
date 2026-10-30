@@ -15,8 +15,9 @@
 import { RAPIER } from '../js/physics.js';
 import { FUEL, IN, GROUP, groups } from '../js/constants.js';
 import { Mechanism, Shaft, Wheel, Motor, foam } from '../js/mech/mechanism.js';
-import { MU, COMPLIANT_TREAD, NECK, build8793, intake8793, conveyorWheels, armWheels, shooterWheels, shooterSmallAt, flywheelDuty, codeExitSpeed, SHOOTER, INDEXER, DUTY_INDEXER, indexerWheels, pathSurfaces, placeArm, armState, servoArm, turnArm, ARM } from '../js/mech/r8793.js';
+import { MU, COMPLIANT_TREAD, NECK, CONVEYOR, HORIZONTAL, build8793, intake8793, conveyorWheels, armWheels, shooterWheels, shooterSmallAt, flywheelDuty, codeExitSpeed, SHOOTER, INDEXER, DUTY_INDEXER, indexerWheels, pathSurfaces, placeArm, armState, servoArm, turnArm, ARM } from '../js/mech/r8793.js';
 if (process.env.IDX_RATIO) INDEXER.ratio = Number(process.env.IDX_RATIO); // (to try other indexer gearing)
+if (process.env.C1PUSH) CONVEYOR.c1Push = Number(process.env.C1PUSH);
 import PATH_MESH from '../js/mech/path8793.js';
 import { JAM } from '../js/mech/phys8793.js';
 import { BUMPER_T, ROBOTS } from '../js/robotConfigs.js';
@@ -89,12 +90,12 @@ const tests = {
   // 60 motor rotations/s with the hood at 60 deg)
   robot() {
     const runs = [];
-    for (let seed = Number(process.env.SEED0 ?? 1); seed < Number(process.env.SEED0 ?? 1) + SEEDS; seed++) runs.push(pathRun(seed, { turret: true, e: 60, target: 60, sec: 6 }));
+    for (let seed = Number(process.env.SEED0 ?? 1); seed < Number(process.env.SEED0 ?? 1) + SEEDS; seed++) runs.push(pathRun(seed, { turret: true, e: 60, target: 60, sec: Number(process.env.SEC ?? 6), nBalls: Number(process.env.NB ?? 12) }));
     const med = (a) => { const b = [...a].sort((p, q) => p - q); return b[b.length >> 1]; };
     const all = runs.flatMap((r) => r.shots);
     const avg = (a) => a.reduce((p, q) => p + q, 0) / (a.length || 1);
     console.log(`8793 carpet to shot (indexer ${INDEXER.ratio}:1): a median ${med(runs.map((r) => r.shots.length))} of ${runs[0].n} shot (${Math.min(...runs.map((r) => r.shots.length))}..${Math.max(...runs.map((r) => r.shots.length))}, ${SEEDS} runs), ` +
-      `${med(runs.map((r) => r.shotRate)).toFixed(1)} FUEL/s; out at ${avg(all.map((x) => x.v)).toFixed(2)} m/s, ${avg(all.map((x) => x.el)).toFixed(1)} deg (${all.filter((x) => x.el < 30).length} knocked off instead); the flywheel sagged to ${med(runs.map((r) => r.minRps)).toFixed(0)} rps; ${med(runs.map((r) => r.unjams))} unjams, the arm lifted up to ${med(runs.map((r) => r.maxLift)).toFixed(1)} deg (median)`);
+      `${med(runs.map((r) => r.shotRate)).toFixed(1)} FUEL/s; out at ${avg(all.map((x) => x.v)).toFixed(2)} m/s, ${avg(all.map((x) => x.el)).toFixed(1)} deg (${all.filter((x) => x.el < 30).length} knocked off instead); the flywheel sagged to ${med(runs.map((r) => r.minRps)).toFixed(0)} rps; ${med(runs.map((r) => r.unjams))} unjams (${runs.reduce((q, r) => q + r.unjams, 0)} in all), stalled ${runs.reduce((q, r) => q + r.stallT, 0).toFixed(1)} s in all, the arm lifted up to ${med(runs.map((r) => r.maxLift)).toFixed(1)} deg (median)`);
   },
   // where 8793 holds FUEL: intake 12 with the indexer stopped, then stop the rollers too and let
   // them settle (its preload goes where they end up)
@@ -311,12 +312,12 @@ function pathRun(seed, { x44 = true, turret = false, e = 60, target = 60, nBalls
   // their auto-unjam (runIntakeWithAutoUnjam, as js/mech/phys8793.js runs it): the X60 stalled
   // (over 55 A, under 10 rotations/s) for 0.125 s reverses the whole path for 0.125 s, the turret
   // indexer too. NOUNJAM=1 leaves it out
-  let jamT = 0, unjamT = 0, unjams = 0;
+  let jamT = 0, unjamT = 0, unjams = 0, jamBalls = null; const jamLog = [];
   const control = () => {
     const h = trains.horizontal, stalled = Math.abs(h.motor.current) > JAM.amps && Math.abs(h.omega) / (2 * Math.PI) < JAM.rps;
     if (unjamT > 0) { unjamT -= DT; if (unjamT <= 0) jamT = 0; } else if (!process.env.NOUNJAM) {
       jamT = stalled ? jamT + DT : 0;
-      if (jamT > JAM.debounce) { unjamT = JAM.reverse; jamT = 0; unjams++; }
+      if (jamT > JAM.debounce) { unjamT = JAM.reverse; jamT = 0; unjams++; if (process.env.JAMLOG && jamBalls) jamLog.push(jamBalls().map((q) => { const p = q.translation(); const cs = mechs.flatMap((m) => m.contacts).filter((c) => c.ball === q && c.force > 20); return `${p.x.toFixed(2)},${p.y.toFixed(2)},${p.z.toFixed(2)}[${cs.map((c) => c.wheel.name.replace(/ \(.*\)/, '') + ' ' + c.force.toFixed(0)).join('; ')}]`; }).filter((x) => !x.endsWith('[]')).join(' | ')); }
     }
     intake8793(trains, true, { x44, dir: unjamT > 0 ? -1 : 1 });
     if (turret) { trains.indexer.cmd = hold ? 0 : unjamT > 0 ? -DUTY_INDEXER : DUTY_INDEXER; trains.shooter.cmd = hold ? 0 : flywheelDuty(trains, target); }
@@ -336,18 +337,20 @@ function pathRun(seed, { x44 = true, turret = false, e = 60, target = 60, nBalls
   const free = Math.abs(trains.horizontal.omega);
   const balls = [];
   for (let i = 0; i < nBalls; i++) {
-    const x = 0.68 + 0.17 * Math.floor(i / 3) + 0.02 * rnd(), z = (i % 3 - 1) * 0.17 + 0.02 * rnd();
+    const AB = Number(process.env.ABREAST ?? 3), x = 0.68 + 0.17 * Math.floor(i / AB) + 0.02 * rnd(), z = AB === 3 ? (i % 3 - 1) * 0.17 + 0.02 * rnd() : (i % AB - (AB - 1) / 2) * 0.16 + 0.02 * rnd();
     balls.push(ball(w, x, R + 0.003, z, [-1, 0, 0]));
     if (TOGETHER) balls.at(-1).collider(0).setCollisionGroups(groups(GROUP.HELD, 0xffff & ~GROUP.HELD));
   }
+  jamBalls = () => balls.filter((q) => !gone.has(q));
   const past = new Map(), shots = [], touched = new Set(), gone = new Set();
-  let peakI = 0, minW = free, minRps = target;
+  let peakI = 0, minW = free, minRps = target, stallT = 0;
   const trace = process.env.TRACE ? balls[Number(process.env.TRACE)] : null;
   for (let k = 0, t = 0; k < sec / DT; k++, t += DT) {
     const live = balls.filter((b) => !gone.has(b));
     step(live);
     if (trace && k % 12 === 0 && !gone.has(trace)) { const p = trace.translation(), v = trace.linvel(); console.log(`t ${t.toFixed(2)} ${p.x.toFixed(3)},${p.y.toFixed(3)},${p.z.toFixed(3)} v ${v.x.toFixed(2)},${v.y.toFixed(2)},${v.z.toFixed(2)}: ${mechs.flatMap((m) => m.contacts).filter((c) => c.ball === trace).map((c) => c.wheel.name + ' ' + c.force.toFixed(0) + 'N').join(', ')}`); }
     peakI = Math.max(peakI, Math.abs(trains.horizontal.motor.current));
+    if (Math.abs(trains.horizontal.omega) < 0.3 * free) stallT += DT;
     minW = Math.min(minW, Math.abs(trains.horizontal.omega));
     if (turret) minRps = Math.min(minRps, trains.shooter.omega / (2 * Math.PI));
     for (const b of live) {
@@ -366,6 +369,7 @@ function pathRun(seed, { x44 = true, turret = false, e = 60, target = 60, nBalls
       }
     }
   }
+  if (process.env.JAMLOG) for (const j of jamLog) console.log(`  seed ${seed} unjam: ${j}`);
   const times = [...past.values()].sort((a, b) => a - b);
   const left = balls.filter((b) => !(turret ? gone : past).has(b));
   if (process.env.STUCK) for (const b of left) { const p = b.translation(); console.log(`  seed ${seed} left at ${p.x.toFixed(3)} ${p.y.toFixed(3)} ${p.z.toFixed(3)}: ${mechs.flatMap((m) => m.contacts).filter((c) => c.ball === b).map((c) => c.wheel.name + ' ' + c.force.toFixed(0) + 'N').join(', ')}`); }
@@ -373,7 +377,7 @@ function pathRun(seed, { x44 = true, turret = false, e = 60, target = 60, nBalls
   const res = { n: balls.length, through: past.size, first: times[0] ?? NaN, last: times[times.length - 1] ?? NaN,
     rate: times.length > 1 ? (times.length - 1) / (times[times.length - 1] - times[0]) : 0, peakI, minSpeed: (100 * minW) / free,
     stuck: xs.length ? `${xs.length} at ${Math.min(...xs).toFixed(2)}..${Math.max(...xs).toFixed(2)}` : '',
-    unjams, maxLift, shots, shotRate: shots.length > 1 ? (shots.length - 1) / (shots[shots.length - 1].t - shots[0].t) : 0, minRps,
+    unjams, stallT, maxLift, shots, shotRate: shots.length > 1 ? (shots.length - 1) / (shots[shots.length - 1].t - shots[0].t) : 0, minRps,
     held: balls.map((b) => b.translation()).filter((p) => p.x < 0.35 && p.y > 0.05 && p.y < 0.7).map((p) => [p.x, p.y, p.z]) };
   w.free();
   return res;

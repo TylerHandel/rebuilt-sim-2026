@@ -26,6 +26,10 @@ const TURRET_X = -0.127;
 // their jam recovery (GroundIntakeConstants): the roller motor over 55 A stator and under 10
 // rotations/s for 0.125 s reverses at full for 0.125 s
 export const JAM = { amps: 55, rps: 10, debounce: 0.125, reverse: 0.125 };
+// Stalled while nothing is being fed is the path full, not a jam: the rollers stop and hold what
+// they have for HOLD_FULL s instead of reversing and spitting FUEL back out, then try again (not in
+// their code, which reverses either way; HOLDFULL=0 for theirs)
+const HOLD_FULL = Number(globalThis.process?.env?.HOLDFULL ?? 0.5);
 
 // Points to test the intake arm with against a TRENCH arm (trenchArm): its side outline (hull,
 // deployed, round the pivot) every 2 cm, and rings of it two thirds and a third of the way in to
@@ -62,7 +66,7 @@ export class Physical8793 extends PhysicalRobot {
 
   reset() {
     super.reset();
-    this.jamT = 0; this.unjamT = 0;
+    this.jamT = 0; this.unjamT = 0; this.fullT = 0;
     this.targetRps = 0;
     this.feed = false;
     for (const tr of [this.t.horizontal, this.t.indexer, this.t.shooter]) { tr.omega = 0; tr.cmd = 0; }
@@ -254,12 +258,17 @@ export class Physical8793 extends PhysicalRobot {
     if (this.unjamT > 0) {
       this.unjamT -= dt;
       if (this.unjamT <= 0) { this.unjamT = 0; this.jamT = 0; }
+    } else if (HOLD_FULL && this.fullT > 0 && !this.feed) {
+      this.fullT -= dt;
     } else {
       this.jamT = on && !outtake && stalled ? this.jamT + dt : 0;
-      if (this.jamT > JAM.debounce) { this.unjamT = JAM.reverse; this.jamT = 0; r.stats.unjams = (r.stats.unjams || 0) + 1; }
+      // (HOLD_FULL: stalled with nothing being fed is a full path, not a jam: the rollers stop
+      // and hold what they have instead of reversing, and try again after a moment)
+      if (HOLD_FULL && this.jamT > JAM.debounce && !this.feed) { this.fullT = HOLD_FULL; this.jamT = 0; r.stats.holds = (r.stats.holds || 0) + 1; if (globalThis.process?.env?.JAMLOG && r.stats.holds < 40) console.log(`HOLD t ${t.toFixed(1)} feeding ${feeding} sp ${setpoint?.toFixed?.(1)} aimErr ${((r.aimErr ?? 0) / DEG).toFixed(0)} clear ${r.passClear} held ${r.stored?.length}`); }
+      if (this.jamT > JAM.debounce) { this.unjamT = JAM.reverse; this.jamT = 0; r.stats.unjams = (r.stats.unjams || 0) + 1; if (globalThis.process?.env?.JAMLOG) this.logJam(t); }
     }
-    const unjam = on && this.unjamT > 0;
-    intake8793(this.t, on, { dir: outtake || unjam ? -1 : 1 });
+    const unjam = on && this.unjamT > 0, holding = HOLD_FULL && this.fullT > 0 && !this.feed && !outtake;
+    intake8793(this.t, on && !holding, { dir: outtake || unjam ? -1 : 1 });
     // the turret indexer feeds while there's a shot (or pass) to make, reversed with the unjam:
     // their ShooterMode doesn't hold it for the flywheel or hood (HOLD_FEED_UNTIL_AT_SPEED is off),
     // so what's still coming up to speed goes as it is; only while the turret is swinging round
@@ -277,6 +286,17 @@ export class Physical8793 extends PhysicalRobot {
     r.flywheel = exitSpeed(Math.abs(this.t.shooter.omega) / (2 * Math.PI));
     r.intakeSpeed = h.cmd < 0 ? 1 : h.cmd > 0 ? -1 : 0;
     r.feeding = this.feed ? 1 : 0;
+  }
+
+  // (JAMLOG=1: each unjam, when, whether it was feeding, the FUEL held, and the FUEL pressed
+  // hardest, robot frame, and what by)
+  logJam(t) {
+    const body = this.r.body, p0 = body.translation(), q = body.rotation();
+    _q.set(q.x, q.y, q.z, q.w).invert();
+    const pts = new Map();
+    for (const c of this.path.contacts) if (c.force > 30) { const e = pts.get(c.ball) ?? []; e.push(c.wheel.name.replace(/ \(.*\)/, '') + ' ' + c.force.toFixed(0)); pts.set(c.ball, e); }
+    const out = [...pts].map(([b, e]) => { const p = b.translation(); _v.set(p.x - p0.x, p.y - p0.y, p.z - p0.z).applyQuaternion(_q); return `${_v.x.toFixed(2)},${_v.y.toFixed(2)},${_v.z.toFixed(2)} [${e.join('; ')}]`; });
+    console.log(`JAM t ${t.toFixed(1)} feed ${this.feed ? 1 : 0} held ${this.r.stored?.length ?? '?'}: ${out.join(' | ')}`);
   }
 
   // how many it holds, about, with the arm down: 7 in the frame (tools/mechlab.mjs slots) and a

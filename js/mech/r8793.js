@@ -35,6 +35,8 @@ import { Motor, Shaft, Surface, Train, Wheel, BUMPER_MU } from './mechanism.js';
 export const MU = { compliant: 1.6, gripTape: 1.3, omni: 0.6, mecanum: 0.8, aluminum: 0.45 };
 // a 4in 45A compliant wheel's give at its rim (N/m; an estimate)
 export const COMPLIANT_TREAD = 12000;
+// (THEIRTIP=1: the tip roller on their 20:28, as their CAD has it)
+const THEIR_TIP = !!globalThis.process?.env?.THEIRTIP;
 export const HORIZONTAL = [
   ['conveyor 1', [18, 33], 2 * IN, MU.mecanum, '2in compliant wheel in the middle, two 2in mecanums each side, all pushing to the middle'],
   ['conveyor 2', [25, 24], 2 * IN, MU.mecanum, 'eight 2in mecanums, four each side, pushing to the middle'],
@@ -42,7 +44,9 @@ export const HORIZONTAL = [
   ['intake 1', [23, 20], 2 * IN, MU.aluminum, '2in aluminum roller'],
   ['intake 2', [20, 20], 2 * IN, MU.aluminum, '2in aluminum roller'],
   ['intake 3', [20, 20], 2 * IN, MU.aluminum, '2in aluminum roller'],
-  ['intake 4 (tip)', [20, 28], 2 * IN, MU.gripTape, '2in aluminum roller in cat-tongue grip tape'],
+  // (the tip on 12:48, not their 20:28: it meters FUEL in at a third of the speed, so they come up
+  // the arm spaced out and the neck takes them single file instead of grinding on a queue)
+  ['intake 4 (tip)', THEIR_TIP ? [20, 28] : [12, 48], 2 * IN, MU.gripTape, '2in aluminum roller in cat-tongue grip tape'],
 ];
 // beside conveyor 2, at the side walls: one 4in omni wheel, and 4in 45A compliant wheels
 // perX60: each X44's turns per turn of the X60 they're locked to. Their code runs the X44s at
@@ -89,7 +93,7 @@ export function build8793() {
     return s;
   });
   // the turret indexer (a positive command: the wheels' bottoms run rearward)
-  const indexer = new Train({ name: 'turret indexer', motor: new Motor('krakenX60', { ratio: INDEXER.ratio, statorLimit: 60, supplyLimit: 40 }) });
+  const indexer = new Train({ name: 'turret indexer', motor: new Motor(INDEXER.motor, { ratio: INDEXER.ratio, statorLimit: 60, supplyLimit: 40 }) });
   const ishafts = [indexer.add(new Shaft({ name: 'turret indexer', inertia: 4e-5 }), -1)];
   // the shooter: the 4in wheels and, geared to them, the 2in wheels over them turning the other way
   // (a positive command turns the 4in wheels so FUEL leave over them)
@@ -130,6 +134,7 @@ export const CONVEYOR = {
     [2, 0.292, 0.336, 0.31],
   ],
   vertical: { x: 0.217, y: 0.241, z: 0.24 },
+  c1Push: null, // (conveyor 1's mecanums: null, each pushing to the middle; -1 / +1, all toward the robot's left / right)
 };
 
 // the wheels, on the trains from build8793() (the horizontal train turning so the rollers' bottoms
@@ -150,7 +155,7 @@ export function conveyorWheels({ rollers, vshafts }) {
       // compliant in the middle, two mecanums each side, all pushing to the middle
       spread(5, hw).forEach((z, i) => wheels.push(i === 2
         ? new Wheel({ ...base, ...flex, name: 'conveyor 1 compliant', center: at(z), mu: MU.compliant })
-        : new Wheel({ ...base, ...mec, name: 'conveyor 1 mecanum', kind: 'mecanum', mecanum: hand(-Math.sign(z)), center: at(z) })));
+        : new Wheel({ ...base, ...mec, name: 'conveyor 1 mecanum', kind: 'mecanum', mecanum: hand(CONVEYOR.c1Push ?? -Math.sign(z)), center: at(z) })));
     } else if (ri === 1) {
       spread(8, hw).forEach((z) => wheels.push(new Wheel({ ...base, ...mec, name: 'conveyor 2 mecanum', kind: 'mecanum', mecanum: hand(-Math.sign(z)), center: at(z) })));
     } else {
@@ -277,8 +282,8 @@ export const PRELOAD = [[-0.052, 0.131, 0], [-0.137, 0.248, 0.006], [-0.122, 0.3
 
 // ------------------------------------------------------------------ the turret indexer
 // Under the turntable (their CAD, Turret assembly): a shaft of three 2in 30A flex wheels, 1in
-// wide, at x -0.039, 0.226 up. A Kraken X60 (CAN 28, 60 A stator, 40 A supply) turns it direct
-// (the team; the CAD shows a 9:1 MAXPlanetary); their code runs it at 65% duty while
+// wide, at x -0.039, 0.226 up. A Kraken X44 (CAN 28, 60 A stator, 40 A supply) turns it direct
+// (the team; the CAD shows a 9:1 MAXPlanetary; it was an X60 here before); their code runs it at 65% duty while
 // shooting (TurretConstants.TURRET_INDEXER_SPEED). (The CAD's second shaft of flex wheels behind
 // the turret's axis was a concept, never built.) Single file off the conveyor, FUEL ride a pair of
 // roller rails (two plates 0.108 m apart, a FUEL's width less a bit, so a FUEL sits in them
@@ -286,6 +291,7 @@ export const PRELOAD = [[-0.052, 0.131, 0], [-0.137, 0.248, 0.006], [-0.122, 0.3
 // FUEL back along the rails and up the ramp, and nothing but their own momentum carries them on
 // up through the turntable until the shooter's wheels catch them. (The rails are CAD surfaces.)
 export const INDEXER = {
+  motor: globalThis.process?.env?.IDXMOTOR ?? 'krakenX44', // (the team: an X44, direct)
   ratio: 1,
   shafts: [[-0.039, 0.226]],
   wheelZ: [-0.025, 0.001, 0.026],
@@ -407,12 +413,18 @@ export function pathSurfaces(mesh, { yaw = 0, turretX = -0.127, armPivot = ARM.p
 // 0.085 m out, from the neck to the back of the turret, up to the turntable's plate), or down
 // beside the conveyor's floor into the front corners, where the swerve modules are (they aren't
 // in the CAD): a cover there level with the floor.
+// The guides' front ends flare out below the neck wheels (to z 0.125 at x 0.10, up to 0.215 m), so a
+// FUEL coming off-center at the rails' mouth is steered in instead of catching on the guide's edge
+// under the right neck wheel, where it was pinned (FLARE=0: the guides start square at x 0)
+const _fl = globalThis.process?.env?.FLARE;
+export const GUIDE_FLARE = _fl === '0' ? null : { x: 0.10, z: Number(_fl || 0.125), y: 0.215 };
 export function guideSurface() {
   const V = [], I = [];
   const quad = (a, b, c, d) => { const o = V.length / 3; V.push(...a, ...b, ...c, ...d); I.push(o, o + 1, o + 2, o, o + 2, o + 3); };
   for (const zs of [1, -1]) {
     const z = 0.085 * zs;
     quad([0.0, 0.05, z], [-0.33, 0.05, z], [-0.33, 0.27, z], [0.0, 0.27, z]);
+    if (GUIDE_FLARE) quad([GUIDE_FLARE.x, 0.05, GUIDE_FLARE.z * zs], [0.0, 0.05, z], [0.0, GUIDE_FLARE.y, z], [GUIDE_FLARE.x, GUIDE_FLARE.y, GUIDE_FLARE.z * zs]);
     // (the floor is 0.18 up out to 0.165 each side: the cover's just outside it, a hair lower)
     quad([0.15, 0.178, 0.165 * zs], [0.335, 0.178, 0.165 * zs], [0.335, 0.178, 0.335 * zs], [0.15, 0.178, 0.335 * zs]);
   }
