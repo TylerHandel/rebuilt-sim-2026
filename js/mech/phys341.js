@@ -41,7 +41,10 @@ const DEG = Math.PI / 180;
 const R = 0.075;
 const ENV = (typeof process !== 'undefined' && process.env) || {};
 const JAMLOG = !!ENV.JAMLOG;
-export const FEEDER_V = Number(ENV.FEEDER_V ?? 3);
+// (12 V: their IntakeConstants.FEEDER_VOLTAGE, which nothing in their code uses; their Superstructure
+// runs it at 3 V. At 3 V the omni, slowed by the FUEL it presses, grinds the merge's FUEL into the
+// lane; at 12 V it carries them round: FEEDER_V=3 for theirs)
+export const FEEDER_V = Number(ENV.FEEDER_V ?? 12);
 // the hood: an X44 through 133.7:1 (about 340 deg/s free), a profile toward its goal
 const HOOD_MM = { v: 300, a: 3000 };
 const profile = (p, v, goal, vmax, amax, dt) => {
