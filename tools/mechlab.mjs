@@ -90,9 +90,13 @@ const tests = {
   // 60 motor rotations/s with the hood at 60 deg)
   robot() {
     const runs = [];
-    for (let seed = Number(process.env.SEED0 ?? 1); seed < Number(process.env.SEED0 ?? 1) + SEEDS; seed++) runs.push(pathRun(seed, { turret: true, e: 60, target: 60, sec: Number(process.env.SEC ?? 6), nBalls: Number(process.env.NB ?? 12) }));
+    for (let seed = Number(process.env.SEED0 ?? 1); seed < Number(process.env.SEED0 ?? 1) + SEEDS; seed++) runs.push(pathRun(seed, { turret: true, e: 60, target: 60, sec: Number(process.env.SEC ?? 6), nBalls: Number(process.env.NB ?? 12), yaw: Number(process.env.YAW ?? 0) * Math.PI / 180 }));
     const med = (a) => { const b = [...a].sort((p, q) => p - q); return b[b.length >> 1]; };
     const all = runs.flatMap((r) => r.shots);
+    if (process.env.SHOTLOG) for (const r of runs) r.shots.forEach((x, i) => { x.gapPrev = i ? x.t - r.shots[i - 1].t : 9; x.gapNext = i < r.shots.length - 1 ? r.shots[i + 1].t - x.t : 9; });
+    if (process.env.SHOTLOG) { const H = all.filter((x) => x.v > 3).map((x) => x.head).sort((p, q) => p - q), V = all.filter((x) => x.v > 3).map((x) => x.v).sort((p, q) => p - q), E = all.filter((x) => x.v > 3).map((x) => x.el).sort((p, q) => p - q), Q = (a) => [a[Math.floor(a.length * 0.1)], a[a.length >> 1], a[Math.floor(a.length * 0.9)]].map((z) => z.toFixed(2)).join(' / '); console.log(`  heading (deg, robot frame; 10/50/90%) ${Q(H)}; speed ${Q(V)}; elevation ${Q(E)}`); }
+    if (process.env.SHOTLOG) console.log(all.filter((x) => x.v > 3).sort((p, q) => p.v - q.v).map((x) => `${x.v.toFixed(2)} prev ${(x.gapPrev * 1000).toFixed(0)} next ${(x.gapNext * 1000).toFixed(0)} ms, in at ${x.ft ? Math.hypot(...x.ft.v).toFixed(1) : '-'}`).join('\n'));
+    if (false) for (const x of all) { const f = x.ft; console.log(`  shot ${x.v.toFixed(2)} m/s @${x.el.toFixed(1)} side ${x.side.toFixed(1)}; met the shooter at ${f ? f.v.map((q) => q.toFixed(2)).join(',') + ' m/s, at ' + f.p.map((q) => q.toFixed(3)).join(',') + ', flywheel ' + f.rps.toFixed(1) + ' rps (' + f.on + '), ' + ((x.t - f.t) * 1000).toFixed(0) + ' ms in' : '-'}; flywheel after ${x.rpsOut.toFixed(1)}`); }
     const avg = (a) => a.reduce((p, q) => p + q, 0) / (a.length || 1);
     console.log(`8793 carpet to shot (indexer ${INDEXER.ratio}:1): a median ${med(runs.map((r) => r.shots.length))} of ${runs[0].n} shot (${Math.min(...runs.map((r) => r.shots.length))}..${Math.max(...runs.map((r) => r.shots.length))}, ${SEEDS} runs), ` +
       `${med(runs.map((r) => r.shotRate)).toFixed(1)} FUEL/s; out at ${avg(all.map((x) => x.v)).toFixed(2)} m/s, ${avg(all.map((x) => x.el)).toFixed(1)} deg (${all.filter((x) => x.el < 30).length} knocked off instead); the flywheel sagged to ${med(runs.map((r) => r.minRps)).toFixed(0)} rps; ${med(runs.map((r) => r.unjams))} unjams (${runs.reduce((q, r) => q + r.unjams, 0)} in all), stalled ${runs.reduce((q, r) => q + r.stallT, 0).toFixed(1)} s in all, the arm lifted up to ${med(runs.map((r) => r.maxLift)).toFixed(1)} deg (median)`);
@@ -343,6 +347,7 @@ function pathRun(seed, { x44 = true, turret = false, e = 60, target = 60, nBalls
   }
   jamBalls = () => balls.filter((q) => !gone.has(q));
   const past = new Map(), shots = [], touched = new Set(), gone = new Set();
+  const firstTouch = new Map();
   let peakI = 0, minW = free, minRps = target, stallT = 0;
   const trace = process.env.TRACE ? balls[Number(process.env.TRACE)] : null;
   for (let k = 0, t = 0; k < sec / DT; k++, t += DT) {
@@ -360,10 +365,10 @@ function pathRun(seed, { x44 = true, turret = false, e = 60, target = 60, nBalls
         if (!turret) { gone.add(b); b.setTranslation({ x: -50 - past.size, y: 5, z: 0 }, true); }
       }
       if (!smech) continue;
-      if (smech.contacts.some((c) => c.ball === b)) touched.add(b);
+      if (smech.contacts.some((c) => c.ball === b)) { if (!touched.has(b)) { const p = b.translation(), v = b.linvel(); firstTouch.set(b, { p: [p.x, p.y, p.z], v: [v.x, v.y, v.z], rps: trains.shooter.omega / (2 * Math.PI), on: smech.contacts.filter((c) => c.ball === b).map((c) => c.wheel.name).join('+'), t }); } touched.add(b); }
       else if (touched.has(b)) {
         const v = b.linvel();
-        shots.push({ t, v: Math.hypot(v.x, v.y, v.z), el: (Math.atan2(v.y, Math.hypot(v.x, v.z)) * 180) / Math.PI });
+        shots.push({ t, v: Math.hypot(v.x, v.y, v.z), el: (Math.atan2(v.y, Math.hypot(v.x, v.z)) * 180) / Math.PI, side: (Math.atan2(v.z, -v.x) * 180) / Math.PI, head: (Math.atan2(-v.z, v.x) * 180) / Math.PI, ft: firstTouch.get(b), rpsOut: trains.shooter.omega / (2 * Math.PI) });
         gone.add(b);
         b.setTranslation({ x: 50 + shots.length, y: 5, z: 0 }, true);
       }
