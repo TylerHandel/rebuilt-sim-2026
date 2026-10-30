@@ -30,6 +30,10 @@ export const JAM = { amps: 55, rps: 10, debounce: 0.125, reverse: 0.125 };
 // they have for HOLD_FULL s instead of reversing and spitting FUEL back out, then try again (not in
 // their code, which reverses either way; HOLDFULL=0 for theirs)
 const HOLD_FULL = Number(globalThis.process?.env?.HOLDFULL ?? 0.5);
+// As a shot stops, their unjam (the whole path backward 0.125 s) runs once, so the FUEL left in the
+// rails aren't wedged under the indexer for the next one (not their code; the user's idea:
+// STOPUNJAM=0 for none, ix for the indexer alone)
+const _su = globalThis.process?.env?.STOPUNJAM ?? 'all', STOP_UNJAM = _su === '0' ? '' : _su;
 
 // Points to test the intake arm with against a TRENCH arm (trenchArm): its side outline (hull,
 // deployed, round the pivot) every 2 cm, and rings of it two thirds and a third of the way in to
@@ -66,7 +70,7 @@ export class Physical8793 extends PhysicalRobot {
 
   reset() {
     super.reset();
-    this.jamT = 0; this.unjamT = 0; this.fullT = 0;
+    this.jamT = 0; this.unjamT = 0; this.fullT = 0; this.ixBackT = 0;
     this.targetRps = 0;
     this.feed = false;
     for (const tr of [this.t.horizontal, this.t.indexer, this.t.shooter]) { tr.omega = 0; tr.cmd = 0; }
@@ -275,8 +279,16 @@ export class Physical8793 extends PhysicalRobot {
     // to its target (more than TURRET_RESET_TOLERANCE_DEG, 10 deg, off) is the feeder off
     // A pass goes whether it'll get there or not (their ShuttleMode doesn't wait either), as long
     // as it won't drop into a HUB (G407)
+    const wasFeeding = this.feed;
     this.feed = on && feeding && setpoint > 0 && Math.abs(r.aimErr ?? 0) < 10 * DEG && r.passClear !== false;
-    this.t.indexer.cmd = this.feed ? (unjam ? -DUTY_INDEXER : DUTY_INDEXER) : on && outtake ? -DUTY_INDEXER : 0;
+    // (STOP_UNJAM: as the shot stops, back the indexer off ('ix', 0.15 s) or the whole path ('all',
+    // their unjam), so the FUEL left in the rails aren't wedged there for the next shot)
+    if (STOP_UNJAM && wasFeeding && !this.feed && on && !outtake) {
+      if (STOP_UNJAM === 'all') { if (!(this.unjamT > 0)) { this.unjamT = JAM.reverse; this.jamT = 0; r.stats.stopUnjams = (r.stats.stopUnjams || 0) + 1; } }
+      else { this.ixBackT = 0.15; r.stats.stopUnjams = (r.stats.stopUnjams || 0) + 1; }
+    }
+    if (this.ixBackT > 0) this.ixBackT -= dt;
+    this.t.indexer.cmd = this.feed ? (unjam ? -DUTY_INDEXER : DUTY_INDEXER) : on && (outtake || this.ixBackT > 0 || (STOP_UNJAM === 'all' && this.unjamT > 0)) ? -DUTY_INDEXER : 0;
     if (globalThis.process?.env?.JAMLOG) {
       // (the turret indexer while it's fed forward: how long it runs under a fifth of its free
       // speed, and how many FUEL go up to the shooter meanwhile)
@@ -285,7 +297,7 @@ export class Physical8793 extends PhysicalRobot {
         st.fed += dt; st.amps += Math.abs(ix.motor.current) * dt;
         if (irps < 0.2 * 0.65 * 125.5) { st.slow += dt; st.slowRun += dt; if (st.slowRun > 0.125 && st.slowRun - dt <= 0.125) { st.runs++; if (st.runs <= 12) this.logJam(t, 'IXSTALL'); } } else st.slowRun = 0;
       } else st.slowRun = 0;
-      if (t - (this.ixLast ?? 0) > 30) { this.ixLast = t; console.log(`IDX t ${t.toFixed(0)}: fed ${st.fed.toFixed(1)} s, under a fifth of its speed ${st.slow.toFixed(1)} s (${st.runs} stalls over 0.125 s), ${(st.amps / (st.fed || 1)).toFixed(0)} A on average`); }
+      if (t - (this.ixLast ?? 0) > 30) { this.ixLast = t; console.log(`IDX t ${t.toFixed(0)}: fed ${st.fed.toFixed(1)} s, under a fifth of its speed ${st.slow.toFixed(1)} s (${st.runs} stalls over 0.125 s), ${(st.amps / (st.fed || 1)).toFixed(0)} A on average; ${r.stats.stopUnjams || 0} backed off as a shot stopped`); }
     }
     // the flywheel: toward the speed the shot wants while there's one to make (it holds that
     // speed a moment after); coasting otherwise (their code)
