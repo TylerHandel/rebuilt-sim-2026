@@ -285,6 +285,21 @@ function qrot(q, v) {
   return add(add(v, mul(t, s)), cross(u, t));
 }
 
+// the frame fr ({ p, q, v, w, com }) tau s on, moving as it is: turned w tau about its center of
+// mass, which moves v tau
+function frameAt(fr, tau) {
+  const a = mul(fr.w, tau), ang = len(a), s = ang > 1e-12 ? Math.sin(ang / 2) / ang : 0.5;
+  const dq = { x: a[0] * s, y: a[1] * s, z: a[2] * s, w: Math.cos(ang / 2) }, q0 = fr.q;
+  const q = {
+    x: dq.w * q0.x + dq.x * q0.w + dq.y * q0.z - dq.z * q0.y,
+    y: dq.w * q0.y - dq.x * q0.z + dq.y * q0.w + dq.z * q0.x,
+    z: dq.w * q0.z + dq.x * q0.y - dq.y * q0.x + dq.z * q0.w,
+    w: dq.w * q0.w - dq.x * q0.x - dq.y * q0.y - dq.z * q0.z,
+  };
+  const com = add(fr.com, mul(fr.v, tau));
+  return { p: add(com, qrot(dq, sub(fr.p, fr.com))), q, v: fr.v, w: fr.w, com };
+}
+
 // a fixed surface's stand-in for a shaft: it doesn't turn and takes any impulse
 const FIXED = { omega: 0, J: Infinity, impulse() {} };
 // what a FUEL touching another FUEL touches
@@ -518,14 +533,16 @@ export class Mechanism {
     if (this.tally) this.tally.step = new Map();
     for (const s of this.shafts) s.integrate(dt, this.V);
     for (const t of new Set(this.shafts.map((s) => s.train).filter(Boolean))) t.integrate(dt, this.V);
-    const fr = this._frame();
+    const fr0 = this._frame();
+    let fr = fr0;
     const frameVel = (x) => add(fr.v, cross(fr.w, sub(x, fr.com)));
     // wheels in the world (and the pivot's axis, for one on an arm)
-    const W = this.wheels.map((wh) => {
+    const place = () => this.wheels.map((wh) => {
       const w = { wh, c: add(fr.p, qrot(fr.q, wh.center)), a: qrot(fr.q, wh.axis) };
       if (wh.pivotShaft) { w.p = add(fr.p, qrot(fr.q, wh.pivot)); w.pa = qrot(fr.q, wh.pivotAxis); }
       return w;
     });
+    let W = place();
     const g = this.gravity, n = this.sub, h = dt / n;
     // ball states we work on. In one step (n = 1) a FUEL touching a wheel gets its new velocity
     // and the world moves it. Sub-stepped (n > 1, for contacts too quick for one step: a shooter's
@@ -557,6 +574,10 @@ export class Mechanism {
     // a FUEL is drawn flattened, js/mech/physical.js)
     this.dents = [];
     for (let k = 0; k < n; k++) {
+      // (sub-stepped, the FUEL move on through the step with the robot's motion in them: the frame
+      // moves on with them, as the body will over the world's step, or a FUEL riding in it creeps
+      // against wheels and plates left where the step began, k h behind)
+      if (n > 1 && k > 0 && (fr0.v.some((x) => x) || fr0.w.some((x) => x))) { fr = frameAt(fr0, k * h); W = place(); }
       if (n > 1) for (const st of S.values()) st.v = add(st.v, mul(g, h));
       const C = this._contacts(W, fr, n > 1 ? [...S.values()].map((st) => [st.b, st.c]) : balls.map((b) => { const t = b.translation(); return [b, [t.x, t.y, t.z]]; }), state);
       this._solve(C, h, frameVel, reaction);
