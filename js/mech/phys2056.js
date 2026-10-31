@@ -155,8 +155,9 @@ export class Physical2056 extends PhysicalRobot {
     super(robot, {
       path: new Mechanism({ body: robot.body, substeps: 6, shafts: [...new Set(pathWheels.map((x) => x.shaft)), ...t.belts, t.slide, t.kickArm], wheels: pathWheels, surfaces: [s.body, s.bore, s.bottom, s.top, s.carriage, s.kickTube, s.bumper, s.net] }),
       // (the turret's side plates with the wheel and the backspin kicker: a FUEL leaves at up to ~15
-      // m/s, too far in a step to follow without sub-steps)
-      shooter: new Mechanism({ body: robot.body, substeps: 6, sub: 8, shafts: [t.wheel, t.kicker], wheels: [sw.wheel, sw.kicker], surfaces: [s.turret, s.hood] }),
+      // m/s, too far in a step to follow without sub-steps; carried through them with the robot's
+      // motion, or a FUEL in it creeps against them driving: 4% faster at 1.5 m/s along the shot)
+      shooter: new Mechanism({ body: robot.body, substeps: 6, sub: 8, carried: true, shafts: [t.wheel, t.kicker], wheels: [sw.wheel, sw.kicker], surfaces: [s.turret, s.hood] }),
       preload: PRELOAD,
     });
     Object.assign(this, { t, w, s, sw });
