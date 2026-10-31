@@ -55,6 +55,8 @@ for (const key of arg('--robots', ROBOT_ORDER.join(',')).split(',')) {
     // (--contacts: loose FUEL against the robot's own simplified colliders, tools/fuel-contacts.mjs)
     const clog = CONTACTS ? contactLog(r, fuel, physics) : null;
     let leg = 'down';
+    // (MOUTHLOG=s1,s2: at those times the loose FUEL near the front, robot frame, and what of the robot's mechanisms presses them)
+    const mlog = process.env.MOUTHLOG?.split(',').map(Number) ?? [];
     for (let i = 0; i < T / PHYSICS_DT; i++) {
       // (--return: at the end of the line it turns round and comes back up the other half's)
       let cmd = { vx: along ? 0 : speed, vz: along ? -speed : 0, omega: 0 };
@@ -71,6 +73,11 @@ for (const key of arg('--robots', ROBOT_ORDER.join(',')).split(',')) {
       t += PHYSICS_DT;
       fuel.postStep(PHYSICS_DT, t);
       r.postStep(PHYSICS_DT, t);
+      if (mlog.length && ph && mlog.some((m) => Math.abs(t - t0 - m) < PHYSICS_DT / 2)) {
+        const near = fuel.balls.filter((b) => b.state === 'field').map((b) => [b, ph._local(b.pos)]).filter(([, p]) => p[0] > 0.2 && p[0] < 0.75 && Math.abs(p[2]) < 0.45 && p[1] < 0.5).sort((a, b) => b[1][0] - a[1][0]);
+        console.log(`  t ${(t - t0).toFixed(2)} s: ${near.length} near the front; in it ${r.stored.length}; robot ${Math.hypot(r.vel.x, r.vel.z).toFixed(2)} m/s; arm ${ph.armDeg?.toFixed?.(1)} deg`);
+        for (const [b, p] of near) { const cs = ph.path.contacts.filter((c) => c.ball === b.body && c.force > 2).map((c) => c.wheel.name.replace(/ \(.*\)/, '') + ' ' + c.force.toFixed(0)); console.log(`    ${p.map((v) => v.toFixed(2)).join(',')} ${b.owned ?? ''}: ${cs.join('; ')}`); }
+      }
       if (i % 2) fuel.update(2 * PHYSICS_DT, t);
       iw?.check(PHYSICS_DT, ph.near.map((b) => b.body));
       clog?.step(t);

@@ -43,7 +43,7 @@ export const INTAKE = {
   // FUEL, they pile up against the bar faster than it lifts them (tools/intake-test.mjs at 3 m/s:
   // 21-38 of the 52 in its path; 35-42 with this, and 45-52 of 52 at 1.5 m/s against 36-45).
   // Thicker still and the gap to the kicker bar closes up (2.78in: 22-37 at 1.5 m/s).
-  main: { at: [0.143, 0.368], d: 0.0643, mu: 1.3, tread: 10000 },
+  main: { at: [0.143, 0.368], d: Number(globalThis.process?.env?.IN_D ?? 0.0643), mu: Number(globalThis.process?.env?.IN_MU ?? 1.3), tread: Number(globalThis.process?.env?.IN_TREAD ?? 10000) },
   // the 1.25in kicker bar at the front of the bumper when it's down: locked in place, not free to
   // turn (the team); the roller rolls FUEL up over it
   kicker: { at: [0.312, 0.322], d: 0.0326 },
@@ -58,7 +58,7 @@ export const INTAKE = {
   // down: their 0 (the CAD's pose turned 132 deg). A FUEL on the carpet against the kicker bar is
   // then squeezed by the roller, which rolls it up over the bar (with the arm 2 deg higher, FUEL
   // sat on the bar out of the roller's reach)
-  down: 0,
+  down: Number(globalThis.process?.env?.IN_DOWN ?? 0),
   // its arm (plates, roller, two X60s, crash bar): their sim's 0.222 kg m^2 about the pivot
   mass: 4.2, com: 0.22, comDeg: -1, J: 0.222,
 };
@@ -206,7 +206,7 @@ export function wheels1678(t) {
   ];
   const intake = [
     new Wheel({ name: 'intake 2in roller (silicone)', shaft: t.main, center: [...INTAKE.main.at, 0], axis: Z, radius: INTAKE.main.d / 2, width: 0.618, mu: INTAKE.main.mu, tread: INTAKE.main.tread }),
-    new Wheel({ name: 'intake kicker bar (locked)', shaft: t.kicker, center: [...INTAKE.kicker.at, 0], axis: Z, radius: INTAKE.kicker.d / 2, width: 0.66, mu: MU.polycarb }),
+    new Wheel({ name: 'intake kicker bar (locked)', shaft: t.kicker, center: [...INTAKE.kicker.at, 0], axis: Z, radius: INTAKE.kicker.d / 2, width: 0.66, mu: Number(globalThis.process?.env?.KICK_MU ?? MU.polycarb) }),
     ...INTAKE.idlers.map((w, i) => new Wheel({ name: t.idlers[i].name, shaft: t.idlers[i], center: [...w.at, 0], axis: Z, radius: w.d / 2, width: 0.66, mu: MU.polycarb })),
   ];
   intake.forEach((w) => { w.home = w.center.slice(); });

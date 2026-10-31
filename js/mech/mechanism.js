@@ -40,7 +40,7 @@ const ZETA = 0.25;                    // foam damping ratio (a free FUEL bounces
 const MU_FREE = 0.04;                 // an omni/mecanum wheel's rollers across their free direction
 // FUEL on FUEL: foam gripping foam (an estimate), so FUEL pressed together roll and spin each
 // other along rather than slide
-export const MU_FUEL = 0.6;
+export const MU_FUEL = Number(globalThis.process?.env?.MU_FUEL ?? 0.6);
 const MU_SIDE = 0.3;                  // FUEL on a wheel's side (its plates, hub)
 
 // ------------------------------------------------------------------ foam

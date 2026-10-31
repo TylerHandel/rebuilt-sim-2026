@@ -86,6 +86,8 @@ export function turnArm(T, deg, dt) {
 // once it's within 12 deg (their setpointCommandWithWait)
 export const CONTRACT = [80, 25, 80, 'wait', 50, null];
 
+const FLOOR_INTAKE = Number(globalThis.process?.env?.FLOORIN ?? 0);
+
 export class Physical1678 extends PhysicalRobot {
   constructor(robot) {
     const t = build1678(), w = wheels1678(t), s = pathSurfaces1678(PATH, t);
@@ -292,6 +294,8 @@ export class Physical1678 extends PhysicalRobot {
         S.intake = intaking && q.kind === 'contract' ? 1 : null;
       } else if (done) q.t = 0;
     }
+    // (FLOOR_INTAKE: the floor run while it intakes and isn't firing, to carry what comes in back off the intake)
+    if (FLOOR_INTAKE && on && intaking && !(shooting && this.firing) && this.prefill !== 'running' && !this.seq) S.floor = FLOOR_INTAKE;
     if (on && outtake) { S.intake = -1; S.floor = -1; S.feeder = -1; }
 
     // ---- the motors
