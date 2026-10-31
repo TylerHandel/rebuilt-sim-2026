@@ -1,7 +1,7 @@
 // 7769's CHUNK in play, built of its physical mechanisms (js/mech/r7769.js; the shared part:
 // js/mech/physical.js). Their code isn't public, so its controls are what the team said on Chief
 // Delphi (t/521008) and estimates where they said nothing (each marked so):
-//   intake: the slide out on its position loop (an estimate: 40 V per m of error, at most 12 V) at
+//   intake: the slide out on its position loop (an estimate: 12 V at 2.5 cm of error and more) at
 //     the team's 45 A deploy limit, down to 5 A once it's out ("to make the intake more collapsible on
 //     hits"), its roller at 12 V while intaking. It stays out once it's out (an estimate: nothing in
 //     the frame perimeter's way; the hopper's front rides on it), until it's told to stow.
@@ -13,9 +13,9 @@
 //     70% of the shot for where it is (an estimate), otherwise at 1500 RPM. Under a TRENCH the hood
 //     is down.
 //   the "Truffle Shuffle" (the team: "jostling the intake in and out would help keep fuel from
-//     becoming jammed in the hopper"): while it shoots and isn't intaking, the slide runs in and
-//     out between all the way out and SHUFFLE.depth in, every SHUFFLE.period (estimates), the
-//     hopper's front pushing the load back toward the floor as it comes in.
+//     becoming jammed in the hopper"): while it shoots (intaking or not) the slide runs in and out
+//     between all the way out and SHUFFLE.depth in, every SHUFFLE.period, its roller running
+//     (estimates), the hopper's front pushing the load back onto the belts as it comes in.
 //   eject: the roller, floor and feeder reversed.
 import { Mechanism } from './mechanism.js';
 import { PhysicalRobot } from './physical.js';
@@ -51,7 +51,7 @@ const interp = (t, x, j) => {
 };
 export const shotFor = (kind, d) => { const t = kind === 'pass' ? PASSES : SHOTS; return { rpm: interp(t, d, 1), hood: interp(t, d, 2) }; };
 // the slide's position loop (an estimate): volts toward goal (m out) from ext
-export const slideVolts = (goal, ext) => clamp(40 * 12 * (goal - ext) / 1.0, -12, 12);
+export const slideVolts = (goal, ext) => clamp((12 * (goal - ext)) / 0.025, -12, 12);
 // the Truffle Shuffle (estimates): in to depth and back out, every period, from when it starts
 export const SHUFFLE = { depth: Number(globalThis.process?.env?.SHUF_D ?? 0.25), period: Number(globalThis.process?.env?.SHUF_P ?? 1.0), delay: 0.4 };
 export const shuffleGoal = (t) => (t < SHUFFLE.delay ? SLIDE.out : ((t - SHUFFLE.delay) % SHUFFLE.period) < SHUFFLE.period / 2 ? SLIDE.out - SHUFFLE.depth : SLIDE.out);
@@ -80,7 +80,8 @@ export class Physical7769 extends PhysicalRobot {
     // its starting configuration: the intake in, the hood down
     this.ext = 0; this.slideGoal = null;
     this.hoodDeg = 0; this.hoodGoal = 0;
-    this.feed = false; this.feedT = 0; this.want = null;
+    this.feed = false; this.shootT = 0; this.want = null;
+    this.fireT = 0; this.lastShotT = 0; this.shots = 0; this.parked = new Set();
     for (const tr of [this.t.intake, this.t.floor, this.t.feedT, this.t.shooter]) { tr.omega = 0; tr.cmd = null; tr.vel = null; }
     this.t.slide._omega = 0; this.t.slide.cmd = null;
   }
@@ -163,15 +164,30 @@ export class Physical7769 extends PhysicalRobot {
     const hoodOk = Math.abs(this.hoodDeg - this.hoodGoal) <= HOOD.tol;
     const ready = !!want && spun && hoodOk && (pass ? aim <= TOL.passAim : aim <= TOL.aim && speed <= TOL.speed);
     this.feed = on && feeding && ready && r.passClear !== false;
-    this.feedT = this.feed ? this.feedT + dt : 0;
+    // (the trigger held at a shot: the shuffle runs from then, whether or not the gates hold)
+    const shooting = on && feeding && !!want;
+    this.shootT = shooting ? this.shootT + dt : 0;
     // the floor and feeder: 12 V while it shoots
     let floor = this.feed ? 1 : 0, feed = this.feed ? 1 : 0, roller = 0;
-    // the intake: out and running while intaking; shuffling while it shoots (not intaking); out
-    // stays out; stowed when told to
-    if (intaking) { this.slideGoal = SLIDE.out; roller = 12; }
-    else if (this.feed) this.slideGoal = this.ext > 0.05 ? shuffleGoal(this.feedT) : this.slideGoal;
+    // the intake: out and running while intaking; shuffling while it shoots (intaking or not: the
+    // roller runs through it, carrying what's in its mouth in); out stays out; stowed when told to
+    // (not deployed from in under a TRENCH, or about to go in, while the robot's turned across it:
+    // 1 m long with it out, it wedges between the TRENCH and the wall turning there; an estimate of
+    // what its driver does)
+    const skewed = underTrench(r.pos.x, r.pos.z, 0.9) && Math.abs(Math.sin(r.yaw)) > 0.25 && this.ext < 0.05;
+    if (shooting && this.ext > 0.05 && this.shootT > SHUFFLE.delay) { this.slideGoal = shuffleGoal(this.shootT); roller = 12; }
+    else if (intaking) { if (!skewed) this.slideGoal = SLIDE.out; roller = this.ext > 0.2 ? 12 : 0; }
     else if (r.cmd.stow) this.slideGoal = 0;
     else if (this.slideGoal !== null && this.slideGoal < SLIDE.out && this.slideGoal > 0) this.slideGoal = SLIDE.out;
+    // (what its driver does: firing, with nothing shot for a second, they see the last few won't come
+    // (left in the corners by the belts' back ends, out of the vectored wheels' reach) and go on:
+    // those aren't counted as the load until it next intakes, so the AI doesn't wait on them; as
+    // 1114's)
+    if (r.stats.shots !== this.shots) { this.shots = r.stats.shots; this.lastShotT = t; }
+    this.fireT = this.feed ? this.fireT + dt : shooting ? this.fireT : 0;
+    if (this.feed && this.fireT > 1.5 && t - this.lastShotT > 1.0) for (const b of this.held) this.parked.add(b);
+    if (intaking && !shooting) this.parked.clear();
+    if (this.parked.size) r.stored = r.stored.filter((b) => !this.parked.has(b));
     if (on && outtake) { roller = -12; floor = -0.5; feed = -0.5; }
     if (!on) { roller = 0; floor = 0; feed = 0; }
     T.intake.cmd = roller ? roller / 12 : null;

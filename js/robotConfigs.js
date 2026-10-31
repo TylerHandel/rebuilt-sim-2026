@@ -1267,7 +1267,11 @@ ROBOTS['7769'] = {
   physical: '7769',
   // their CAD's frame perimeter ("Limits": 25.5 x 29.5in)
   frame: { length: 25.5 * IN, width: 29.5 * IN },
-  height: 21.9 * IN, // the hood and the stationary hopper sides (their CAD: 0.555 m, under the TRENCH)
+  // the hood and the stationary hopper sides are 0.555 m up in their CAD, 1 cm under the TRENCH's
+  // 22.25in; the frame's collider is a prism to this height, which meets a TRENCH arm's edge in
+  // Rapier's contact margin within ~1 cm of it (it wedged there going out in AUTO): 21.5in, as 2056's
+  // and 1690's
+  height: 21.5 * IN,
   mass: 66, // robot + bumpers + battery: an estimate (not published)
   // SDS MK5n with Kraken X60s (their CAD: the wheels 0.2508 m forward and back, 0.3016 m to each
   // side); the gearing isn't in it: R1 (7.03:1), an estimate
