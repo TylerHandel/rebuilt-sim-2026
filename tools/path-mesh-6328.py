@@ -96,11 +96,13 @@ def gather(f, top=None):
     return out
 body = [T for n, T in gather('model.glb') if 'Intake <1>' not in n or re.search(r'Hard ?[Ss]top|Pivot Gearbox|Pivot MAXSpline|Hardstop', n)]
 body = np.vstack(body)
-intake = np.vstack([T for n, T in gather('model_1.glb')])
+# (the intake's ramp plate, its mounting blocks, cross tubes and bash bar are the export's older
+# revision's; js/mech/r6328.js INTAKE draws the final one's from the Onshape document's views)
+intake = np.vstack([T for n, T in gather('model_1.glb') if not re.search(r'Ramp Plate|Ramp Mounting Block|Cross Steel Tube|Bash Bar', n)])
 slide = np.vstack([T for n, T in gather('model_2.glb')])
 hood = np.vstack([T for n, T in gather('model_0.glb')])
 
-# (js/mech/r6328.js has the same layout)
+# (js/mech/r6328.js has the same layout; ROLLER is the export's, cut out with its roller)
 PIVOT = (0.317, 0.1855)               # the intake's pivot (their robotToPivotX 12.48in, 0.186 up)
 DRUM = (-0.2639, 0.4861)              # the drum's axle, which the hood turns about
 FLOOR = [(-0.1587, 0.1905), (-0.1114, 0.1779), (-0.0620, 0.1780), (-0.0140, 0.1840), (0.0350, 0.1900), (0.0835, 0.1960), (0.1320, 0.2020), (0.1810, 0.2080), (0.2290, 0.2130)]

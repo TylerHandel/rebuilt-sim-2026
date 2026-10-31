@@ -52,7 +52,7 @@ const R = FUEL.radius, TAU = 2 * Math.PI, DEG = Math.PI / 180;
 // silicone and rubber, bare polycarbonate least). The intake and floor rollers are under WCP silicone
 // tubing (the binder); the kickers, drum and hood roller are polycarbonate and aluminum in the BOM
 // with no sleeve named: shooters' rollers are wrapped, so silicone there too (an estimate)
-export const MU = { silicone: 1.0, polycarb: 0.5, cf: 0.3, net: 0.25 };
+export const MU = { silicone: 1.0, polycarb: 0.5, steel: 0.45, cf: 0.3, net: 0.25 };
 const SIL_TREAD = 20000; // silicone sleeve over a tube (N/m; 1678's)
 
 // ------------------------------------------------------------------ the layout (robot frame)
@@ -65,7 +65,17 @@ export const INTAKE = {
   // as exported: folded up, its slot pin 147.5 deg round from forward about the pivot (their angles
   // are that pin's: DarwinMechanism3d, "determined from CAD defined as angle to washer")
   cad: 147.5, down: 17.4, up: 145.8, // Slam.slamMinAngle, slamMaxAngle
-  roller: { at: [0.1652, 0.4308], r: 0.0264, width: 0.547 }, // 2in tube under silicone (0.0527 m over it)
+  // The final revision's parts in the arm's frame as exported (their places with the arm down measured
+  // off the Onshape document's front, bottom and front-low views: the roller's axle 0.6055 m forward
+  // and 0.1675 up, the bash bar's 0.635 and 0.2145, the ramp's toe 0.48 and 0.048, its top edge an
+  // estimate where the export's ramp plate ended, 0.40 and 0.215; turned back 130.1 deg about the
+  // pivot): the powered 2in roller (polycarbonate under silicone, 0.055 m over it), the bash bar
+  // (1.25in 4130 tube) in front over it, and behind it the ramp plate up to the bumper's top with
+  // the binder's "static bottom roller" along its toe (a 1/2in tube, an estimate; fixed)
+  roller: { at: [0.1449, 0.4178], r: 0.0275, width: 0.547 },
+  bash: { at: [0.0900, 0.4101], r: 0.0159, width: 0.629 },
+  toe: { at: [0.3172, 0.3987], r: 0.00635, width: 0.632 },
+  rampTop: [0.2410, 0.2300], rampHw: 0.316,
   // the arm (side plates, roller, its two X60s, bash bar, spring steel, ramp: ~3.2 kg, its center
   // 0.22 m out 20 deg behind the pin's line; 0.18 kg m^2 about the pivot): estimates from the BOM's
   // masses and the CAD's layout
@@ -152,6 +162,8 @@ export function build6328() {
   // the intake roller: positive turns it inward (its bottom runs rearward, its back up the ramp)
   const intake = new Train({ name: 'intake roller', motor: new Motor('krakenX60', { count: 2, statorLimit: Infinity, supplyLimit: 70 }) });
   const roller = intake.add(new Shaft({ name: 'intake 2in roller', inertia: 1.8e-4 }), -12 / 24);
+  // (the bash bar and the static bottom roller: fixed to the arm, they don't turn)
+  const locked = new Shaft({ name: 'intake fixed tubes', inertia: Infinity });
   // the floor: positive carries FUEL back along it (the rollers' tops run rearward)
   const floor = new Train({ name: 'Superdexer floor', motor: new Motor('krakenX60', { count: 2, statorLimit: Infinity, supplyLimit: 40 }) });
   const rollers = FLOOR.map((_, i) => floor.add(new Shaft({ name: `floor roller ${i + 1}`, inertia: 3e-5 }), 12 / 24));
@@ -169,7 +181,7 @@ export function build6328() {
   const hood = flywheel.add(new Shaft({ name: 'hood 2in roller', inertia: S.hoodJ }), -1);
   // the slam (the arm's pivot): positive turns the arm up, toward stowed
   const pivot = new Shaft({ name: 'slam pivot', motor: new Motor('krakenX60', { ratio: 52.5, statorLimit: 70, supplyLimit: 50 }), inertia: INTAKE.J, drag: 0.5 });
-  return { intake, roller, floor, rollers, backT, back, frontT, kick, flywheel, drum, hood, pivot };
+  return { intake, roller, locked, floor, rollers, backT, back, frontT, kick, flywheel, drum, hood, pivot };
 }
 
 // the wheels (robot frame; the intake's and the hood's posed with placeIntake / placeHood)
@@ -181,7 +193,11 @@ export function wheels6328(t) {
     new Wheel({ name: t.kick.name, shaft: t.kick, center: [...KICK.at, 0], axis: Z, radius: KICK.r, width: KICK.width, mu: MU.silicone, tread: SIL_TREAD }),
   ];
   const I = INTAKE.roller;
-  const intake = [new Wheel({ name: 'intake 2in roller (silicone)', shaft: t.roller, center: [...I.at, 0], axis: Z, radius: I.r, width: I.width, mu: MU.silicone, tread: SIL_TREAD })];
+  const intake = [
+    new Wheel({ name: 'intake 2in roller (silicone)', shaft: t.roller, center: [...I.at, 0], axis: Z, radius: I.r, width: I.width, mu: MU.silicone, tread: SIL_TREAD }),
+    new Wheel({ name: 'intake bash bar', shaft: t.locked, center: [...INTAKE.bash.at, 0], axis: Z, radius: INTAKE.bash.r, width: INTAKE.bash.width, mu: MU.steel }),
+    new Wheel({ name: 'intake static bottom roller', shaft: t.locked, center: [...INTAKE.toe.at, 0], axis: Z, radius: INTAKE.toe.r, width: INTAKE.toe.width, mu: MU.steel }),
+  ];
   intake.forEach((w) => { w.home = w.center.slice(); });
   const S = SHOOTER;
   const drum = new Wheel({ name: 'drum', shaft: t.drum, center: [...DRUM, 0], axis: Z, radius: S.drum.r, width: S.drum.width, mu: MU.silicone, tread: SIL_TREAD });
@@ -260,9 +276,13 @@ export function pathSurfaces6328(mesh, t, { mu = 0.35 } = {}) {
   const intake = s('intake', [PIVOT[0], PIVOT[1], 0]).onShaft(t.pivot, [PIVOT[0], PIVOT[1], 0]);
   const slide = s('slide', [0, 0, 0]).onSlide(t.pivot, [1, 0, 0]);
   const hood = s('hood', [DRUM[0], DRUM[1], 0]);
+  // the final intake's ramp plate, from the static roller at its toe up to its top edge, across
+  // between the side plates (on the arm, about the pivot, as the CAD's intake)
+  const [tx, ty] = INTAKE.toe.at, [ux, uy] = INTAKE.rampTop, hw = INTAKE.rampHw, P0 = PIVOT;
+  const ramp = new Surface({ name: 'intake ramp plate', vertices: [tx - P0[0], ty - P0[1], -hw, tx - P0[0], ty - P0[1], hw, ux - P0[0], uy - P0[1], hw, ux - P0[0], uy - P0[1], -hw], indices: [0, 1, 2, 0, 2, 3], mu: 0.35, pos: [P0[0], P0[1], 0] }).onShaft(t.pivot, [P0[0], P0[1], 0]);
   const W = WALLS, V = [];
   for (const z of [-W.hw, W.hw]) V.push(W.x0, W.y0, z, W.x1, W.y0, z, W.x1, W.y1, z, W.x0, W.y1, z);
   const walls = new Surface({ name: 'static walls (polycarbonate)', vertices: V, indices: [0, 1, 2, 0, 2, 3, 4, 5, 6, 4, 6, 7], mu: MU.polycarb });
-  return { body, intake, slide, hood, walls, net: new Net6328(), bumper: bumperSurface() };
+  return { body, intake, ramp, slide, hood, walls, net: new Net6328(), bumper: bumperSurface() };
 }
 export function placeNet(net, ext) { net.place(ext); }

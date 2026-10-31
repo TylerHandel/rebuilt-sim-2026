@@ -167,6 +167,7 @@ export class Physical6328 extends PhysicalRobot {
     this.s.slide.slideK = k;
     T.pivot.inertia = INTAKE.J + SLIDE_MASS * k * k;
     this.s.intake.setPose([PIVOT[0], PIVOT[1], 0], 0, intakeRot(this.armDeg));
+    this.s.ramp.setPose([PIVOT[0], PIVOT[1], 0], 0, intakeRot(this.armDeg));
     placeIntake(this.w.intake, this.armDeg);
     this.s.slide.setPose([ext, 0, 0]);
     placeNet(this.s.net, ext);
