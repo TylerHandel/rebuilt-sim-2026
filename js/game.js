@@ -91,6 +91,7 @@ export function createGame(world, settings, { onEvent = () => {}, prev = null } 
     return { robot, auto, ai: null, entry: e, human: e.driver === 'human', external: e.driver === 'external' };
   });
   const robots = units.map((u) => u.robot);
+  for (const u of units) u.auto.foes = robots.filter((r) => r.alliance !== u.robot.alliance);
   for (const u of units) {
     if (u.human || u.external) continue;
     const a = u.robot.alliance;
