@@ -133,9 +133,15 @@ export const SHOOTER = {
 // on its arms (pivot on the carriage, retracted; the 0.75in tube; its arms' fall from folded, deg)
 export const INTAKE = {
   slide: [0.33 * Math.cos(11.5 * DEG), -0.33 * Math.sin(11.5 * DEG)], width: 23.5 * IN,
-  rollers: [[0.2537, 0.2361, (2.125 / 2) * IN], [0.2057, 0.3350, (2.125 / 2) * IN]], ratio: 30 / 12,
+  // (the rollers where 1690's are against the bumper with the intake out, 6 mm higher for their larger
+  // radius: est.)
+  rollers: [[0.5657 - 0.33 * Math.cos(11.5 * DEG), 0.167 + 0.33 * Math.sin(11.5 * DEG), (2.125 / 2) * IN], [0.5177 - 0.33 * Math.cos(11.5 * DEG), 0.2659 + 0.33 * Math.sin(11.5 * DEG), (2.125 / 2) * IN]], ratio: 30 / 12,
   frame: { front: 0.635, sides: 0.352, top: 0.482 },
-  kick: { pivot: [0.0686, 0.2998], len: 0.186, a0: 25, fall: -99.4, r: 0.375 * IN, width: 27.81 * IN, mass: 0.25, J: 0.008, tubing: { preload: 1.0, rate: 1.0 } },
+  // (the bar's arms run forward and down from their pin on the intake's side plates, just behind the
+  // bumper's top when it's out, to the tube just in front of the bumper's face, as 1690's (est.: the
+  // drawings don't dimension it); FUEL pushing up under the tube swing it up and back over the bumper,
+  // lifting them; coming in, the bumper folds it up and back: a0 55 deg folded, -35.2 out)
+  kick: { pivot: [0.2787 - 0.33 * Math.cos(11.5 * DEG), 0.1703 + 0.33 * Math.sin(11.5 * DEG)], len: 0.186, a0: 55, fall: -90.2, r: 0.375 * IN, width: 27.81 * IN, mass: 0.25, J: 0.008, tubing: { preload: 1.0, rate: 1.0 } },
 };
 // the racks' drive: an X44 through 8:40 to the 12T 8 DP pinions (0.75in pitch radius); what slides
 // (the intake, its rollers and X60, the bash bar and hopper front: ~4.5 kg, est.)
@@ -330,12 +336,13 @@ export function pathSurfaces2056(t) {
 }
 // how far the kicker bar has fallen (deg) with the intake ext of the way out: it folds against the
 // bumper coming in and falls once the intake's clear of it (est.: past half its travel)
-export const kickAt = (ext) => INTAKE.kick.fall * Math.min(1, Math.max(0, (ext - 0.5) / 0.35));
-// the kicker bar's arms' load (N m about the pin, + lifting them back up) at deg (from folded): their
-// weight (0.25 kg at 0.12 m, est.), the tubing pulling them down toward their stop
+export const kickAt = (ext) => INTAKE.kick.fall * Math.min(1, Math.max(0, (ext - 0.3) / 0.35));
+// the kicker bar's arms' load (N m about the pin, + counterclockwise seen from the robot's left) at
+// deg (from folded): their weight (0.25 kg at 0.12 m, est.), the tubing pulling them toward their stop
+// (the way they fall: sign of fall)
 export function kickLoad(deg) {
-  const K = INTAKE.kick, a = (K.a0 + deg) * DEG;
-  return -K.mass * 9.81 * 0.12 * Math.cos(a) - (K.tubing.preload + K.tubing.rate * Math.max(0, (deg - K.fall) * DEG));
+  const K = INTAKE.kick, a = (K.a0 + deg) * DEG, s = Math.sign(K.fall);
+  return -K.mass * 9.81 * 0.12 * Math.cos(a) + s * (K.tubing.preload + K.tubing.rate * Math.max(0, (K.fall - deg) * s * DEG));
 }
 // the foam's rolling resistance on the floor's rollers (as 1690's floorRoll)
 export function floorRoll(contacts, dt) {

@@ -119,22 +119,27 @@ export function moveRacks(st, slide, dt) {
   if (st.pos < 0) { st.pos = 0; if (slide._omega < 0) slide._omega = 0; }
   if (st.pos > SLIDE.travel) { st.pos = SLIDE.travel; if (slide._omega > 0) slide._omega = 0; }
 }
-// ---- the kicker bar's arms on their pin (st.kick: deg from folded, down negative): as far down as
-// the intake lets them (kickAt: it folds them against the bumper coming in) and no further than their
-// stop; their weight and the tubing pull them down, what FUEL push on the bar lifts them
+// ---- the kicker bar's arms on their pin (st.kick: deg from folded, toward fallen the sign of
+// INTAKE.kick.fall): no further out than the intake lets them (kickAt: it folds them against the bumper
+// coming in) and their stop; their weight and the tubing pull them down, what FUEL push on the bar
+// lifts them
+const kickRange = (lim) => [Math.min(0, lim), Math.max(0, lim)];
 export function driveKick(st, arm, ext) {
-  const lim = kickAt(ext);
-  if (st.kick < lim) st.kick = lim;
-  if (st.kick <= lim + 1e-6) arm.stop(0, Infinity); else if (st.kick >= 0) arm.stop(-Infinity, 0); else arm.stop();
+  const lim = kickAt(ext), [lo, hi] = kickRange(lim), s = Math.sign(INTAKE.kick.fall);
+  st.kick = clamp(st.kick, lo, hi);
+  const atFall = Math.abs(st.kick - lim) < 1e-6, atFold = Math.abs(st.kick) < 1e-6;
+  // (at a limit it can only move back inside the range)
+  const towardFold = s > 0 ? [-Infinity, 0] : [0, Infinity], towardFall = s > 0 ? [0, Infinity] : [-Infinity, 0];
+  if (atFall && atFold) arm.stop(0, 0); else if (atFall) arm.stop(...towardFold); else if (atFold) arm.stop(...towardFall); else arm.stop();
   arm.load = kickLoad(st.kick);
   arm.cmd = null;
 }
 export function moveKick(st, arm, dt, ext) {
   st.kick += (arm.omega * dt) / DEG;
-  const lim = kickAt(ext);
-  if (st.kick < lim) { st.kick = lim; if (arm._omega < 0) arm._omega = 0; }
-  if (st.kick > 0) { st.kick = 0; if (arm._omega > 0) arm._omega = 0; }
-  st.kickMax = Math.max(st.kickMax ?? -Infinity, st.kick - INTAKE.kick.fall);
+  const [lo, hi] = kickRange(kickAt(ext));
+  if (st.kick < lo) { st.kick = lo; if (arm._omega < 0) arm._omega = 0; }
+  if (st.kick > hi) { st.kick = hi; if (arm._omega > 0) arm._omega = 0; }
+  st.kickMax = Math.max(st.kickMax ?? -Infinity, (INTAKE.kick.fall - st.kick) * Math.sign(INTAKE.kick.fall));
 }
 
 export class Physical2056 extends PhysicalRobot {

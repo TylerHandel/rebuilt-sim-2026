@@ -362,6 +362,7 @@ function pathRun(seed, { n = 20, sec = 7, speed = SPEED } = {}) {
   }
   const inside = balls.filter((b) => { const [x, y] = P(b); return y < 3 && x < HALF_L && y > 0.12; }).length;
   const left = balls.filter((b) => { const [x, y] = P(b); return y < 3 && x >= HALF_L && x < 1; });
+  if (process.env.STUCK) for (const b of [...left, ...balls.filter((q) => { const [x, y] = P(q); return y < 3 && x < HALF_L && x > 0.15; })]) { const [x, y, z] = P(b); console.log(`   at ${x.toFixed(3)},${y.toFixed(3)},${z.toFixed(3)}: ${r.path.contacts.filter((c) => c.ball === b).map((c) => c.wheel.name.replace(/ \(.*\)/, '') + ' ' + c.force.toFixed(0)).join(', ')}`); }
   w.free();
   return { inside, timeline, minIntake, left, kickMax: r.ks.kickMax ?? 0 };
 }

@@ -19,6 +19,7 @@ import * as R1690 from './mech/r1690.js';
 import { NET as NET_581 } from './mech/r581.js';
 import { INTAKE as INTAKE_6328, WALLS as WALLS_6328, NET as NET_6328, KICK as KICK_6328, PIVOT as PIVOT_6328, DRUM as DRUM_6328, SHOOTER as SHOOTER_6328 } from './mech/r6328.js';
 import { SHOOTER as S341, hoodRot as hoodRot341, hoodElevation as hoodElevation341 } from './mech/r341.js';
+import * as R2056 from './mech/r2056.js';
 import { fuelTexture, squashable } from './fuelSkin.js';
 import { ALUMINUM_COLORS } from './aluminumColors.js';
 import { chain8793, chain4414, chain1690 } from './echainModel.js';
@@ -3457,6 +3458,169 @@ function build6328(cfg, alliance) {
   return { root, anim, stored: [], modules, extLen };
 }
 
+// ============================================================ 2056 Desperate Measures
+// Drawn from their binder's renders and their drawing package (no 3D CAD was released), at the
+// mechanism's own dimensions (js/mech/r2056.js): raw aluminum frame and lattice side plates, clear
+// polycarbonate, black silicone rollers, the blue 4in urethane wheel and blue Stealth wheels, a white
+// sponsor panel on the intake's front, a black cord net over the hopper.
+function build2056(cfg, alliance) {
+  const root = new THREE.Group();
+  addBumpers(root, cfg, alliance);
+  const modules = addDrivebase(root, cfg);
+  const D = R2056, S = D.SHOOTER, K = S.kicker, I = D.INTAKE, [tx, tz] = D.TURRET.at;
+  const silicone = std(0x26282c, 0.75, 0.05), stripe = std(0x6a6f78, 0.6, 0.2), beltMat = std(0x111214, 0.85, 0.05);
+  const blue = std(0x2a6fd8, 0.6, 0.05), white = std(0xf2f2ef, 0.6, 0.0), lattice = M.alu, print = std(0x1b1c1f, 0.7, 0.1);
+  const rollerZ = (parent, x, y, z, r, len, mat) => {
+    const g = new THREE.Group(); g.position.set(x, y, z); parent.add(g);
+    cylZ(r, len, mat, g, 0, 0, 0, 16);
+    for (let k = 0; k < 3; k++) { const a = (k * 2 * Math.PI) / 3; bx(0.004, 0.004, len - 0.01, stripe, g, r * Math.cos(a), r * Math.sin(a), 0).rotation.z = a; }
+    return g;
+  };
+  const wheelX = (parent, x, y, z, r, w, mat) => {
+    const g = new THREE.Group(); g.position.set(x, y, z); parent.add(g);
+    cylX(r, w, mat, g, 0, 0, 0, 18);
+    cylX(0.006, w + 0.03, M.alu, g, 0, 0, 0, 6);
+    for (let k = 0; k < 3; k++) bx(w + 0.004, r * 1.5, 0.005, std(0x16305f, 0.8, 0.05), g, 0, 0, 0).rotation.x = (k * Math.PI) / 3;
+    return g;
+  };
+  addElectronics(root, 0.02, -0.18, Math.PI / 2);
+  // ---- the hopper: lattice side plates over clear panels, the back panel, the hopper guide
+  for (const z of [D.WALL.left, D.WALL.right]) {
+    const x0 = z > 0 ? D.GUIDE.to[0] : D.BACK.x, len = D.HALF_L - x0;
+    polyWall(root, len, D.WALL.top - 0.1, (x0 + D.HALF_L) / 2, 0.1 + (D.WALL.top - 0.1) / 2, z, 0, M.poly, lattice);
+    const p = pocketPlate(root, len, 0.14, 0.004, lattice, [[-len / 4, 0, 0.04], [len / 4, 0, 0.04]], (x0 + D.HALF_L) / 2, 0.19, z + Math.sign(z) * 0.008);
+    p.castShadow = false;
+  }
+  polyWall(root, 2 * D.WALL.right, D.WALL.top - 0.1, D.BACK.x, 0.1 + (D.WALL.top - 0.1) / 2, 0, Math.PI / 2, M.poly, lattice);
+  {
+    const [fx, fz] = D.GUIDE.from, [gx, gz] = D.GUIDE.to, len = Math.hypot(fx - gx, fz - gz);
+    polyWall(root, len, D.WALL.top - 0.12, (fx + gx) / 2, 0.12 + (D.WALL.top - 0.12) / 2, (fz + gz) / 2, -Math.atan2(fz - gz, fx - gx), M.poly, lattice);
+  }
+  // ---- the roller floor and the two rollers over its back
+  const floorRollers = D.FLOOR.at.map(([x, y], i) => rollerZ(root, x, y, (D.FLOOR.z0[i] + D.FLOOR.z1[i]) / 2, D.FLOOR.r, D.FLOOR.z1[i] - D.FLOOR.z0[i], silicone));
+  const topRollers = D.TOP.at.map(([x, y]) => rollerZ(root, x, y, (D.TOP.z[0] + D.TOP.z[1]) / 2, D.TOP.r, D.TOP.z[1] - D.TOP.z[0], silicone));
+  // ---- the singulator: the two belts on their beams, the side kicker, the quarter pipe, the Stealth
+  // wheels
+  const pulleys = [];
+  for (const run of [D.BELT.bottom, D.BELT.top]) {
+    const r = D.BELT.r, w = D.BELT.x[1] - D.BELT.x[0], cx = (D.BELT.x[0] + D.BELT.x[1]) / 2, up = run === D.BELT.bottom ? -1 : 1;
+    const yc = run.y + up * r, len = run.z[1] - run.z[0];
+    for (const dy of [-r + 0.002, r - 0.002]) bx(w, 0.004, len, beltMat, root, cx, yc + dy, (run.z[0] + run.z[1]) / 2);
+    bx(0.006, 2 * r + 0.03, len + 0.02, lattice, root, D.BELT.x[0] - 0.012, yc, (run.z[0] + run.z[1]) / 2);
+    kraken(root, cx - 0.03, yc + up * 0.05, run.z[0] + 0.06, true, 'x');
+    for (const z of run.z) {
+      const g = new THREE.Group(); g.position.set(cx, yc, z); root.add(g);
+      cylX(r, w, beltMat, g, 0, 0, 0, 18); cylX(r * 0.6, w + 0.006, M.alu, g, 0, 0, 0, 12);
+      for (let k = 0; k < 3; k++) bx(w + 0.008, 0.004, r * 1.1, stripe, g, 0, 0, 0).rotation.x = (k * Math.PI) / 3;
+      pulleys.push(g);
+    }
+  }
+  const vkick = new THREE.Group();
+  vkick.position.set(D.VKICK.at[0], (D.VKICK.y[0] + D.VKICK.y[1]) / 2, D.VKICK.at[1]); root.add(vkick);
+  cylY(D.VKICK.r, D.VKICK.y[1] - D.VKICK.y[0], print, vkick, 0, 0, 0, 14);
+  cylY(0.0064, 0.15, M.alu, vkick, 0, 0, 0, 8);
+  for (let k = 0; k < 3; k++) { const a = (k * 2 * Math.PI) / 3; bx(0.004, D.VKICK.y[1] - D.VKICK.y[0] - 0.006, 0.004, stripe, vkick, D.VKICK.r * Math.cos(a), 0, D.VKICK.r * Math.sin(a)); }
+  {
+    // (the quarter pipe: clear polycarbonate bent round its center, then straight up)
+    const [zc, yc] = D.PIPE.c, Rq = D.PIPE.R, w = D.PIPE.x[1] - D.PIPE.x[0];
+    const g = new THREE.CylinderGeometry(Rq, Rq, w, 24, 1, true, Math.PI, Math.PI / 2);
+    const pm = mesh(g, M.poly, root, (D.PIPE.x[0] + D.PIPE.x[1]) / 2, yc, zc);
+    pm.rotation.z = Math.PI / 2; pm.castShadow = false;
+    const up = mesh(new THREE.PlaneGeometry(w, D.PIPE.top + 0.02 - yc), M.poly, root, (D.PIPE.x[0] + D.PIPE.x[1]) / 2, (yc + D.PIPE.top + 0.02) / 2, zc + Rq);
+    up.rotation.y = Math.PI / 2; up.castShadow = false;
+    for (const x of D.PIPE.x) polyWall(root, Rq + 0.1, D.PIPE.top - 0.15, x, 0.15 + (D.PIPE.top - 0.15) / 2, zc + Rq / 2, Math.PI / 2, M.polyTint, lattice).scale.set(1, 1, 1);
+  }
+  const feedWheels = D.FEED.wheels.map(([z, y]) => wheelX(root, D.FEED.x, y, z, D.FEED.r, D.FEED.w, blue));
+  kraken(root, D.FEED.x - 0.06, D.FEED.wheels[0][1] + 0.02, D.FEED.wheels[0][0] - 0.05, false, 'x');
+  // ---- the turret: its gear, bearing and uprights' plate, the guard round it, its side plates, the
+  // 4in wheel and its two X60s, the hood's arm with the backspin kicker and its X44
+  const deck = D.TURRET.deck;
+  for (const s of [-1, 1]) for (const t of [-1, 1]) bx(0.025, deck - 0.08, 0.025, lattice, root, tx + s * 0.16, (deck - 0.08) / 2 + 0.08, tz + t * 0.12);
+  const plate = new THREE.Shape();
+  plate.absarc(0, 0, 0.17, 0, Math.PI * 2, false);
+  const hole = new THREE.Path(); hole.absarc(0, 0, 0.105, 0, Math.PI * 2, true); plate.holes.push(hole);
+  const pg = new THREE.ExtrudeGeometry(plate, { depth: 0.006, bevelEnabled: false, curveSegments: 32 }); pg.rotateX(-Math.PI / 2);
+  mesh(pg, lattice, root, tx, deck - 0.03, tz);
+  const guard = mesh(new THREE.CylinderGeometry(D.GUARD.r, D.GUARD.r, 0.05, 40, 1, true, -Math.PI / 2 - 0.6 + Math.PI / 2, Math.PI + 1.5), print, root, tx, D.WALL.top - 0.05, tz);
+  guard.material = std(0x1b1c1f, 0.7, 0.1);
+  guard.material.side = THREE.DoubleSide;
+  const turret = new THREE.Group();
+  turret.position.set(tx, 0, tz); root.add(turret);
+  const gear = spurGear(0.127, 100, 0.0064, lattice, turret, 0); gear.position.y = deck;
+  for (const s of [-1, 1]) {
+    const sp = pocketPlate(turret, 0.3, 0.2, 0.004, lattice, [[-0.07, 0.01, 0.035], [0.05, 0.03, 0.03]], -0.02, deck + 0.11, s * (FUEL.radius + 0.014));
+    sp.castShadow = true;
+  }
+  for (const s of [-1, 1]) kraken(turret, S.axle[0] + 0.02, S.axle[1] - 0.06, s * 0.13, false, 'z');
+  const wheel = new THREE.Group();
+  wheel.position.set(S.axle[0], S.axle[1], 0); turret.add(wheel);
+  cylZ(S.r, S.w, blue, wheel, 0, 0, 0, 28);
+  cylZ(0.016, 0.19, M.alu, wheel, 0, 0, 0, 12);
+  for (let k = 0; k < 3; k++) bx(0.005, S.r * 1.4, S.w + 0.004, std(0x16305f, 0.8, 0.05), wheel, 0, 0, 0).rotation.z = (k * Math.PI) / 3;
+  const hood = new THREE.Group();
+  hood.position.set(S.axle[0], S.axle[1], 0); turret.add(hood);
+  for (const s of [-1, 1]) {
+    const arm = pocketPlate(hood, K.R + 0.06, 0.07, 0.004, lattice, [[0.02, 0, 0.02], [0.09, 0, 0.02]], K.R / 2, 0, s * 0.075);
+    arm.castShadow = true;
+  }
+  const kicker = new THREE.Group();
+  kicker.position.set(K.R, 0, 0); hood.add(kicker);
+  for (const s of [-1, 1]) cylZ(K.r, 0.025, blue, kicker, 0, 0, s * 0.03, 16);
+  cylZ(0.006, 0.17, M.alu, kicker, 0, 0, 0, 6);
+  for (let k = 0; k < 3; k++) bx(0.004, K.r * 1.5, 0.08, std(0x16305f, 0.8, 0.05), kicker, 0, 0, 0).rotation.z = (k * Math.PI) / 3;
+  kraken(hood, K.R - 0.02, 0.03, 0.11, true, 'z');
+  {
+    // (the hood's guide round the wheel's back, on the arm)
+    const G = D.GUIDE_ARC, g = new THREE.CylinderGeometry(G.r + 0.004, G.r + 0.004, 2 * G.w, 20, 1, true, Math.PI / 2 - (G.arm[1] * Math.PI) / 180, ((G.arm[1] - G.arm[0]) * Math.PI) / 180);
+    const gm = mesh(g, print, hood, 0, 0, 0); gm.rotation.x = Math.PI / 2; gm.material = std(0x1b1c1f, 0.7, 0.1); gm.material.side = THREE.DoubleSide;
+  }
+  limelight(turret, -0.1, deck + 0.24, 0, Math.PI, { tilt: 0.25, ll4: true });
+  // ---- the intake: its frame (bash bar, white sponsor panel, clear sides), its rollers, the kicker
+  // bar on its arms; the rack arms (clear polycarbonate) and their X44
+  const carriage = new THREE.Group();
+  root.add(carriage);
+  const FR = I.frame, fx0 = FR.front - I.slide[0], top = FR.top - I.slide[1];
+  rbx(0.0254, 0.0508, 2 * FR.sides, 0.003, lattice, carriage, fx0 - 0.013, 0.24 - I.slide[1], 0);
+  const sign = bx(0.004, top - 0.27 + I.slide[1], 2 * FR.sides, white, carriage, fx0, (top + 0.27 - I.slide[1]) / 2, 0);
+  sign.castShadow = true;
+  for (const s of [-1, 1]) {
+    polyWall(carriage, 0.33, top - 0.2 + I.slide[1], fx0 - 0.165, (top + 0.2 - I.slide[1]) / 2, s * FR.sides, 0, M.poly, lattice);
+    const rack = bx(0.574, 0.06, 0.006, M.polyTint, carriage, fx0 - 0.3, 0.19, s * (FR.sides - 0.02));
+    rack.rotation.z = (11.5 * Math.PI) / 180;
+  }
+  const intakeRollers = I.rollers.map(([x, y, r]) => rollerZ(carriage, x, y, 0, r, I.width, silicone));
+  kraken(carriage, I.rollers[1][0] - 0.06, I.rollers[1][1] + 0.02, FR.sides - 0.06, false, 'z');
+  const kick = new THREE.Group();
+  kick.position.set(I.kick.pivot[0], I.kick.pivot[1], 0); carriage.add(kick);
+  for (const s of [-1, 1]) bx(I.kick.len, 0.02, 0.006, M.polyTint, kick, I.kick.len / 2, 0, s * (I.kick.width / 2 - 0.01));
+  rollerZ(kick, I.kick.len, 0, 0, I.kick.r, I.kick.width, M.poly);
+  // ---- the net over the hopper, round the turret's guard
+  const net = hopperNet(root, {
+    x0: D.BACK.x, x1: D.HALF_L, x1Out: FR.front, xFixed: D.HALF_L, hw: D.WALL.right, y: D.WALL.top + 0.004, yFront: FR.top + 0.004, NX: 22, NZ: 26,
+    inside: (x, z) => Math.hypot(x - tx, z - tz) > D.GUARD.r + 0.01, slack: { sag: 0.02, sagOut: 0.05 },
+  });
+
+  const anim = (st, dt) => {
+    const mp = st.mech;
+    const ext = mp ? mp.ext : st.intakeDeploy;
+    carriage.position.set(I.slide[0] * ext, I.slide[1] * ext, 0);
+    kick.rotation.z = ((I.kick.a0 * Math.PI) / 180) + (mp ? mp.kick : (R2056.kickAt(ext) * Math.PI) / 180);
+    for (const r of intakeRollers) r.rotation.z -= (mp ? mp.intakeRollers : st.intakeSpeed * 300) * dt;
+    for (const r of floorRollers) r.rotation.z += (mp ? mp.floor : st.feeding * 30) * dt;
+    for (const r of topRollers) r.rotation.z -= (mp ? mp.floor : st.feeding * 30) * dt;
+    pulleys.forEach((p, i) => { p.rotation.x -= (i < 2 ? -1 : 1) * (mp ? mp.belts[i >> 1] / D.BELT.pitch : st.feeding * 60) * dt; });
+    vkick.rotation.y += (mp ? mp.vkick : st.feeding * 60) * dt;
+    feedWheels.forEach((w, i) => { w.rotation.x += (i ? 1 : -1) * (mp ? mp.feed : st.feeding * 60) * dt; });
+    turret.rotation.y = st.turretYaw;
+    wheel.rotation.z -= (mp ? mp.wheel : st.flywheel * 9) * dt;
+    hood.rotation.z = mp ? mp.hood : ((st.hoodDeg + 90) * Math.PI) / 180;
+    kicker.rotation.z += (mp ? mp.kicker : st.flywheel * 12) * dt;
+    const bow = mp?.bow ?? 0;
+    net.drape(st.load, Math.max(0, ext * I.slide[0] - 0.01), { y: D.WALL.top + 0.004 + (2 / Math.PI) * bow });
+  };
+  return { root, anim, stored: [], modules, extLen: cfg.storage.extLen };
+}
+
 export function buildRobotModel(cfg, alliance) {
   let m;
   if (cfg.key === '2910') m = build2910(cfg, alliance);
@@ -3464,6 +3628,7 @@ export function buildRobotModel(cfg, alliance) {
   else if (cfg.key === '971') m = build971(cfg, alliance);
   else if (cfg.key === '1678') m = build1678(cfg, alliance);
   else if (cfg.key === '1690') m = build1690(cfg, alliance);
+  else if (cfg.key === '2056') m = build2056(cfg, alliance);
   else if (cfg.key === '4946') m = build4946(cfg, alliance);
   else if (cfg.key === '3928') m = build3928(cfg, alliance);
   else if (cfg.key === '341') m = build341(cfg, alliance);
