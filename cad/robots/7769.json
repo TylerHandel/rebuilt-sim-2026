@@ -1,0 +1,46 @@
+{
+  "source": "7769 The CREW, \"Full Robot\" / CHUNK (Onshape 692fc43a78732f76f6a7fc01, workspace 68c7f5631809df4361fcb808, assembly ae1887b4c2531db24673e5e9 \"Chunk\"), STEP through the translation API ({\"formatName\":\"STEP\",\"flattenAssemblies\":false}) and tools/step2glb.py (1.2 mm, 0.45 rad, hardware and chain skipped), parts matched by name and place against the assembly's glTF export (tools/onshape-export.sh) on 31 Oct 2026; exported with the intake slid all the way out and the hood down",
+  "front": "-y",
+  "parts": [
+    {
+      "out": "cad/robots/7769-body.glb",
+      "include": ["Chassis <1>", "Intake <1>", "Shooter+Injector <1>", "L1 Climb Arm <1>"],
+      "exclude": ["^Mk5n Assy", "^Bumpers", "^Moving", "^Kick Bar", "^Hood <1>", "^32t Aluminum Plate Sprocket", "Origin Cube", "bearing", "Back Cap", "Grommet"],
+      "like": { "glb": "r7769.glb", "node": "Chunk" },
+      "glass": ["Hopper Stationary Side", "Polycarbonate Shield", "Center Fin"],
+      "smooth": true,
+      "ratio": 0.05,
+      "error": 0.006
+    },
+    {
+      "out": "cad/robots/7769-slide.glb",
+      "include": ["Moving <1>"],
+      "exclude": ["bearing"],
+      "like": { "glb": "r7769.glb", "node": "Chunk" },
+      "glass": ["Hopper Front", "Hopper Moving Side"],
+      "smooth": true,
+      "ratio": 0.25,
+      "error": 0.0015
+    },
+    {
+      "out": "cad/robots/7769-kick.glb",
+      "include": ["Kick Bar <1>"],
+      "like": { "glb": "r7769.glb", "node": "Chunk" },
+      "origin": [0.4873, 0.1915, 0],
+      "smooth": true,
+      "ratio": 0.4,
+      "error": 0.0015
+    },
+    {
+      "out": "cad/robots/7769-hood.glb",
+      "include": ["Shooter <1>"],
+      "onlyName": ["^Hood <1>", "^32t Aluminum Plate Sprocket"],
+      "exclude": ["bearing"],
+      "like": { "glb": "r7769.glb", "node": "Chunk" },
+      "origin": [-0.2285, 0.495, 0],
+      "smooth": true,
+      "ratio": 0.3,
+      "error": 0.0015
+    }
+  ]
+}
