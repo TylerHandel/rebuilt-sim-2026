@@ -68,7 +68,7 @@ const LATENCY = 0.05; // s: their loop and the turret's lag (est.)
 // over the arm's HUB range (153-162 deg), PASS_MAP at the lowest release angle, where passes go
 // (ONE_K=1: their single coefficient).
 export const EXIT = { s: 0.048, y: 0.631 };
-export const EL_MAP = [[129.5, 35.5], [135, 41.1], [141, 45.6], [147, 50.5], [153, 57.2], [156, 61.4], [159, 65.3], [162, 69.6], [163.5, 72.7]];
+export const EL_MAP = [[129.5, 35.5], [135, 41.1], [141, 45.6], [147, 50.5], [153, 57.2], [156, 60.8], [159, 64.8], [161, 67.1], [163, 70.1], [163.5, 70.9]];
 export const EXIT_K = 0.578;
 export const EXIT_MAP = [[0, 0], [5.65, 8], [6.13, 9], [6.49, 10], [6.6, 11], [6.94, 12], [7.2, 13], [7.65, 14], [8.13, 16], [8.48, 18], [8.64, 20]];
 export const PASS_MAP = [[0, 0], [5.9, 8], [7.2, 10], [7.95, 12], [8.32, 14], [8.74, 16], [8.86, 18], [8.91, 20]];

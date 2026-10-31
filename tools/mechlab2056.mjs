@@ -224,7 +224,7 @@ const tests = {
     for (const h of hs) {
       const row = [];
       for (const v of vs) {
-        const o = fedSome(h, v, { seeds: env('SEEDS', 2) });
+        const o = fedSome(h, v, { seeds: env('SEEDS', 2), n: env('N', 9) });
         if (!o) continue;
         row.push(o.el); xs.push(o.x); ys.push(o.y);
         byV.set(v, [...(byV.get(v) ?? []), o.v]);

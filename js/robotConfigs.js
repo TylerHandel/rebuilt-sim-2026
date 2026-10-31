@@ -1232,7 +1232,7 @@ ROBOTS['2056'] = {
     exitY: 0.631,
     turretRange: 185, turretRate: 720,
     bps: 15, // not published; its physical ball path sets the rate
-    hoodMin: 37, hoodMax: 72,
+    hoodMin: 37, hoodMax: 70,
     speedMax: 8.7, // (the bench: exits stop growing near 8.8 m/s)
     spinTau: 0.3,
     shotDrop: 0.006,
