@@ -8,7 +8,7 @@ import { getCustom, customSteps } from './customAutos.js';
 import { fitsTrench } from './robotConfigs.js';
 import { underTrench } from './nav.js';
 import { TEAM_AUTOS } from './teamAutos.js';
-import { yieldToFoes } from './rules.js';
+import { holdOffFoes } from './rules.js';
 
 export const START_POSITIONS = {
   leftTrench: { name: 'Left Trench', fy: FIELD_W - 0.64 },
@@ -490,9 +490,9 @@ export class AutoRunner {
       this.lag = clamp((this.lag || 0) + (sp - moving) * dt - (moving > 0.8 * sp ? 0.5 * dt : 0), 0, 0.6);
       sp = Math.min(r.cfg.drive.maxSpeed, sp + 3 * this.lag);
       if (d > 1e-3) { cmd.vx = (dx / d) * sp; cmd.vz = (dz / d) * sp; }
-      // an opponent crossing right in front of its intake out: not into it (G415 is on the robot
-      // driving in), as a driver eases off; the route goes on round it
-      yieldToFoes(r, this.foes, cmd);
+      // its intake out, about to reach inside an opponent's FRAME PERIMETER (one crossing right in
+      // front of it): not into it (G415 is on the robot driving in); the route goes on round it
+      holdOffFoes(r, this.foes, cmd);
       // heading: face the direction of travel (intake first) unless told otherwise
       let face = s.face !== undefined ? (this.alliance === 'blue' ? s.face : s.face + Math.PI) : Math.atan2(-dz, dx);
       if (this.left && s.face === undefined) face = Math.atan2(-dz, dx);

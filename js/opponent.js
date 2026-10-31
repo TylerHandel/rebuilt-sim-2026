@@ -335,8 +335,26 @@ export class OpponentAI {
     let heading = null;
     if (face === 'travel') { if (sp > 0.3) heading = Math.atan2(-vz, vx); }
     else if (typeof face === 'number') heading = face;
+    if (heading !== null) heading = this._laneHeading(heading);
     if (heading !== null) cmd.omega = clamp(5 * wrapAngle(heading - r.yaw), -d.maxOmega, d.maxOmega);
     return remain;
+  }
+
+  // Under a TRENCH's arm, between its skirt and the wall (1.28 m), a robot with its intake out
+  // sweeps wider than that as it turns: turning round in there wedges it across the opening, its
+  // corners on the wall and the skirt (6328 with its slam down: their code leaves it down). Once
+  // a turn in there isn't happening (0.4 s of it asked for and not turning), it holds the nearest
+  // square heading, which it gets to without sweeping wider, and drives on sideways or backward
+  // until it's out from under.
+  _laneHeading(heading) {
+    const r = this.robot;
+    if (!underTrench(r.pos.x, r.pos.z, r.halfL + (r.cfg.intake.reach || 0))) { this.laneLock = null; this.laneT = 0; return heading; }
+    if (this.laneLock == null) {
+      const blocked = Math.abs(wrapAngle(heading - r.yaw)) > 0.35 && Math.abs(r.omega) < 0.3;
+      this.laneT = blocked ? (this.laneT || 0) + this.dt : 0;
+      if (this.laneT > 0.4) this.laneLock = Math.round(r.yaw / (Math.PI / 2)) * (Math.PI / 2);
+    }
+    return this.laneLock ?? heading;
   }
 
   // ------------------------------------------------------------------ scoring
