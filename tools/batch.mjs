@@ -10,7 +10,8 @@
 // the checkout or its branch) and pushes it.
 import { spawn, execFileSync } from 'child_process';
 import { cpus } from 'os';
-import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'fs';
+import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'fs';
+import { pushFiles } from './gitbranch.mjs';
 import { dirname, join, relative } from 'path';
 import { fileURLToPath } from 'url';
 
@@ -101,24 +102,12 @@ mkdirSync(dirname(file), { recursive: true });
 writeFileSync(file, JSON.stringify({ name, threads: cpus().length, jobs, commit, strategy, skill, seeds, env, minutes: (Date.now() - t0) / 60000, summary: table, results }, null, 1));
 console.log(`wrote ${relative(ROOT, file)}`);
 
-// commit just that file onto `batch-results` through a scratch index (the checkout, its index and
-// its branch stay as they are), then push it
+// commit just that file onto `batch-results` (the checkout, its index and its branch stay as they
+// are) and push it
 if (flag('push')) {
-  const git = (a, extra = {}) => execFileSync('git', a, { cwd: ROOT, env: { ...process.env, ...extra }, stdio: ['ignore', 'pipe', 'pipe'] }).toString().trim();
   try {
-    const idx = { GIT_INDEX_FILE: join(ROOT, '.git', 'batch-index') };
-    const who = {};
-    try { git(['config', 'user.email']); } catch { Object.assign(who, { GIT_AUTHOR_NAME: 'batch', GIT_AUTHOR_EMAIL: 'batch@localhost', GIT_COMMITTER_NAME: 'batch', GIT_COMMITTER_EMAIL: 'batch@localhost' }); }
-    let parent = '';
-    try { git(['fetch', '-q', 'origin', 'batch-results']); parent = git(['rev-parse', 'FETCH_HEAD']); } catch {}
-    if (parent) git(['read-tree', parent], idx); else git(['read-tree', '--empty'], idx);
-    const blob = git(['hash-object', '-w', file]);
-    git(['update-index', '--add', '--cacheinfo', `100644,${blob},results/batch/${name}.json`], idx);
-    const tree = git(['write-tree'], idx);
-    const c = git(['commit-tree', tree, ...(parent ? ['-p', parent] : []), '-m', `batch ${name}: ${queue.length} matches at ${commit}`], who);
-    git(['push', '-q', 'origin', `${c}:refs/heads/batch-results`]);
+    const c = pushFiles(ROOT, 'batch-results', { [`results/batch/${name}.json`]: file }, `batch ${name}: ${queue.length} matches at ${commit}`);
     console.log(`pushed to batch-results (${c.slice(0, 7)})`);
-    rmSync(idx.GIT_INDEX_FILE, { force: true });
   } catch (e) {
     console.log(`push failed (${String(e.message).split('\n')[0]}); the results are still in ${relative(ROOT, file)}`);
   }
