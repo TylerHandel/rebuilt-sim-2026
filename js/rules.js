@@ -68,6 +68,22 @@ function intakePoly(r) {
   return rectPoly(r, ic.reach / 2 + 0.01, ic.width / 2, r.halfL + ic.reach / 2 - 0.01);
 }
 
+// AUTO's: its intake stays out whatever's in front of it, so only contact about to happen counts.
+// Would its intake reach inside an opponent's FRAME PERIMETER within `horizon` s, the two closing
+// as they are now (G415's own test, the robot moved on by their relative velocity)? Then take out
+// of the command whatever drives it in.
+export function holdOffFoes(r, foes, cmd, horizon = 0.3) {
+  if (r.intakeDeploy <= 0.85) return;
+  for (const P of foes) {
+    const rx = (r.vel.x - P.vel.x) * horizon, rz = (r.vel.z - P.vel.z) * horizon, F = framePoly(P);
+    const soon = [0, 0.25, 0.5, 0.75, 1].some((k) => polysOverlap(intakePoly({ cfg: r.cfg, halfL: r.halfL, yaw: r.yaw, pos: { x: r.pos.x + rx * k, z: r.pos.z + rz * k } }), F));
+    if (!soon) continue;
+    const dx = P.pos.x - r.pos.x, dz = P.pos.z - r.pos.z, d = Math.hypot(dx, dz) || 1;
+    const into = (cmd.vx * dx + cmd.vz * dz) / d;
+    if (into > 0) { cmd.vx -= (dx / d) * into; cmd.vz -= (dz / d) * into; }
+  }
+}
+
 // Is the robot touching its own TOWER (or hanging on it)? `pad` widens the check.
 export function towerProtected(r, pad = 0.05) {
   if (r.climbState && r.climbState !== 'none') return true;

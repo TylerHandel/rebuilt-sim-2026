@@ -23,7 +23,7 @@
 import { Mechanism } from './mechanism.js';
 import { PhysicalRobot } from './physical.js';
 import {
-  build6328, wheels6328, pathSurfaces6328, placeIntake, placeHood, placeNet, intakeRot, hoodRot, hoodElevation, slideExt, slideRate, shotFor,
+  build6328, wheels6328, pathSurfaces6328, placeIntake, placeHood, placeNet, intakeRot, hoodRot, hoodElevation, slideExt, slideRate, shotFor, underRamp,
   INTAKE, SHOOTER, KICKER, KICK, BACK_R, PRELOAD, PIVOT, DRUM, LAUNCHER_X, RANGE, HALF_L, SLIDE_MASS,
 } from './r6328.js';
 import PATH from './path6328.js';
@@ -47,6 +47,10 @@ const HOOD = { rate: 250, tol: 1.5 };
 const TOL = { yaw: 10 * DEG, passFly: 40, tilt: 5 * DEG };
 const COMPACT = { delay: 0.35, roll: 1.2 };
 const KICK_BACK = 0.5;
+// what its driver does with FUEL caught under the ramp (below): how long it's seen holding the arm up
+// off its stop (with the arm at least this far up, deg) before the driver lifts the slam and backs
+// off, and for how long (s; estimates)
+const CAUGHT = { t: 0.3, deg: 3, clear: 0.6 };
 // their pass point (LaunchCalculator.getPassingTarget): 37in out from their ALLIANCE WALL, 65in in
 // from the nearer side wall
 const PASS_PT = { x: 37 * IN, y: 65 * IN };
@@ -129,7 +133,8 @@ export class Physical6328 extends PhysicalRobot {
     this.hoodDeg = SHOOTER.hoodMin; this.hoodGoal = SHOOTER.hoodMin;
     this.fly = { sp: 0, acc: 0, init: false, atGoal: false };
     this.launching = false; this.launchT = 0; this.tolT = 0; this.kickBackT = 0; this.wasHeld = false;
-    this.shots = 0; this.lastShotT = 0;
+    this.shots = 0; this.lastShotT = 0; this.armHi = 0; this.armHiT = 0;
+    this.caughtT = 0; this.clearUntil = -1; this.now = 0;
     this.rollerOn = false;
     for (const tr of [this.t.intake, this.t.floor, this.t.backT, this.t.frontT, this.t.flywheel]) { tr.omega = 0; tr.cmd = 0; tr.vel = null; }
     this.t.pivot._omega = 0; this.t.pivot.cmd = 0;
@@ -144,8 +149,9 @@ export class Physical6328 extends PhysicalRobot {
     return {
       own: inFrame || inFront,
       // (in: over the intake under the hopper's front, or up its ramp over the bumper, behind the
-      // roller's reach; not one on the carpet at the ramp's toe or in front of it)
-      held: inFrame || (inFront && (y > 0.22 || x < 0.53) && x < HALF_L + slideExt(this.armDeg) + 0.01),
+      // roller's reach; not one on the carpet at the ramp's toe or in front of it, nor one caught
+      // under the ramp, on the carpet against the bumper: that one's outside, and can't be fed)
+      held: inFrame || (inFront && (y > 0.22 || x < 0.53) && x < HALF_L + slideExt(this.armDeg) + 0.01 && !underRamp(x, y, this.armDeg)),
       near: x > -HALF_L - 0.1 && x < 0.78 && Math.abs(z) < HALF + 0.08 && y < 0.85,
     };
   }
@@ -238,17 +244,32 @@ export class Physical6328 extends PhysicalRobot {
     if (this.launching) this.launchT += dt;
     // What its driver does (not their code): the compaction done (the slam all the way up) with FUEL
     // still in it and none launched for 0.75 s, let go of launch and press it again: the slam goes
-    // back down (the FUEL left resting on the folded arm drop onto the floor) and compacts again
+    // back down (the FUEL left resting on the folded arm drop onto the floor) and compacts again.
+    // The same when the compaction stops short, the slam stalled on a row of FUEL wedged between
+    // the arm and the hopper's front (not risen a degree in 0.5 s)
     if (r.stats.shots !== this.shots) { this.shots = r.stats.shots; this.lastShotT = t; }
     if (!this.launching) this.lastShotT = Math.max(this.lastShotT, t - 0.5);
-    if (this.launching && this.armDeg > INTAKE.up - 3 && t - this.lastShotT > 0.75 && this.held.length > 0) {
+    if (this.slamGoal !== 'RETRACT_SLOW' || this.armDeg > this.armHi + 1) { this.armHi = this.armDeg; this.armHiT = t; }
+    const stalled = t - this.armHiT > 0.5;
+    if (this.launching && (this.armDeg > INTAKE.up - 3 || stalled) && t - this.lastShotT > 0.75 && this.held.length > 0) {
       this.launchT = 0; this.slamGoal = 'DEPLOY'; this.lastShotT = t;
     }
     if (!held && this.wasHeld) { this.slamGoal = 'DEPLOY'; if (!this.launching) this.kickBackT = Math.max(this.kickBackT, 0); }
     this.wasHeld = held;
+    // What its driver does (not their code): FUEL caught under the ramp (underRamp: one lying against
+    // the bumper as the arm comes down, or pushed under the toe against a wall) hold the arm up off its
+    // stop, and the roller up off the next FUEL: nothing more gets in (and it reads as full). Seeing the
+    // arm ride up on them while it intakes, the driver lifts the slam clear (RETRACT) and backs off
+    // (the AI asks backOff), then drops it again in front of them
+    this.now = t;
+    const caught = intaking && !this.launching && this.armDeg > INTAKE.down + CAUGHT.deg
+      && [...this.owned].some((b) => { const [x, y] = this._local(b.pos); return underRamp(x, y, this.armDeg); });
+    this.caughtT = caught ? this.caughtT + dt : 0;
+    if (this.caughtT > CAUGHT.t && t >= this.clearUntil) { this.clearUntil = t + CAUGHT.clear; this.caughtT = 0; r.stats.clears = (r.stats.clears || 0) + 1; }
     // ---- the slam and the intake roller
     let roller = 0;
     if (intaking) { this.slamGoal = 'DEPLOY'; roller = 13; }
+    if (t < this.clearUntil) { this.slamGoal = 'RETRACT'; roller = 0; }
     // (CompactingCommands.compact: 0.35 s into a launch, retract slowly, the roller running 1.2 s)
     if (this.launching && this.launchT >= COMPACT.delay && !intaking) {
       this.slamGoal = 'RETRACT_SLOW';
@@ -272,6 +293,8 @@ export class Physical6328 extends PhysicalRobot {
     r.feeding = this.launching ? 1 : 0;
     r.intakeSpeed = roller > 6 ? 1 : roller < 0 ? -1 : 0;
   }
+  // the AI's driver backing off FUEL caught under the ramp while it lifts the slam clear (above)
+  backOff() { return this.now < this.clearUntil; }
   // what it's waiting on, for the HUD
   shotStatus() {
     if (!this.want) return null;

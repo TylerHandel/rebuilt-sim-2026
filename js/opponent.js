@@ -146,6 +146,7 @@ export class OpponentAI {
     // picks up across into its zone as it goes; in its zone it intakes and shoots on the move.
     this.flow = cap < 20 && robot.cfg.shooter.type === 'turret';
     this.lastGainT = 0; this.intakedSeen = 0;
+    this.shotsSeen = 0; this.lastOutT = 0; this.wasShooting = false;
   }
 
   // room for more: under the load it stops at (and, for one that fills until its intake can't
@@ -169,6 +170,7 @@ export class OpponentAI {
       while (this.seen.length > 2 && this.seen[1].t < this.t - this.skill.lag) this.seen.shift();
     }
     Object.assign(cmd, { vx: 0, vz: 0, omega: 0, intake: false, shoot: false, pass: false, outtake: false, prespin: false, lower: false, lineup: false });
+    this.prevShooting = this.wasShooting; this.wasShooting = false;
     // an intake that stows folded up (8793's) comes down on the way under a TRENCH
     if (r.cfg.intake.fold && fitsTrench(r.cfg) && underTrench(r.pos.x, r.pos.z, r.halfL + 1.2)) cmd.lower = true;
     if (!m.isTeleop) { this.label = m.isAuto ? 'AUTO' : 'Waiting'; return; }
@@ -190,12 +192,20 @@ export class OpponentAI {
       this.label = 'Unsticking';
       return;
     }
+    // a physical robot's driver backing off FUEL caught in its intake while it lifts it clear, so
+    // it comes back down in front of them (6328's ramp: js/mech/phys6328.js backOff)
+    if (!this.shadow && r.phys?.backOff?.()) {
+      const f = r.forward(), sp = r.cfg.drive.maxSpeed * 0.3;
+      cmd.vx = -f.x * sp; cmd.vz = -f.z * sp; cmd.intake = true;
+      this.label = 'Clearing its intake';
+      return;
+    }
 
     r.passTarget = null;
     this.shootingMode = false;
     if (this._climb()) return;
     if (this.mode === 'defend') this._defend(dt);
-    else { this._score(dt); this._yieldToFoes(); }
+    else { this._score(dt); this._yieldToFoes(); this.wasShooting = this.state === 'score' && cmd.shoot; }
     this._smooth(dt);
     // a physical robot whose ball path can lock up where its code can't see it (341's zipper):
     // nothing coming out, its driver lets go of the trigger for a moment and presses it again
@@ -327,8 +337,38 @@ export class OpponentAI {
     let heading = null;
     if (face === 'travel') { if (sp > 0.3) heading = Math.atan2(-vz, vx); }
     else if (typeof face === 'number') heading = face;
+    if (heading !== null) heading = this._laneHeading(heading);
     if (heading !== null) cmd.omega = clamp(5 * wrapAngle(heading - r.yaw), -d.maxOmega, d.maxOmega);
     return remain;
+  }
+
+  // Under a TRENCH's arm, between its skirt and the wall (1.28 m), a robot whose corners (its intake
+  // out) sweep wider than that as it turns can't turn round: turning in there, or turning to aim on
+  // its way in, wedges it across the opening, its corners on the wall and the skirt (6328 with its
+  // slam down: their code leaves it down; 2910 turning to aim at its HUB, 29 s to the end of a
+  // match). So in there it holds a square heading and drives along sideways or backward until it's
+  // out from under: the one it can turn to from where it's facing as it gets there. Its width
+  // across the opening, L sin(a) + W cos(a) at a from along it (L its length with the intake out, W
+  // its width), is widest at atan(L / W): short of that it turns back along the opening, past it on
+  // round to across it. Still not getting there after a second (wedged right at its widest), it
+  // tries the other way.
+  _laneHeading(heading) {
+    const r = this.robot;
+    const reach = (r.cfg.intake.reach || 0) * r.intakeDeploy;
+    if (Math.hypot(r.halfL + reach, r.halfW) <= TRENCH.clearWidth / 2 || !underTrench(r.pos.x, r.pos.z, 0.3)) {
+      this.laneLock = null; this.laneT = 0;
+      return heading;
+    }
+    const along = Math.round(r.yaw / Math.PI) * Math.PI, across = Math.sign(wrapAngle(r.yaw) || 1) * Math.PI / 2;
+    if (this.laneLock == null) {
+      const a = Math.abs(wrapAngle(r.yaw)), off = Math.min(a, Math.PI - a);
+      this.laneLock = off < Math.atan2(2 * r.halfL + reach, 2 * r.halfW) ? along : across;
+      this.laneT = 0;
+    }
+    const stuck = Math.abs(wrapAngle(this.laneLock - r.yaw)) > 0.2 && Math.abs(r.omega) < 0.3;
+    this.laneT = stuck ? this.laneT + this.dt : 0;
+    if (this.laneT > 1.0) { this.laneLock = Math.abs(Math.cos(this.laneLock)) > 0.5 ? across : along; this.laneT = 0; }
+    return this.laneLock;
   }
 
   // ------------------------------------------------------------------ scoring
@@ -372,6 +412,8 @@ export class OpponentAI {
     const stored = r.stored.length, cap = this.maxLoad;
     // (when the last FUEL got in, or it started collecting)
     if (r.stats.intaked !== this.intakedSeen || this.state !== 'collect') { this.intakedSeen = r.stats.intaked; this.lastGainT = this.t; }
+    // (when the last FUEL went out, or it last wasn't trying to shoot)
+    if (r.stats.shots !== this.shotsSeen || !this.prevShooting) { this.shotsSeen = r.stats.shots; this.lastOutT = this.t; }
     const active = m.hubActive(this.own);
     const nc = m.hubNextChange(this.own);
     const untilActive = active ? 0 : nc ?? Infinity;
@@ -416,7 +458,9 @@ export class OpponentAI {
         if (go && !stay) {
           this.state = 'score'; this.path = null; this.progress = null;
         }
-      } else if (stored === 0) {
+      } else if (stored === 0 || (stored <= 2 && this.t - this.lastOutT > 3)) {
+        // (empty, or the last one or two won't come out: a physical robot's FUEL come to rest where
+        // nothing feeds them, 6328's on its floor; it goes on collecting rather than wait on them)
         this.state = 'collect'; this.collectT = 0; this.path = null;
         this.hesitateT = this.skill.hesitate;
       } else if (!canShoot && untilActive > travel + B.topUp && this._hasRoom()) {
@@ -546,13 +590,17 @@ export class OpponentAI {
     // collect a batch, then dump it all in one go: one spin-up (and for a chassis-aimed shooter
     // one turn) per batch instead of one per FUEL. It passes early if there's nothing left to get.
     // (one that keeps its FUEL flowing passes each one as it comes, its flywheel kept spinning)
+    // (full: it can't take more, so it stops chasing FUEL and passes what it has, however many,
+    // as with nothing left to get: one that's full when its intake can't put more in can be full
+    // short of the batch, and would sit there)
+    const full = !this._hasRoom() || r.full;
     const batch = this.flow ? 1 : Math.min(this.maxLoad, Math.max(2, Math.round(B.passBatch)));
-    if (canPass && stored > 0 && (stored >= batch || !this.ball)) this.passing = true;
+    if (canPass && stored > 0 && (stored >= batch || !this.ball || full)) this.passing = true;
     if (!canPass || stored === 0) this.passing = false;
     this.shootingMode = !!this.passing && !this.flow;
     // nearly there: spin the flywheel up (and aim a turret) ahead of the dump
-    r.cmd.prespin = canPass && (this.flow || stored >= 0.7 * batch);
-    const b = !this._hasRoom() || r.full ? null : this.ball; // full: stop chasing FUEL, go pass it
+    r.cmd.prespin = canPass && (this.flow || stored >= 0.7 * batch || full);
+    const b = full ? null : this.ball;
     if (this.passing && !this.turret) {
       // chassis-aimed: ease off while the chassis turns and dumps the batch
       if (b) this._drive(b.pos.x, b.pos.z, { speed: 0.3, avoid: true });
