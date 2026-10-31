@@ -113,7 +113,7 @@ export const PIPE = { R: 6.75 * IN, c: [0.088, 0.311], x: [-0.214, BACK.front], 
 // from A10's side view, ~0.33 m); one X60, 16:28, both shafts at its speed (the second turned back 1:1)
 export const FEED = {
   x: -0.134, w: 0.025, r: 1 * IN,
-  wheels: [[PIPE.c[0], PIPE.c[1]], [TURRET.at[1] + (R + 1 * IN - 0.0044), Number(globalThis.process?.env?.FW2 ?? 0.33)]],
+  wheels: [[PIPE.c[0], PIPE.c[1]], [TURRET.at[1] + (R + 1 * IN - 0.0044), 0.33]],
   ratio: 28 / 16,
 };
 // the shooter, in the turret's frame (s along the shot, y up, z across; A19): the 4in wheel's axle
@@ -132,14 +132,19 @@ export const SHOOTER = {
   // of hood (est.)
   kP: 0.25, tolV: 0.03, tolHood: 1.5,
 };
-// the intake (A41's side view, the intake out; A51; P511, P512, P555, P581): the carriage's travel along
-// its racks (12.25in out from the frame's front at 15.2 deg: 0.311 m out, 0.085 m down), the rollers on
-// it as it is retracted ([x, y, r]: 2in polycarbonate under silicone, 2-1/8in), their X60's 12:30, the
+// the intake (A41's side view, the intake out; A51; P511, P512, P581): the carriage's travel along its
+// racks (12.25in out from the frame's front at 15.2 deg: 0.311 m out, 0.085 m down), the rollers on it
+// as it is retracted ([x, y, r]: 2in polycarbonate under silicone, 2-1/8in), their X60's 12:30, the
 // intake's front (the 2x1 bash bar's front, out: 25.0in), its sides (the intake's hopper sides, P583),
 // the front panel's top (P581, out: 0.462 m), the bash bar's foot (the panel's lower edge: FUEL pass
-// under it, est. 0.173 m, its 2in on edge) and its back face (the lip). The kicker bar: a 0.75in tube
-// (A52-R2) on two arms (P555: 6.34in between holes) that hang on the back roller's axle (pivot: as
-// retracted; its arms' angle a0 + deg from straight forward: folded 0, hanging -90)
+// under it, est. 0.173 m, its 2in on edge) and its back face (the lip). The rollers and the kicker bar
+// (a 0.75in tube, A52-R2, on two arms on a pin, sprung down) are 1690's, as they were, against the
+// drawn slide (est.): the drawings hide both rollers behind the intake's side plates; read off them
+// (DRAWN_ROLLERS=1: the one 30T pulley A41 shows, 0.565 m out and 0.226 up, the other 112.5 mm behind
+// it, the 75T belt's span, on the kicker bar arms' pin, 0.455 m out and 0.191 up, the arms (P555,
+// 6.34in) hanging to the tube 0.028 m off the carpet) they stand 1.4 cm over a FUEL on the carpet that
+// the bar lifts 1.6 cm against the bumper's face, and the sim's rigid FUEL never reach them (0 of 24 on
+// the bench): the real foam squeezes, or the drawn pose isn't the one it runs at
 // (TRAVEL, in: how far out along the frame's front the carriage goes; the drawing's pose is 12.25)
 const TRAVEL = Number(globalThis.process?.env?.TRAVEL ?? 12.25) * IN, TAN = Math.tan(15.2 * DEG);
 const SLIDE_OUT = [TRAVEL, -TRAVEL * TAN], DRAWN = [12.25 * IN, -12.25 * IN * TAN];
