@@ -65,23 +65,28 @@ export const INTAKE = {
   // as exported: folded up, its slot pin 147.5 deg round from forward about the pivot (their angles
   // are that pin's: DarwinMechanism3d, "determined from CAD defined as angle to washer")
   cad: 147.5, down: 17.4, up: 145.8, // Slam.slamMinAngle, slamMaxAngle
-  // The final revision's parts in the arm's frame as exported (their places with the arm down measured
-  // off the Onshape document's front, bottom and front-low views: the roller's axle 0.6055 m forward
-  // and 0.1675 up, the bash bar's 0.635 and 0.2145, the ramp's toe 0.48 and 0.048, its top edge an
-  // estimate where the export's ramp plate ended, 0.40 and 0.215; turned back 130.1 deg about the
-  // pivot): the powered 2in roller (polycarbonate under silicone, 0.055 m over it), the bash bar
-  // (1.25in 4130 tube) in front over it, and behind it the ramp plate up to the bumper's top with
-  // the binder's "static bottom roller" along its toe (a 1/2in tube, an estimate; fixed)
-  roller: { at: [0.1449, 0.4178], r: 0.0275, width: 0.547 },
-  bash: { at: [0.0900, 0.4101], r: 0.0159, width: 0.629 },
-  toe: { at: [0.3172, 0.3987], r: 0.00635, width: 0.632 },
-  rampTop: [0.2410, 0.2300], rampHw: 0.316,
+  // The final revision's parts, given with the arm down (measured off the Onshape document's front,
+  // bottom, top and front-low views at 0.5 mm a pixel: the roller's axle 0.6055 m forward and 0.1675
+  // up, the bash bar's 0.635 and 0.2145, the ramp's toe 0.48 and 0.048, its top edge, by the bumper's
+  // top, 0.405 and ~0.2) and turned into the arm's frame as exported below (DOWN): the powered 2in
+  // roller (polycarbonate under silicone, 0.055 m over it), the bash bar (1.25in 4130 tube) in front
+  // over it, and behind it the ramp plate up to the bumper's top with the binder's "static bottom
+  // roller" along its toe (fixed; its size an estimate)
+  roller: { down: [0.6055, 0.1675], r: 0.0275, width: 0.547 },
+  bash: { down: [0.635, 0.2145], r: 0.0159, width: 0.629 },
+  toe: { down: [Number(globalThis.process?.env?.TOE_X ?? 0.49), Number(globalThis.process?.env?.TOE_Y ?? 0.048)], r: Number(globalThis.process?.env?.TOE_R ?? 0.00635), width: 0.632 },
+  rampTop: { down: [0.405, 0.2] }, rampHw: 0.316,
   // the arm (side plates, roller, its two X60s, bash bar, spring steel, ramp: ~3.2 kg, its center
   // 0.22 m out 20 deg behind the pin's line; 0.18 kg m^2 about the pivot): estimates from the BOM's
   // masses and the CAD's layout
   mass: 3.2, com: 0.222, comDeg: -20, J: 0.18,
   pin: 7.204 * IN, // the slot pin's distance from the pivot (DarwinMechanism3d pivotToWasherNorm)
 };
+// (the parts given down, in the arm's frame as exported: turned back up by cad - down about the pivot)
+for (const k of ['roller', 'bash', 'toe', 'rampTop']) {
+  const a = (INTAKE.cad - INTAKE.down) * DEG, [x, y] = INTAKE[k].down, dx = x - PIVOT[0], dy = y - PIVOT[1];
+  INTAKE[k].at = [PIVOT[0] + dx * Math.cos(a) - dy * Math.sin(a), PIVOT[1] + dx * Math.sin(a) + dy * Math.cos(a)];
+}
 // the hopper's sliding front (front wall, dynamic walls and their angles: 4.6 lb in the BOM) where
 // their DarwinMechanism3d puts it for the pin at deg, from the CAD's (as exported, in)
 export const SLIDE_MASS = 2.1;
@@ -278,7 +283,7 @@ export function pathSurfaces6328(mesh, t, { mu = 0.35 } = {}) {
   const hood = s('hood', [DRUM[0], DRUM[1], 0]);
   // the final intake's ramp plate, from the static roller at its toe up to its top edge, across
   // between the side plates (on the arm, about the pivot, as the CAD's intake)
-  const [tx, ty] = INTAKE.toe.at, [ux, uy] = INTAKE.rampTop, hw = INTAKE.rampHw, P0 = PIVOT;
+  const [tx, ty] = INTAKE.toe.at, [ux, uy] = INTAKE.rampTop.at, hw = INTAKE.rampHw, P0 = PIVOT;
   const ramp = new Surface({ name: 'intake ramp plate', vertices: [tx - P0[0], ty - P0[1], -hw, tx - P0[0], ty - P0[1], hw, ux - P0[0], uy - P0[1], hw, ux - P0[0], uy - P0[1], -hw], indices: [0, 1, 2, 0, 2, 3], mu: 0.35, pos: [P0[0], P0[1], 0] }).onShaft(t.pivot, [P0[0], P0[1], 0]);
   const W = WALLS, V = [];
   for (const z of [-W.hw, W.hw]) V.push(W.x0, W.y0, z, W.x1, W.y0, z, W.x1, W.y1, z, W.x0, W.y1, z);

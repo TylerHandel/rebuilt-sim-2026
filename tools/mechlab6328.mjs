@@ -88,12 +88,12 @@ function shotWatch(shooter) {
 // where a shot comes down through height h, back from the robot's center
 const landAt = (o, h) => { const k = sim2D(o.y, o.v, (o.el * Math.PI) / 180, h); return k ? k.d - o.x : NaN; };
 const inHopper = (b) => { const p = b.translation(); return p.x > -0.36 && p.x < 0.72 && Math.abs(p.z) < 0.36 && p.y > 0.12 && p.y < 0.8; };
-function fill(w, balls, step, layers = 8, y = 0.62, x1 = 0.62) {
+function fill(w, balls, step, layers = 8, y = 0.6, x1 = 0.62) {
   let sd = Number(process.env.FILLSEED ?? 0);
   const rnd = () => (sd ? ((sd = (sd * 16807) % 2147483647) / 2147483647 - 0.5) * 0.008 : 0);
   for (let layer = 0; layer < layers; layer++) {
     for (let i = 0; i < 6; i++) for (let k = 0; k < 4; k++) {
-      const x = -0.03 + 0.155 * i + rnd(), z = -0.233 + 0.155 * k + rnd();
+      const x = 0.03 + 0.155 * i + rnd(), z = -0.233 + 0.155 * k + rnd();
       if (x > x1) continue;
       if (balls.some((b) => { const p = b.translation(); return Math.hypot(p.x - x, p.y - y, p.z - z) < 2 * R; })) continue;
       balls.push(ball(w, x, y, z));
@@ -201,8 +201,15 @@ const tests = {
     for (let seed = 1; seed <= Number(process.env.SEEDS ?? 3); seed++) {
       const { t, path } = rig();
       t.intake.cmd = 1;
-      const r = fillRun(RAPIER, { world: () => world({ carpet: false }), ball, path, DT, held: held6328, own: own6328, top: { topX: 0.1, topN: 10 }, speed: SPEED, sec: Number(process.env.SEC ?? 12), seed, front: 0.42 });
+      if (process.env.FLOORIN) t.floor.cmd = Number(process.env.FLOORIN) / 12; // (not their code: the floor run while it intakes)
+      const r = fillRun(RAPIER, { world: () => world({ carpet: false }), ball, path, DT, held: held6328, own: own6328, top: { topX: 0.1, topN: 10 }, speed: SPEED, sec: Number(process.env.SEC ?? 12), seed, front: 0.42, keep: true });
       console.log(fillReport(`6328 intaking at ${SPEED} m/s, seed ${seed}`, r));
+      // (where the load is: how many in each 0.1 m along the robot, and the mouth's)
+      const ps = r.balls.map((b) => { const p = b.translation(); return [p.x, p.y, p.z]; });
+      const bins = {}; for (const p of ps.filter(held6328)) { const k = Math.floor(p[0] * 10) / 10; bins[k] = (bins[k] || 0) + 1; }
+      console.log('   load along x:', Object.keys(bins).sort((a, b) => a - b).map((k) => `${(+k).toFixed(1)}:${bins[k]}`).join(' '), '| in the mouth', ps.filter((p) => own6328(p) && !held6328(p)).length);
+      if (process.env.STUCK) for (const b of r.balls) { const q = b.translation(), p = [q.x, q.y, q.z]; if (own6328(p) && !held6328(p) || (held6328(p) && p[0] > 0.3)) console.log(`   ${held6328(p) ? 'held ' : 'mouth'} ${p.map((v) => v.toFixed(2)).join(',')}: ${path.contacts.filter((c) => c.ball === b).map((c) => c.wheel.name + ' ' + c.force.toFixed(0)).join(', ')}`); }
+      r.world.free();
       runs.push(r);
     }
     console.log(`6328 through its intake (${runs.length} fills): the most it held ${Math.min(...runs.map((r) => r.most))}-${Math.max(...runs.map((r) => r.most))} (mean ${mean(runs.map((r) => r.most)).toFixed(1)})`);
@@ -218,6 +225,7 @@ const tests = {
     step(1 / DT);
     const ms = (performance.now() - t0) / (1 / DT);
     const top = Math.max(...balls.filter(inHopper).map((b) => b.translation().y + R));
+    if (process.env.STUCK) for (const b of balls.filter(inHopper)) { const p = b.translation(); if (p.y > 0.5) console.log(`   high: ${p.x.toFixed(2)},${p.y.toFixed(2)},${p.z.toFixed(2)}`); }
     console.log(`6328 holds ${balls.filter(inHopper).length} with everything off, the intake down and the hopper out (a layer at a time; the load's top ${top.toFixed(2)} m, the net ${NET.bulge} m of slack); ${ms.toFixed(2)} ms a step`);
   },
   dump() {
@@ -245,6 +253,7 @@ const tests = {
       if (watch.shots.length) minFly = Math.min(minFly, t.drum.omega);
     }
     const s = watch.shots.map((x) => x.t), first = s[0] ?? 0, in1 = s.filter((x) => x - first < 1).length;
+    { const bins = []; for (const x of s) { const i = Math.floor((x - first) / 0.5); bins[i] = (bins[i] || 0) + 1; } console.log(`   shots each 0.5 s: ${Array.from(bins, (v) => v || 0).join(' ')}`); }
     const left = balls.filter((b) => b.translation().y < 3 && b.translation().x < 40 && inHopper(b));
     if (process.env.STUCK) for (const b of left) { const p = b.translation(); console.log(`   left at ${p.x.toFixed(2)},${p.y.toFixed(2)},${p.z.toFixed(2)}: ${[...path.contacts, ...shooter.contacts].filter((c) => c.ball === b).map((c) => c.wheel.name + ' ' + c.force.toFixed(0)).join(', ')}`); }
     const land = watch.shots.map((o) => landAt(o, HUB.rimFront) + LAUNCHER_X).filter(Number.isFinite);
