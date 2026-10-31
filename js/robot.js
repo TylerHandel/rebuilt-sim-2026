@@ -20,11 +20,13 @@ import { Physical4414 } from './mech/phys4414.js';
 import { Physical1114 } from './mech/phys1114.js';
 import { Physical1706 } from './mech/phys1706.js';
 import { Physical2056 } from './mech/phys2056.js';
+import { Physical7769 } from './mech/phys7769.js';
 import { Physical1690 } from './mech/phys1690.js';
 import { Physical6328 } from './mech/phys6328.js';
 const PHYSICAL = { 8793: Physical8793, 2910: Physical2910, 1678: Physical1678, 341: Physical341, 581: Physical581, 604: Physical604, 4414: Physical4414, 1114: Physical1114, 1706: Physical1706, 1690: Physical1690, 6328: Physical6328 };
 import { clamp, wrapAngle, approach, approachAngle, gauss, DEG, rand } from './util.js';
 PHYSICAL[2056] = Physical2056; // (2056's physical mechanisms: js/mech/phys2056.js)
+PHYSICAL[7769] = Physical7769; // (7769's physical mechanisms: js/mech/phys7769.js)
 
 const WHEEL_R = 0.05;
 const TIP_RATE = 2.5; // rad/s: the most a robot pitches or rolls (see preStep)

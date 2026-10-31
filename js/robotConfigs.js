@@ -1256,6 +1256,73 @@ ROBOTS['2056'] = {
 }
 ROBOT_ORDER.push('2056');
 
+// 7769 The CREW "CHUNK" (Onshape "Full Robot", 692fc43a78732f76f6a7fc01; Chief Delphi t/521008): a
+// dumper with a 16.5in-wide shooter (two stacks of 4in Stealth wheels under a static hood) firing out
+// the back, a belt floor, a ramp up the back and a linear intake on polycarbonate racks that carries
+// the hopper's front out. Kept out of the ROBOTS literal so it merges on its own.
+ROBOTS['7769'] = {
+  key: '7769',
+  team: 7769,
+  teamName: 'The CREW',
+  robotName: 'CHUNK',
+  archetype: 'Dumper',
+  blurb: 'Michigan champion and Einstein alliance member, third in the world by EPA. A linear intake slides out on polycarbonate racks, pulling the hopper\'s front with it; ten timing belts carry FUEL back to a static ramp where compliant and vectored wheels roll them, two abreast, into a 16.5in-wide shooter: two stacks of 4in Stealth wheels flinging them out the back under a static hood. The intake shuffles in and out while it shoots (their "Truffle Shuffle"). Fits under the TRENCH.',
+  // built of its physical mechanisms (js/mech/r7769.js, phys7769.js) from their CAD
+  physical: '7769',
+  // their CAD's frame perimeter ("Limits": 25.5 x 29.5in)
+  frame: { length: 25.5 * IN, width: 29.5 * IN },
+  // the hood and the stationary hopper sides are 0.555 m up in their CAD, 1 cm under the TRENCH's
+  // 22.25in; the frame's collider is a prism to this height, which meets a TRENCH arm's edge in
+  // Rapier's contact margin within ~1 cm of it (it wedged there going out in AUTO): 21.5in, as 2056's
+  // and 1690's
+  height: 21.5 * IN,
+  mass: 66, // robot + bumpers + battery: an estimate (not published)
+  // SDS MK5n with Kraken X60s (their CAD: the wheels 0.2508 m forward and back, 0.3016 m to each
+  // side); the gearing isn't in it: R1 (7.03:1), an estimate
+  drive: { ratio: 7.03, moduleAt: [0.2508, 0.3016] },
+  // the linear intake: its 3in roller's front 0.617 m out (0.21 m past the bumper) with the slide out
+  // (0.305 m of rack at 9.2 deg: 0.30 m out); it stays out once deployed (js/mech/phys7769.js)
+  intake: { width: 22.3 * IN, reach: 0.21, rate: 200, pull: 5, deployTime: 0.6, retractTime: 0.7, side: 'front', latched: true },
+  // the hopper's front and moving sides ride out with it (their CAD: 0.232 to 0.494 m up, 0.346 m to
+  // each side)
+  storage: { extLen: 0.30, extend: 'latched', box: { y0: 0.232, y1: 0.494, hw: 0.346 } },
+  // (for the planning model only: the physical robot's ball path is js/mech/r7769.js)
+  bay: {
+    x0: -0.17, x1: 0.31, hw: 0.34, top: 0.552,
+    dome: { h: 0.02, x0: -0.02, cx: 0, cz: 0, rHole: -1 },
+    floor: { a: 0.174, b: 0.222, lo: 0.15, hi: 0.22 },
+    drive: 'floor', driveSpeed: 2.9,
+    feed: { x: -0.15, via: [[-0.2, 0.3], [-0.2, 0.42], [-0.15, 0.6]] },
+  },
+  shooter: {
+    type: 'fixed',
+    facing: 'back',
+    lanes: [-0.095, 0.095],
+    // FUEL leave round the wheels' front at the hood's top edge, 0.123 m from their shaft, square to
+    // the shot (js/mech/r7769.js; tools/mechlab7769.mjs shooter: 79 deg with the hood down to 37 deg
+    // all the way up)
+    hood: { x: -0.2286, y: 0.4953, r: 0.123, cadDeg: 79, stowDeg: 79 },
+    bps: 20, // not published: its physical ball path sets the rate (tools/mechlab7769.mjs dump)
+    hoodMin: 37, hoodMax: 79,
+    speedMax: 9.5, // (its FUEL slip on the wheels past ~4000 RPM: they leave at no more than ~9.5 m/s)
+    spinTau: 0.2,
+    shotDrop: 0.003,
+    speedSigma: 0.012, angleSigma: 0.55, yawSigma: 0.55,
+  },
+  climber: null, // an L1 hook on a telescoping tube, which they took off for Worlds (the team)
+  stats: { 'Shot rate': '', Aiming: 'Chassis', 'Top speed': '', Trench: 'Yes' },
+  // their CAD: raw aluminum and dark gray plates, blue Stealth wheels, belts and bumpers
+  colors: { frame: 0xb8bdc4, accent: 0x2346a8, trim: 0x2a2c31 },
+};
+{
+  const cfg = ROBOTS['7769'], [mx, mz] = modulePoints(cfg)[0];
+  const dt = new Drivetrain(cfg.drive, cfg.mass, cfg.frame.length, cfg.frame.width, Math.hypot(mx, mz));
+  Object.assign(cfg.drive, dt.stats());
+  const ft = (v) => (v / 0.3048).toFixed(1);
+  cfg.stats['Top speed'] = `${ft(dt.topSpeed)} ft/s (${ft(dt.freeSpeed)} free)`;
+}
+ROBOT_ORDER.push('7769');
+
 export const AUTO_ROUTINES = {
   best: { name: 'Best for this robot', desc: 'The team\'s own AUTO where their code is public (8793, 2910, 1678, 604, 1114, 581: from the side it starts on), otherwise the highest-scoring AUTO found for the robot (its own start position, NEUTRAL ZONE sweeps and DEPOT runs), or else the preload and a NEUTRAL ZONE sweep.' },
   none: { name: 'No auto', desc: 'Robot sits still.' },

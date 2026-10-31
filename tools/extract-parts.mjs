@@ -90,7 +90,9 @@ const refParts = async (like) => {
     const file = path.resolve(path.dirname(src), like.glb); // next to the source
     const ref = await io.read(file);
     const pid = partIds(file, ref);
-    const top = ref.getRoot().listNodes().find((n) => n.getName().startsWith(like.node));
+    // (a scene's own top node first: 7769's robot and one of its parts are both named "Chunk")
+    const roots = ref.getRoot().listScenes().flatMap((sc) => sc.listChildren());
+    const top = roots.find((n) => n.getName().startsWith(like.node)) || ref.getRoot().listNodes().find((n) => n.getName().startsWith(like.node));
     if (!top) throw new Error('no node ' + like.node + ' in ' + like.glb);
     const list = [];
     top.traverse((n) => { if (n.getMesh()) list.push({ name: n.getName(), c: center(n), clear: see(n), pid: pid.get(n) || '', t: n.getWorldTranslation() }); });
