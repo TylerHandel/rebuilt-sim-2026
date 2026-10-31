@@ -11,7 +11,7 @@ import { Mechanism } from './mechanism.js';
 import { PhysicalRobot } from './physical.js';
 import {
   build8793, intake8793, conveyorWheels, armWheels, placeArm, indexerWheels, shooterWheels, placeShooter,
-  flywheelDuty, exitSpeed, rpsFor, pathSurfaces, armState, servoArm, turnArm, ARM, DUTY, DUTY_INDEXER, PRELOAD, PIVOT, SHOOTER,
+  flywheelLoop, exitSpeed, rpsFor, pathSurfaces, armState, servoArm, turnArm, ARM, DUTY, DUTY_INDEXER, PRELOAD, PIVOT, SHOOTER,
 } from './r8793.js';
 import PATH from './path8793.js';
 import * as THREE from 'three';
@@ -94,7 +94,7 @@ export class Physical8793 extends PhysicalRobot {
     this.jamT = 0; this.unjamT = 0; this.fullT = 0; this.ixBackT = 0;
     this.targetRps = 0;
     this.feed = false;
-    for (const tr of [this.t.horizontal, this.t.indexer, this.t.shooter]) { tr.omega = 0; tr.cmd = 0; }
+    for (const tr of [this.t.horizontal, this.t.indexer, this.t.shooter]) { tr.omega = 0; tr.cmd = 0; tr.vel = null; }
     // stowed, on its upper stop (the robot starts so)
     this.armSt = armState(this.r.cfg.intake.fold.stowDeg * DEG);
     this.t.pivot._omega = 0; this.t.pivot.cmd = 0;
@@ -329,7 +329,7 @@ export class Physical8793 extends PhysicalRobot {
     // (a HUB shot SHOT_SCALE slower than the aim asks)
     if (setpoint > 0) { this.targetRps = Math.min(SHOOTER.maxRps, rpsFor(r.shot?.mode === 'hub' ? setpoint * SHOT_SCALE : setpoint)); this.holdT = t; }
     else if (!(on && this.targetRps && t - (this.holdT ?? -9) < 1.5)) this.targetRps = 0;
-    this.t.shooter.cmd = on && this.targetRps > 0 ? flywheelDuty(this.t, this.targetRps) : 0;
+    flywheelLoop(this.t, on ? this.targetRps : 0);
     // what the robot's aiming sees: the exit speed its flywheel gives right now (in the aim's terms:
     // at a HUB shot's trimmed target it's the speed the aim asked for)
     r.flywheel = EXIT_K * exitSpeed(Math.abs(this.t.shooter.omega) / (2 * Math.PI)) / (r.shot?.mode === 'hub' ? SHOT_SCALE : 1);

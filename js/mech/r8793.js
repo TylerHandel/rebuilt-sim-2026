@@ -396,6 +396,15 @@ export function flywheelDuty({ shooter }, targetRps, V = 12) {
   const volts = SHOOTER.kV * targetRps + SHOOTER.kP * (targetRps - rps);
   return Math.max(-1, Math.min(1, volts / V));
 }
+// ...closed on the Talon at its own 1 kHz, as VelocityVoltage is (Train.vel: the loop runs through
+// the step, its sub-steps' FUEL dragging the flywheel down as it goes), toward targetRps (0: 0 V).
+// FLYLOOP=step closes it once a 120 Hz step instead, as it was
+const FLY_STEP = globalThis.process?.env?.FLYLOOP === 'step';
+export function flywheelLoop(t, targetRps) {
+  const { shooter } = t;
+  if (FLY_STEP || !(targetRps > 0)) { shooter.vel = null; shooter.cmd = targetRps > 0 ? flywheelDuty(t, targetRps) : 0; return; }
+  shooter.vel = { target: targetRps * 2 * Math.PI, kV: SHOOTER.kV, kP: SHOOTER.kP, lo: -12, hi: 12, per: 1 / (2 * Math.PI) };
+}
 // the exit speed their aim solver assumes for a motor speed (m/s): the two wheels' surface
 // speeds averaged (FLYWHEEL_EFFECTIVE_DIAMETER_METERS)
 export const codeExitSpeed = (rps) => Math.PI * ((4 * IN + 2 * IN * SHOOTER.codeSmallPerLarge) / 2 / SHOOTER.ratio) * rps;
