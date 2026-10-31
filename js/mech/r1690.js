@@ -66,8 +66,10 @@ const DEG = Math.PI / 180, R = FUEL.radius;
 // what each grips FUEL with (estimates): silicone wraps on the intake and floor rollers (grippy), the
 // compliant and Stealth wheels (35A), the shooter wheel's swerve tread, the belts' rubber, bare
 // polycarbonate and aluminum, the PTFE film on the backing plate (slick: "to reduce friction as much
-// as possible"), the printed hood (PLA), the net's cord
-export const MU = { silicone: 1.2, compliant: 1.3, tread: 1.3, belt: 1.0, polycarb: 0.5, alu: 0.4, ptfe: 0.1, pla: 0.3, wall: 0.25, net: 0.25 };
+// as possible"; 0.05, PTFE's low end, under the FUEL's smooth skins: at 0.1 the full hopper's load,
+// pressing the belts' FUEL into it, held them back to 7.1 FUEL/s over a dump, 9.0 at 0.05), the
+// printed hood (PLA), the net's cord
+export const MU = { silicone: 1.2, compliant: 1.3, tread: 1.3, belt: 1.0, polycarb: 0.5, alu: 0.4, ptfe: 0.05, pla: 0.3, wall: 0.25, net: 0.25 };
 // and how far each gives where a FUEL presses it (N/m; the belts ride on the CAD's 3 mm aluminum
 // beds, 311-02A/04A and 312-07A/08A, so they give no more than a wrap on a tube: a free span's 3000
 // let FUEL press through them onto the beds' edges, and drag there; BELTK=3000 for that)
