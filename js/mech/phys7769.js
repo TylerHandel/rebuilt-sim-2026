@@ -43,7 +43,7 @@ const IDLE = { share: 0.7, rpm: 1500 };
 export const SHOTS = [[1.3, 2485, 0], [2.0, 2790, 3], [2.5, 2860, 6], [3.0, 2855, 10], [3.5, 3000, 13], [4.0, 3110, 16], [4.5, 3290, 19], [5.0, 3465, 22], [5.5, 3690, 24], [6.0, 3890, 26]];
 // passes (to the carpet at the row's distance): the hood all the way up (40 deg); past ~8 m its FUEL
 // slip on the wheels and go no farther (they leave at no more than ~9.5 m/s)
-export const PASSES = [[4.0, 2210, 35], [5.0, 2605, 35], [6.0, 3010, 35], [7.0, 3515, 35], [8.0, 4035, 35]];
+export const PASSES = [[2.5, 1600, 35], [3.0, 1820, 35], [4.0, 2210, 35], [5.0, 2590, 35], [6.0, 3025, 35], [7.0, 3505, 35], [8.0, 4000, 35]];
 const interp = (t, x, j) => {
   if (x <= t[0][0]) return t[0][j];
   for (let k = 1; k < t.length; k++) if (x <= t[k][0]) return t[k - 1][j] + ((t[k][j] - t[k - 1][j]) * (x - t[k - 1][0])) / (t[k][0] - t[k - 1][0]);
@@ -223,4 +223,4 @@ export class Physical7769 extends PhysicalRobot {
   capacity() { return 60; }
 }
 // a FUEL's exit speed over the wheels' surface speed (tools/mechlab7769.mjs shooter measures it)
-export const EXIT_PER_WHEEL_SURFACE = 0.5;
+export const EXIT_PER_WHEEL_SURFACE = 0.45;
