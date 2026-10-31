@@ -1204,8 +1204,9 @@ ROBOTS['2056'] = {
   frame: { length: 25.5 * IN, width: 29.5 * IN },
   // the hood down (its arm lowest, its steep end): its top ~0.55 m (est.: the turret's uprights and
   // the A19 shooter drawing; they drive under the TRENCH, the hood kept down there by their "polygon
-  // zones")
-  height: 21.75 * IN,
+  // zones"). The frame's collider is a prism to this height, which meets a TRENCH arm's edge in
+  // Rapier's contact margin within ~1 cm of it: 21.5in, as 1690's
+  height: 21.5 * IN,
   mass: 63.5, // the drawing package's assembly weight (A00, with bumpers and battery): 140.05 lb
   // SDS MK5n R1 (7.03:1) on Krakens, "a top speed of 15 ft/s" (binder); SDS spike grip 4in wheels;
   // their public base code's drive limits: 100 A stator, 80 A supply falling to 60 after 2 s

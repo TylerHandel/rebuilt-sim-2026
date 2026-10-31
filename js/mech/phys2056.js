@@ -36,7 +36,7 @@ import { Mechanism } from './mechanism.js';
 import { PhysicalRobot } from './physical.js';
 import {
   build2056, wheels2056, shooterWheel, kickerWheel, pathSurfaces2056, placeIntake, placeTurret, turretPoint, intakeFront, kickAt, kickLoad, floorRoll,
-  HALF_L, HALF_W, INTAKE, FLOOR, TOP, BELT, VKICK, FEED, SHOOTER, TURRET, NET, WALL, PRELOAD, SLIDE, PLATE, bowShape,
+  HALF_L, HALF_W, INTAKE, FLOOR, TOP, BELT, VKICK, FEED, SHOOTER, TURRET, NET, WALL, PRELOAD, SLIDE, PLATE, GUARD, bowShape,
 } from './r2056.js';
 import { speedLoop, profile } from './phys1706.js';
 import { Field } from '../field.js';
@@ -309,13 +309,16 @@ export class Physical2056 extends PhysicalRobot {
     let top = 0;
     for (const b of this.held) {
       const [x, y, z] = this._local(b.pos);
+      // (not one up in the turret, under its guard: on its way to the wheel, not under the net)
+      if (Math.hypot(x - TURRET.at[0], z - TURRET.at[1]) < GUARD.r) continue;
       const tp = y + R - (bow > 0 && x > NET.x0 && Math.abs(z) < NET.hw ? Math.min(PLATE.press, bow * bowShape(Math.min(x, HALF_L), z)) : 0);
       if (tp > top) top = tp;
     }
     return top;
   }
-  // how many it holds (tools/mechlab2056.mjs intakefull)
-  capacity() { return 60; }
+  // how many it holds, rated (tools/mechlab2056.mjs intakefull: filled through its intake it holds
+  // 42-49, the intake going full at 30-40)
+  capacity() { return 44; }
 
   // the turret on its X44 (js/mech/turretDrive.js drive2056)
   turretStep(cur, goal, dt, t) {

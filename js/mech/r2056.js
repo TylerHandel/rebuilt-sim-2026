@@ -129,7 +129,8 @@ export const SHOOTER = {
 };
 // the intake: the carriage's travel out (est. 0.33 m, 11.5 deg down: A41's side view), the rollers on
 // it as it is retracted ([x, y, r]), their X60's 12:30, the intake's front (the bash bar and the hopper
-// front panel, out), its sides (the intake's hopper sides, P583), the front panel's top; the kicker bar
+// front panel, out: its lower edge, with the bash bar, over the top roller so no FUEL is pinched
+// between them, est.), its sides (the intake's hopper sides, P583), the front panel's top; the kicker bar
 // on its arms (pivot on the carriage, retracted; the 0.75in tube; its arms' fall from folded, deg)
 export const INTAKE = {
   slide: [0.33 * Math.cos(11.5 * DEG), -0.33 * Math.sin(11.5 * DEG)], width: 23.5 * IN,
@@ -137,7 +138,7 @@ export const INTAKE = {
   // its larger radius, the top one 8 mm further back, reaching FUEL that stop on the bumper's front
   // edge: est.)
   rollers: [[0.5657 - 0.33 * Math.cos(11.5 * DEG), 0.167 + 0.33 * Math.sin(11.5 * DEG), (2.125 / 2) * IN], [0.5097 - 0.33 * Math.cos(11.5 * DEG), 0.2599 + 0.33 * Math.sin(11.5 * DEG), (2.125 / 2) * IN]], ratio: 30 / 12,
-  frame: { front: 0.635, sides: 0.352, top: 0.482 },
+  frame: { front: 0.635, sides: 0.352, top: 0.482, panel: 0.33, lip: [0.55, 0.305] },
   // (the bar's arms run forward and down from their pin on the intake's side plates, just behind the
   // bumper's top when it's out, to the tube just in front of the bumper's face, as 1690's (est.: the
   // drawings don't dimension it); FUEL pushing up under the tube swing it up and back over the bumper,
@@ -317,7 +318,9 @@ export const GUIDE_ARC = { r: SHOOTER.r + 2 * R - 0.006, arm: [9, 70], fixed: [1
 function carriage() {
   const F = INTAKE.frame, [dx, dy] = INTAKE.slide, f = F.front - dx, top = F.top - dy;
   return merge(
-    wallX(f, -F.sides, F.sides, 0.22 - dy, top),
+    wallX(f, -F.sides, F.sides, F.panel - dy, top),
+    // (its lower part bent back over the top roller to just above it: est., P581's bends)
+    grid(2, N(2 * F.sides), (u, v) => [lerp(f, F.lip[0] - dx, u), lerp(F.panel, F.lip[1], u) - dy, lerp(-F.sides, F.sides, v)]),
     ...[-F.sides, F.sides].map((z) => wallZ(z, f - 0.33, f, 0.20 - dy, top)),
   );
 }
