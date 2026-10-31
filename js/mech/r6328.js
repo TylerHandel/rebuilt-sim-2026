@@ -261,32 +261,68 @@ export function hoodElevation(deg) {
 
 // The hopper's walls and top. Static walls (polycarbonate, "Static Wall Left/Right" in the BOM;
 // their size and place from the Onshape document's side view, an estimate to a cm): inside the
-// dynamic walls, from the launcher's front to the frame's front, 0.2 to 0.556 m up. The net
-// (the binder's "stretched net over polycarbonate walls that flexes upward to hold more fuel ...
-// ~75 fuel capacity at peak"): tied across the launcher's top at the back and along the top of the
-// sliding front wall, riding out with it, and along the walls; slack, the load lifting it up to
-// NET.bulge at its middle (as 581's, js/mech/r581.js NET), then taut, giving NET.tread: estimates,
-// sized to the binder's ~75
+// dynamic walls, from the launcher's front to the frame's front, 0.2 to 0.556 m up.
+// The net: the binder's "stretched net over polycarbonate walls that flexes upward to hold more
+// fuel, exceeding the height of the trench only when needed ... Net flexes upwards as fuel
+// accumulates ... ~75 fuel capacity at peak"; their photo of it is a coarse bungee cargo net, tied
+// along the walls' tops, across the launcher's top at the back and along the top of the sliding front
+// wall, riding out with it. Stretched, not slack (581's and 1706's are cord tied loose, which the
+// load lifts freely until it's taken up): empty it lies flat across its ties, and the load lifts it
+// only as hard as it pushes, against the bungee's stretch. Modeled as one mode of a membrane: its
+// rise at the middle B, set each step by what the FUEL under it push (flex: the force of each in the
+// mode's shape against NET.k, N per m of rise at its middle), up to NET.bulge, where the cords run
+// out of stretch (their stiffness, NET.tread, takes over: a FUEL presses into it as far as the taut
+// bungee gives round it). Its shape: (sin x sin)^0.7 over the ties (NET.p), about the shape a
+// membrane takes under an even push from below (Poisson's equation: its volume over the ties 0.48 of
+// its rise times its area, this 0.49; the plain dome 581's and 1706's cord takes, sin x sin, is 0.41).
+// NET.bulge, 0.22 m: its middle at 0.75 m, the load's top just under the 30in height limit (0.762
+// m), the bungee stretched 22% along its 0.66 m with the hopper out (a bungee cord takes ~100%).
+// NET.k, 250 N/m: its 0.22 m takes ~55 N, which the intake's push gives it, and a dumping load is
+// pressed back down by it (half or twice that hold about as many, 66-67 on average: it's the
+// stretch it runs out of that sets how many). Filled through the intake it holds 64-75 (70 on
+// average; tools/mechlab6328.mjs intakefull): the binder's ~75 at its peak (the plain dome, 65; 0.3 m
+// of stretch, 74). All three estimates; NET_BULGE, NET_K, NET_P to try others
 export const WALLS = { x0: -0.035, x1: 0.35, y0: 0.2, y1: 0.556, hw: 0.334 };
-export const NET = { backX: 0.0, backY: 0.555, frontX: 0.346, frontY: 0.51, hw: 0.334, bulge: Number(globalThis.process?.env?.NET_BULGE ?? 0.08), tread: 8000 };
-export function netAt(x, z, ext) {
-  const fx = NET.frontX + ext, L = Math.max(0.01, fx - NET.backX), B = NET.bulge;
-  const u = Math.min(1, Math.max(0, (x - NET.backX) / L)), v = Math.min(1, Math.max(0, (z + NET.hw) / (2 * NET.hw)));
-  const su = Math.sin(Math.PI * u), sv = Math.sin(Math.PI * v), slope = (NET.frontY - NET.backY) / L;
-  return [NET.backY + slope * L * u + B * su * sv, slope + (B * Math.PI * Math.cos(Math.PI * u) * sv) / L, (B * su * Math.PI * Math.cos(Math.PI * v)) / (2 * NET.hw)];
+const ENV = globalThis.process?.env ?? {};
+export const NET = { backX: 0.0, backY: 0.555, frontX: 0.346, frontY: 0.51, hw: 0.334, bulge: Number(ENV.NET_BULGE ?? 0.22), k: Number(ENV.NET_K ?? 250), tread: 8000, rate: [1.0, 0.5], p: Number(ENV.NET_P ?? 0.7) };
+// the net's height at (x, z) with the hopper's front ext m out and its middle risen B; its slope
+// (d/dx, d/dz) and the mode's shape there
+const shape = (t) => { const s = Math.max(0.03, Math.sin(Math.PI * t)), q = NET.p; return [s ** q, q * s ** (q - 1) * Math.PI * Math.cos(Math.PI * t)]; };
+export function netAt(x, z, ext, B = NET.bulge) {
+  const fx = NET.frontX + ext, L = Math.max(0.01, fx - NET.backX), W = 2 * NET.hw;
+  const u = Math.min(1, Math.max(0, (x - NET.backX) / L)), v = Math.min(1, Math.max(0, (z + NET.hw) / W));
+  const [su, du] = shape(u), [sv, dv] = shape(v), slope = (NET.frontY - NET.backY) / L;
+  return [NET.backY + slope * L * u + B * su * sv, slope + (B * du * sv) / L, (B * su * dv) / W, su * sv];
 }
 class Net6328 extends Surface {
   constructor() {
     super({ name: 'net', vertices: [0, 0, 0, 0.01, 0, 0, 0, 0, 0.01], indices: [0, 1, 2], mu: MU.net, tread: NET.tread });
+    this.B = 0; this.phi = new Map();
     this.place(0);
   }
   place(ext) { this.ext = ext; this.x1 = NET.frontX + ext; }
-  touches(p) {
+  touches(p, b) {
     const [x, y, z] = p;
     if (x <= NET.backX || x >= this.x1 || Math.abs(z) >= NET.hw) return [];
-    const [h, hx, hz] = netAt(x, z, this.ext), l = Math.hypot(hx, 1, hz), dist = (h - y) / l;
+    const [h, hx, hz, phi] = netAt(x, z, this.ext, this.B), l = Math.hypot(hx, 1, hz), dist = (h - y) / l;
     if (dist >= R || dist < -0.03) return [];
+    if (b) this.phi.set(b, phi);
     return [{ depth: R - dist, n: [hx / l, -1 / l, hz / l] }];
+  }
+  // its rise from the last step's contacts (contacts: the path's, { wheel, ball, depth }): where the
+  // FUEL's push in the mode's shape (each pressing in tread x its depth, which the rise takes back
+  // phi for phi) balances the stretch, k B = sum tread phi (depth - phi dB), solved for the new B;
+  // moved at most rate (up, down; m/s) a step, so a FUEL isn't left over it as it drops
+  flex(contacts, dt) {
+    let a = 0, c = 0;
+    for (const ct of contacts) {
+      if (ct.wheel !== this) continue;
+      const phi = this.phi.get(ct.ball) ?? 0;
+      a += this.tread * phi * ct.depth; c += this.tread * phi * phi;
+    }
+    this.phi.clear();
+    const B = Math.min(NET.bulge, Math.max(0, (a + c * this.B) / (NET.k + c)));
+    this.B += Math.min(NET.rate[0] * dt, Math.max(-NET.rate[1] * dt, B - this.B));
   }
 }
 // the front bumper (solid foam under fabric: js/mech/mechanism.js Block), where FUEL climb out of the

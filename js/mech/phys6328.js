@@ -185,6 +185,7 @@ export class Physical6328 extends PhysicalRobot {
     placeIntake(this.w.intake, this.armDeg);
     this.s.slide.setPose([ext, 0, 0]);
     placeNet(this.s.net, ext);
+    this.s.net.flex(this.path.contacts, dt); // (the net stretched as far as the load pushed it last step)
     this.s.hood.setPose([DRUM[0], DRUM[1], 0], 0, hoodRot(this.hoodDeg));
     placeHood(this.w.hood, this.hoodDeg);
     this.stepMechanisms(dt, t);
@@ -310,11 +311,11 @@ export class Physical6328 extends PhysicalRobot {
   extNow() { return slideExt(this.armDeg); }
   // about how fast a FUEL leaves at the drum's speed now (m/s; tools/mechlab6328.mjs shooter)
   exitSpeed() { return EXIT_PER_DRUM_SURFACE * Math.abs(this.t.drum.omega) * SHOOTER.drum.r; }
-  // how many it holds, about: 52-56 through its intake in play (tools/intake-test.mjs 1.5 --along,
-  // and --return), 54-59 on the bench (tools/mechlab6328.mjs intakefull); the binder's "~75 fuel
-  // capacity at peak". Only a rating, for the HUD and the AI's plans: it's full when its intake
-  // can't put more in (js/mech/physical.js)
-  capacity() { return 56; }
+  // how many it holds, about: 71-77 through its intake in play, full first at 63-65 (tools/intake-
+  // test.mjs 1.5 and 3 --along --return), 64-75 on the bench (tools/mechlab6328.mjs intakefull);
+  // the binder's "~75 fuel capacity at peak". Only a rating, for the HUD and the AI's plans: it's
+  // full when its intake can't put more in (js/mech/physical.js)
+  capacity() { return 70; }
 }
 // a FUEL's exit speed over the drum's surface speed (tools/mechlab6328.mjs shooter measures it)
 export const EXIT_PER_DRUM_SURFACE = 0.75;

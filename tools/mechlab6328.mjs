@@ -62,6 +62,9 @@ function rig({ deg = Number(process.env.ARM ?? INTAKE.down), hood = SHOOTER.hood
   s.hood.setPose([DRUM[0], DRUM[1], 0], 0, hoodRot(hood));
   const pathW = [...wh.floor, ...wh.kick, ...wh.intake];
   r.path = new Mechanism({ substeps: 6, shafts: [...new Set(pathW.map((x) => x.shaft)), t.pivot], wheels: pathW, surfaces: Object.values(s) });
+  // (the net stretched as far as the load pushed it last step, as js/mech/phys6328.js has it)
+  const pathStep = r.path.step.bind(r.path);
+  r.path.step = (dt, ...a) => { s.net.flex(r.path.contacts, dt); pathStep(dt, ...a); r.netMax = Math.max(r.netMax ?? 0, s.net.B); };
   r.shooter = new Mechanism({ substeps: 6, sub: 8, shafts: [t.drum, t.hood], wheels: [wh.drum, ...wh.hood] });
   for (const tr of [t.intake, t.floor, t.backT, t.frontT, t.flywheel]) tr.cmd = 0;
   r.fly = { sp: 0, acc: 0, init: false };
@@ -200,7 +203,7 @@ const tests = {
   intakefull() {
     const runs = [];
     for (let seed = 1; seed <= Number(process.env.SEEDS ?? 3); seed++) {
-      const { t, path } = rig();
+      const rg = rig(), { t, path, s } = rg;
       t.intake.cmd = 1;
       if (process.env.FLOORIN) t.floor.cmd = Number(process.env.FLOORIN) / 12; // (not their code: the floor run while it intakes)
       const r = fillRun(RAPIER, { world: () => world({ carpet: false }), ball, path, DT, held: held6328, own: own6328, top: { topX: 0.1, topN: 10 }, speed: SPEED, sec: Number(process.env.SEC ?? 12), seed, front: 0.42, keep: true });
@@ -208,13 +211,13 @@ const tests = {
       // (where the load is: how many in each 0.1 m along the robot, and the mouth's)
       const ps = r.balls.map((b) => { const p = b.translation(); return [p.x, p.y, p.z]; });
       const bins = {}; for (const p of ps.filter(held6328)) { const k = Math.floor(p[0] * 10) / 10; bins[k] = (bins[k] || 0) + 1; }
-      if (process.env.PROFILE) { const L = ps.filter(held6328), xs = [-0.2, -0.1, 0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6]; console.log('   top along x:', xs.map((x) => { const q = L.filter((p) => p[0] >= x && p[0] < x + 0.1); return `${x.toFixed(1)}:${q.length ? Math.max(...q.map((p) => p[1] + R)).toFixed(2) : '-'}/${q.filter((p) => p[1] > 0.42).length}`; }).join(' '), '| net at mid', NET.bulge); }
+      if (process.env.PROFILE) { const L = ps.filter(held6328), xs = [-0.2, -0.1, 0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6]; console.log('   top along x:', xs.map((x) => { const q = L.filter((p) => p[0] >= x && p[0] < x + 0.1); return `${x.toFixed(1)}:${q.length ? Math.max(...q.map((p) => p[1] + R)).toFixed(2) : '-'}/${q.filter((p) => p[1] > 0.42).length}`; }).join(' '), '| the net risen', s.net.B.toFixed(3), 'm at its middle, at most', rg.netMax.toFixed(3)); }
       console.log('   load along x:', Object.keys(bins).sort((a, b) => a - b).map((k) => `${(+k).toFixed(1)}:${bins[k]}`).join(' '), '| in the mouth', ps.filter((p) => own6328(p) && !held6328(p)).length);
       if (process.env.STUCK) for (const b of r.balls) { const q = b.translation(), p = [q.x, q.y, q.z]; if (own6328(p) && !held6328(p) || (held6328(p) && p[0] > 0.3)) console.log(`   ${held6328(p) ? 'held ' : 'mouth'} ${p.map((v) => v.toFixed(2)).join(',')}: ${path.contacts.filter((c) => c.ball === b).map((c) => c.wheel.name + ' ' + c.force.toFixed(0)).join(', ')}`); }
       r.world.free();
       runs.push(r);
     }
-    console.log(`6328 through its intake (${runs.length} fills): the most it held ${Math.min(...runs.map((r) => r.most))}-${Math.max(...runs.map((r) => r.most))} (mean ${mean(runs.map((r) => r.most)).toFixed(1)})`);
+    console.log(`6328 through its intake (${runs.length} fills; the net's stretch to ${NET.bulge} m, k ${NET.k} N/m): the most it held ${Math.min(...runs.map((r) => r.most))}-${Math.max(...runs.map((r) => r.most))} (mean ${mean(runs.map((r) => r.most)).toFixed(1)})`);
   },
   hold() {
     const { path } = rig();
@@ -264,6 +267,7 @@ function dumpRun(seed) {
   const watch = shotWatch(shooter);
   t.floor.cmd = 1;
   let deg = INTAKE.down, set = INTAKE.down, minFly = Infinity;
+  const who = {};
   for (let k = 0; k < 8 / DT; k++) {
     const T = k * DT;
     step(1, () => {
@@ -276,7 +280,10 @@ function dumpRun(seed) {
     deg = turnArm(t, deg, DT);
     watch.check(balls, T);
     if (watch.shots.length) minFly = Math.min(minFly, t.drum.omega);
+    if (process.env.WHO) for (const c of [...path.contacts, ...shooter.contacts]) { const k = c.wheel.name; who[k] = (who[k] || 0) + c.force * DT; }
+    if (process.env.WHO && k % 30 === 0) console.log(`   ${T.toFixed(2)} s: ${watch.shots.length} out; floor ${(t.rollers[0].omega * FLOOR_R).toFixed(2)} m/s ${t.floor.motor.current.toFixed(0)} A, front kicker ${(Math.abs(t.kick.omega) * KICK.r).toFixed(2)} m/s ${t.frontT.motor.current.toFixed(0)} A, back ${(t.back[0].omega * BACK_R).toFixed(2)} m/s, drum ${t.drum.omega.toFixed(0)}`);
   }
+  if (process.env.WHO) console.log('   impulse by part (N s):', Object.entries(who).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${v.toFixed(1)}`).join(', '));
   const s = watch.shots.map((x) => x.t), first = s[0] ?? 0, in1 = s.filter((x) => x - first < 1).length;
   const best = Math.max(0, ...s.map((x) => s.filter((y) => y >= x && y < x + 1).length));
   const avg = s.length > 1 ? (s.length - 1) / (s[s.length - 1] - first) : 0;
