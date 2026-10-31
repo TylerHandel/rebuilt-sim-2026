@@ -1,0 +1,50 @@
+{
+ "name": "2026-10-31T23-41-59-selftest2",
+ "threads": 4,
+ "jobs": 1,
+ "commit": "7e2d71e",
+ "strategy": "scorer",
+ "skill": "champs",
+ "seeds": [
+  1
+ ],
+ "env": {},
+ "minutes": 2.72735,
+ "summary": "robot  matches  avg pts  avg FUEL  avg launched  avg passes  fouls  W-L-T\n2910         1    557.0     542.0         633.0        93.0      0  1-0-0\n4414         1    449.0     449.0         696.0       164.0      1  0-1-0",
+ "results": [
+  {
+   "a": "2910",
+   "b": "4414",
+   "seed": 1,
+   "ok": {
+    "robot": "4414",
+    "pts": 449,
+    "fuel": 449,
+    "launched": 696,
+    "passes": 164,
+    "fouls": [
+     "G407"
+    ]
+   },
+   "A": {
+    "robot": "2910",
+    "pts": 557,
+    "fuel": 542,
+    "launched": 633,
+    "passes": 93,
+    "fouls": []
+   },
+   "B": {
+    "robot": "4414",
+    "pts": 449,
+    "fuel": 449,
+    "launched": 696,
+    "passes": 164,
+    "fouls": [
+     "G407"
+    ]
+   },
+   "s": 163.584
+  }
+ ]
+}
