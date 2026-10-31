@@ -141,6 +141,10 @@ export class OpponentAI {
     this.natural = !!robot.phys?.naturalFull;
     if (this.natural && this.skill.load >= 1) this.stopAt = this.fillTarget = Infinity;
     else this.stopAt = this.maxLoad;
+    // a turret robot that holds only a few FUEL (hopperless: 341, 8793) doesn't make trips with a
+    // load: its FUEL go straight from the intake to the shooter. Out of its zone it passes what it
+    // picks up across into its zone as it goes; in its zone it intakes and shoots on the move.
+    this.flow = cap < 20 && robot.cfg.shooter.type === 'turret';
     this.lastGainT = 0; this.intakedSeen = 0;
   }
 
@@ -406,8 +410,10 @@ export class OpponentAI {
           || lastCall
           || (stored >= 3 && !active && untilActive <= travel + B.stageMargin)
           || (stored > 0 && left < travel + 4);
-        // a turret already in its zone just keeps collecting there and shoots as it goes
-        if (go && !(this.turret && r.lastInZone && canShoot && this._zoneWorthIt() && this._hasRoom())) {
+        // a turret already in its zone just keeps collecting there and shoots as it goes (one that
+        // keeps its FUEL flowing, wherever the next FUEL is: it shoots on its way to it)
+        const stay = this.turret && r.lastInZone && canShoot && (this.flow || (this._zoneWorthIt() && this._hasRoom()));
+        if (go && !stay) {
           this.state = 'score'; this.path = null; this.progress = null;
         }
       } else if (stored === 0) {
@@ -415,8 +421,8 @@ export class OpponentAI {
         this.hesitateT = this.skill.hesitate;
       } else if (!canShoot && untilActive > travel + B.topUp && this._hasRoom()) {
         this.state = 'collect'; this.path = null; // plenty of time: top up first
-      } else if (this.turret && canShoot && r.lastInZone && this._zoneWorthIt() && this._hasRoom()) {
-        this.state = 'collect'; this.path = null; // shoot while picking up the stockpile
+      } else if (this.turret && canShoot && r.lastInZone && (this.flow || (this._zoneWorthIt() && this._hasRoom()))) {
+        this.state = 'collect'; this.path = null; // shoot while picking up the stockpile (or what's on the way)
       }
     }
 
@@ -433,6 +439,12 @@ export class OpponentAI {
         this.shootingMode = stored > 0; // full speed when there's nothing to shoot
         r.cmd.shoot = stored > 0;
         this.label = `Shooting while collecting (${stored})`;
+      } else if (this.flow && canShoot && !r.lastInZone && stored > 0 && this._passOn(left, travel)) {
+        // out of its zone and staying out for more: pass what it picks up across as it goes
+        r.passTarget = this._dropPoint();
+        r.cmd.pass = this._passClear(r.pos, r.passTarget);
+        r.cmd.prespin = true;
+        this.label = `Passing while collecting (${r.stats.passes} passed)`;
       }
       return;
     }
@@ -493,6 +505,14 @@ export class OpponentAI {
     this.label = r.cmd.shoot ? (r.ready ? 'Shooting' : 'Aiming') : bully ? 'Pushing through' : remain > 0.3 ? 'Returning to score' : 'Staged — waiting for HUB';
   }
 
+  // one that keeps its FUEL flowing, out of its zone while its HUB is active: is a pass worth more
+  // than carrying it in? Only while it's staying out for more (the FUEL it's going for is out
+  // here), with time left to pick the pass up again and shoot it
+  _passOn(left, travel) {
+    const b = this.ball;
+    return (!b || !Field.inAllianceZone(this.own, b.pos.x)) && left > travel + 8;
+  }
+
   // where our passes land: inside our zone, beside the HUB rather than behind it
   _dropPoint() {
     const r = this.robot, s = this.own === BLUE ? 1 : -1;
@@ -525,12 +545,13 @@ export class OpponentAI {
     const stored = r.stored.length;
     // collect a batch, then dump it all in one go: one spin-up (and for a chassis-aimed shooter
     // one turn) per batch instead of one per FUEL. It passes early if there's nothing left to get.
-    const batch = Math.min(this.maxLoad, Math.max(2, Math.round(B.passBatch)));
+    // (one that keeps its FUEL flowing passes each one as it comes, its flywheel kept spinning)
+    const batch = this.flow ? 1 : Math.min(this.maxLoad, Math.max(2, Math.round(B.passBatch)));
     if (canPass && stored > 0 && (stored >= batch || !this.ball)) this.passing = true;
     if (!canPass || stored === 0) this.passing = false;
-    this.shootingMode = !!this.passing;
+    this.shootingMode = !!this.passing && !this.flow;
     // nearly there: spin the flywheel up (and aim a turret) ahead of the dump
-    r.cmd.prespin = canPass && stored >= 0.7 * batch;
+    r.cmd.prespin = canPass && (this.flow || stored >= 0.7 * batch);
     const b = !this._hasRoom() || r.full ? null : this.ball; // full: stop chasing FUEL, go pass it
     if (this.passing && !this.turret) {
       // chassis-aimed: ease off while the chassis turns and dumps the batch
@@ -683,11 +704,17 @@ export class OpponentAI {
       return;
     }
     const d = Math.hypot(b.pos.x - r.pos.x, b.pos.z - r.pos.z);
+    // one that keeps its FUEL flowing, shooting in its zone with the next FUEL out of it: it
+    // goes as far as the zone line and shoots what it has before it leaves
+    const lineX = Field.allianceLineX(this.own), inside = this.own === BLUE ? -1 : 1;
+    const hold = this.flow && r.lastInZone && r.stored.length > 0 && (this.match.hubActive(this.own) || this._inGrace())
+      && (b.pos.x - lineX) * inside < 0.6;
     // give up on FUEL we're not getting closer to
-    if (d < this.ballBest - 0.1) { this.ballBest = d; this.ballProgressT = 0; }
+    if (hold || d < this.ballBest - 0.1) { this.ballBest = d; this.ballProgressT = 0; }
     else if ((this.ballProgressT += dt) > 2.5) { this.blacklist.set(b, this.t + 8); this.ball = null; return; }
     const near = d < 1.6;
-    this._drive(b.pos.x, b.pos.z, { speed: near ? B.collectSpeed : 1, avoid: !near, arrive: -0.3 });
+    if (hold) this._drive(lineX + inside * 0.6, clamp(b.pos.z, -HALF_W + 0.6, HALF_W - 0.6), { speed: B.collectSpeed, avoid: true });
+    else this._drive(b.pos.x, b.pos.z, { speed: near ? B.collectSpeed : 1, avoid: !near, arrive: -0.3 });
     r.cmd.intake = this._intakeFor(d);
     this.label = `Collecting (${r.stored.length}${r.full ? ', full' : '/~' + r.capacity()})`;
   }
