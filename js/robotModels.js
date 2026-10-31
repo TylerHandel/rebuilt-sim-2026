@@ -17,6 +17,7 @@ import * as D4 from './mech/r4414.js';
 import { NET as NET_1706 } from './mech/r1706.js';
 import * as R1690 from './mech/r1690.js';
 import { NET as NET_581 } from './mech/r581.js';
+import { INTAKE as INTAKE_6328, WALLS as WALLS_6328, NET as NET_6328, KICK as KICK_6328, PIVOT as PIVOT_6328, DRUM as DRUM_6328, SHOOTER as SHOOTER_6328 } from './mech/r6328.js';
 import { SHOOTER as S341, hoodRot as hoodRot341, hoodElevation as hoodElevation341 } from './mech/r341.js';
 import { fuelTexture, squashable } from './fuelSkin.js';
 import { ALUMINUM_COLORS } from './aluminumColors.js';
@@ -3385,6 +3386,77 @@ function build604(cfg, alliance) {
   return { root, anim, stored: [], modules, extLen };
 }
 
+// ============================================================ 6328 Mechanical Advantage, Darwin
+// From their AdvantageScope model (Mechanical-Advantage/RobotCode2026Public ascope_assets/Robot_Darwin,
+// a glTF export of their Onshape assembly), split by tools/extract-parts.mjs (cad/robots/6328.json):
+// the body (drivetrain without the swerve modules the game draws, the Superdexer roller floor, the
+// full-width launcher and the intake's fixed pivot gearbox), the intake arm (its side plates and
+// motors; origin on its pivot, exported folded up), the hopper's sliding front (front wall and
+// dynamic walls, exported in) and the hood (origin on the drum's axle, exported at their 10 deg).
+// The final intake's roller, bash bar, static bottom roller and ramp (newer than the export:
+// js/mech/r6328.js INTAKE), the static walls and the net (Champs; the export has the roof they ran
+// before it) are drawn.
+function build6328(cfg, alliance) {
+  const root = new THREE.Group();
+  const L = cfg.frame.length, W = cfg.frame.width, bay = cfg.bay;
+  addBumpers(root, cfg, alliance);
+  const modules = addDrivebase(root, cfg, 0, false);
+  const blue = std(cfg.colors.accent, 0.45, 0.4), black = std(0x1d1f24, 0.5, 0.3);
+  const drawn = new THREE.Group();
+  root.add(drawn);
+  addDrivebase(drawn, cfg, 0, true).forEach((md) => md.pivot.parent.removeFromParent());
+  for (const s of [-1, 1]) pocketPlate(drawn, 0.36, 0.5, 0.006, blue, [[0, 0.05, 0.06]], -0.2, 0.3, s * 0.32);
+  cylZ(0.051, 0.53, black, drawn, DRUM_6328[0], DRUM_6328[1], 0, 20);
+  for (let x = -0.16; x < 0.24; x += 0.049) cylZ(0.02, 0.54, black, drawn, x, 0.18 + 0.11 * (x + 0.06), 0, 10);
+  cylZ(KICK_6328.r, KICK_6328.width, black, drawn, KICK_6328.at[0], KICK_6328.at[1], 0, 14);
+  // the static walls (polycarbonate)
+  const Wl = WALLS_6328;
+  for (const s of [-1, 1]) polyWall(root, Wl.x1 - Wl.x0, Wl.y1 - Wl.y0, (Wl.x0 + Wl.x1) / 2, (Wl.y0 + Wl.y1) / 2, s * Wl.hw);
+  // the intake arm on its pivot (turned from the export's pose, folded up)
+  const arm = new THREE.Group();
+  arm.position.set(PIVOT_6328[0], PIVOT_6328[1], 0);
+  root.add(arm);
+  const armDrawn = new THREE.Group();
+  arm.add(armDrawn);
+  const I = INTAKE_6328, rel = ([x, y]) => [x - PIVOT_6328[0], y - PIVOT_6328[1]];
+  cylZ(I.roller.r, I.roller.width, black, arm, ...rel(I.roller.at), 0, 18);
+  cylZ(I.bash.r, I.bash.width, blue, arm, ...rel(I.bash.at), 0, 14);
+  cylZ(I.toe.r, I.toe.width, blue, arm, ...rel(I.toe.at), 0, 10);
+  {
+    const [tx, ty] = rel(I.toe.at), [ux, uy] = rel(I.rampTop.at), len = Math.hypot(ux - tx, uy - ty);
+    const plate = rbx(len, 0.004, 2 * I.rampHw, 0.001, black, arm, (tx + ux) / 2, (ty + uy) / 2, 0);
+    plate.rotation.z = Math.atan2(uy - ty, ux - tx);
+  }
+  for (const s of [-1, 1]) rbx(0.28, 0.006, 0.006, 0.002, black, armDrawn, -0.1, 0.2, s * 0.32);
+  // the hopper's sliding front, on the arm's pin and slot
+  const slide = new THREE.Group();
+  root.add(slide);
+  const slideDrawn = new THREE.Group();
+  slide.add(slideDrawn);
+  polyWall(slideDrawn, 2 * 0.343, 0.28, 0.346, 0.37, 0, Math.PI / 2);
+  // the hood on the drum's axle
+  const hood = new THREE.Group();
+  hood.position.set(DRUM_6328[0], DRUM_6328[1], 0);
+  root.add(hood);
+  cadPart(root, 'robots/6328-body.glb', () => { drawn.visible = false; });
+  cadPart(arm, 'robots/6328-intake.glb', () => { armDrawn.visible = false; });
+  cadPart(slide, 'robots/6328-front.glb', () => { slideDrawn.visible = false; });
+  cadPart(hood, 'robots/6328-hood.glb', () => {});
+  // the net from the launcher's top to the front wall's top, riding out with it (js/mech/r6328.js
+  // NET: slack, the load lifting it)
+  const N = NET_6328, extLen = cfg.storage.extLen;
+  const net = hopperNet(root, { x0: N.backX, x1: N.frontX, x1Out: N.frontX + extLen, xFixed: N.backX, hw: N.hw, y: N.backY + 0.004, yFront: N.frontY + 0.004, NX: 16, NZ: 30, slack: { sag: 0.04 } });
+  const stowed = (I.up - I.cad) * Math.PI / 180, down = (I.down - I.cad) * Math.PI / 180;
+  const anim = (st) => {
+    arm.rotation.z = st.armTurn ?? stowed + (down - stowed) * st.intakeDeploy;
+    const ext = st.hopperDeploy * extLen;
+    slide.position.x = ext;
+    hood.rotation.z = st.hoodTurn ?? 0;
+    net.drape(st.load, ext, { yFront: N.frontY + 0.004 });
+  };
+  return { root, anim, stored: [], modules, extLen };
+}
+
 export function buildRobotModel(cfg, alliance) {
   let m;
   if (cfg.key === '2910') m = build2910(cfg, alliance);
@@ -3400,6 +3472,7 @@ export function buildRobotModel(cfg, alliance) {
   else if (cfg.key === '581') m = build581(cfg, alliance);
   else if (cfg.key === '1114') m = build1114(cfg, alliance);
   else if (cfg.key === '604') m = build604(cfg, alliance);
+  else if (cfg.key === '6328') m = build6328(cfg, alliance);
   else m = build8793(cfg, alliance);
   // stored FUEL visual (instanced)
   const r = FUEL.radius;

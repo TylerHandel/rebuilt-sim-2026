@@ -3,7 +3,7 @@
 // pivot or axis so the game can move it. A recipe lists the outputs:
 //   npm i --no-save @gltf-transform/core @gltf-transform/extensions @gltf-transform/functions meshoptimizer
 //   node tools/extract-parts.mjs robot.glb cad/robots/971.json
-// Recipe: { "front": "+y" | "-y" | "-x" (which CAD axis the robot's front is; CAD is Z up), or "+y,zdown" (Z down),
+// Recipe: { "front": "+y" | "-y" | "-x" (which CAD axis the robot's front is; CAD is Z up), or "+y,zdown" (Z down), "+z,yup" (Y up),
 //   "parts": [{ "out": "cad/robots/971-turret.glb", "include": ["shooter assembly <1>"],
 //               "exclude": ["regex", ...], "origin": [x, y, z] (model frame), "ratio": 0.08 }] }
 // include: node names (prefix match) whose subtrees are kept; exclude: regexes on any node name
@@ -67,6 +67,8 @@ const AXES = {
   '-x': [-1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0], // model = (-x, z, y)
   // (1690's X_T: Z down, Y forward, X to the robot's left)
   '+y,zdown': [0, 0, -1, 0, 1, 0, 0, 0, 0, -1, 0, 0], // model = (y, -z, -x)
+  // (a Y-up glTF, forward +z, x to the robot's left: 6328's AdvantageScope model)
+  '+z,yup': [0, 0, -1, 0, 0, 1, 0, 0, 1, 0, 0, 0], // model = (z, y, -x)
 };
 
 const center = (n) => { const b = getBounds(n); return [0, 1, 2].map((i) => (b.min[i] + b.max[i]) / 2); };
@@ -265,7 +267,9 @@ const toSRGB = (c) => Math.round(255 * (c <= 0.0031308 ? 12.92 * c : 1.055 * c *
 const log = [];
 
 for (const part of recipe.parts) {
-  const doc = await io.read(src);
+  // (a part's own "src": another file next to the source, as 6328's AdvantageScope model ships its
+  // moving parts in model_0.glb..model_3.glb)
+  const doc = await io.read(part.src ? path.resolve(path.dirname(src), part.src) : src);
   const like = part.like ? await refParts(part.like) : null;
   const root = doc.getRoot();
   const scene = root.listScenes()[0];

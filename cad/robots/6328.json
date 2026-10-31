@@ -1,0 +1,36 @@
+{
+  "source": "6328 Mechanical Advantage, Darwin: the AdvantageScope model in their code repository (Mechanical-Advantage/RobotCode2026Public, ascope_assets/Robot_Darwin: model.glb and its moving parts model_0.glb (hood), model_1.glb (intake), model_2.glb (the hopper's sliding front)), a glTF export of their Onshape assembly 6328-26C-0000 (document 2da573df9d139d7a1e0f08a8, view-only); Y up, forward +z",
+  "front": "+z,yup",
+  "parts": [
+    {
+      "out": "cad/robots/6328-body.glb",
+      "include": ["6328-26C-0100 Drivebase <1>", "6328-26C-0410 Superdexer <1>", "6328-26C-3100 Full Wide Launcher <1>", "6328-26C-2300 Intake <1>"],
+      "exclude": ["SDS MK5", "spacer", "bearing", "bushing", "standoff", "Housing Template", "Simplified MPM", "^id\\d+$"],
+      "ratio": 0.05,
+      "error": 0.004
+    },
+    {
+      "out": "cad/robots/6328-intake.glb",
+      "src": "model_1.glb",
+      "exclude": ["spacer", "bearing", "bushing", "2300 Roller", "Ramp Plate", "Ramp Mounting Block", "Cross Steel Tube", "Bash Bar"],
+      "origin": [0.317, 0.1855, 0],
+      "ratio": 0.15,
+      "error": 0.003
+    },
+    {
+      "out": "cad/robots/6328-front.glb",
+      "src": "model_2.glb",
+      "glass": ["Dynamic Wall"],
+      "ratio": 0.3,
+      "error": 0.002
+    },
+    {
+      "out": "cad/robots/6328-hood.glb",
+      "src": "model_0.glb",
+      "exclude": ["spacer", "bearing", "belt"],
+      "origin": [-0.2639, 0.4861, 0],
+      "ratio": 0.2,
+      "error": 0.002
+    }
+  ]
+}

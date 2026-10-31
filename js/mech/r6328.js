@@ -145,11 +145,18 @@ export const PASS_MAP = {
 };
 // their limits (LaunchCalculator): HUB shots from 0.6 to 6 m, passes from 3 to 17.16 m
 export const RANGE = { hub: [0.6, 6.0], pass: [3.0, 17.16] };
-// The sim's FUEL leave this robot's drum differently from theirs (tools/mechlab6328.mjs tune: what
-// leaves at each row of their map, and where it comes down): SIM_FLY (null: theirs) re-finds each
-// row's flywheel speed so its FUEL, fed as in play at the row's hood angle, come down through the
-// HUB's opening from the row's distance (rad/s), as 1678's SIM_PASS. THEIR_FLY=1 for their own.
-export const SIM_FLY = { hub: null, pass: null };
+// Their maps' speeds put the sim's FUEL short (tools/mechlab6328.mjs shooter: 0.3 to 1.3 m short of
+// the HUB's center at the rim's height, 1.7 to 10 m short passing). FUEL leave at 0.73-0.75 of the
+// drum's surface speed and at the hood's angle within 1.5 deg, and fly drag-only, with no Magnus
+// lift for the backspin the hood's half-speed roller puts on them, so they need 8-28% more (the
+// close rows most: those are steep); and past ~300 rad/s (15 m/s at the drum's surface) they slip
+// on it and leave at no more than ~8.6 m/s however fast it turns, no more than ~6.7 m to the
+// carpet at their 38 deg passing hood. SIM_FLY re-finds each row's flywheel speed (tools/mechlab6328
+// .mjs tune: six fed up the kickers as in play, the flywheel settled at the row's speed, bang-bang
+// past 3.25 m): the speed whose FUEL come down through the rim's height (the carpet, passing) at the
+// row's distance from the launcher, as 1678's SIM_PASS. Their 7.8 and 17.16 m pass rows are out of
+// reach (flat out, 450 and 500: what's asked, ~6.7 m). THEIR_FLY=1 for their own.
+export const SIM_FLY = { hub: [177, 156, 168, 182, 211, 222, 241, 239, 245, 249], pass: [216, 407, 450, 500] };
 const THEIR = typeof process !== 'undefined' && !!process.env?.THEIR_FLY;
 export function shotFor(kind, d, { theirs = THEIR } = {}) {
   const m = kind === 'pass' ? PASS_MAP : HUB_MAP, sim = !theirs && SIM_FLY[kind];

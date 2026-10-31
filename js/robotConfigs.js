@@ -1096,6 +1096,74 @@ export const ROBOTS = {
     // their CAD: gold printed parts and bumpers, black corrugated plastic, raw aluminum
     colors: { frame: 0xc3c8ce, accent: 0xfab508, trim: 0x1d1e21 },
   },
+  6328: {
+    key: '6328',
+    team: 6328,
+    teamName: 'Mechanical Advantage',
+    robotName: 'Darwin',
+    archetype: 'Drum dumper',
+    blurb: 'Full-width drum launcher: a slap-down single-roller intake pulls the hopper\'s front out with it on a pin and slot, a nine-roller floor (their "Superdexer") feeds two kickers up into a 4in drum under a carbon-fiber hood, throwing FUEL out over the back. The robot turns to aim and launches on the move; while it launches the intake comes slowly back up, sweeping the load toward the launcher. A net over the hopper flexes up as it fills. Fits under the TRENCH.',
+    // built of its physical mechanisms (js/mech/r6328.js, phys6328.js): its FUEL go through its
+    // CAD's ball path (their AdvantageScope model of their Onshape assembly), moved by its rollers
+    // under their code's controls (Mechanical-Advantage/RobotCode2026Public)
+    physical: '6328',
+    // DriveConstants: a 26.5 x 27.5in frame (33 x 34in with bumpers), 150 lb (darwinMassLbs)
+    frame: { length: 26.5 * IN, width: 27.5 * IN },
+    height: 21.9 * IN, // the hopper's walls and the launcher's top (their CAD: 0.556 m)
+    mass: 68,
+    // SDS MK5n (front) and MK5i (back) at R1, 7.03125:1 (darwinDriveReduction), their wheels'
+    // 1.99in radius; Kraken X60s on torque current: 80 A stator (driveCurrentLimitAmps), the supply
+    // limit their FinanceDepartment regulates from 5 to 35 A in TELEOP by the battery's draw, 50 A
+    // in AUTO (CurrentLimits): the top of each
+    // (their track widths: 21.25 x 22.25in between the modules' axes)
+    drive: { ratio: 7.03125, wheel: 3.98 * IN, stator: 80, supply: 50, teleop: { stator: 80, supply: 35 }, moduleAt: [21.25 * IN / 2, 22.25 * IN / 2] },
+    // the slap-down: its 2in roller 0.6 m out (0.19 m past the bumpers), the arm on a pivot 12.48in
+    // forward and 0.186 m up (their DarwinMechanism3d), down 17.4 deg to up 145.8 (their slam's
+    // angles: 128.4 deg of travel). fold.hull: its side outline about the pivot, down (the side
+    // plates from the views of their Onshape assembly: the plates' leg to 4.5 cm off the carpet,
+    // the bash bar at the front); fold.hw: the side plates' outsides
+    intake: {
+      width: 21.5 * IN, reach: 0.19, rate: 200, pull: 5, deployTime: 0.35, retractTime: 0.7, side: 'front', latched: false,
+      fold: {
+        pivot: [0.317, 0.1855], stowDeg: 128.4, hw: 0.325,
+        hull: [[-0.03, 0.04], [0.17, 0.09], [0.334, 0.045], [0.335, -0.035], [0.29, -0.06], [0.175, -0.141], [0.14, -0.141], [0.0, -0.05]],
+      },
+    },
+    // the hopper's front (its front wall and dynamic walls) slides out 0.313 m with the intake down
+    // (their DarwinMechanism3d's pin and slot): its walls 0.23 to 0.51 m up, 0.346 to each side
+    storage: { extLen: 0.313, extend: 'intake', box: { y0: 0.25, y1: 0.51, hw: 0.346 } },
+    // their CAD: the roller floor sloping down to the back, polycarbonate walls to 0.556 m and the
+    // net over them (the binder's "Net" variant, Champs), from the launcher's top to the front wall
+    bay: {
+      x0: -0.1, x1: 0.34, hw: 0.334, top: 0.555,
+      slope: { x: 0.0, y: 0.555 },
+      dome: { h: 0.08, x0: 0.0, cx: 0, cz: 0, rHole: -1 },
+      floor: { a: 0.21, b: 0.11, lo: 0.19, hi: 0.235 },
+      drive: 'floor', driveSpeed: 3,
+      feed: { x: -0.1, via: [[-0.16, 0.26], [-0.17, 0.36], [-0.16, 0.48]] },
+    },
+    shooter: {
+      type: 'fixed',
+      facing: 'back', // LauncherConstants.robotToLauncher: facing back, 0.151 m behind the center
+      lanes: [-0.2, -0.067, 0.067, 0.2],
+      // the hood turns about the drum's axle; FUEL leave at its end, halfway across the gap between
+      // the drum (2in radius) and the hood's arc (0.186 m), square to the shot (js/mech/r6328.js)
+      hood: { x: -0.2639, y: 0.4861, r: 0.115, cadDeg: 80, stowDeg: 80 },
+      exit: { x: -0.18, y: 0.6 },
+      // the binder: "delivering 24 fuel per second" (its physical ball path: tools/mechlab6328.mjs dump)
+      bps: 24,
+      // their hood's 10 to 41.2 deg: FUEL leave at 80 to 49 deg (the CAD's geometry, the bench)
+      hoodMin: 49, hoodMax: 80,
+      speedMax: 8.6, // FUEL slip on the drum past ~15 m/s of its surface (tools/mechlab6328.mjs)
+      spinTau: 0.3,
+      shotDrop: 0.002,
+      speedSigma: 0.013, angleSigma: 0.6, yawSigma: 0.6,
+    },
+    climber: null, // none on Darwin (their code has no climber)
+    stats: { 'Shot rate': '24 BPS (binder)', Aiming: 'Chassis', 'Top speed': '', Trench: 'Yes' },
+    // their CAD: black sheet metal, blue anodized launcher plates, yellow hood plates
+    colors: { frame: 0x1d1f24, accent: 0x1f4fbf, trim: 0xe0b020 },
+  },
 };
 
 // Top speed, turn rate and acceleration come from each robot's drivetrain (drivetrain.js): its
@@ -1109,7 +1177,7 @@ for (const cfg of Object.values(ROBOTS)) {
   if (cfg.stats) cfg.stats['Top speed'] = `${ft(dt.topSpeed)} ft/s (${ft(dt.freeSpeed)} free)`;
 }
 
-export const ROBOT_ORDER = ['2910', '4414', '8793', '971', '1678', '1690', '4946', '3928', '341', '4930', '1706', '581', '1114', '604'];
+export const ROBOT_ORDER = ['2910', '4414', '8793', '971', '1678', '1690', '4946', '3928', '341', '4930', '1706', '581', '1114', '604', '6328'];
 
 // Optional add-on climbers for robots without one (971 and 1678 have their own, cfg.climber)
 export const CLIMBER_OPTIONS = {
