@@ -9,3 +9,4 @@ recordings-ai*/
 .venv/
 js/nn/driver.json.tmp
 share/
+results/
