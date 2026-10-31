@@ -220,7 +220,7 @@ const tests = {
     console.log(`6328 through its intake (${runs.length} fills; the net's stretch to ${NET.bulge} m, k ${NET.k} N/m): the most it held ${Math.min(...runs.map((r) => r.most))}-${Math.max(...runs.map((r) => r.most))} (mean ${mean(runs.map((r) => r.most)).toFixed(1)})`);
   },
   hold() {
-    const { path } = rig();
+    const { path, s } = rig();
     const w = world();
     const balls = [];
     const step = (n) => { for (let i = 0; i < n; i++) { path.step(DT, balls, balls); w.step(); } };
@@ -231,7 +231,7 @@ const tests = {
     const ms = (performance.now() - t0) / (1 / DT);
     const top = Math.max(...balls.filter(inHopper).map((b) => b.translation().y + R));
     if (process.env.STUCK) for (const b of balls.filter(inHopper)) { const p = b.translation(); if (p.y > 0.5) console.log(`   high: ${p.x.toFixed(2)},${p.y.toFixed(2)},${p.z.toFixed(2)}`); }
-    console.log(`6328 holds ${balls.filter(inHopper).length} with everything off, the intake down and the hopper out (a layer at a time; the load's top ${top.toFixed(2)} m, the net ${NET.bulge} m of slack); ${ms.toFixed(2)} ms a step`);
+    console.log(`6328 holds ${balls.filter(inHopper).length} with everything off, the intake down and the hopper out (a layer at a time; the load's top ${top.toFixed(2)} m, the net risen ${s.net.B.toFixed(2)} m at its middle, of its ${NET.bulge}); ${ms.toFixed(2)} ms a step`);
   },
   // a full one launched at a row (DIST, their 3 m), with their compaction. Filled through its intake
   // (fillRun, as intakefull: SEEDS fills, FILLSEED the first) or, FILL=drop, dropped in a layer at a

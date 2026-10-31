@@ -3444,9 +3444,9 @@ function build6328(cfg, alliance) {
   cadPart(slide, 'robots/6328-front.glb', () => { slideDrawn.visible = false; });
   cadPart(hood, 'robots/6328-hood.glb', () => {});
   // the net from the launcher's top to the front wall's top, riding out with it (js/mech/r6328.js
-  // NET: slack, the load lifting it)
+  // NET: stretched, flat across its ties empty, the load lifting it)
   const N = NET_6328, extLen = cfg.storage.extLen;
-  const net = hopperNet(root, { x0: N.backX, x1: N.frontX, x1Out: N.frontX + extLen, xFixed: N.backX, hw: N.hw, y: N.backY + 0.004, yFront: N.frontY + 0.004, NX: 16, NZ: 30, slack: { sag: 0.04 } });
+  const net = hopperNet(root, { x0: N.backX, x1: N.frontX, x1Out: N.frontX + extLen, xFixed: N.backX, hw: N.hw, y: N.backY + 0.004, yFront: N.frontY + 0.004, NX: 16, NZ: 30 });
   const stowed = (I.up - I.cad) * Math.PI / 180, down = (I.down - I.cad) * Math.PI / 180;
   const anim = (st) => {
     arm.rotation.z = st.armTurn ?? stowed + (down - stowed) * st.intakeDeploy;
