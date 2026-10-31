@@ -1,4 +1,8 @@
-// probe: drive robot KEY (HEIGHT in m) under the blue left TRENCH empty at SPEED, logging the arm contacts
+// A robot driven empty under the blue left TRENCH's arm at a steady speed: through or stopped, how
+// slow it got under the arm, and the contacts its colliders had with the arm (those the solver pushed
+// on). KEY: the robot (6328); HEIGHT: its collider's height in m (its config's); SPEED (1.5 m/s);
+// DIR=-1 the other way; V=1 each contact; T=1 its height and tilt every 10 steps.
+//   KEY=6328 HEIGHT=0.5715 SPEED=3 node --import ./tools/node-env.mjs tools/trenchprobe.mjs
 import { createWorld, matchSettings, mulberry32 } from './headless.mjs';
 import { ROBOTS } from '../js/robotConfigs.js';
 import { createGame, stepGame } from '../js/game.js';
@@ -27,7 +31,7 @@ const dir = Number(process.env.DIR ?? 1);
 A.spawn(beam.x - dir * 1.8, beam.z, dir > 0 ? 0 : Math.PI);
 run(Math.round(1.0 / PHYSICS_DT), () => { A.cmd = { ...IDLE }; });
 console.log(`${KEY} height ${A.height.toFixed(4)} (clear ${TRENCH.clearHeight.toFixed(4)}), arm cols ${armCols.length}, body y ${A.body.translation().y.toFixed(4)}`);
-let t = 0, passed = null, minV = Infinity, contacts = 0, maxPitch = 0;
+let t = 0, passed = null, minV = Infinity, contacts = 0, pushed = 0, maxPitch = 0;
 const nCol = A.body.numColliders();
 run(Math.round(6 / PHYSICS_DT), (dt) => {
   t = dt;
@@ -37,7 +41,8 @@ run(Math.round(6 / PHYSICS_DT), (dt) => {
   const pitch = Math.asin(Math.max(-1, Math.min(1, 2 * (q.w * q.z - q.x * q.y))));
   const roll = Math.atan2(2 * (q.w * q.x + q.y * q.z), 1 - 2 * (q.x * q.x + q.z * q.z));
   if (Math.abs(dx) < 0.8) {
-    minV = Math.min(minV, v); maxPitch = Math.max(maxPitch, Math.abs(pitch), Math.abs(roll));
+    if (Math.abs(dx) < 0.6) minV = Math.min(minV, v);
+    maxPitch = Math.max(maxPitch, Math.abs(pitch), Math.abs(roll));
     for (let i = 0; i < nCol; i++) {
       const c = A.body.collider(i);
       for (const a of armCols) {
@@ -45,6 +50,7 @@ run(Math.round(6 / PHYSICS_DT), (dt) => {
           for (let k = 0; k < m.numContacts(); k++) {
             const d = m.contactDist(k);
             contacts++;
+            if (m.contactImpulse(k) > 0) pushed++;
             if (process.env.V && contacts < 40) console.log(`  t=${t.toFixed(3)} dx=${dx.toFixed(3)} col${i} shape=${c.shape.type} dist=${d.toFixed(4)} n=${JSON.stringify(m.normal())} imp=${m.contactImpulse(k).toFixed(3)} bodyY=${p.y.toFixed(4)} pitch=${(pitch * 180 / Math.PI).toFixed(2)} v=${v.toFixed(2)}`);
           }
         });
@@ -55,4 +61,4 @@ run(Math.round(6 / PHYSICS_DT), (dt) => {
   if (passed === null && dx > 0.9) passed = t;
   return passed !== null && t > passed + 0.3;
 });
-console.log(`  ${passed !== null ? `through in ${passed.toFixed(2)} s, slowest ${minV.toFixed(2)} m/s` : `STUCK at ${((A.pos.x - beam.x) * dir).toFixed(2)} m`}, contact points ${contacts}, max tilt ${(maxPitch * 180 / Math.PI).toFixed(2)} deg`);
+console.log(`  ${passed !== null ? `through in ${passed.toFixed(2)} s, ${minV.toFixed(2)} m/s at its slowest under the arm` : `STUCK at ${((A.pos.x - beam.x) * dir).toFixed(2)} m`}, ${contacts} contact points with the arm, ${pushed} pushed on, max tilt ${(maxPitch * 180 / Math.PI).toFixed(2)} deg`);
