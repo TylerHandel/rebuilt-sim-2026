@@ -43,11 +43,12 @@
 //     gear: the first pass); its other parts as before (A19, A11, P105-P116).
 //   - the intake (A41's side view, the intake out; A51; P511/P512): the bash bar's front 25.0in out, so
 //     12.25in of travel from the frame's front; the racks P512 (22.593, 16.8in of 8 DP teeth) at 15.2 deg
-//     (0.311 m out, 0.085 m down); its 30T pulley (rollers on 30T, A51) on the front roller 0.565 m out
-//     and 0.226 up; the other roller 0.1125 m behind it (the 75T belt between two 30T: 112.5 mm)
-//     on the kicker bar arms' pin, 0.455 m out, 0.191 up; the arms (P555, 6.34in between the 0.505
-//     and 0.265 holes) hang from it to the 0.75in tube (A52-R2), 0.028 m off the carpet just in front
-//     of the bumper; the hopper front's top 0.462 m (P581: 27.25 wide).
+//     (0.311 m out, 0.085 m down); its rollers on the washer plates' corners (A50's end screws in A41's
+//     and A51's side views, the 75T belt's 112.5 mm between them; A51's front view puts them above and
+//     below the bash bar): 0.577 m out, 0.166 up and 0.529, 0.267; the bar 0.191-0.241 m; the kicker
+//     bar's arms (P555-R6) on their pin 0.467 m out, 0.194 up, hanging to two 0.75in tubes (P556,
+//     A52-R2) 0.033 and 0.054 m up, just in front of the bumper; the hopper front's top 0.462 m (P581:
+//     27.25 wide, bent back to a lip over the top roller).
 // Robot frame: x forward (the intake end), y up, z to its right.
 import { IN, FUEL } from '../constants.js';
 import { Block, Motor, Shaft, Surface, Train, Wheel, BUMPER_MU } from './mechanism.js';
@@ -132,32 +133,46 @@ export const SHOOTER = {
   // of hood (est.)
   kP: 0.25, tolV: 0.03, tolHood: 1.5,
 };
-// the intake (A41's side view, the intake out; A51; P511, P512, P581): the carriage's travel along its
-// racks (12.25in out from the frame's front at 15.2 deg: 0.311 m out, 0.085 m down), the rollers on it
-// as it is retracted ([x, y, r]: 2in polycarbonate under silicone, 2-1/8in), their X60's 12:30, the
-// intake's front (the 2x1 bash bar's front, out: 25.0in), its sides (the intake's hopper sides, P583),
-// the front panel (P581, out: from 0.344 m to its top, 0.462), its lower part bent back over the top
-// roller (P581's bends: est. where to), the 2x1 bash bar on edge under it (out: 0.173 to 0.241 m, FUEL
-// pass under it; between it and the panel a 4in gap). The rollers and the kicker bar
-// (a 0.75in tube, A52-R2, on two arms on a pin, sprung down) are 1690's, as they were, against the
-// drawn slide (est.): the drawings hide both rollers behind the intake's side plates; read off them
-// (DRAWN_ROLLERS=1: the one 30T pulley A41 shows, 0.565 m out and 0.226 up, the other 112.5 mm behind
-// it, the 75T belt's span, on the kicker bar arms' pin, 0.455 m out and 0.191 up, the arms (P555,
-// 6.34in) hanging to the tube 0.028 m off the carpet) they stand 1.4 cm over a FUEL on the carpet that
-// the bar lifts 1.6 cm against the bumper's face, and the sim's rigid FUEL never reach them (0 of 24 on
-// the bench): the real foam squeezes, or the drawn pose isn't the one it runs at
+// the intake (A41's and A51's side views, the intake out; A51's front view; A50; P510-P512, P555, P581):
+// the carriage's travel along its racks (12.25in out from the frame's front at 15.2 deg: 0.311 m out,
+// 0.085 m down); its two rollers ([x, y, r] as retracted: 2in polycarbonate under a 2-1/8in, 1/16in
+// wall polyurethane sleeve, A50) on the two corners of the triangular washer plates (P510) where
+// A50's 1/4-20 end screws show: the bottom one 0.577 m out and 0.166 m up, just behind and under the
+// bash bar's back, its underside 1 cm into a FUEL on the carpet; the top one 0.112 m from it (the 75T
+// belt between two 30T: 112.5 mm), 0.529 m out and 0.267 up, over the bar's height (A51's front view
+// shows them above and below the bar, the A50 balloons on them). Both turn the same way, their
+// undersides running back (a straight 75T belt from one to the other; the X60's pulley in the plates'
+// round hole, 60 mm from the bottom roller on a 48T belt, drives the bottom one), as the sim's had
+// them. Their X60's 12:30 (the binder; A51's BOM has an 18T pulley, 18:30). The intake's front (the
+// 2x1 bash bar's front, out: 25.0in), its sides (the intake's hopper sides, P583), the front panel
+// (P581, out: from 0.344 m to its top, 0.462), its lower part bent back 55 deg and 35 deg to a lip
+// over the top roller (P581's 2.5in and 0.76in flats: back to 0.564 m, 0.308 up), the 2x1 bash bar on
+// edge under it (out: 0.191 to 0.241 m, A41's and A51's side and front views; FUEL pass under it).
+// The kicker bar: two arms (P555-R6) hanging from their pin on the side plates (0.467 m out, 0.194 up)
+// to two 0.75in tubes across (P556 aluminum, A52-R2 Lexan): one 0.161 m straight under the pin, 0.033 m
+// up, the other 34 mm behind it and 21 mm higher (a short ramp up toward the bumper's face, 1.7 cm
+// behind it); the surgical tubing (est.) holds them down at the drawn pose, FUEL can lift them
+// forward, the bumper's face folds them up and forward coming in.
+// INTAKE1690=1: the first pass's places instead (1690's rollers and kicker bar, mirrored onto 2056's
+// slide), for comparison
 // (TRAVEL, in: how far out along the frame's front the carriage goes; the drawing's pose is 12.25)
 const TRAVEL = Number(globalThis.process?.env?.TRAVEL ?? 12.25) * IN, TAN = Math.tan(15.2 * DEG);
 const SLIDE_OUT = [TRAVEL, -TRAVEL * TAN], DRAWN = [12.25 * IN, -12.25 * IN * TAN];
 // (a point of the intake as drawn out, as retracted; and as out at TRAVEL)
 const OUT = (x, y) => [x - DRAWN[0], y - DRAWN[1]];
-const DRAWN_ROLLERS = globalThis.process?.env?.DRAWN_ROLLERS === '1';
+export const INTAKE1690 = globalThis.process?.env?.INTAKE1690 === '1';
 const EXT = (x, y) => [x - DRAWN[0] + SLIDE_OUT[0], y - DRAWN[1] + SLIDE_OUT[1]];
 export const INTAKE = {
   slide: SLIDE_OUT, width: 23.5 * IN, rackDeg: 15.2,
-  rollers: (DRAWN_ROLLERS ? [[0.5647, 0.2256], [0.4549, 0.1910]] : [[0.5657, 0.167], [0.5097, 0.2599]]).map(([x, y]) => [...OUT(x, y), (2.125 / 2) * IN]), ratio: 30 / 12,
-  frame: { front: EXT(0.635, 0)[0], sides: 0.352, top: EXT(0, 0.462)[1], panel: EXT(0, 0.344)[1], lip: EXT(0.55, 0.305), bash: [EXT(0, 0.173)[1], EXT(0, 0.241)[1]] },
-  kick: { ...(DRAWN_ROLLERS ? { pivot: OUT(0.4549, 0.1910), len: 6.34 * IN, a0: 0, fall: -90 } : { pivot: OUT(0.2787, 0.1703), len: 0.186, a0: 55, fall: -90.2 }), r: 0.375 * IN, width: 27.81 * IN, mass: 0.25, J: 0.008, tubing: { preload: 1.0, rate: 1.0 } },
+  rollers: (INTAKE1690 ? [[0.5657, 0.167], [0.5097, 0.2599]] : [[0.577, 0.166], [0.529, 0.267]]).map(([x, y]) => [...OUT(x, y), (2.125 / 2) * IN]), ratio: 30 / 12,
+  frame: { front: EXT(0.635, 0)[0], sides: 0.352, top: EXT(0, 0.462)[1], panel: EXT(0, 0.344)[1], lip: [EXT(0.583, 0.308), EXT(0.564, 0.308)], bash: [EXT(0, 0.191)[1], EXT(0, 0.241)[1]] },
+  // (the kicker bar's arms: their pin, the first tube's distance from it, both tubes in the arms'
+  // frame (+x toward the first), their angle folded (a0, deg) and how far they fall from it to their
+  // stop)
+  kick: {
+    ...(INTAKE1690 ? { pivot: OUT(0.2787, 0.1703), len: 0.186, tubes: [[0.186, 0]], a0: 55, fall: -90.2 } : { pivot: OUT(0.467, 0.194), len: 0.161, tubes: [[0.161, 0], [0.140, -0.034]], a0: 0, fall: -90 }),
+    r: 0.375 * IN, width: 27.81 * IN, mass: 0.25, J: 0.008, tubing: { preload: 1.0, rate: 1.0 },
+  },
 };
 // the racks' drive: an X44 through 8:40 to the 12T 8 DP pinions (0.75in pitch radius); what slides
 // (the intake, its rollers and X60, the bash bar and hopper front: ~4.5 kg, est.)
@@ -333,8 +348,9 @@ function carriage() {
   const F = INTAKE.frame, [dx, dy] = INTAKE.slide, f = F.front - dx, top = F.top - dy;
   return merge(
     wallX(f, -F.sides, F.sides, F.panel - dy, top),
-    // (its lower part bent back over the top roller to just above it: est., P581's bends)
-    grid(2, N(2 * F.sides), (u, v) => [lerp(f, F.lip[0] - dx, u), lerp(F.panel, F.lip[1], u) - dy, lerp(-F.sides, F.sides, v)]),
+    // (its lower part bent back 55 deg, then 35 deg to a level lip over the top roller: P581's bends)
+    grid(2, N(2 * F.sides), (u, v) => [lerp(f, F.lip[0][0] - dx, u), lerp(F.panel, F.lip[0][1], u) - dy, lerp(-F.sides, F.sides, v)]),
+    level(F.lip[1][0] - dx, F.lip[0][0] - dx, -F.sides, F.sides, F.lip[0][1] - dy),
     // (the bash bar: its front, back, top and foot)
     ...[f, f - IN].map((x) => wallX(x, -F.sides, F.sides, F.bash[0] - dy, F.bash[1] - dy)),
     ...F.bash.map((y) => level(f - IN, f, -F.sides, F.sides, y - dy)),
@@ -350,25 +366,25 @@ export function pathSurfaces2056(t) {
   const bottom = belt('bottom', beltRun(BELT.bottom.y, ...BELT.bottom.z, true)), top = belt('top', beltRun(BELT.top.y, ...BELT.top.z, false));
   const car = s('intake (front panel, hopper sides)', carriage(), { mu: MU.polycarb }).onSlide(t.slide, SLIDE.dir);
   car.slideK = SLIDE.pinion;
-  // (the kicker bar's tube on its arms, which swing on their pin on the intake: posed by placeIntake)
+  // (the kicker bar's tubes on its arms, which swing on their pin on the intake: posed by placeIntake)
   const K = INTAKE.kick;
-  const kickTube = s('kicker bar tube (0.75in Lexan)', grid(16, 12, (u, v) => [K.len + K.r * Math.cos(2 * Math.PI * u), K.r * Math.sin(2 * Math.PI * u), (v - 0.5) * K.width]), { mu: MU.polycarb, pos: [...K.pivot, 0] });
+  const kickTube = s('kicker bar tubes (0.75in)', merge(...K.tubes.map(([tx, ty]) => grid(16, 12, (u, v) => [tx + K.r * Math.cos(2 * Math.PI * u), ty + K.r * Math.sin(2 * Math.PI * u), (v - 0.5) * K.width]))), { mu: MU.polycarb, pos: [...K.pivot, 0] });
   kickTube.onShaft(t.kickArm, [...K.pivot, 0]);
   const turretS = s('turret side plates, skis', turret(), { mu: MU.alu, pos: [TURRET.at[0], 0, TURRET.at[1]] });
   const hood = s('hood guide', hoodGuide(), { mu: MU.print });
   return { body: bodyS, bore: boreS, bottom, top, carriage: car, kickTube, turret: turretS, hood, bumper: bumper2056(), net: new Net2056() };
 }
 // how far the kicker bar can fall (deg from folded) with the intake ext of the way out: 1690's bar
-// folds against the bumper coming in and falls once the intake's clear of it (est.: past half its
-// travel); the drawn one (DRAWN_ROLLERS=1) hangs once its tube clears the bumper's foam and, inside the
-// frame, the floor under it, folded up and forward by the bumper's face coming in
+// (INTAKE1690=1) folds against the bumper coming in and falls once the intake's clear of it (est.:
+// past half its travel); 2056's hangs once its tubes clear the bumper's foam and, inside the frame,
+// the floor under it, folded up and forward by the bumper's face coming in
 export function kickAt(ext) {
-  if (!DRAWN_ROLLERS) return INTAKE.kick.fall * Math.min(1, Math.max(0, (ext - 0.3) / 0.35));
+  if (INTAKE1690) return INTAKE.kick.fall * Math.min(1, Math.max(0, (ext - 0.3) / 0.35));
   const K = INTAKE.kick, px = K.pivot[0] + INTAKE.slide[0] * ext, py = K.pivot[1] + INTAKE.slide[1] * ext;
   const bx1 = HALF_L + 3.25 * IN + K.r, by1 = 0.16 + K.r;
   for (let d = K.fall; d < 0; d += 0.5) {
-    const a = (K.a0 + d) * DEG, x = px + K.len * Math.cos(a), y = py + K.len * Math.sin(a);
-    if (!((x < bx1 && y < by1) || (x < HALF_L + 0.01 && y < 0.215))) return d;
+    const a = (K.a0 + d) * DEG, c = Math.cos(a), sn = Math.sin(a);
+    if (K.tubes.every(([tx, ty]) => { const x = px + tx * c - ty * sn, y = py + tx * sn + ty * c; return !((x < bx1 && y < by1) || (x < HALF_L + 0.01 && y < 0.215)); })) return d;
   }
   return 0;
 }

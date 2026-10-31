@@ -3595,7 +3595,7 @@ function build2056(cfg, alliance) {
   const kick = new THREE.Group();
   kick.position.set(I.kick.pivot[0], I.kick.pivot[1], 0); carriage.add(kick);
   for (const s of [-1, 1]) bx(I.kick.len, 0.02, 0.006, M.polyTint, kick, I.kick.len / 2, 0, s * (I.kick.width / 2 - 0.01));
-  rollerZ(kick, I.kick.len, 0, 0, I.kick.r, I.kick.width, M.poly);
+  for (const [tx, ty] of I.kick.tubes) rollerZ(kick, tx, ty, 0, I.kick.r, I.kick.width, M.poly);
   // ---- the net over the hopper, round the turret's guard
   const net = hopperNet(root, {
     x0: D.BACK.x, x1: D.HALF_L, x1Out: FR.front, xFixed: D.HALF_L, hw: D.WALL.right, y: D.WALL.top + 0.004, yFront: FR.top + 0.004, NX: 22, NZ: 26,
