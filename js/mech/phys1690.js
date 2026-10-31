@@ -12,9 +12,8 @@
 //   - shooting (held: the AI's shot; out of its zone, a pass), on the move and while intaking: the
 //     turret aims itself (the robot's turret model turns it, on its motor and its energy chain:
 //     turretStep), the shooter wheel's velocity loop to the speed for the shot and the hood to its
-//     angle (the sim's shot table for the distance from where the FUEL leave to the target, less the
-//     turret's own velocity a latency ahead: "tangential and radial velocity ... derivative of the
-//     desired flywheel speed"); once the turret, the hood and the wheel are there, the indexer runs:
+//     angle (the sim's shot table led for the turret's own velocity a latency ahead over the flight's
+//     time: "tangential and radial velocity ... derivative of the desired flywheel speed": _aim); once the turret, the hood and the wheel are there, the indexer runs:
 //     the floor at 75 RPS and the top and bottom belts at 95 RPS (passing: 85 and 100), the vertical
 //     kicker at 60 RPS (all the team's numbers, their motors' speeds), the feeder wheels (the bottom
 //     and top kicker's X60: r1690.js) at 60% of the shooter wheel's surface speed and at least 5 m/s
@@ -38,6 +37,7 @@ import {
 } from './r1690.js';
 import { speedLoop, profile } from './phys1706.js';
 import { Field } from '../field.js';
+import { solveMovingShot } from '../ballistics.js';
 import { underTrench } from '../nav.js';
 import { FUEL, TRENCH } from '../constants.js';
 import { clamp, wrapAngle } from '../util.js';
@@ -49,6 +49,7 @@ export const RPS = { floor: [75, 85], belts: [95, 100], vkick: 60 };
 // the feeder wheels' surface (the top kicker's): a share of the shooter wheel's, and at least this (m/s)
 export const FEED_SHARE = 0.6, FEED_MIN = 5;
 const LATENCY = 0.05; // s: their loop and the turret's lag (estimate)
+const AIM_SUB = globalThis.process?.env?.AIM === 'sub';
 // Its shots, as the bench measures them (tools/mechlab1690.mjs shooter and calibrate): where the FUEL
 // leave (the turret's frame: s along the shot from its axis, y up), the elevation each hood angle
 // gives (deg: the hood's angle about the axle, 90 + its geometric elevation, -> the FUEL's), and the
@@ -210,9 +211,15 @@ export class Physical1690 extends PhysicalRobot {
     placeTurret(s, this.sw, yaw, this.hood);
   }
 
-  // the shot (as 1706's: their thread says what goes into it, not how): its exit LATENCY ahead on the
-  // robot's motion; the table's shot to the target; less the exit's own velocity: its heading (aimPsi,
-  // which the robot turns the turret to), elevation and exit speed
+  // the shot (their thread says what goes into it, not how: "tangential and radial velocity"): from
+  // where the FUEL will leave LATENCY ahead on the robot's motion, with that point's velocity (the
+  // turret's axis swinging with the chassis), the table's shot to the target moved back along it by
+  // the flight's time and refined against the drag model's flight (ballistics.js solveMovingShot, as
+  // 2056's): its heading (aimPsi, which the robot turns the turret to), and an exit speed and
+  // elevation that are a pair of the table's, relative to the turret, in the hood's range and on the
+  // pairs EXIT_MAP and EL_MAP were measured on. (It was the table's shot to the target less the
+  // exit's velocity, AIM=sub: from close in, driving toward the HUB, it asked for elevations past the
+  // hood's steep end and pairs off the maps', and it didn't lead for the flight's time)
   _aim(tgt, table) {
     const r = this.r, b = r.body, v = b.linvel(), w = b.angvel().y, L = LATENCY;
     const c = b.translation(), yaw = r.yaw + w * L, cy = Math.cos(yaw), sy = Math.sin(yaw);
@@ -220,10 +227,16 @@ export class Physical1690 extends PhysicalRobot {
     const ox = tx * cy + tz * sy, oz = -tx * sy + tz * cy;
     const px = c.x + v.x * L + ox, pz = c.z + v.z * L + oz;
     const vx = v.x + w * oz, vz = v.z - w * ox;
-    const dx = tgt.x - px, dz = tgt.z - pz, d = Math.hypot(dx, dz) - EXIT.s;
+    const dx = tgt.x - px, dz = tgt.z - pz, dd = Math.hypot(dx, dz) || 1;
+    if (!AIM_SUB) {
+      const exit = { x: px + (dx / dd) * EXIT.s, y: EXIT.y, z: pz + (dz / dd) * EXIT.s };
+      const sol = solveMovingShot(table, exit, { x: vx, z: vz }, tgt);
+      return sol ? { psi: sol.psi, el: sol.theta / DEG, v: sol.v, d: sol.dist } : null;
+    }
+    const d = dd - EXIT.s;
     const row = table.lookup(d);
     if (!row) return null;
-    const ux = dx / (d + EXIT.s || 1), uz = dz / (d + EXIT.s || 1);
+    const ux = dx / dd, uz = dz / dd;
     const sx = row.v * Math.cos(row.theta) * ux - vx, sz = row.v * Math.cos(row.theta) * uz - vz, syv = row.v * Math.sin(row.theta);
     const vr = Math.hypot(sx, syv, sz);
     return { psi: Math.atan2(-sz, sx), el: Math.asin(syv / vr) / DEG, v: vr, d };
