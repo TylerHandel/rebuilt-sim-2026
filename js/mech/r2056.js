@@ -358,11 +358,12 @@ export function pathSurfaces2056(t) {
   const hood = s('hood guide', hoodGuide(), { mu: MU.print });
   return { body: bodyS, bore: boreS, bottom, top, carriage: car, kickTube, turret: turretS, hood, bumper: bumper2056(), net: new Net2056() };
 }
-// how far the kicker bar can fall (deg from folded) with the intake ext of the way out: hanging (fall)
-// once its tube clears the bumper's foam (bumper2056) and, inside the frame, the floor under it;
-// coming in, the bumper's face folds it up and forward ("it retracts passively when the intake
-// retracts against the bumper")
+// how far the kicker bar can fall (deg from folded) with the intake ext of the way out: 1690's bar
+// folds against the bumper coming in and falls once the intake's clear of it (est.: past half its
+// travel); the drawn one (DRAWN_ROLLERS=1) hangs once its tube clears the bumper's foam and, inside the
+// frame, the floor under it, folded up and forward by the bumper's face coming in
 export function kickAt(ext) {
+  if (!DRAWN_ROLLERS) return INTAKE.kick.fall * Math.min(1, Math.max(0, (ext - 0.3) / 0.35));
   const K = INTAKE.kick, px = K.pivot[0] + INTAKE.slide[0] * ext, py = K.pivot[1] + INTAKE.slide[1] * ext;
   const bx1 = HALF_L + 3.25 * IN + K.r, by1 = 0.16 + K.r;
   for (let d = K.fall; d < 0; d += 0.5) {
