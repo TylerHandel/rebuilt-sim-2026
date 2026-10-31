@@ -302,7 +302,10 @@ def autos_6328(path_json=os.path.join(HERE, 'vts6328', 'paths6328.json')):
     P = {k: gen(v) for k, v in paths.items()}
     for key, name, prog, starts, src in specs:
         for start in starts:
-            for side in (['left', 'right'] if start != 'center' else ['center']):
+            # (Substantial and Monopoly go through the DEPOT, on the left only: their selector offers
+            # them from the left starts only)
+            sides = ['center'] if start == 'center' else ['left'] if key in ('substantial', 'monopoly') else ['left', 'right']
+            for side in sides:
                 mirror = side == 'right'
                 program = prog(P, start)
                 # trajectories mirrored as their followTrajectory's mirror (VerticalFlipUtil) does

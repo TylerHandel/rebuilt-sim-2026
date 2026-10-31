@@ -1112,7 +1112,8 @@ export const ROBOTS = {
     // the hopper's walls and the launcher's top: their CAD's 0.556 m (21.9in) is 9 mm under the
     // TRENCH's arm, and the physics' continuous collision (the robot's CCD) catches a top edge
     // passing within a couple of cm of the arm's at speed and holds it there (their Davis sweep
-    // stood under it 2-4 s, then wedged off its lane on the TRENCH's side). 21.5in passes as theirs does
+    // stood under it 2-4 s, then wedged off its lane on the TRENCH's side). 21.5in passes as theirs
+    // does (as 1690's, 2056's and 7769's colliders, for the same reason)
     height: 21.5 * IN,
     mass: 68,
     // SDS MK5n (front) and MK5i (back) at R1, 7.03125:1 (darwinDriveReduction), their wheels'
