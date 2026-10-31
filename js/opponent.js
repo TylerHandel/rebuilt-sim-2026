@@ -190,6 +190,14 @@ export class OpponentAI {
       this.label = 'Unsticking';
       return;
     }
+    // a physical robot's driver backing off FUEL caught in its intake while it lifts it clear, so
+    // it comes back down in front of them (6328's ramp: js/mech/phys6328.js backOff)
+    if (!this.shadow && r.phys?.backOff?.()) {
+      const f = r.forward(), sp = r.cfg.drive.maxSpeed * 0.3;
+      cmd.vx = -f.x * sp; cmd.vz = -f.z * sp; cmd.intake = true;
+      this.label = 'Clearing its intake';
+      return;
+    }
 
     r.passTarget = null;
     this.shootingMode = false;

@@ -225,6 +225,17 @@ export function placeIntake(wheels, deg) {
   const a = intakeRot(deg);
   for (const w of wheels) { const [x, y] = rot(w.home, PIVOT, a); w.center = [x, y, 0]; }
 }
+// a FUEL (its center, robot frame) caught under the ramp plate with the arm at deg: in front of the
+// bumper, below the ramp's top edge and behind the plate's line from the toe up (the bumper's side
+// of it, not the hopper's). One lying against the bumper when the arm comes down, or pushed under
+// the toe against a wall, ends up there: the plate presses it into the carpet and the bumper, out of
+// the roller's reach, and holds the arm up off its stop (and the roller off the next FUEL)
+export function underRamp(x, y, deg) {
+  if (deg > 60) return false;
+  const a = intakeRot(deg), [tx, ty] = rot(INTAKE.toe.at, PIVOT, a), [ux, uy] = rot(INTAKE.rampTop.at, PIVOT, a);
+  if (x < HALF_L || y > uy) return false;
+  return (ux - tx) * (y - ty) - (uy - ty) * (x - tx) > 0;
+}
 // the hood at their angle deg: it turns about the drum's axle, over the top toward the back, from
 // the CAD's pose (their DarwinMechanism3d: pitch -angle about the launcher, 1:1)
 export const hoodRot = (deg) => (deg - SHOOTER.hoodCad) * DEG;
