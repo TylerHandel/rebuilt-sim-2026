@@ -92,16 +92,18 @@ const HOLD = 0.3;
 // and 0.055 m); the elevation each arm angle gives (EL_MAP; ELEV_GEOM=1 commands the geometric angle,
 // as their binder states the range); the wheel's surface speed for an exit speed. Their code maps exit
 // speed to wheel speed with "a manually tuned coefficient" (EXIT_K: the bench's best single one, 0.632,
-// less the 3% a match's stream leaves slower than the bench's); one coefficient puts the long shots
-// short (the exit stops growing near 8.2 m/s: the foam's grip on the wheel over the hood's wrap), so
-// EXIT_MAP is that coefficient tuned at each speed: the bench's, times what AI matches' HUB shots
-// left at against the bench on the first pass's geometry (~3400 shots: 0.94-0.98 of it from 10 m/s
-// up). PASS_MAP: the bench at the lowest release angle, where passes go (ONE_K=1: their single
-// coefficient).
+// less the 3% a match's stream left slower than the bench's on the first pass's geometry); one
+// coefficient puts the long shots short (the exit stops growing near 8.2 m/s: the foam's grip on the
+// wheel over the hood's wrap), so EXIT_MAP is that coefficient tuned at each speed, the bench's
+// stream-fed, 3% slower up to 14 m/s (an AI match's HUB shots on it came down 0.1-0.2 m short from
+// 1.5-4.5 m: a match's stream leaves slower there; the first pass's was finished on ~3400 AI matches' shots, 0.94-0.98 of the bench from 10
+// m/s up; scaled so on this geometry, the table capped at 7.75 m/s, it scored half the points: the AI
+// shot from closer, less often). PASS_MAP: the bench at the lowest release angle, where passes go
+// (ONE_K=1: their single coefficient).
 export const EXIT = { s: 0.071, y: 0.686 };
 export const EL_MAP = [[129.5, 36.2], [135, 41.8], [141, 47.7], [147, 53.2], [153, 58.8], [158, 63.1], [163.5, 68.3]];
 export const EXIT_K = 0.61;
-export const EXIT_MAP = [[0, 0], [4.6, 6], [5.89, 8], [6.57, 10], [7.4, 12], [7.48, 14], [7.67, 17], [7.72, 20], [7.76, 24]];
+export const EXIT_MAP = [[0, 0], [4.48, 6], [5.67, 8], [6.76, 10], [7.35, 12], [7.75, 14], [8.16, 17], [8.19, 20], [8.23, 24]];
 export const PASS_MAP = [[0, 0], [5.93, 8], [7.04, 10], [7.71, 12], [7.99, 14], [8.16, 16], [8.17, 18], [8.18, 20]];
 const GEOM = typeof process !== 'undefined' && process.env?.ELEV_GEOM === '1';
 const ONE_K = typeof process !== 'undefined' && process.env?.ONE_K === '1';

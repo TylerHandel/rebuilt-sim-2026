@@ -1238,7 +1238,7 @@ ROBOTS['2056'] = {
     turretRange: 185, turretRate: 720,
     bps: 15, // not published; its physical ball path sets the rate
     hoodMin: 37, hoodMax: 68,
-    speedMax: 7.75, // (a match's stream: exits stop growing near 7.8 m/s; js/mech/phys2056.js EXIT_MAP)
+    speedMax: 8.2, // (the bench's stream: exits stop growing near 8.2 m/s; js/mech/phys2056.js EXIT_MAP)
     spinTau: 0.3,
     shotDrop: 0.006,
     speedSigma: 0.012, angleSigma: 0.55, yawSigma: 0.55,
