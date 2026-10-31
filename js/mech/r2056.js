@@ -136,8 +136,9 @@ export const SHOOTER = {
 // racks (12.25in out from the frame's front at 15.2 deg: 0.311 m out, 0.085 m down), the rollers on it
 // as it is retracted ([x, y, r]: 2in polycarbonate under silicone, 2-1/8in), their X60's 12:30, the
 // intake's front (the 2x1 bash bar's front, out: 25.0in), its sides (the intake's hopper sides, P583),
-// the front panel's top (P581, out: 0.462 m), the bash bar's foot (the panel's lower edge: FUEL pass
-// under it, est. 0.173 m, its 2in on edge) and its back face (the lip). The rollers and the kicker bar
+// the front panel (P581, out: from 0.344 m to its top, 0.462), its lower part bent back over the top
+// roller (P581's bends: est. where to), the 2x1 bash bar on edge under it (out: 0.173 to 0.241 m, FUEL
+// pass under it; between it and the panel a 4in gap). The rollers and the kicker bar
 // (a 0.75in tube, A52-R2, on two arms on a pin, sprung down) are 1690's, as they were, against the
 // drawn slide (est.): the drawings hide both rollers behind the intake's side plates; read off them
 // (DRAWN_ROLLERS=1: the one 30T pulley A41 shows, 0.565 m out and 0.226 up, the other 112.5 mm behind
@@ -155,7 +156,7 @@ const EXT = (x, y) => [x - DRAWN[0] + SLIDE_OUT[0], y - DRAWN[1] + SLIDE_OUT[1]]
 export const INTAKE = {
   slide: SLIDE_OUT, width: 23.5 * IN, rackDeg: 15.2,
   rollers: (DRAWN_ROLLERS ? [[0.5647, 0.2256], [0.4549, 0.1910]] : [[0.5657, 0.167], [0.5097, 0.2599]]).map(([x, y]) => [...OUT(x, y), (2.125 / 2) * IN]), ratio: 30 / 12,
-  frame: { front: EXT(0.635, 0)[0], sides: 0.352, top: EXT(0, 0.462)[1], panel: EXT(0, 0.173)[1], lip: EXT(0.6096, 0.173) },
+  frame: { front: EXT(0.635, 0)[0], sides: 0.352, top: EXT(0, 0.462)[1], panel: EXT(0, 0.344)[1], lip: EXT(0.55, 0.305), bash: [EXT(0, 0.173)[1], EXT(0, 0.241)[1]] },
   kick: { ...(DRAWN_ROLLERS ? { pivot: OUT(0.4549, 0.1910), len: 6.34 * IN, a0: 0, fall: -90 } : { pivot: OUT(0.2787, 0.1703), len: 0.186, a0: 55, fall: -90.2 }), r: 0.375 * IN, width: 27.81 * IN, mass: 0.25, J: 0.008, tubing: { preload: 1.0, rate: 1.0 } },
 };
 // the racks' drive: an X44 through 8:40 to the 12T 8 DP pinions (0.75in pitch radius); what slides
@@ -334,6 +335,9 @@ function carriage() {
     wallX(f, -F.sides, F.sides, F.panel - dy, top),
     // (its lower part bent back over the top roller to just above it: est., P581's bends)
     grid(2, N(2 * F.sides), (u, v) => [lerp(f, F.lip[0] - dx, u), lerp(F.panel, F.lip[1], u) - dy, lerp(-F.sides, F.sides, v)]),
+    // (the bash bar: its front, back, top and foot)
+    ...[f, f - IN].map((x) => wallX(x, -F.sides, F.sides, F.bash[0] - dy, F.bash[1] - dy)),
+    ...F.bash.map((y) => level(f - IN, f, -F.sides, F.sides, y - dy)),
     ...[-F.sides, F.sides].map((z) => wallZ(z, f - 0.33, f, 0.20 - dy, top)),
   );
 }

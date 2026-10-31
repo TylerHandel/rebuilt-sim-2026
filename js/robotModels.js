@@ -3581,9 +3581,9 @@ function build2056(cfg, alliance) {
   const carriage = new THREE.Group();
   root.add(carriage);
   const FR = I.frame, fx0 = FR.front - I.slide[0], top = FR.top - I.slide[1];
-  const bash = FR.panel - I.slide[1] + 0.0254; // (the 2x1 bash bar on edge over its foot, FR.panel)
-  rbx(0.0254, 0.0508, 2 * FR.sides, 0.003, lattice, carriage, fx0 - 0.013, bash, 0);
-  const sign = bx(0.004, top - bash - 0.0254, 2 * FR.sides, white, carriage, fx0, (top + bash + 0.0254) / 2, 0);
+  const bash = (FR.bash[0] + FR.bash[1]) / 2 - I.slide[1], panel = FR.panel - I.slide[1]; // (the 2x1 bash bar on edge, the front panel over it)
+  rbx(0.0254, FR.bash[1] - FR.bash[0], 2 * FR.sides, 0.003, lattice, carriage, fx0 - 0.013, bash, 0);
+  const sign = bx(0.004, top - panel, 2 * FR.sides, white, carriage, fx0, (top + panel) / 2, 0);
   sign.castShadow = true;
   for (const s of [-1, 1]) {
     polyWall(carriage, 0.33, top - 0.2 + I.slide[1], fx0 - 0.165, (top + 0.2 - I.slide[1]) / 2, s * FR.sides, 0, M.poly, lattice);
