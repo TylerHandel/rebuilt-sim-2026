@@ -12,8 +12,8 @@
 //   - shooting (held: the AI's shot; out of its zone, a pass): each turret aims itself: the
 //     robot's turret model turns it to the heading this gives, and it fires when it's there. Its
 //     shot is the sim's shot table for the distance from its exit to the HUB's center (or the pass
-//     table to the pass point: their tables aren't public), less the turret's own velocity over the
-//     carpet (shoot on the move): the hood swings to the elevation, the accelerators' velocity loop
+//     table to the pass point: their tables aren't public), led for the turret's own velocity over
+//     the carpet over the flight's time (shoot on the move: _aim): the hood swings to the elevation, the accelerators' velocity loop
 //     to the speed (the bench's exit over the accelerators' surface: tools/mechlab1706.mjs
 //     shooter). A turret is ready within 3 deg of yaw, 1.5 deg of hood and 0.3 m/s of exit speed;
 //     then that side's spindexer turns at SPIN_RPS and its kicker at KICK_RPM (both velocity loops
@@ -29,6 +29,7 @@ import {
 } from './r1706.js';
 import PATH from './path1706.js';
 import { Field } from '../field.js';
+import { solveMovingShot } from '../ballistics.js';
 import { FUEL } from '../constants.js';
 import { BUMPER_Y0 } from '../robotConfigs.js';
 import { clamp, wrapAngle } from '../util.js';
@@ -46,6 +47,7 @@ export const KICK_RPM = Number(globalThis.process?.env?.KICK_RPM ?? 3000);
 // about 1.25 times it up to ~7 m/s, then the FUEL slip in the pinch (16 mm of squeeze by the CAD) and
 // it tops out near 8.6 m/s, the X60 near its free speed
 export const EXIT = { x: 0.06, y: 0.62 };
+const AIM_SUB = globalThis.process?.env?.AIM === 'sub';
 export const EL_MAP = [[0, 84.5], [5.3, 76.6], [8.3, 72.3], [11.3, 69.7], [14.8, 65.0], [19.3, 61.1], [22.5, 55.2], [30, 48.4], [40, 40.5], [45, 37.5]];
 // (EXIT_MAP re-found by calibrate with the shooters' inertia from the CAD's solids, which took 40% off
 // what the X60 turns: each FUEL now takes more out of the wheels, and the same exit speed wants 4-5%
@@ -191,9 +193,14 @@ export class Physical1706 extends PhysicalRobot {
     }
   }
 
-  // each turret's shot (604's LaunchCalculator's way, as their thread doesn't say): its exit LATENCY
-  // ahead on the robot's motion; the table's shot to the target; less the exit's own velocity: its
-  // heading (aimPsis[i], which the robot turns the turret to), elevation and exit speed
+  // each turret's shot (their thread doesn't say how): from where its FUEL will leave LATENCY ahead on
+  // the robot's motion, with that point's velocity (its turret's axis swinging with the chassis), the
+  // table's shot to the target moved back along it by the flight's time and refined against the drag
+  // model's flight (ballistics.js solveMovingShot, as 2056's): its heading (aimPsis[i], which the
+  // robot turns the turret to), and an exit speed and elevation that are a pair of the table's,
+  // relative to the turret, in the hood's range. (It was 604's LaunchCalculator's way, AIM=sub: the
+  // table's shot less the exit's own velocity, no lead for the flight's time, and from close in
+  // driving toward the HUB elevations past the hood's steep end)
   _aim(i, tgt, table) {
     const r = this.r, b = r.body, v = b.linvel(), w = b.angvel().y, L = 0.05;
     const c = b.translation(), yaw = r.yaw + w * L, cy = Math.cos(yaw), sy = Math.sin(yaw);
@@ -201,10 +208,16 @@ export class Physical1706 extends PhysicalRobot {
     const ox = tx * cy + tz * sy, oz = -tx * sy + tz * cy;
     const px = c.x + v.x * L + ox, pz = c.z + v.z * L + oz;
     const vx = v.x + w * oz, vz = v.z - w * ox;
-    const dx = tgt.x - px, dz = tgt.z - pz, d = Math.hypot(dx, dz) - EXIT.x;
+    const dx = tgt.x - px, dz = tgt.z - pz, dd = Math.hypot(dx, dz) || 1;
+    if (!AIM_SUB) {
+      const exit = { x: px + (dx / dd) * EXIT.x, y: EXIT.y, z: pz + (dz / dd) * EXIT.x };
+      const sol = solveMovingShot(table, exit, { x: vx, z: vz }, tgt);
+      return sol ? { psi: sol.psi, el: sol.theta / DEG, v: sol.v, d: sol.dist } : null;
+    }
+    const d = dd - EXIT.x;
     const row = table.lookup(d);
     if (!row) return null;
-    const ux = dx / (d + EXIT.x || 1), uz = dz / (d + EXIT.x || 1);
+    const ux = dx / dd, uz = dz / dd;
     const sx = row.v * Math.cos(row.theta) * ux - vx, sz = row.v * Math.cos(row.theta) * uz - vz, syv = row.v * Math.sin(row.theta);
     const vr = Math.hypot(sx, syv, sz);
     return { psi: Math.atan2(-sz, sx), el: Math.asin(syv / vr) / DEG, v: vr, d };
