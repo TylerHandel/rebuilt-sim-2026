@@ -133,9 +133,10 @@ export const SHOOTER = {
 // on its arms (pivot on the carriage, retracted; the 0.75in tube; its arms' fall from folded, deg)
 export const INTAKE = {
   slide: [0.33 * Math.cos(11.5 * DEG), -0.33 * Math.sin(11.5 * DEG)], width: 23.5 * IN,
-  // (the rollers where 1690's are against the bumper with the intake out, 6 mm higher for their larger
-  // radius: est.)
-  rollers: [[0.5657 - 0.33 * Math.cos(11.5 * DEG), 0.167 + 0.33 * Math.sin(11.5 * DEG), (2.125 / 2) * IN], [0.5177 - 0.33 * Math.cos(11.5 * DEG), 0.2659 + 0.33 * Math.sin(11.5 * DEG), (2.125 / 2) * IN]], ratio: 30 / 12,
+  // (the rollers where 1690's are against the bumper with the intake out, the bottom one 6 mm higher for
+  // its larger radius, the top one 8 mm further back, reaching FUEL that stop on the bumper's front
+  // edge: est.)
+  rollers: [[0.5657 - 0.33 * Math.cos(11.5 * DEG), 0.167 + 0.33 * Math.sin(11.5 * DEG), (2.125 / 2) * IN], [0.5097 - 0.33 * Math.cos(11.5 * DEG), 0.2599 + 0.33 * Math.sin(11.5 * DEG), (2.125 / 2) * IN]], ratio: 30 / 12,
   frame: { front: 0.635, sides: 0.352, top: 0.482 },
   // (the bar's arms run forward and down from their pin on the intake's side plates, just behind the
   // bumper's top when it's out, to the tube just in front of the bumper's face, as 1690's (est.: the
@@ -281,6 +282,9 @@ function body() {
     // the turret's deck; over it the guard round the turret's sweep)
     wallLine([fx, fz], [gx, gz], 0.12, W.top), wallZ(gz, BACK.front, gx, 0.12, TURRET.deck), wallX(BACK.front, gz, W.right, 0.12, TURRET.deck),
     guard(),
+    // (over the top conveyor's beam, the hopper's back slopes down to the floor, so no FUEL rest on
+    // the beam: est.)
+    grid(3, N(W.left - GUIDE.to[1]), (u, v) => [lerp(BACK.x, BELT.x[1] + 0.004, u), lerp(0.43, BELT.top.y + 2 * BELT.r + 0.008, u), lerp(W.left, GUIDE.to[1], v)]),
     quarterPipe(),
   );
 }
