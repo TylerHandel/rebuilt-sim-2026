@@ -47,8 +47,11 @@ import { clamp } from '../util.js';
 import { drive2056 } from './turretDrive.js';
 
 const DEG = Math.PI / 180, TAU = 2 * Math.PI, R = FUEL.radius;
-// the indexer's motors' RPS (est.: their speeds aren't published), scoring and passing
-export const RPS = { floor: [75, 75], belts: [100, 100], vkick: 60 };
+// the indexer's motors' RPS (est.: their speeds aren't published; near the top of what each motor
+// does through its gearing, a "high throughput" singulator: the floor's X60 at 90 (3.3 m/s at the
+// rollers), the belts' X44s at 115 (4.6 m/s); at 1690's 75 and 100 a full hopper dumps ~6 FUEL/s
+// on the bench, at these ~7), scoring and passing
+export const RPS = { floor: [90, 90], belts: [115, 115], vkick: 60 };
 // the Stealth wheels' surface: a share of the shooter wheel's, and at least this (m/s; est., as 1690's)
 export const FEED_SHARE = 0.6, FEED_MIN = 5;
 // the backspin kicker's RPM per the flywheel's (est.: its surface at 0.8 of the wheel's)

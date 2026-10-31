@@ -31,6 +31,8 @@ if (process.env.RR) ROLL.rr = Number(process.env.RR);
 for (const k of Object.keys(GRIP)) if (process.env['GRIP_' + k]) GRIP[k] = Number(process.env['GRIP_' + k]);
 for (const k of Object.keys(TREAD)) if (process.env['TREAD_' + k]) TREAD[k] = Number(process.env['TREAD_' + k]);
 if (process.env.GUIDER) GUIDE_ARC.r = Number(process.env.GUIDER);
+// (RPS_floor, RPS_belts, RPS_vkick: the indexer's motors' speeds, scoring)
+for (const k of Object.keys(RPS)) if (process.env['RPS_' + k]) RPS[k] = [Number(process.env['RPS_' + k]), Number(process.env['RPS_' + k])];
 const R = FUEL.radius, DT = 1 / 120, SEEDS = Number(process.env.SEEDS ?? 4), SPEED = Number(process.env.SPEED ?? 1);
 const HELD = groups(GROUP.HELD, 0xffff & ~GROUP.HELD);
 const DEG = Math.PI / 180, TAU = 2 * Math.PI;
@@ -265,10 +267,17 @@ const tests = {
       const r = rig();
       const out = fillRun(RAPIER, {
         world: () => world({ carpet: false }), ball, path: { step: (dt, l, tg) => r.step(l, tg), contacts: [] }, DT, held: held2056, own: own2056, top: TOP2056, speed: env('SPEED', 1), sec: env('SEC', 12), front: HALF_L + 3.25 * 0.0254 + 0.18, seed,
-        control: () => { r.t.intake.cmd = 1; speedLoop(r.t.floor, rps(FLOOR_INTAKE, r.t.floor)); },
+        control: () => { r.t.intake.cmd = 1; speedLoop(r.t.floor, rps(FLOOR_INTAKE, r.t.floor)); }, keep: !!process.env.DIST,
       });
       res.push(out);
       console.log(fillReport(`  fill ${seed}`, out) + `; the net lifted ${(r.bowMax * 100).toFixed(1)} cm at most`);
+      // (DIST=1: where the load is: by x (0.1 m bands, back to front) and how high it stands in each)
+      if (process.env.DIST) {
+        const pts = out.balls.filter((b) => held2056(P(b))).map(P), bands = new Map();
+        for (const [x, y, z] of pts) { const k = Math.floor(x * 10) / 10; const e = bands.get(k) ?? { n: 0, top: 0, l: 0, rt: 0 }; e.n++; e.top = Math.max(e.top, y + R); if (z < 0) e.l++; else e.rt++; bands.set(k, e); }
+        console.log('   ' + [...bands].sort((a, b) => a[0] - b[0]).map(([k, e]) => `x ${k.toFixed(1)}: ${e.n} (L${e.l}/R${e.rt}) top ${e.top.toFixed(2)}`).join(' | '));
+        out.world.free();
+      }
     }
     console.log(`2056 filled through its intake, ${res.length} fills: the most it held ${res.map((x) => x.most).join(', ')} (median ${med(res.map((x) => x.most))})`);
   },
@@ -295,6 +304,16 @@ const tests = {
         r.retract = process.env.RETRACT !== '0' && n <= RETRACT_AT;
         if (r.retract && retractAt === null) retractAt = k * DT;
         r.step(l); w.step(); watch.check(l, k * DT);
+        if (process.env.TALLY && k % 60 === 0) {
+          const c = { floor: 0, front: 0, channel: 0, pipe: 0, turret: 0, over: 0 };
+          for (const b of l) {
+            if (!inRobot(b)) continue;
+            const [x, y, z] = P(b);
+            if (y > TURRET.deck && Math.hypot(x - TURRET.at[0], z - TURRET.at[1]) < 0.15) c.turret++; else if (x < -0.056 && z > 0.07 && y < TURRET.deck) c.pipe++; else if (x < -0.056 && y < 0.34) c.channel++; else if (x > HALF_L) c.front++; else if (y < 0.33) c.floor++; else c.over++;
+          }
+          console.log(`   ${(k * DT).toFixed(1)} s: ${watch.shots.length} shot; ${Object.entries(c).map(([q, n]) => q + ' ' + n).join(', ')}`);
+          if (Number(process.env.TALLY) === Math.round(k * DT * 10) / 10) for (const b of l) { if (!inRobot(b)) continue; const [x, y, z] = P(b); const v = b.linvel(); console.log(`     ${x.toFixed(2)},${y.toFixed(2)},${z.toFixed(2)} v ${v.x.toFixed(2)},${v.z.toFixed(2)}: ${r.path.contacts.filter((q) => q.ball === b).map((q) => q.wheel.name.replace(/ \(.*\)/, '') + ' ' + q.force.toFixed(0)).join(', ')}`); }
+        }
         if (k > 60) minSurf = Math.min(minSurf, Math.abs(r.t.wheel.omega) * SHOOTER.r);
       }
       const s = watch.shots;
