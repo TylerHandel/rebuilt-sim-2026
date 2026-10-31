@@ -36,7 +36,9 @@ const HOLD_FULL = Number(globalThis.process?.env?.HOLDFULL ?? 0.5);
 // In play FUEL leave ~5% faster than SHOT_TABLE gives for the flywheel's speed as the aim reads it
 // (a match's every shot, its exit against what was expected: median 1.05); scaled so the aim expects
 // what they do (EXITK=1 for the table as it is)
-const EXIT_K = Number(globalThis.process?.env?.EXITK ?? 1.05);
+// (re-measured with the shooter's frame carried and its indexer sub-stepped: what leaves is 0.986 of
+// what 1.05 had the aim read, so 1.035)
+const EXIT_K = Number(globalThis.process?.env?.EXITK ?? 1.035);
 // The feed's push, as their AimSolver takes it off the shot (TurretConstants FEEDER_FORWARD_PUSH_MPS,
 // FEEDER_BACKWARD_PUSH_AT_90_MPS; feederPushForwardMps): the indexer throws each FUEL rearward up
 // the turret's bore, and it leaves carrying some of that, along the chassis: fwd cos^2 - back sin^2
@@ -53,8 +55,10 @@ const FEED_PUSH = (globalThis.process?.env?.FEEDPUSH ?? '-0.35,0.25').split(',')
 // the ones the shooter flings faster go farther than the slower ones fall short. Their AimSolver
 // has the same trim (speedScalar: "empirical speed calibration"); here the flywheel's target for a
 // HUB shot is the speed the aim asks times SHOT_SCALE (2% slower: 0.18 m shorter at 4.5 m, range
-// going as speed squared). SHOTSCALE=1 for none
-const SHOT_SCALE = Number(globalThis.process?.env?.SHOTSCALE ?? 0.98);
+// going as speed squared). With the shooter's frame carried and its turret indexer sub-stepped
+// (mechanism.js) that trim put them 0.13-0.27 m short (median) at every distance from 2 m out, what
+// leaves now within 1% of SHOT_TABLE's: it's 1 (no trim) now. SHOTSCALE=0.98 for the old one
+const SHOT_SCALE = Number(globalThis.process?.env?.SHOTSCALE ?? 1);
 const HOLD_SPEED = Number(globalThis.process?.env?.HOLDSPEED ?? 0);
 const _su = globalThis.process?.env?.STOPUNJAM ?? 'all', STOP_UNJAM = _su === '0' ? '' : _su;
 
