@@ -57,6 +57,8 @@ for (const key of arg('--robots', ROBOT_ORDER.join(',')).split(',')) {
     let leg = 'down';
     // (MOUTHLOG=s1,s2: at those times the loose FUEL near the front, robot frame, and what of the robot's mechanisms presses them)
     const mlog = process.env.MOUTHLOG?.split(',').map(Number) ?? [];
+    // (BARAT=x,y,r: count the steps any loose FUEL touches the robot's mechanism surfaces within r of (x, y), robot frame, and how hard)
+    const barAt = process.env.BARAT?.split(',').map(Number), bar = { steps: 0, fuel: new Set(), maxF: 0, sumF: 0 };
     for (let i = 0; i < T / PHYSICS_DT; i++) {
       // (--return: at the end of the line it turns round and comes back up the other half's)
       let cmd = { vx: along ? 0 : speed, vz: along ? -speed : 0, omega: 0 };
@@ -73,6 +75,7 @@ for (const key of arg('--robots', ROBOT_ORDER.join(',')).split(',')) {
       t += PHYSICS_DT;
       fuel.postStep(PHYSICS_DT, t);
       r.postStep(PHYSICS_DT, t);
+      if (barAt && ph) for (const c of ph.path.contacts) { if (c.wheel.kind !== 'plain' || c.wheel.shaft?.name) {} const q = ph._local({ x: c.x[0], y: c.x[1], z: c.x[2] }); if (Math.hypot(q[0] - barAt[0], q[1] - barAt[1]) < barAt[2] && !c.wheel.radius) { bar.steps++; bar.fuel.add(c.ball); bar.maxF = Math.max(bar.maxF, c.force); bar.sumF += c.force; } }
       if (mlog.length && ph && mlog.some((m) => Math.abs(t - t0 - m) < PHYSICS_DT / 2)) {
         const near = fuel.balls.filter((b) => b.state === 'field').map((b) => [b, ph._local(b.pos)]).filter(([, p]) => p[0] > 0.2 && p[0] < 0.75 && Math.abs(p[2]) < 0.45 && p[1] < 0.5).sort((a, b) => b[1][0] - a[1][0]);
         console.log(`  t ${(t - t0).toFixed(2)} s: ${near.length} near the front; in it ${r.stored.length}; robot ${Math.hypot(r.vel.x, r.vel.z).toFixed(2)} m/s; arm ${ph.armDeg?.toFixed?.(1)} deg`);
@@ -96,6 +99,7 @@ for (const key of arg('--robots', ROBOT_ORDER.join(',')).split(',')) {
     console.log(`  ${key}: the most it held ${most}, first at ${((iMost + 1) * PHYSICS_DT).toFixed(2)} s; its last 10 took ${((iMost - i10) * PHYSICS_DT).toFixed(2)} s${fullNote}`);
     console.log(`${key} z=${z}: collected ${r.stored.length}/${r.capacity()} (in rollers ${r.captured?.length}, dropped ${r.stats.dropped}), first after ${first?.toFixed(2)}s, ${full ? `stalled after ${full.toFixed(2)}s` : 'not stalled'}, every 0.5 s ${curve.join(' ')}, ended at x=${r.pos.x.toFixed(2)} z=${r.pos.z.toFixed(2)}`);
     if (clog) { clog.finish(t); console.log(clog.report()); }
+    if (barAt) console.log(`  near (${barAt[0]}, ${barAt[1]}): ${bar.fuel.size} FUEL touched the surfaces there, ${bar.steps} contact-steps, up to ${bar.maxF.toFixed(0)} N (mean ${(bar.sumF / (bar.steps || 1)).toFixed(0)})`);
     if (iw) { const o = iw.report(); console.log('   ' + o.text); if (process.env.INTAKELOG === '2') console.log((o.series || []).map((x) => '     ' + x).join('\n')); }
     physics.world.free();
   }
