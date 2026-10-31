@@ -362,9 +362,9 @@ export class Physical2056 extends PhysicalRobot {
     }
     return top;
   }
-  // how many it holds, rated (tools/mechlab2056.mjs intakefull: filled through its intake it holds
-  // up to 63 with the net lifted, the intake's box full; the NEUTRAL ZONE's line at 1.5 m/s puts ~45
-  // in, tools/intake-test.mjs)
+  // how many it holds, rated (tools/mechlab2056.mjs intakefull: filled through its intake at 1 m/s it
+  // holds 49-51, its intake's box full (63 with 1690's intake places, INTAKE1690=1); driven down the
+  // NEUTRAL ZONE's line, tools/intake-test.mjs --along, it goes full at 53-56)
   capacity() { return 55; }
 
   // the turret on its X44 (js/mech/turretDrive.js drive2056)
