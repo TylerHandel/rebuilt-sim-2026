@@ -358,10 +358,13 @@ export function build4414() {
   const launcher = new Train({ name: 'launcher', motor: new Motor('krakenX44', { count: 4, ratio: 1, statorLimit: 60, supplyLimit: 40 }) });
   const fly = launcher.add(new Shaft({ name: '3in flywheel and copper', inertia: SHOOTER.J }), 1);
   const hoodRoller = launcher.add(new Shaft({ name: 'hood sushi roller (belted up the hood)', inertia: SHOOTER.roller.J }), SHOOTER.roller.k);
-  // the sushi feeder: geared down 16:14 off the flywheel (its gears down the turret's side, in the
-  // renders), so it feeds as fast as the shot's speed lets it: "the main bps regulator"
-  // (three 1in sushi wheels, the hex and a 14T gear: 2.9e-6, from their sizes)
-  const feeder = launcher.add(new Shaft({ name: 'shooter sushi feeder', inertia: 2.9e-6 }), 14 / 16);
+  // the sushi feeder: 16:14 off the flywheel (its gears down the turret's side, in the renders), so it
+  // feeds as fast as the shot's speed lets it: "the main bps regulator". Read from the flywheel's
+  // side, 16T driving 14T, it turns 1.14 times the flywheel (as 14:16, 0.875, it dumped at 10.7
+  // FUEL/s through the middle, 12 in its best second, under their 12-14; at 1.14, 12.3 and 14; faster
+  // still buys under a FUEL a second, the rotor then the limit, and lands the shots shorter: README).
+  // FEEDK to try others. (three 1in sushi wheels, the hex and a 14T gear: 2.9e-6, from their sizes)
+  const feeder = launcher.add(new Shaft({ name: 'shooter sushi feeder', inertia: 2.9e-6 }), Number(globalThis.process?.env?.FEEDK ?? 16 / 14));
   // the box's racks: an X44 a side through 3.33:1 to the 10t pinions (positive runs the box out);
   // what slides seen at the pinions. Their current limits aren't public: 40 A stator, 30 A supply
   // (estimates). The racks ride on bearing stacks ("allowed our intake to slide smoothly", the
