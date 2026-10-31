@@ -595,9 +595,25 @@ function intakeArm(cfg, px, py, rollerR) {
 // stowed intakes stand nearly upright just in front of the hopper
 const STOWED = 1.4;
 
+// A part without normals (tools/extract-parts.mjs drops a flat part's) is drawn flat-shaded, as
+// GLTFLoader draws it: a flat copy of the material it's given (lit without the normals; the
+// brushed and wood grains, which need them, left off), kept in step with the presets
+const FLAT_MATS = new WeakMap();
+function flatOf(mat) {
+  if (mat.flatShading) return mat;
+  if (!FLAT_MATS.has(mat)) {
+    const { poly, alu } = mat.userData;
+    const c = poly ? polyMat(poly.alpha, poly.glass) : mat.clone();
+    if (alu && !poly) { ALU_MATS.push(c); applyMetal(c); }
+    c.flatShading = true;
+    FLAT_MATS.set(mat, c);
+  }
+  return FLAT_MATS.get(mat);
+}
 // Parts exported from a team's own CAD (cad/robots/*.glb, see cad/README.md), loaded in the
-// browser only; the drawn part stays until (and unless) the CAD arrives.
-function cadPart(parent, file, onLoad) {
+// browser only; the drawn part stays until (and unless) the CAD arrives. look(m): a robot's own
+// material for one of the GLB's (by its color), or null to draw it the usual way.
+function cadPart(parent, file, onLoad, look = null) {
   if (typeof window === 'undefined' || window.__gfxNoCad) return; // (the Lowest graphics: drawn models only)
   const team = file.match(/(\d+)-/)?.[1];
   import('three/addons/loaders/GLTFLoader.js')
@@ -608,9 +624,11 @@ function cadPart(parent, file, onLoad) {
         o.castShadow = true;
         o.receiveShadow = true;
         // polycarbonate (see-through in the CAD, or marked "poly" by tools/extract-parts.mjs)
-        const m = o.material;
-        if (m.transparent || m.name === 'poly') { o.material = M.poly; o.castShadow = false; }
+        const m = o.material, own = look?.(m);
+        if (own) { o.material = own; if (own.transparent || own.userData.poly) o.castShadow = false; }
+        else if (m.transparent || m.name === 'poly') { o.material = M.poly; o.castShadow = false; }
         else o.material = cadMaterial(team, m);
+        if (!o.geometry.attributes.normal) o.material = flatOf(o.material);
       });
       parent.add(gltf.scene);
       onLoad(gltf.scene);
@@ -3389,6 +3407,58 @@ function build604(cfg, alliance) {
 }
 
 // ============================================================ 6328 Mechanical Advantage, Darwin
+// Darwin's finishes. Their AdvantageScope export leaves every material at glTF's default full
+// metalness (no metallicFactor), which draws it a near-black mirror, so each CAD color (their
+// Onshape parts' appearances: the BOM's, the same as the export's) gets the finish it has on the
+// robot (their binder's photos, the build thread): the sheet-metal tower, drivetrain tubes and
+// intake bash bar powder-coated blue (Onshape's 0, 61, 185); the hood's 7075 plates, the
+// Superdexer's bent plates, the tower's lower cover, the brainpan and prints black (64, 64, 64, darker
+// grays); the hood's rack and thickener plates yellow ("the black hood is 7075 and the yellow is just
+// 6061"); the intake's side plates WCP's black SRPP (Onshape's polypropylene gray); the HTD belts
+// black rubber (Onshape's Viton gray); silicone-sleeved rollers black; spur gears, plugs, shafts'
+// caps and the Mac mini bare aluminum; bearings and chain steel; the hopper's polycarbonate walls
+// lightly smoked, its front wall translucent polypropylene (their sponsors' printing isn't drawn).
+const C6328 = {
+  blue: powderCoat(0x003db9),
+  black: powderCoat(0x222327),
+  yellow: powderCoat(0xf8cd02),
+  srpp: std(0x1e1f22, 0.75, 0.0),
+  rubber: kindMat('rubber', 0x1b1c1e),
+  dark: M.anodBlack,
+  smoke: polyMat({ color: 0x8a9096, opacity: 0.32, roughness: 0.06 }, 0xd3d7db),
+  frosted: polyMat({ color: 0xe1e6ea, opacity: 0.42, roughness: 0.3 }, 0xeef1f3),
+};
+const LOOK_6328 = {
+  0x003db9: C6328.blue, 0x3b61b4: C6328.blue,
+  0x404040: C6328.black, 0x262525: C6328.black, 0x282828: C6328.black, 0x242424: C6328.black, 0x191919: C6328.black,
+  0x373737: C6328.dark, 0x2d2d2d: C6328.dark, 0x4c4c4c: C6328.dark, 0x4b4b4b: C6328.dark, 0x4d4d4d: C6328.dark, 0x414141: C6328.dark,
+  0x272727: kindMat('print', 0x27272a),
+  0x808080: kindMat('print', 0x808080),
+  0x999999: kindMat('print', 0x8f9396),
+  0xa5a5a5: kindMat('print', 0xa5a5a5),
+  0xf8cd02: C6328.yellow,
+  0x878787: C6328.rubber, 0x363636: C6328.rubber,
+  0xded3b5: aluMat(0, 'raw'), 0xe6e6e6: aluMat(0, 'raw'), 0xeaeaea: aluMat(0, 'raw'), 0xe5eaed: aluMat(0, 'raw'), 0xe5e5e5: aluMat(0, 'raw'),
+  0xe5e9ec: aluMat(0, 'raw'), 0xcccccc: aluMat(0, 'raw'), 0xcbd2ef: aluMat(0, 'raw'), 0xc0c0c0: aluMat(0, 'raw'),
+  0xb3b3b3: kindMat('steel', 0xb3b3b3), 0xc6c6c6: kindMat('steel', 0xc6c6c6), 0xc4e2f3: kindMat('steel', 0xb9c3c9), 0xffffff: kindMat('steel', 0xc6c6c6),
+  0x6e6e6e: kindMat('steel', 0x5a5c60),
+};
+const LOOK_CACHE_6328 = new Map();
+const near6328 = (a, b) => [16, 8, 0].every((s) => Math.abs(((a >> s) & 255) - ((b >> s) & 255)) <= 2);
+// (the intake's export: its polypropylene gray is the SRPP side plates, its 165 gray the slot pin)
+function look6328(m, intake = false) {
+  if (m.name === 'poly') return C6328.smoke;
+  const c = m.color ? m.color.getHex() : 0xffffff;
+  if (m.transparent) return near6328(c, 0xeaeaea) ? C6328.frosted : C6328.smoke;
+  if (intake && near6328(c, 0xb3b3b3)) return C6328.srpp;
+  if (intake && near6328(c, 0xa5a5a5)) return kindMat('steel', 0xb3b3b3);
+  const hit = LOOK_6328[c] ? c : Object.keys(LOOK_6328).find((k) => near6328(Number(k), c));
+  if (hit) return LOOK_6328[hit];
+  // (the rest, electronics and small colored parts: their color, not a mirror)
+  if (!LOOK_CACHE_6328.has(c)) LOOK_CACHE_6328.set(c, std(c, 0.5, 0.1));
+  return LOOK_CACHE_6328.get(c);
+}
+
 // From their AdvantageScope model (Mechanical-Advantage/RobotCode2026Public ascope_assets/Robot_Darwin,
 // a glTF export of their Onshape assembly), split by tools/extract-parts.mjs (cad/robots/6328.json):
 // the body (drivetrain without the swerve modules the game draws, the Superdexer roller floor, the
@@ -3403,17 +3473,17 @@ function build6328(cfg, alliance) {
   const L = cfg.frame.length, W = cfg.frame.width, bay = cfg.bay;
   addBumpers(root, cfg, alliance);
   const modules = addDrivebase(root, cfg, 0, false);
-  const blue = std(cfg.colors.accent, 0.45, 0.4), black = std(0x1d1f24, 0.5, 0.3);
+  const blue = C6328.blue, black = C6328.black, roller = C6328.rubber;
   const drawn = new THREE.Group();
   root.add(drawn);
-  addDrivebase(drawn, cfg, 0, true).forEach((md) => md.pivot.parent.removeFromParent());
+  addDrivebase(drawn, { ...cfg, colors: { ...cfg.colors, frame: 0x003db9 } }, 0, true).forEach((md) => md.pivot.parent.removeFromParent());
   for (const s of [-1, 1]) pocketPlate(drawn, 0.36, 0.5, 0.006, blue, [[0, 0.05, 0.06]], -0.2, 0.3, s * 0.32);
   cylZ(0.051, 0.53, black, drawn, DRUM_6328[0], DRUM_6328[1], 0, 20);
-  for (let x = -0.16; x < 0.24; x += 0.049) cylZ(0.02, 0.54, black, drawn, x, 0.18 + 0.11 * (x + 0.06), 0, 10);
-  cylZ(KICK_6328.r, KICK_6328.width, black, drawn, KICK_6328.at[0], KICK_6328.at[1], 0, 14);
-  // the static walls (polycarbonate)
+  for (let x = -0.16; x < 0.24; x += 0.049) cylZ(0.02, 0.54, roller, drawn, x, 0.18 + 0.11 * (x + 0.06), 0, 10);
+  cylZ(KICK_6328.r, KICK_6328.width, roller, drawn, KICK_6328.at[0], KICK_6328.at[1], 0, 14);
+  // the static walls (smoked polycarbonate on black corner plates)
   const Wl = WALLS_6328;
-  for (const s of [-1, 1]) polyWall(root, Wl.x1 - Wl.x0, Wl.y1 - Wl.y0, (Wl.x0 + Wl.x1) / 2, (Wl.y0 + Wl.y1) / 2, s * Wl.hw);
+  for (const s of [-1, 1]) polyWall(root, Wl.x1 - Wl.x0, Wl.y1 - Wl.y0, (Wl.x0 + Wl.x1) / 2, (Wl.y0 + Wl.y1) / 2, s * Wl.hw, 0, C6328.smoke, black);
   // the intake arm on its pivot (turned from the export's pose, folded up)
   const arm = new THREE.Group();
   arm.position.set(PIVOT_6328[0], PIVOT_6328[1], 0);
@@ -3421,29 +3491,30 @@ function build6328(cfg, alliance) {
   const armDrawn = new THREE.Group();
   arm.add(armDrawn);
   const I = INTAKE_6328, rel = ([x, y]) => [x - PIVOT_6328[0], y - PIVOT_6328[1]];
-  cylZ(I.roller.r, I.roller.width, black, arm, ...rel(I.roller.at), 0, 18);
+  // (the roller silicone-sleeved, the bash bar and toe bar powder-coated, the ramp WCP SRPP)
+  cylZ(I.roller.r, I.roller.width, roller, arm, ...rel(I.roller.at), 0, 18);
   cylZ(I.bash.r, I.bash.width, blue, arm, ...rel(I.bash.at), 0, 14);
   cylZ(I.toe.r, I.toe.width, blue, arm, ...rel(I.toe.at), 0, 10);
   {
     const [tx, ty] = rel(I.toe.at), [ux, uy] = rel(I.rampTop.at), len = Math.hypot(ux - tx, uy - ty);
-    const plate = rbx(len, 0.004, 2 * I.rampHw, 0.001, black, arm, (tx + ux) / 2, (ty + uy) / 2, 0);
+    const plate = rbx(len, 0.004, 2 * I.rampHw, 0.001, C6328.srpp, arm, (tx + ux) / 2, (ty + uy) / 2, 0);
     plate.rotation.z = Math.atan2(uy - ty, ux - tx);
   }
-  for (const s of [-1, 1]) rbx(0.28, 0.006, 0.006, 0.002, black, armDrawn, -0.1, 0.2, s * 0.32);
+  for (const s of [-1, 1]) rbx(0.28, 0.006, 0.006, 0.002, C6328.srpp, armDrawn, -0.1, 0.2, s * 0.32);
   // the hopper's sliding front, on the arm's pin and slot
   const slide = new THREE.Group();
   root.add(slide);
   const slideDrawn = new THREE.Group();
   slide.add(slideDrawn);
-  polyWall(slideDrawn, 2 * 0.343, 0.28, 0.346, 0.37, 0, Math.PI / 2);
+  polyWall(slideDrawn, 2 * 0.343, 0.28, 0.346, 0.37, 0, Math.PI / 2, C6328.frosted, black);
   // the hood on the drum's axle
   const hood = new THREE.Group();
   hood.position.set(DRUM_6328[0], DRUM_6328[1], 0);
   root.add(hood);
-  cadPart(root, 'robots/6328-body.glb', () => { drawn.visible = false; });
-  cadPart(arm, 'robots/6328-intake.glb', () => { armDrawn.visible = false; });
-  cadPart(slide, 'robots/6328-front.glb', () => { slideDrawn.visible = false; });
-  cadPart(hood, 'robots/6328-hood.glb', () => {});
+  cadPart(root, 'robots/6328-body.glb', () => { drawn.visible = false; }, look6328);
+  cadPart(arm, 'robots/6328-intake.glb', () => { armDrawn.visible = false; }, (m) => look6328(m, true));
+  cadPart(slide, 'robots/6328-front.glb', () => { slideDrawn.visible = false; }, look6328);
+  cadPart(hood, 'robots/6328-hood.glb', () => {}, look6328);
   // the net from the launcher's top to the front wall's top, riding out with it (js/mech/r6328.js
   // NET: stretched, flat across its ties empty, the load lifting it)
   const N = NET_6328, extLen = cfg.storage.extLen;
