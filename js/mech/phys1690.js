@@ -55,10 +55,12 @@ const AIM_SUB = globalThis.process?.env?.AIM === 'sub';
 // gives (deg: the hood's angle about the axle, 90 + its geometric elevation, -> the FUEL's), and the
 // wheel's surface speed each exit speed takes (m/s). Tuned on FUEL fed up the bore in a stream by the
 // indexer (calibrate FED=1), the way it fires: those leave about 4% faster than lone FUEL thrown up
-// the bore, pressed into the wheel by the next one. Past 9.1 m/s, lone FUEL (the wheel saturates).
+// the bore, pressed into the wheel by the next one. Re-measured with the wheel's motor driving it
+// through the FUEL's contact (mechanism.js: the motors through the sub-steps): 2-4% less wheel for
+// the same exit, the stream topping out at ~9.1 m/s from 21 m/s of wheel (past it, a guess: 24).
 export const EXIT = { s: 0.03, y: 0.66 };
-export const EL_MAP = [[125, 37.4], [144.4, 57.6], [145.1, 58], [146.3, 59], [146.8, 60], [148.2, 61.3], [150.6, 62.9], [151.8, 63.9], [153.8, 66.1], [156.6, 68.6], [160.1, 72], [163.2, 75], [172, 84.9]];
-export const EXIT_MAP = [[0, 0], [4, 5], [5.95, 7.47], [6.04, 7.54], [6.43, 8.14], [6.76, 8.6], [7.15, 9.28], [7.54, 10.13], [7.94, 10.72], [8.2, 12.97], [8.52, 14.03], [9.03, 16.22], [9.14, 17.55], [9.8, 20]];
+export const EL_MAP = [[125, 37.4], [143.9, 57.6], [144.6, 58], [145.8, 59], [147.2, 59.7], [148.4, 61], [150.5, 63], [151.7, 63.8], [153.7, 66.1], [156.5, 68.6], [160, 72], [163.1, 75], [172, 84.9]];
+export const EXIT_MAP = [[0, 0], [4, 4.84], [5.95, 7.23], [6.04, 7.37], [6.4, 7.9], [6.77, 8.45], [7.14, 9.02], [7.57, 9.75], [7.89, 10.42], [8.3, 12.55], [8.57, 15.05], [8.83, 17.7], [9.06, 21.09], [9.8, 24]];
 const interp = (t, x, a = 0, b = 1) => {
   if (x <= t[0][a]) return t[0][b];
   for (let k = 1; k < t.length; k++) if (x <= t[k][a]) return t[k - 1][b] + ((t[k][b] - t[k - 1][b]) * (x - t[k - 1][a])) / (t[k][a] - t[k - 1][a]);
