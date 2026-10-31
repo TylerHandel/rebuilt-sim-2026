@@ -45,6 +45,14 @@ const EXIT_K = Number(globalThis.process?.env?.EXITK ?? 1.05);
 // off the aim against the turret's angle: 2-3 deg toward the rear with it out to the side, the
 // elevation a degree flatter with it facing back, steeper facing forward). FEEDPUSH=fwd,back
 const FEED_PUSH = (globalThis.process?.env?.FEEDPUSH ?? '-0.15,0.2').split(',').map(Number);
+// Its HUB shots crossed the rim's height 0.15-0.2 m long (median) from 3 m out, where the aim's
+// flight model has them 0.09 m long (its aim point is the opening's middle, 1.95 m up, over the
+// rim): they leave a few cm higher than it solves from and a few tenths of a degree flatter, and
+// the ones the shooter flings faster go farther than the slower ones fall short. Their AimSolver
+// has the same trim (speedScalar: "empirical speed calibration"); here the flywheel's target for a
+// HUB shot is the speed the aim asks times SHOT_SCALE (2% slower: 0.18 m shorter at 4.5 m, range
+// going as speed squared). SHOTSCALE=1 for none
+const SHOT_SCALE = Number(globalThis.process?.env?.SHOTSCALE ?? 0.98);
 const HOLD_SPEED = Number(globalThis.process?.env?.HOLDSPEED ?? 0);
 const _su = globalThis.process?.env?.STOPUNJAM ?? 'all', STOP_UNJAM = _su === '0' ? '' : _su;
 
@@ -318,11 +326,13 @@ export class Physical8793 extends PhysicalRobot {
     }
     // the flywheel: toward the speed the shot wants while there's one to make (it holds that
     // speed a moment after); coasting otherwise (their code)
-    if (setpoint > 0) { this.targetRps = Math.min(SHOOTER.maxRps, rpsFor(setpoint)); this.holdT = t; }
+    // (a HUB shot SHOT_SCALE slower than the aim asks)
+    if (setpoint > 0) { this.targetRps = Math.min(SHOOTER.maxRps, rpsFor(r.shot?.mode === 'hub' ? setpoint * SHOT_SCALE : setpoint)); this.holdT = t; }
     else if (!(on && this.targetRps && t - (this.holdT ?? -9) < 1.5)) this.targetRps = 0;
     this.t.shooter.cmd = on && this.targetRps > 0 ? flywheelDuty(this.t, this.targetRps) : 0;
-    // what the robot's aiming sees: the exit speed its flywheel gives right now
-    r.flywheel = EXIT_K * exitSpeed(Math.abs(this.t.shooter.omega) / (2 * Math.PI));
+    // what the robot's aiming sees: the exit speed its flywheel gives right now (in the aim's terms:
+    // at a HUB shot's trimmed target it's the speed the aim asked for)
+    r.flywheel = EXIT_K * exitSpeed(Math.abs(this.t.shooter.omega) / (2 * Math.PI)) / (r.shot?.mode === 'hub' ? SHOT_SCALE : 1);
     r.intakeSpeed = h.cmd < 0 ? 1 : h.cmd > 0 ? -1 : 0;
     r.feeding = this.feed ? 1 : 0;
   }
