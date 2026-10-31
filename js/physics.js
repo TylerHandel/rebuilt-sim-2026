@@ -54,7 +54,9 @@ export class Physics {
   // collider (a robot's frame) passes under a TRENCH arm untouched while top() (the highest it
   // reaches by the end of the coming step) is under the arm's underside
   passesUnder(collider, top) {
-    this.underArm.push({ collider, top, under: false });
+    // (under to start with, as it's made: a robot that reaches the arm is found to when it nears it)
+    collider.setSolverGroups(this.underSolverGroups);
+    this.underArm.push({ collider, top, under: true });
   }
 
   forget(collider) {
