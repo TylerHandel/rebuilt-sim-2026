@@ -624,6 +624,12 @@ export class OpponentAI {
       if (p.y > 0.32 || Math.abs(p.x) > HALF_L - 0.2 || Math.abs(p.z) > HALF_W - 0.2) continue;
       if (obstacleAt(p.x, p.z, 0.12)) continue;
       if (tall && underTrench(p.x, p.z, 0.3)) continue; // can't get under the arm to it
+      // under its own frame (341's, where one slips past the intake): its intake can't get at it
+      // from here, and it would circle on the spot chasing it
+      if (Math.hypot(p.x - r.pos.x, p.z - r.pos.z) < r.halfL + r.halfW) {
+        const l = r.worldToLocal(p.x, p.z);
+        if (Math.abs(l.x) < r.halfL - 0.05 && Math.abs(l.z) < r.halfW - 0.05) continue;
+      }
       const bl = this.blacklist.get(b);
       if (bl && bl > this.t) continue;
       const i = Math.floor(p.x / CELL), j = Math.floor(p.z / CELL);
