@@ -1,37 +1,52 @@
 // 2056's "Desperate Measures" in play, built of its physical mechanisms (js/mech/r2056.js; the shared
 // part: js/mech/physical.js). Their 2026 code isn't public (the PublicCodeBank repository holds their
-// pre-season base: the swerve, its 100 A stator and 80/60 A supply limits), so the controls are what
-// their binder and their Chief Delphi thread say, the rest estimates:
-//   - "C++ ... finite state machines control all subsystems. CTRE's Motion Magic used to drive all
-//     mechanisms to their desired setpoints ... with standard PID for continuous targeting."
-//   - intake: racks out at the start ("Dynamic Motion Magic for distinct extension and retraction
-//     speed"; "a low stator current limit allowing the intake to retract like a spring during
-//     impacts"); the kicker bar falls once it's out, held down by surgical tubing. Rollers at 12 V
-//     while intaking ("fairly high current limits"), the floor running with them.
-//   - "Intake Retract (while held): for temporarily retracting the intake to fully empty hopper while
+// pre-season base: the swerve, its 100 A stator and 80/60 A supply limits) and their binder says the
+// robot follows 1690's, so its controls are 1690's code (js/mech/phys1690.js), copied as far as the
+// machines are alike, and changed only where 2056 is built or run differently (their binder and
+// Chief Delphi thread). From 1690's, as is:
+//   - the state machine of postStep: a shot while the robot has one (r.shot), the hood to its angle and
+//     the wheel's velocity loop to its speed (speedLoop), ready once the turret, hood and wheel are
+//     there (the same tolerances: tolV, tolHood, the aim's 0.8 deg or the HUB's 0.14 m), then feeding,
+//     and on through the wheel's dip as each shot leaves; under a TRENCH (or about to be) no feeding,
+//     the hood stowed at its steep end, the arm pressing the net back down onto the load (PLATE.press);
+//     unjam (the AI's outtake; their "Purge ... reverses all rollers"): everything backward at 1690's
+//     speeds;
+//   - the indexer: the floor, belts and side kicker at 1690's speeds (RPS: the team's motor speeds
+//     carried over as the surface speeds they give, through 2056's gearing and roller sizes, as far as
+//     2056's motors reach), the Stealth feed at 1690's 60% of the shot's wheel speed and at least 5
+//     m/s (the same 2in Stealth wheels), the conveyor slowed to 60% when the wheel stays under 92% for
+//     0.1 s, the floor running while intaking (FLOOR_INTAKE);
+//   - jam detection: the side kicker over 60 A at under a fifth of its speed for 0.1 s backs off 0.15 s
+//     (1690's vertical kicker's; their binder: "smart stator current monitoring used to detect jams
+//     and automatically unjam hopper");
+//   - the intake: out on its racks at the start and held out (driveRacks: 1690's driveCarriage's
+//     position loop), the kicker bar's arms on their pin (driveKick/moveKick), its rollers at 12 V
+//     while intaking and while feeding;
+//   - the hood's motion profile, the turret's drive (turretDrive.js), the load's top for the TRENCH,
+//     where its FUEL count as held.
+// Changed for 2056:
+//   - no agitation: 1690 strokes its carriage in and out while it shoots; 2056's binder has "Intake
+//     Retract (while held): for temporarily retracting the intake to fully empty hopper while
 //     shooting": emulated, as their driver does, once the load's down to RETRACT_AT while it shoots
-//     and isn't intaking, the intake comes in (its low current limit: it presses the last of the load
-//     back gently, est.) and goes out again when it stops.
-//   - shooting: "Kinematically computed shot vector with time-of-flight compensation for shooting on
-//     the move", the turret aiming itself on its X44 (+-185 deg), the hood to the shot's release
-//     angle (its geometry: "73.5 to 39.5 release angle from horizontal") and the wheel to the exit
-//     speed through "a manually tuned coefficient to map desired exit velocity to wheel speed"
-//     (EXIT_K, fitted on the bench as they tuned theirs). "When passing we would pass with the hood at
-//     its lowest release angle and vary flywheel RPM and when shooting we would vary both shooter RPM
-//     and hood angle, the kicker speed a constant ratio of the flywheel RPM throughout" (KICK_RATIO,
-//     est.). Once the turret, hood and wheel are there the indexer runs: the floor, the belts, the side
-//     kicker, the Stealth wheels (speeds: estimates), and keeps running through the wheel's dip.
-//   - "A CANrange pointed into hopper measures hopper fill level. During 'Passing' robot automatically
-//     fills hopper to a minimum level before starting to pass. While passing, if hopper level drops
-//     below minimum, robot stops passing and starts accumulating" (PASS_MIN, est.; only while it's
-//     intaking as it passes: a pass the AI sends it home to make empties it).
-//   - "Smart stator current monitoring used to detect jams and automatically unjam hopper": the side
-//     kicker over 60 A at under a fifth of its speed for 0.1 s backs off 0.15 s (est., as 1690's).
-//   - "Polygon zone localization ... reduces trench-hood collisions": under a TRENCH, or about to be,
-//     it doesn't feed and the hood stays down at its steep end (its arm lowest), and the arm presses
-//     the net back down onto the load.
-//   - unjam (the AI's outtake; their "Purge ... reverses all rollers while it's held"): everything
-//     backward.
+//     and isn't intaking the intake comes in (its "low stator current limit": it presses the last of
+//     the load back gently) and goes out again when it stops. Out and in at different speeds ("Dynamic
+//     Motion Magic for distinct extension and retraction speed": RACK).
+//   - the aim: their "kinematically computed shot vector with time-of-flight compensation" (_aim:
+//     solveMovingShot, from where the FUEL will leave LATENCY ahead with that point's velocity) in place
+//     of 1690's table shot less the turret's velocity (which asked for elevations past the hood's
+//     steep end driving in close); the shooter's frame carried with the robot (mechanism.js
+//     `carried`); the last shot's setpoints held HOLD s when the solution drops out (a state machine
+//     leaving its shooting state).
+//   - the wheel: "a manually tuned coefficient to map desired exit velocity to wheel speed" (EXIT_MAP:
+//     that coefficient tuned at each speed, ONE_K=1 for theirs); the hood's release angle 39.5-73.5
+//     deg ("73.5 to 39.5 release angle from horizontal"); the backspin kicker on the hood's arm on its
+//     own X44 at a constant ratio of the flywheel's RPM (KICK_RATIO, est.: their thread), where 1690's
+//     hood wheels are geared to its wheel.
+//   - passing: "with the hood at its lowest release angle and vary flywheel RPM" (a one-angle pass
+//     table, PASS_MAP), where 1690's passes use its table's angles; "a CANrange pointed into hopper
+//     measures hopper fill level ... While passing, if hopper level drops below minimum, robot stops
+//     passing and starts accumulating" (PASS_MIN, est.; only while it's intaking as it passes).
+//   - "Polygon zone localization ... reduces trench-hood collisions": as 1690's TRENCH handling.
 import { Mechanism } from './mechanism.js';
 import { PhysicalRobot } from './physical.js';
 import {
@@ -68,24 +83,26 @@ const LATENCY = 0.05; // s: their loop and the turret's lag (est.); about a FUEL
 // the last shot's setpoints held this long once it's lost (s, est.)
 const HOLD = 0.3;
 // Its shots, as the bench measures them (tools/mechlab2056.mjs calibrate: FUEL fed up the bore in a
-// stream by the indexer, the way it fires): where the FUEL leave (the turret's frame: s along the shot
-// from its axis, y up); the elevation each arm angle gives (EL_MAP: within 1-4 deg of the geometry's
-// release angle; ELEV_GEOM=1 commands the geometric angle, as their binder states the range); the
-// wheel's surface speed for an exit speed. Their code maps exit speed to wheel speed with "a manually
-// tuned coefficient" (EXIT_K: the bench's best single one, 0.59); in the sim the exit stops growing
-// near 8.8 m/s (the foam's grip on the wheel over the hood's wrap: 1690's does the same near 9.8), so
-// one coefficient would put long shots well short: EXIT_MAP is that coefficient tuned at each speed
-// over the HUB table's pairs (its arm 153-162 deg), PASS_MAP at the lowest release angle, where
-// passes go (ONE_K=1: their single coefficient). EXIT_MAP as their drive team would finish it, on the
-// field: AI matches' HUB shots (against 2910, ~3400 of them, the wheel within 2% of its target at the
-// release) leave at these speeds in a match's stream; the bench's map expected 3-5% more from 14
-// m/s up (its 4.5 m row out at 7.8-8.1 of the 8.25 asked, every way the turret faces), 2-3% less
-// at 11-12: the long shots 0.15-0.3 m short, the close ones 0.1-0.2 long.
-export const EXIT = { s: 0.048, y: 0.631 };
-export const EL_MAP = [[129.5, 35.5], [135, 41.1], [141, 45.6], [147, 50.5], [153, 57.2], [156, 60.8], [159, 64.8], [161, 67.1], [163, 70.1], [163.5, 70.9]];
-export const EXIT_K = 0.578;
-export const EXIT_MAP = [[0, 0], [5.75, 8], [6.1, 9], [6.45, 10], [6.75, 11], [7.0, 12], [7.25, 13], [7.45, 14], [7.65, 15], [7.8, 16], [7.95, 17], [8.1, 18], [8.2, 19], [8.25, 20]];
-export const PASS_MAP = [[0, 0], [5.9, 8], [7.2, 10], [7.95, 12], [8.32, 14], [8.74, 16], [8.86, 18], [8.91, 20]];
+// stream by the indexer, the way it fires), re-measured on the drawings' geometry (the turret's deck
+// 1.4 cm higher than the first pass's estimate, the bore and quarter pipe's top lower, the Stealth
+// wheels where A10/A14 put them: the FUEL ride 6 cm unguided by the feed wheels up into the 4in
+// wheel, where they rode 2 cm, and they leave steeper at the low release angles, flatter at the
+// steep end, and no faster than ~8.2 m/s on the bench, 8.8 before): where the FUEL leave (the
+// turret's frame: s along the shot from its axis, y up; moved as the bench's median moved, 0.023 m
+// and 0.055 m); the elevation each arm angle gives (EL_MAP; ELEV_GEOM=1 commands the geometric angle,
+// as their binder states the range); the wheel's surface speed for an exit speed. Their code maps exit
+// speed to wheel speed with "a manually tuned coefficient" (EXIT_K: the bench's best single one, 0.632,
+// less the 3% a match's stream leaves slower than the bench's); one coefficient puts the long shots
+// short (the exit stops growing near 8.2 m/s: the foam's grip on the wheel over the hood's wrap), so
+// EXIT_MAP is that coefficient tuned at each speed: the bench's, times what AI matches' HUB shots
+// left at against the bench on the first pass's geometry (~3400 shots: 0.94-0.98 of it from 10 m/s
+// up). PASS_MAP: the bench at the lowest release angle, where passes go (ONE_K=1: their single
+// coefficient).
+export const EXIT = { s: 0.071, y: 0.686 };
+export const EL_MAP = [[129.5, 36.2], [135, 41.8], [141, 47.7], [147, 53.2], [153, 58.8], [158, 63.1], [163.5, 68.3]];
+export const EXIT_K = 0.61;
+export const EXIT_MAP = [[0, 0], [4.6, 6], [5.89, 8], [6.57, 10], [7.4, 12], [7.48, 14], [7.67, 17], [7.72, 20], [7.76, 24]];
+export const PASS_MAP = [[0, 0], [5.93, 8], [7.04, 10], [7.71, 12], [7.99, 14], [8.16, 16], [8.17, 18], [8.18, 20]];
 const GEOM = typeof process !== 'undefined' && process.env?.ELEV_GEOM === '1';
 const ONE_K = typeof process !== 'undefined' && process.env?.ONE_K === '1';
 const interp = (t, x, a = 0, b = 1) => {
@@ -172,9 +189,9 @@ export class Physical2056 extends PhysicalRobot {
     this.ownsIntake = true;
     this.ownsHood = true;
     // passes at the hood's lowest release angle, the wheel's speed varied (their thread): a pass table
-    // of that one angle (ballistics.js), in place of the robot's
+    // of that one angle (ballistics.js), in place of the robot's, as fast as PASS_MAP reaches
     const sh = robot.cfg.shooter, el = PASS_EL();
-    robot.passTable = new ShotTable({ h0: sh.exitY, Ht: FUEL.radius + 0.02, hoodMin: el, hoodMax: el, speedMax: sh.speedMax, mode: 'pass', passTheta: el, dMax: 22 });
+    robot.passTable = new ShotTable({ h0: sh.exitY, Ht: FUEL.radius + 0.02, hoodMin: el, hoodMax: el, speedMax: PASS_MAP[PASS_MAP.length - 1][0] - 0.03, mode: 'pass', passTheta: el, dMax: 22 });
     this.reset();
   }
 

@@ -113,7 +113,7 @@ export const PIPE = { R: 6.75 * IN, c: [0.088, 0.311], x: [-0.214, BACK.front], 
 // from A10's side view, ~0.33 m); one X60, 16:28, both shafts at its speed (the second turned back 1:1)
 export const FEED = {
   x: -0.134, w: 0.025, r: 1 * IN,
-  wheels: [[PIPE.c[0], PIPE.c[1]], [TURRET.at[1] + (R + 1 * IN - 0.0044), 0.33]],
+  wheels: [[PIPE.c[0], PIPE.c[1]], [TURRET.at[1] + (R + 1 * IN - 0.0044), Number(globalThis.process?.env?.FW2 ?? 0.33)]],
   ratio: 28 / 16,
 };
 // the shooter, in the turret's frame (s along the shot, y up, z across; A19): the 4in wheel's axle

@@ -3581,13 +3581,14 @@ function build2056(cfg, alliance) {
   const carriage = new THREE.Group();
   root.add(carriage);
   const FR = I.frame, fx0 = FR.front - I.slide[0], top = FR.top - I.slide[1];
-  rbx(0.0254, 0.0508, 2 * FR.sides, 0.003, lattice, carriage, fx0 - 0.013, 0.24 - I.slide[1], 0);
-  const sign = bx(0.004, top - 0.27 + I.slide[1], 2 * FR.sides, white, carriage, fx0, (top + 0.27 - I.slide[1]) / 2, 0);
+  const bash = FR.panel - I.slide[1] + 0.0254; // (the 2x1 bash bar on edge over its foot, FR.panel)
+  rbx(0.0254, 0.0508, 2 * FR.sides, 0.003, lattice, carriage, fx0 - 0.013, bash, 0);
+  const sign = bx(0.004, top - bash - 0.0254, 2 * FR.sides, white, carriage, fx0, (top + bash + 0.0254) / 2, 0);
   sign.castShadow = true;
   for (const s of [-1, 1]) {
     polyWall(carriage, 0.33, top - 0.2 + I.slide[1], fx0 - 0.165, (top + 0.2 - I.slide[1]) / 2, s * FR.sides, 0, M.poly, lattice);
     const rack = bx(0.574, 0.06, 0.006, M.polyTint, carriage, fx0 - 0.3, 0.19, s * (FR.sides - 0.02));
-    rack.rotation.z = (11.5 * Math.PI) / 180;
+    rack.rotation.z = (I.rackDeg * Math.PI) / 180;
   }
   const intakeRollers = I.rollers.map(([x, y, r]) => rollerZ(carriage, x, y, 0, r, I.width, silicone));
   kraken(carriage, I.rollers[1][0] - 0.06, I.rollers[1][1] + 0.02, FR.sides - 0.06, false, 'z');
