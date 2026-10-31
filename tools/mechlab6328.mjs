@@ -7,9 +7,10 @@
 // sim's FUEL come down at the row's distance: js/mech/r6328.js SIM_FLY), path (FUEL on a treadmill
 // carpet, the robot driving into them: intake, floor, kickers, drum), intake (the intake alone, 24
 // FUEL), intakefull (filled through the intake from the NEUTRAL ZONE's FUEL until it can't take
-// more: tools/fillbench.mjs), hold (how many it holds, set in a layer at a time), dump (a full one
-// launched at 3 m, with their compaction).
-// Env: SEEDS, SPEED (1 m/s), SEC, FILLSEED, STUCK, TRACE, NOCOMPACT
+// more: tools/fillbench.mjs), hold (how many it holds, set in a layer at a time), dump (filled through
+// its intake as intakefull, then launched at 3 m with their compaction; FILL=drop: dropped in).
+// Env: SEEDS, SPEED (1 m/s), SEC, FILLSEED, STUCK, TRACE, NOCOMPACT, PROFILE, DIST, FILL, FLOORR,
+// NET_BULGE
 import { RAPIER } from '../js/physics.js';
 import { FUEL, GROUP, groups, HUB } from '../js/constants.js';
 import { Mechanism } from '../js/mech/mechanism.js';
@@ -207,6 +208,7 @@ const tests = {
       // (where the load is: how many in each 0.1 m along the robot, and the mouth's)
       const ps = r.balls.map((b) => { const p = b.translation(); return [p.x, p.y, p.z]; });
       const bins = {}; for (const p of ps.filter(held6328)) { const k = Math.floor(p[0] * 10) / 10; bins[k] = (bins[k] || 0) + 1; }
+      if (process.env.PROFILE) { const L = ps.filter(held6328), xs = [-0.2, -0.1, 0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6]; console.log('   top along x:', xs.map((x) => { const q = L.filter((p) => p[0] >= x && p[0] < x + 0.1); return `${x.toFixed(1)}:${q.length ? Math.max(...q.map((p) => p[1] + R)).toFixed(2) : '-'}/${q.filter((p) => p[1] > 0.42).length}`; }).join(' '), '| net at mid', NET.bulge); }
       console.log('   load along x:', Object.keys(bins).sort((a, b) => a - b).map((k) => `${(+k).toFixed(1)}:${bins[k]}`).join(' '), '| in the mouth', ps.filter((p) => own6328(p) && !held6328(p)).length);
       if (process.env.STUCK) for (const b of r.balls) { const q = b.translation(), p = [q.x, q.y, q.z]; if (own6328(p) && !held6328(p) || (held6328(p) && p[0] > 0.3)) console.log(`   ${held6328(p) ? 'held ' : 'mouth'} ${p.map((v) => v.toFixed(2)).join(',')}: ${path.contacts.filter((c) => c.ball === b).map((c) => c.wheel.name + ' ' + c.force.toFixed(0)).join(', ')}`); }
       r.world.free();
@@ -228,39 +230,66 @@ const tests = {
     if (process.env.STUCK) for (const b of balls.filter(inHopper)) { const p = b.translation(); if (p.y > 0.5) console.log(`   high: ${p.x.toFixed(2)},${p.y.toFixed(2)},${p.z.toFixed(2)}`); }
     console.log(`6328 holds ${balls.filter(inHopper).length} with everything off, the intake down and the hopper out (a layer at a time; the load's top ${top.toFixed(2)} m, the net ${NET.bulge} m of slack); ${ms.toFixed(2)} ms a step`);
   },
+  // a full one launched at a row (DIST, their 3 m), with their compaction. Filled through its intake
+  // (fillRun, as intakefull: SEEDS fills, FILLSEED the first) or, FILL=drop, dropped in a layer at a
+  // time. Reported: the first second (from the first shot), the best second (any 1 s window), the
+  // whole dump's average, and the middle's (the 10th to the 10th from last shot: past the start, before
+  // the stragglers)
   dump() {
-    const d = Number(process.env.DIST ?? 3.0), want = shotFor('hub', d);
-    const rg = rig({ hood: want.hood }), { t, wh, s: surf, path, shooter } = rg;
-    const w = world();
-    const balls = [];
-    const step = (n, run) => { for (let i = 0; i < n; i++) { if (run) run(); path.step(DT, balls, balls); shooter.step(DT, balls); w.step(); } };
-    fill(w, balls, (n) => step(n, () => rg.drum(want.fly)), 10);
-    const n0 = balls.filter(inHopper).length;
-    const watch = shotWatch(shooter);
-    t.floor.cmd = 1;
-    let deg = INTAKE.down, set = INTAKE.down, minFly = Infinity;
-    for (let k = 0; k < 8 / DT; k++) {
-      const T = k * DT;
-      step(1, () => {
-        rg.drum(want.fly, d > SHOOTER.bangMin); kickers(t, want.kicker);
-        // (their compaction: 0.35 s in, the slam retracts at 0.88 rad/s, the roller on for 1.2 s)
-        if (!process.env.NOCOMPACT && T >= 0.35) { set = Math.min(INTAKE.up, set + (0.88 * 180 / Math.PI) * DT); t.intake.cmd = T < 1.55 ? 1 : 0; }
-        servoArm(t, deg, set, DT);
-        rg.pose(deg);
-      });
-      deg = turnArm(t, deg, DT);
-      watch.check(balls, T);
-      if (watch.shots.length) minFly = Math.min(minFly, t.drum.omega);
-    }
-    const s = watch.shots.map((x) => x.t), first = s[0] ?? 0, in1 = s.filter((x) => x - first < 1).length;
-    { const bins = []; for (const x of s) { const i = Math.floor((x - first) / 0.5); bins[i] = (bins[i] || 0) + 1; } console.log(`   shots each 0.5 s: ${Array.from(bins, (v) => v || 0).join(' ')}`); }
-    const left = balls.filter((b) => b.translation().y < 3 && b.translation().x < 40 && inHopper(b));
-    if (process.env.STUCK) for (const b of left) { const p = b.translation(); console.log(`   left at ${p.x.toFixed(2)},${p.y.toFixed(2)},${p.z.toFixed(2)}: ${[...path.contacts, ...shooter.contacts].filter((c) => c.ball === b).map((c) => c.wheel.name + ' ' + c.force.toFixed(0)).join(', ')}`); }
-    const land = watch.shots.map((o) => landAt(o, HUB.rimFront) + LAUNCHER_X).filter(Number.isFinite);
-    console.log(`  (${left.length} still in it; the flywheel down to ${minFly.toFixed(0)} of ${want.fly.toFixed(0)} rad/s; shots come down at the rim ${med(land).toFixed(2)} m from the launcher (median; ${Math.min(...land).toFixed(2)}..${Math.max(...land).toFixed(2)}); the arm ended at ${deg.toFixed(0)} deg)`);
-    console.log(`6328 dumps ${s.length} of ${n0} at their ${d} m row: ${in1} in the first second, ${((s.length - 1) / (s[s.length - 1] - first)).toFixed(1)} FUEL/s over the whole dump`);
+    const runs = [], n = Number(process.env.SEEDS ?? 3), s0 = Number(process.env.FILLSEED ?? 1);
+    for (let seed = s0; seed < s0 + n; seed++) runs.push(dumpRun(seed));
+    const f = (k, d = 1) => `${Math.min(...runs.map((r) => r[k])).toFixed(d)}-${Math.max(...runs.map((r) => r[k])).toFixed(d)} (mean ${mean(runs.map((r) => r[k])).toFixed(d)})`;
+    console.log(`6328 dumps (${runs.length} fills, ${process.env.FILL === 'drop' ? 'dropped in' : 'through its intake'}): full ${f('n0', 0)}; first second ${f('in1', 0)}, best second ${f('best', 0)}, ${f('avg')} FUEL/s over the dump, ${f('mid')} through the middle`);
   },
 };
+function dumpRun(seed) {
+  const d = Number(process.env.DIST ?? 3.0), want = shotFor('hub', d);
+  const rg = rig({ hood: want.hood }), { t, path, shooter } = rg;
+  let w, balls;
+  if (process.env.FILL === 'drop') {
+    w = world(); balls = [];
+    fill(w, balls, (k) => { for (let i = 0; i < k; i++) { rg.drum(want.fly); path.step(DT, balls, balls); shooter.step(DT, balls); w.step(); } }, 10);
+  } else {
+    // (the flywheel spun up while it fills: the dump starts at speed)
+    t.intake.cmd = 1;
+    const r = fillRun(RAPIER, { world: () => world({ carpet: false }), ball, path, DT, held: held6328, own: own6328, top: { topX: 0.1, topN: 10 }, speed: SPEED, sec: Number(process.env.SEC ?? 12), seed, front: 0.42, keep: true, control: () => { rg.drum(want.fly); shooter.step(DT, []); } });
+    w = r.world; r.carpet.setLinvel({ x: 0, y: 0, z: 0 }, true);
+    t.intake.cmd = 0;
+    // (what it didn't take in: out of the way; it's backed off them)
+    for (const b of r.balls) { const q = b.translation(); if (!held6328([q.x, q.y, q.z])) b.setTranslation({ x: 60, y: -5, z: 0 }, true); }
+    balls = r.balls.filter((b) => b.translation().x < 40);
+  }
+  const step = (k, run) => { for (let i = 0; i < k; i++) { if (run) run(); path.step(DT, balls, balls); shooter.step(DT, balls); w.step(); } };
+  const n0 = balls.filter(inHopper).length;
+  const watch = shotWatch(shooter);
+  t.floor.cmd = 1;
+  let deg = INTAKE.down, set = INTAKE.down, minFly = Infinity;
+  for (let k = 0; k < 8 / DT; k++) {
+    const T = k * DT;
+    step(1, () => {
+      rg.drum(want.fly, d > SHOOTER.bangMin); kickers(t, want.kicker);
+      // (their compaction: 0.35 s in, the slam retracts at 0.88 rad/s, the roller on for 1.2 s)
+      if (!process.env.NOCOMPACT && T >= 0.35) { set = Math.min(INTAKE.up, set + (0.88 * 180 / Math.PI) * DT); t.intake.cmd = T < 1.55 ? 1 : 0; }
+      servoArm(t, deg, set, DT);
+      rg.pose(deg);
+    });
+    deg = turnArm(t, deg, DT);
+    watch.check(balls, T);
+    if (watch.shots.length) minFly = Math.min(minFly, t.drum.omega);
+  }
+  const s = watch.shots.map((x) => x.t), first = s[0] ?? 0, in1 = s.filter((x) => x - first < 1).length;
+  const best = Math.max(0, ...s.map((x) => s.filter((y) => y >= x && y < x + 1).length));
+  const avg = s.length > 1 ? (s.length - 1) / (s[s.length - 1] - first) : 0;
+  const m0 = Math.min(9, s.length - 1), m1 = Math.max(m0, s.length - 10), mid = m1 > m0 ? (m1 - m0) / (s[m1] - s[m0]) : 0;
+  const bins = []; for (const x of s) { const i = Math.floor((x - first) / 0.5); bins[i] = (bins[i] || 0) + 1; }
+  const left = balls.filter((b) => b.translation().y < 3 && b.translation().x < 40 && inHopper(b));
+  if (process.env.STUCK) for (const b of left) { const p = b.translation(); console.log(`   left at ${p.x.toFixed(2)},${p.y.toFixed(2)},${p.z.toFixed(2)}: ${[...path.contacts, ...shooter.contacts].filter((c) => c.ball === b).map((c) => c.wheel.name + ' ' + c.force.toFixed(0)).join(', ')}`); }
+  const land = watch.shots.map((o) => landAt(o, HUB.rimFront) + LAUNCHER_X).filter(Number.isFinite);
+  console.log(`  fill ${seed}: ${s.length} of ${n0} at their ${d} m row: ${in1} in the first second, best second ${best}, ${avg.toFixed(1)} FUEL/s over the dump, ${mid.toFixed(1)} through the middle; each 0.5 s ${Array.from(bins, (v) => v || 0).join(' ')}` +
+    ` (${left.length} left; the flywheel down to ${minFly.toFixed(0)} of ${want.fly.toFixed(0)} rad/s; shots down at the rim ${med(land).toFixed(2)} m from the launcher, ${Math.min(...land).toFixed(2)}..${Math.max(...land).toFixed(2)}; the arm at ${deg.toFixed(0)} deg)`);
+  w.free();
+  return { n0, shots: s.length, in1, best, avg, mid };
+}
 // where a FUEL is (robot frame), as js/mech/phys6328.js where() has it with the intake down
 const HALF_L = 0.3366, EXT = slideExt(INTAKE.down);
 const inFrame6328 = ([x, y, z]) => Math.abs(x) < HALF_L + 0.01 && Math.abs(z) < 0.343 && y > 0.12 && y < 0.8;

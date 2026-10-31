@@ -32,8 +32,10 @@
 //   slam (the arm's pivot): an X60 through 52.5:1 (their SensorToMechanismRatio; the binder says
 //     42:1), 70 A stator, 50 A supply, PositionVoltage kP 80 V per rotation; 17.4 deg down
 //     (slamMinAngle, its hard stop) to 145.8 up (slamMaxAngle)
-//   floor (HopperRoller 15 + follower 16): two X60s, 40 A supply, each 12t onto the live axle's 24t
-//     (the CAD; the binder says 1.5:1), the rollers belted 1:1 (40T belts); 12 V while launching
+//   floor (HopperRoller 15 + follower 16): two X60s, 40 A supply, 1.5:1 (the binder's final design:
+//     "geared 1.5:1 ... Drives 10 rollers"; its prototyping, "run as fast as possible (4:1,
+//     eventually 1.5:1)"); the CAD's 12t onto the live axle's 24t (2:1) predates that (FLOORR=2 for
+//     it). The rollers belted 1:1 (40T belts); 12 V while launching, 0 V (brake) otherwise
 //   kickers: one X60 each through 3:1 (their SensorToMechanismRatio 3.0, the CAD's 36t on the front
 //     roller's shaft; kV 0.056 and 0.0575 V per rad/s of roller confirm it), 30 A supply, velocity
 //     loops at their surface speed (6 m/s, 3 from 4 m out) over the front roller's 1.25in and the
@@ -96,10 +98,14 @@ export function hopX(deg) {
 }
 export const slideExt = (deg) => hopX(deg) - hopX(INTAKE.cad);
 export const slideRate = (deg) => ((slideExt(deg + 0.5) - slideExt(deg - 0.5)) * 180) / Math.PI; // m per rad of arm (up)
-// the floor: the Superdexer's seven and the launcher's two, back to front; 1.5in polycarbonate
-// under silicone (0.0401 m over it), belted 1:1
+// the floor: the Superdexer's seven (six dead axles and the live one) and the launcher's two dead
+// axles, back to front; 1.5in polycarbonate under silicone (0.0401 m over it), belted 1:1. The
+// binder's "10 rollers": the CAD (the AdvantageScope model and the Onshape BOM alike) has these nine
+// and no tenth (its front kicker roller has its own X60)
 export const FLOOR = [[-0.1587, 0.1905], [-0.1114, 0.1779], [-0.0620, 0.1780], [-0.0140, 0.1840], [0.0350, 0.1900], [0.0835, 0.1960], [0.1320, 0.2020], [0.1810, 0.2080], [0.2290, 0.2130]];
 export const FLOOR_R = 0.02, FLOOR_W = 0.538;
+// the floor's reduction (X60s to rollers): the binder's 1.5:1; FLOORR=2 for the CAD's 12t:24t
+export const FLOOR_RATIO = Number(globalThis.process?.env?.FLOORR ?? 1.5);
 // the back kicker's three rollers up the back of the tunnel, bottom to top (their 0.79in radius)
 export const BACK = [[-0.2059, 0.2186], [-0.2510, 0.2816], [-0.2664, 0.3703]];
 export const BACK_R = 0.79 * IN, BACK_W = 0.51;
@@ -178,7 +184,7 @@ export function build6328() {
   const locked = new Shaft({ name: 'intake fixed tubes', inertia: Infinity });
   // the floor: positive carries FUEL back along it (the rollers' tops run rearward)
   const floor = new Train({ name: 'Superdexer floor', motor: new Motor('krakenX60', { count: 2, statorLimit: Infinity, supplyLimit: 40 }) });
-  const rollers = FLOOR.map((_, i) => floor.add(new Shaft({ name: `floor roller ${i + 1}`, inertia: 3e-5 }), 12 / 24));
+  const rollers = FLOOR.map((_, i) => floor.add(new Shaft({ name: `floor roller ${i + 1}`, inertia: 3e-5 }), 1 / FLOOR_RATIO));
   // the back kicker: positive lifts FUEL (the rollers' fronts run up)
   const backT = new Train({ name: 'back kicker', motor: new Motor('krakenX60', { statorLimit: Infinity, supplyLimit: 30 }) });
   const back = BACK.map((_, i) => backT.add(new Shaft({ name: `back kicker roller ${i + 1}`, inertia: 3e-5 }), 1 / 3));
