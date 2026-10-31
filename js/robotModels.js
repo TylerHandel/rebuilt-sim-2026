@@ -2857,7 +2857,10 @@ function build3928(cfg, alliance) {
 // (cad/robots/341.json): the body (drivetrain, the serializer tray with its three omni wheels,
 // the table and uptake, the L1 climber), the "brontosaurus" slapdown (exported down; origin on its
 // pivot) and the shooter on its turret (origin on the 92T turret gear's axis).
-const TURRET_341_YAW = -150 * Math.PI / 180; // where the CAD's shooter points as exported
+// where the CAD's shooter points as exported: FUEL come up the flywheel's back, from the hood's side,
+// and out over its top the other way (js/mech/r341.js: +x in the turret's frame). It was -150, half a
+// turn round: the drawn shooter faced away from where its FUEL went
+const TURRET_341_YAW = 30 * Math.PI / 180;
 function build341(cfg, alliance) {
   const root = new THREE.Group();
   const L = cfg.frame.length, W = cfg.frame.width, bay = cfg.bay, sh = cfg.shooter, fold = cfg.intake.fold;
