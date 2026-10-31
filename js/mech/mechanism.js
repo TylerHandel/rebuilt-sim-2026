@@ -43,6 +43,7 @@ const MU_FREE = 0.04;                 // an omni/mecanum wheel's rollers across 
 // the NEUTRAL ZONE's line at 3 m/s, 62 and 45 at 0.3). MU_FUEL to try others
 export const MU_FUEL = Number(globalThis.process?.env?.MU_FUEL ?? 0.3);
 const MU_SIDE = 0.3;                  // FUEL on a wheel's side (its plates, hub)
+const CARRIED = globalThis.process?.env?.CARRIED !== '0';
 
 // ------------------------------------------------------------------ foam
 // one contact's dent d (m) -> force (N) and its slope (N/m): the plate test's curve at 2d.
@@ -509,12 +510,13 @@ export class Mechanism {
   // as the world will apply it (spread over its substeps a body moves by (n+1)/2n of a full
   // step's worth), so a FUEL resting on a wheel settles where the foam holds its weight. sub:
   // contact steps per step, for contacts over in a step or two at the game's rate (a shooter).
-  // carried: sub-stepped, the frame moves on with the body through the step, as the FUEL in it do
-  // (otherwise its wheels and plates stay where the step began, and a FUEL riding in a moving robot
-  // creeps against them: 2056's left 4% faster driving 1.5 m/s along the shot, 1690's 2-4% faster or
-  // slower and 2.6 deg flatter). Only 2056's shooter so far: the others' aims were tuned on the
-  // frame standing still (with it, 8793's and 1690's HUB shots 73% -> 67% and 89% -> 85%, seeds 1-4).
-  constructor({ body = null, shafts = [], wheels = [], surfaces = [], iterations = 6, gravity = [0, -9.81, 0], substeps = 4, sub = 1, carried = false } = {}) {
+  // Sub-stepped, the frame moves on with the body through the step, as the FUEL in it do (carried;
+  // CARRIED=0 for the old way, the frame standing where the step began: a FUEL riding in a moving
+  // robot crept against its wheels and plates, k h behind by the k-th sub-step: 2056's left 4% faster
+  // driving 1.5 m/s along the shot, 1690's 2-4% faster or slower and 2.6 deg flatter). One contact
+  // step a step (a ball path, an intake) has nothing to carry: its FUEL and frame are both where
+  // the step began, and the world moves both.
+  constructor({ body = null, shafts = [], wheels = [], surfaces = [], iterations = 6, gravity = [0, -9.81, 0], substeps = 4, sub = 1, carried = CARRIED } = {}) {
     Object.assign(this, { body, shafts, wheels, surfaces, iterations, gravity, sub, carried });
     this.gShare = (substeps + 1) / (2 * substeps);
     this.contacts = [];  // last step's, for drawing and tests
