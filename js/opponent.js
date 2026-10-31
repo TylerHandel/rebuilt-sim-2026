@@ -572,13 +572,17 @@ export class OpponentAI {
     // collect a batch, then dump it all in one go: one spin-up (and for a chassis-aimed shooter
     // one turn) per batch instead of one per FUEL. It passes early if there's nothing left to get.
     // (one that keeps its FUEL flowing passes each one as it comes, its flywheel kept spinning)
+    // (full: it can't take more, so it stops chasing FUEL and passes what it has, however many,
+    // as with nothing left to get: one that's full when its intake can't put more in can be full
+    // short of the batch, and would sit there)
+    const full = !this._hasRoom() || r.full;
     const batch = this.flow ? 1 : Math.min(this.maxLoad, Math.max(2, Math.round(B.passBatch)));
-    if (canPass && stored > 0 && (stored >= batch || !this.ball)) this.passing = true;
+    if (canPass && stored > 0 && (stored >= batch || !this.ball || full)) this.passing = true;
     if (!canPass || stored === 0) this.passing = false;
     this.shootingMode = !!this.passing && !this.flow;
     // nearly there: spin the flywheel up (and aim a turret) ahead of the dump
-    r.cmd.prespin = canPass && (this.flow || stored >= 0.7 * batch);
-    const b = !this._hasRoom() || r.full ? null : this.ball; // full: stop chasing FUEL, go pass it
+    r.cmd.prespin = canPass && (this.flow || stored >= 0.7 * batch || full);
+    const b = full ? null : this.ball;
     if (this.passing && !this.turret) {
       // chassis-aimed: ease off while the chassis turns and dumps the batch
       if (b) this._drive(b.pos.x, b.pos.z, { speed: 0.3, avoid: true });
