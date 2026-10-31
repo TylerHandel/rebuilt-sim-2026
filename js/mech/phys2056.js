@@ -41,7 +41,7 @@ import {
 import { speedLoop, profile } from './phys1706.js';
 import { Field } from '../field.js';
 import { underTrench } from '../nav.js';
-import { ShotTable } from '../ballistics.js';
+import { ShotTable, solveMovingShot } from '../ballistics.js';
 import { FUEL, TRENCH } from '../constants.js';
 import { clamp } from '../util.js';
 import { drive2056 } from './turretDrive.js';
@@ -56,7 +56,9 @@ export const RPS = { floor: [90, 90], belts: [115, 115], vkick: 60 };
 export const FEED_SHARE = 0.6, FEED_MIN = 5;
 // the backspin kicker's RPM per the flywheel's (est.: its surface at 0.8 of the wheel's)
 export const KICK_RATIO = 1.6;
-const LATENCY = 0.05; // s: their loop and the turret's lag (est.)
+const LATENCY = 0.05; // s: their loop and the turret's lag (est.); about a FUEL's time on the wheel
+// the last shot's setpoints held this long once it's lost (s, est.)
+const HOLD = 0.3;
 // Its shots, as the bench measures them (tools/mechlab2056.mjs calibrate: FUEL fed up the bore in a
 // stream by the indexer, the way it fires): where the FUEL leave (the turret's frame: s along the shot
 // from its axis, y up); the elevation each arm angle gives (EL_MAP: within 1-4 deg of the geometry's
@@ -64,13 +66,17 @@ const LATENCY = 0.05; // s: their loop and the turret's lag (est.)
 // wheel's surface speed for an exit speed. Their code maps exit speed to wheel speed with "a manually
 // tuned coefficient" (EXIT_K: the bench's best single one, 0.59); in the sim the exit stops growing
 // near 8.8 m/s (the foam's grip on the wheel over the hood's wrap: 1690's does the same near 9.8), so
-// one coefficient would put long shots well short: EXIT_MAP is that coefficient tuned at each speed,
-// over the arm's HUB range (153-162 deg), PASS_MAP at the lowest release angle, where passes go
-// (ONE_K=1: their single coefficient).
+// one coefficient would put long shots well short: EXIT_MAP is that coefficient tuned at each speed
+// over the HUB table's pairs (its arm 153-162 deg), PASS_MAP at the lowest release angle, where
+// passes go (ONE_K=1: their single coefficient). EXIT_MAP as their drive team would finish it, on the
+// field: AI matches' HUB shots (against 2910, ~3400 of them, the wheel within 2% of its target at the
+// release) leave at these speeds in a match's stream; the bench's map expected 3-5% more from 14
+// m/s up (its 4.5 m row out at 7.8-8.1 of the 8.25 asked, every way the turret faces), 2-3% less
+// at 11-12: the long shots 0.15-0.3 m short, the close ones 0.1-0.2 long.
 export const EXIT = { s: 0.048, y: 0.631 };
 export const EL_MAP = [[129.5, 35.5], [135, 41.1], [141, 45.6], [147, 50.5], [153, 57.2], [156, 60.8], [159, 64.8], [161, 67.1], [163, 70.1], [163.5, 70.9]];
 export const EXIT_K = 0.578;
-export const EXIT_MAP = [[0, 0], [5.65, 8], [6.13, 9], [6.49, 10], [6.6, 11], [6.94, 12], [7.2, 13], [7.65, 14], [8.13, 16], [8.48, 18], [8.64, 20]];
+export const EXIT_MAP = [[0, 0], [5.75, 8], [6.1, 9], [6.45, 10], [6.75, 11], [7.0, 12], [7.25, 13], [7.45, 14], [7.65, 15], [7.8, 16], [7.95, 17], [8.1, 18], [8.2, 19], [8.25, 20]];
 export const PASS_MAP = [[0, 0], [5.9, 8], [7.2, 10], [7.95, 12], [8.32, 14], [8.74, 16], [8.86, 18], [8.91, 20]];
 const GEOM = typeof process !== 'undefined' && process.env?.ELEV_GEOM === '1';
 const ONE_K = typeof process !== 'undefined' && process.env?.ONE_K === '1';
@@ -168,7 +174,7 @@ export class Physical2056 extends PhysicalRobot {
     this.deploy = 0; this.pos = 0; this.kick = 0; this.deployed = false; this.retracting = false;
     this.hood = HOOD_STOW; this.hoodSet = [HOOD_STOW, 0]; this.hoodGoal = HOOD_STOW;
     this.feedingNow = false; this.slowT = 0; this.jamT = 0; this.backT = 0; this.ready = false; this.accumulating = false;
-    this.want = null; this.aimPsi = null;
+    this.want = null; this.aimPsi = null; this.last = null;
     const T = this.t;
     for (const tr of [T.intake, T.floor, T.feed, T.shooter]) { tr.omega = 0; tr.cmd = null; tr.vel = null; }
     for (const sh of [T.kickArm, T.vkick, T.slide, T.kicker, ...T.belts]) { sh._omega = 0; sh.cmd = null; sh.vel = null; }
@@ -217,22 +223,25 @@ export class Physical2056 extends PhysicalRobot {
     placeTurret(s, this.sw, yaw, this.hood);
   }
 
-  // the shot: its exit LATENCY ahead on the robot's motion; the table's shot to the target; less the
-  // exit's own velocity (time-of-flight compensated by the table's solution for the distance)
+  // the shot ("kinematically computed shot vector with time-of-flight compensation"): from where the
+  // FUEL will leave LATENCY ahead on the robot's motion, with that point's velocity (the turret's
+  // axis, 5.25in back and 7.25in right of the center, swinging with the chassis), the table's shot
+  // to the target moved back along it by the flight's time and refined against the drag model's
+  // flight (ballistics.js solveMovingShot). Its exit speed and elevation are a pair of the table's,
+  // relative to the turret: the pairs EXIT_MAP and EL_MAP were measured on, the elevation in the
+  // hood's range. (The table's shot less the robot's velocity, as it was, asked for elevations past
+  // the hood's steep end driving in close, 1 shot in 10 toward the HUB, which went long, and pairs
+  // off the maps'.)
   _aim(tgt, table) {
     const r = this.r, b = r.body, v = b.linvel(), w = b.angvel().y, L = LATENCY;
     const c = b.translation(), yaw = r.yaw + w * L, cy = Math.cos(yaw), sy = Math.sin(yaw);
     const [tx, tz] = TURRET.at;
     const ox = tx * cy + tz * sy, oz = -tx * sy + tz * cy;
     const px = c.x + v.x * L + ox, pz = c.z + v.z * L + oz;
-    const vx = v.x + w * oz, vz = v.z - w * ox;
-    const dx = tgt.x - px, dz = tgt.z - pz, d = Math.hypot(dx, dz) - EXIT.s;
-    const row = table.lookup(d);
-    if (!row) return null;
-    const ux = dx / (d + EXIT.s || 1), uz = dz / (d + EXIT.s || 1);
-    const sx = row.v * Math.cos(row.theta) * ux - vx, sz = row.v * Math.cos(row.theta) * uz - vz, syv = row.v * Math.sin(row.theta);
-    const vr = Math.hypot(sx, syv, sz);
-    return { psi: Math.atan2(-sz, sx), el: Math.asin(syv / vr) / DEG, v: vr, d };
+    const dx = tgt.x - px, dz = tgt.z - pz, dd = Math.hypot(dx, dz) || 1;
+    const exit = { x: px + (dx / dd) * EXIT.s, y: EXIT.y, z: pz + (dz / dd) * EXIT.s };
+    const sol = solveMovingShot(table, exit, { x: v.x + w * oz, z: v.z - w * ox }, tgt);
+    return sol ? { psi: sol.psi, el: sol.theta / DEG, v: sol.v, d: sol.dist } : null;
   }
 
   postStep(dt, t, { on, feeding, outtake, mode }) {
@@ -247,11 +256,18 @@ export class Physical2056 extends PhysicalRobot {
     const sol = on && point && !unjam ? this._aim(point, table) : null;
     this.want = sol;
     this.aimPsi = sol ? sol.psi : null;
-    const surf = sol ? surfFor(sol.v, pass) : 0;
+    // (the shot lost with FUEL on their way up, a moment out of range or the AI letting go: the wheel
+    // and hood hold the last shot's setpoints HOLD s, as a state machine leaving its shooting state
+    // would, the indexer stopping. Dropped at once, the hood swung to its stow and the wheel coasted
+    // under the FUEL already in the turret: 6% of the HUB shots, 1 in 8 of them scoring)
+    if (sol) this.last = { sol, pass, t };
+    const hold = !sol && on && !unjam && this.last && t - this.last.t < HOLD ? this.last : null;
+    const aim = sol || hold?.sol, aimPass = sol ? pass : !!hold?.pass;
+    const surf = aim ? surfFor(aim.v, aimPass) : 0;
     const inTrench = underTrench(r.pos.x, r.pos.z, 0.45);
     this.s.net.cap = inTrench ? Math.max(0, TRENCH.clearHeight - 0.003 - NET.y) : PLATE.max;
-    if (sol) {
-      this.hoodGoal = inTrench ? HOOD_STOW : pass ? HOOD_RANGE[0] : hoodFor(sol.el);
+    if (aim) {
+      this.hoodGoal = inTrench ? HOOD_STOW : aimPass ? HOOD_RANGE[0] : hoodFor(aim.el);
       speedLoop(T.shooter, surf / S.r, S.kP);
       speedLoop(T.kicker, (KICK_RATIO * surf) / S.r, S.kP);
     } else { this.hoodGoal = HOOD_STOW; speedLoop(T.shooter, null); speedLoop(T.kicker, null); }
