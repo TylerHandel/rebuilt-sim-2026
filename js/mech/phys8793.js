@@ -43,8 +43,10 @@ const EXIT_K = Number(globalThis.process?.env?.EXITK ?? 1.05);
 // of the turret's angle on it (m/s forward). Theirs, 0.45 and 0.35, are untuned ("TODO: tune
 // empirically from test shots"); these are the sim's FUEL in its matches (every HUB shot's heading
 // off the aim against the turret's angle: 2-3 deg toward the rear with it out to the side, the
-// elevation a degree flatter with it facing back, steeper facing forward). FEEDPUSH=fwd,back
-const FEED_PUSH = (globalThis.process?.env?.FEEDPUSH ?? '-0.15,0.2').split(',').map(Number);
+// elevation a degree flatter with it facing back, steeper facing forward; re-fit with the shooter's
+// frame carried with the robot: -0.15, 0.2 before, the heading's rms 2.96 -> 2.40 deg over four
+// matches' HUB shots). FEEDPUSH=fwd,back
+const FEED_PUSH = (globalThis.process?.env?.FEEDPUSH ?? '-0.1,0.15').split(',').map(Number);
 // Its HUB shots crossed the rim's height 0.15-0.2 m long (median) from 3 m out, where the aim's
 // flight model has them 0.09 m long (its aim point is the opening's middle, 1.95 m up, over the
 // rim): they leave a few cm higher than it solves from and a few tenths of a degree flatter, and
