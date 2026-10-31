@@ -137,6 +137,16 @@ export const BEST_AUTOS = {
     { out: 'trench', fx: 7.8, a: 1.6, b: 3.9, speed: 0.5, home: 'bump', shootAt: [2.8, 2.4] },
     { out: 'bump', fx: 7.8, a: 4.1, b: 6.4, speed: 0.5, home: 'trench', shootAt: [2.8, 6.4] },
   ] },
+  // Set by their code, not searched: 6328's Kachow Salesman (Mechanical-Advantage/RobotCode2026Public
+  // AutoBuilder.kachowSalesman from LEFT_BUMP, one of its starts): a sweep of the NEUTRAL ZONE's near
+  // half (their salesman chases the FUEL its camera sees inside its zoning limits; here a sweep along
+  // the line), home over the left BUMP to their launch pose inside it and launch, then again. (Their
+  // TRENCH start goes out under it backward; the sim's route out turns it round there, and with its
+  // slap-down out it wedges, so it goes over the BUMP, as it comes home)
+  6328: { start: 'leftBump', preload: 'move', trips: [
+    { out: 'bump', fx: 7.8, a: 6.4, b: 4.4, speed: 0.5, home: 'bump', shootAt: [3.0, 5.6] },
+    { out: 'bump', fx: 7.5, a: 6.4, b: 4.6, speed: 0.5, home: 'bump', shootAt: [3.0, 5.6] },
+  ] },
   8793: { start: 'leftTrench', preload: 'move', trips: [
     { depot: true, speed: 0.44 },
     { out: 'trench', fx: 8.15, a: 6.16, b: 5.18, speed: 0.42, home: 'trench', shootAt: [2.3, 6.2] },

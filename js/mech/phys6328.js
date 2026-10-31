@@ -109,7 +109,10 @@ export class Physical6328 extends PhysicalRobot {
     super(robot, {
       path: new Mechanism({ body: robot.body, substeps: 6, shafts: [...new Set(pathWheels.map((x) => x.shaft)), t.pivot], wheels: pathWheels, surfaces: Object.values(s) }),
       shooter: new Mechanism({ body: robot.body, substeps: 6, sub: 8, shafts: [t.drum, t.hood], wheels: [w.drum, ...w.hood] }),
-      preload: PRELOAD,
+      // (full when its intake can't put more in: js/mech/physical.js. Over the front of the hopper,
+      // from 0.15 m forward to the sliding front, under the net: a layer of ~12 FUEL, packed against
+      // it when two thirds of them are)
+      preload: PRELOAD, naturalFull: { topX: 0.15, topN: 8 },
     });
     Object.assign(this, { t, w, s });
     this.ownsIntake = true;
@@ -122,10 +125,11 @@ export class Physical6328 extends PhysicalRobot {
   reset() {
     super.reset();
     // its starting configuration: the slam up (where their homing zeroes it, slamMaxAngle)
-    this.armDeg = INTAKE.up; this.armSet = INTAKE.up; this.slamGoal = 'RETRACT';
+    this.armDeg = INTAKE.up; this.armSet = INTAKE.up; this.slamGoal = 'RETRACT'; this.slewFrom = null;
     this.hoodDeg = SHOOTER.hoodMin; this.hoodGoal = SHOOTER.hoodMin;
     this.fly = { sp: 0, acc: 0, init: false, atGoal: false };
     this.launching = false; this.launchT = 0; this.tolT = 0; this.kickBackT = 0; this.wasHeld = false;
+    this.shots = 0; this.lastShotT = 0;
     this.rollerOn = false;
     for (const tr of [this.t.intake, this.t.floor, this.t.backT, this.t.frontT, this.t.flywheel]) { tr.omega = 0; tr.cmd = 0; tr.vel = null; }
     this.t.pivot._omega = 0; this.t.pivot.cmd = 0;
@@ -154,8 +158,10 @@ export class Physical6328 extends PhysicalRobot {
   preStep(dt, t) {
     const r = this.r, T = this.t, on = r.enabled;
     // the slam: their position loop toward its goal (DEPLOY straight to 17.4; RETRACT slewed)
-    if (this.slamGoal === 'DEPLOY') this.armSet = INTAKE.down;
-    else {
+    // (their slew limiters start from where the arm is: Slamtake resets them to the measured angle
+    // while it deploys)
+    if (this.slamGoal === 'DEPLOY') { this.armSet = INTAKE.down; this.slewFrom = this.armDeg; } else {
+      if (this.slewFrom !== null) { this.armSet = this.slewFrom; this.slewFrom = null; }
       const rate = (this.slamGoal === 'RETRACT_SLOW' ? SLAM.slow : SLAM.retract) / DEG;
       this.armSet = Math.min(INTAKE.up, this.armSet + rate * dt);
     }
@@ -228,6 +234,14 @@ export class Physical6328 extends PhysicalRobot {
     if (go && !this.launching) { this.launching = true; this.launchT = 0; }
     if (!go && this.launching) { this.launching = false; this.kickBackT = KICK_BACK; }
     if (this.launching) this.launchT += dt;
+    // What its driver does (not their code): the compaction done (the slam all the way up) with FUEL
+    // still in it and none launched for 0.75 s, let go of launch and press it again: the slam goes
+    // back down (the FUEL left resting on the folded arm drop onto the floor) and compacts again
+    if (r.stats.shots !== this.shots) { this.shots = r.stats.shots; this.lastShotT = t; }
+    if (!this.launching) this.lastShotT = Math.max(this.lastShotT, t - 0.5);
+    if (this.launching && this.armDeg > INTAKE.up - 3 && t - this.lastShotT > 0.75 && this.held.length > 0) {
+      this.launchT = 0; this.slamGoal = 'DEPLOY'; this.lastShotT = t;
+    }
     if (!held && this.wasHeld) { this.slamGoal = 'DEPLOY'; if (!this.launching) this.kickBackT = Math.max(this.kickBackT, 0); }
     this.wasHeld = held;
     // ---- the slam and the intake roller
@@ -271,9 +285,11 @@ export class Physical6328 extends PhysicalRobot {
   extNow() { return slideExt(this.armDeg); }
   // about how fast a FUEL leaves at the drum's speed now (m/s; tools/mechlab6328.mjs shooter)
   exitSpeed() { return EXIT_PER_DRUM_SURFACE * Math.abs(this.t.drum.omega) * SHOOTER.drum.r; }
-  // how many it holds, about: the binder's ~75 with the net up. Only a rating, for the HUD and the
-  // AI's plans (tools/mechlab6328.mjs hold, intakefull)
-  capacity() { return 75; }
+  // how many it holds, about: 52-56 through its intake in play (tools/intake-test.mjs 1.5 --along,
+  // and --return), 54-59 on the bench (tools/mechlab6328.mjs intakefull); the binder's "~75 fuel
+  // capacity at peak". Only a rating, for the HUD and the AI's plans: it's full when its intake
+  // can't put more in (js/mech/physical.js)
+  capacity() { return 56; }
 }
 // a FUEL's exit speed over the drum's surface speed (tools/mechlab6328.mjs shooter measures it)
 export const EXIT_PER_DRUM_SURFACE = 0.75;
