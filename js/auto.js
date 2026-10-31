@@ -9,6 +9,7 @@ import { fitsTrench } from './robotConfigs.js';
 import { underTrench } from './nav.js';
 import { TEAM_AUTOS } from './teamAutos.js';
 import { holdOffFoes } from './rules.js';
+import { step6328 } from './auto6328.js';
 
 export const START_POSITIONS = {
   leftTrench: { name: 'Left Trench', fy: FIELD_W - 0.64 },
@@ -370,6 +371,8 @@ export class AutoRunner {
     // (a timed auto's wait or held shot keeps the heading its trajectory left it at, turning to it
     // if that turned on the spot: 604's; a chassis-aimed shooter's aim takes over as it shoots)
     if ((s.type === 'shoot' || s.type === 'wait') && s.rot !== undefined) cmd.omega = clamp(s.gains[1] * wrapAngle(yawOf(s.rot, this.alliance) - r.yaw), -r.cfg.drive.maxOmega, r.cfg.drive.maxOmega);
+    // (6328's own commands, run live: js/auto6328.js)
+    if (s.type === 'team6328') { step6328(this, s, dt, next); return; }
     if (s.type === 'dtp') {
       // a team's drive to point (2910's driveToPoint / driveToPointWhileIntaking): straight at its
       // target at 3 x the distance left, no faster than its speed, turned to the target's heading;

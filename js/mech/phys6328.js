@@ -210,15 +210,21 @@ export class Physical6328 extends PhysicalRobot {
     const auto = !!r.match?.isAuto;
     const intaking = on && !!r.cmd.intake;
     const held = on && feeding && !!r.shot;
+    // (their AUTO's flywheel tracks the target from 1.5 s in, launching or not: Flywheel's
+    // runTrackTargetCommand, the hood too, its autonomous command: the AUTO asks it, prespin)
+    const track = on && !feeding && !!r.shot && !!r.cmd.prespin && !!r.match?.isAuto;
     const pass = mode === 'pass';
     // ---- the launch: LaunchCalculator's parameters for the launcher's distance (the AI's aim point,
     // which leads the target for the robot's motion as their lookahead does)
     let want = null, dist = 0, valid = false;
-    if (held) {
+    if (held || track) {
       const tgt = pass ? this.passTarget() : Field.hubCenter(r.alliance);
       const aim = !pass && r.shot.aim ? r.shot.aim : tgt, L = this._launcher();
       dist = Math.hypot(aim.x - L.x, aim.z - L.z);
-      want = shotFor(pass ? 'pass' : 'hub', dist);
+      // (tracking, not launching: their own maps' speeds. The sim's passes need far more, 400-500
+      // rad/s from the NEUTRAL ZONE, SIM_FLY, which its 60 A AUTO budget then takes seconds to
+      // bring back down for the HUB)
+      want = shotFor(pass ? 'pass' : 'hub', dist, held ? undefined : { theirs: true });
       const [lo, hi] = pass ? RANGE.pass : RANGE.hub;
       valid = dist >= lo && dist <= hi;
     }
@@ -252,7 +258,8 @@ export class Physical6328 extends PhysicalRobot {
     if (!this.launching) this.lastShotT = Math.max(this.lastShotT, t - 0.5);
     if (this.slamGoal !== 'RETRACT_SLOW' || this.armDeg > this.armHi + 1) { this.armHi = this.armDeg; this.armHiT = t; }
     const stalled = t - this.armHiT > 0.5;
-    if (this.launching && (this.armDeg > INTAKE.up - 3 || stalled) && t - this.lastShotT > 0.75 && this.held.length > 0) {
+    // (not in AUTO: no driver then, their own AUTO runs it)
+    if (!auto && this.launching && (this.armDeg > INTAKE.up - 3 || stalled) && t - this.lastShotT > 0.75 && this.held.length > 0) {
       this.launchT = 0; this.slamGoal = 'DEPLOY'; this.lastShotT = t;
     }
     if (!held && this.wasHeld) { this.slamGoal = 'DEPLOY'; if (!this.launching) this.kickBackT = Math.max(this.kickBackT, 0); }
@@ -266,7 +273,7 @@ export class Physical6328 extends PhysicalRobot {
     const caught = intaking && !this.launching && this.armDeg > INTAKE.down + CAUGHT.deg
       && [...this.owned].some((b) => { const [x, y] = this._local(b.pos); return underRamp(x, y, this.armDeg); });
     this.caughtT = caught ? this.caughtT + dt : 0;
-    if (this.caughtT > CAUGHT.t && t >= this.clearUntil) { this.clearUntil = t + CAUGHT.clear; this.caughtT = 0; r.stats.clears = (r.stats.clears || 0) + 1; }
+    if (!auto && this.caughtT > CAUGHT.t && t >= this.clearUntil) { this.clearUntil = t + CAUGHT.clear; this.caughtT = 0; r.stats.clears = (r.stats.clears || 0) + 1; }
     // ---- the slam and the intake roller
     let roller = 0;
     if (intaking) { this.slamGoal = 'DEPLOY'; roller = 13; }

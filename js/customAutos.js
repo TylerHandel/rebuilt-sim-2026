@@ -83,6 +83,8 @@ export function customSteps(a, mirror, maxSpeed) {
   let prev = { fx: a.startFx ?? ALLIANCE_ZONE_DEPTH - 0.4, fy: a.startFy };
   const flush = () => { if (cur) { steps.push(cur); cur = null; } };
   for (const p of a.points) {
+    // (a team's own commands run live, 6328's: a step of their program, js/auto6328.js)
+    if (p.step) { flush(); steps.push({ ...p.step }); prev = p; continue; }
     // (a team's drive to point, 2910's: a step of its own, at its target pose)
     if (p.dtp) {
       flush();
