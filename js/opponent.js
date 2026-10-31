@@ -11,7 +11,7 @@
 import { BLUE, HALF_L, HALF_W, HUB, TIMING, TRENCH, other } from './constants.js';
 import { Field } from './field.js';
 import { NavGrid, obstacleAt, underTrench } from './nav.js';
-import { towerProtected, PIN_RESET, foeAhead, yieldToFoes } from './rules.js';
+import { towerProtected, PIN_RESET } from './rules.js';
 import { clamp, wrapAngle, rand } from './util.js';
 import { TRAINED_BRAIN } from './trainedBrain.js';
 import { fitsTrench } from './robotConfigs.js';
@@ -607,13 +607,31 @@ export class OpponentAI {
     this.label = `Feeding its zone (${r.stats.passes} passed)`;
   }
 
-  // an opponent right in front of the intake: it would reach inside its FRAME PERIMETER (G415;
-  // js/rules.js foeAhead)
-  _foeAhead() { return foeAhead(this.robot, this.foes); }
+  // an opponent right in front of the intake: it would reach inside its FRAME PERIMETER (G415).
+  // "Right in front" allows for how fast we're closing and how long the intake takes to come up.
+  _foeAhead() {
+    const r = this.robot, f = r.forward(), ic = r.cfg.intake;
+    const up = ic.latched ? 0.4 : ic.retractTime ?? ic.deployTime;
+    return this.foes.some((P) => {
+      const toP = { x: P.pos.x - r.pos.x, z: P.pos.z - r.pos.z };
+      const dP = Math.hypot(toP.x, toP.z) || 1;
+      if ((toP.x * f.x + toP.z * f.z) / dP < 0.3) return false;
+      const closing = Math.max(0, ((r.vel.x - P.vel.x) * toP.x + (r.vel.z - P.vel.z) * toP.z) / dP);
+      return dP < r.halfL + P.halfL + ic.reach + 0.25 + closing * up;
+    });
+  }
 
   // with an opponent in front of an intake that's out (or can't come up, a latched one), don't
   // drive into it (G415 is on the ROBOT driving in)
-  _yieldToFoes() { yieldToFoes(this.robot, this.foes, this.robot.cmd); }
+  _yieldToFoes() {
+    const r = this.robot, cmd = r.cmd;
+    if (r.intakeDeploy < 0.3 || !this._foeAhead()) return;
+    for (const P of this.foes) {
+      const dx = P.pos.x - r.pos.x, dz = P.pos.z - r.pos.z, d = Math.hypot(dx, dz) || 1;
+      const into = (cmd.vx * dx + cmd.vz * dz) / d;
+      if (into > 0.2 && d < r.halfL + P.halfL + 1.2) { const k = (into - 0.2) / d; cmd.vx -= dx * k; cmd.vz -= dz * k; }
+    }
+  }
 
   // Where to collect next: the FUEL that gets the most FUEL per second of driving. Each candidate
   // is valued by the cluster around it (up to what still fits in the hopper), so a big pile a few

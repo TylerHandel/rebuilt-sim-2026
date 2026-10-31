@@ -68,30 +68,6 @@ function intakePoly(r) {
   return rectPoly(r, ic.reach / 2 + 0.01, ic.width / 2, r.halfL + ic.reach / 2 - 0.01);
 }
 
-// G415 for a driver (the AI's, AUTO's): an opponent right in front of the intake, where the intake
-// would reach inside its FRAME PERIMETER. "Right in front" allows for how fast they're closing and
-// how long the intake takes to come up (one that stays out, latched, a moment's reaction)
-export function foeAhead(r, foes) {
-  const f = r.forward(), ic = r.cfg.intake;
-  const up = ic.latched ? 0.4 : ic.retractTime ?? ic.deployTime;
-  return foes.some((P) => {
-    const toP = { x: P.pos.x - r.pos.x, z: P.pos.z - r.pos.z };
-    const dP = Math.hypot(toP.x, toP.z) || 1;
-    if ((toP.x * f.x + toP.z * f.z) / dP < 0.3) return false;
-    const closing = Math.max(0, ((r.vel.x - P.vel.x) * toP.x + (r.vel.z - P.vel.z) * toP.z) / dP);
-    return dP < r.halfL + P.halfL + ic.reach + 0.25 + closing * up;
-  });
-}
-// with an opponent in front of an intake that's out (or can't come up, a latched one), take out of
-// the command whatever drives into it (G415 is on the ROBOT driving in)
-export function yieldToFoes(r, foes, cmd) {
-  if (r.intakeDeploy < 0.3 || !foeAhead(r, foes)) return;
-  for (const P of foes) {
-    const dx = P.pos.x - r.pos.x, dz = P.pos.z - r.pos.z, d = Math.hypot(dx, dz) || 1;
-    const into = (cmd.vx * dx + cmd.vz * dz) / d;
-    if (into > 0.2 && d < r.halfL + P.halfL + 1.2) { const k = (into - 0.2) / d; cmd.vx -= dx * k; cmd.vz -= dz * k; }
-  }
-}
 // AUTO's: its intake stays out whatever's in front of it, so only contact about to happen counts.
 // Would its intake reach inside an opponent's FRAME PERIMETER within `horizon` s, the two closing
 // as they are now (G415's own test, the robot moved on by their relative velocity)? Then take out
