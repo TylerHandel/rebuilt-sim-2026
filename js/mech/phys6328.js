@@ -143,7 +143,9 @@ export class Physical6328 extends PhysicalRobot {
     const inFront = x >= HALF_L + 0.01 && x < Math.max(front, 0.7) && Math.abs(z) < HALF && y < 0.75;
     return {
       own: inFrame || inFront,
-      held: inFrame || (inFront && y > 0.22 && x < HALF_L + slideExt(this.armDeg) + 0.01),
+      // (in: over the intake under the hopper's front, or up its ramp over the bumper, behind the
+      // roller's reach; not one on the carpet at the ramp's toe or in front of it)
+      held: inFrame || (inFront && (y > 0.22 || x < 0.53) && x < HALF_L + slideExt(this.armDeg) + 0.01),
       near: x > -HALF_L - 0.1 && x < 0.78 && Math.abs(z) < HALF + 0.08 && y < 0.85,
     };
   }

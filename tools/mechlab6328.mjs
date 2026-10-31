@@ -265,7 +265,7 @@ const tests = {
 const HALF_L = 0.3366, EXT = slideExt(INTAKE.down);
 const inFrame6328 = ([x, y, z]) => Math.abs(x) < HALF_L + 0.01 && Math.abs(z) < 0.343 && y > 0.12 && y < 0.8;
 const inFront6328 = ([x, y, z]) => x >= HALF_L + 0.01 && x < 0.72 && Math.abs(z) < 0.343 && y < 0.75;
-const held6328 = (p) => inFrame6328(p) || (inFront6328(p) && p[1] > 0.22 && p[0] < HALF_L + EXT + 0.01);
+const held6328 = (p) => inFrame6328(p) || (inFront6328(p) && (p[1] > 0.22 || p[0] < 0.53) && p[0] < HALF_L + EXT + 0.01);
 const own6328 = (p) => inFrame6328(p) || inFront6328(p);
 
 function pathRun(seed, { shoot = true, n = 18, sec = 7 } = {}) {
