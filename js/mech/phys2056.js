@@ -47,11 +47,19 @@ import { clamp } from '../util.js';
 import { drive2056 } from './turretDrive.js';
 
 const DEG = Math.PI / 180, TAU = 2 * Math.PI, R = FUEL.radius;
-// the indexer's motors' RPS (est.: their speeds aren't published; near the top of what each motor
-// does through its gearing, a "high throughput" singulator: the floor's X60 at 90 (3.3 m/s at the
-// rollers), the belts' X44s at 115 (4.6 m/s); at 1690's 75 and 100 a full hopper dumps ~6 FUEL/s
-// on the bench, at these ~7), scoring and passing
-export const RPS = { floor: [90, 90], belts: [115, 115], vkick: 60 };
+// the indexer's motors' RPS, scoring and passing: 1690's (the team's numbers: phys1690.js RPS) as the
+// surface speeds they give on 1690's rollers and belts, through 2056's gearing and sizes, as far as
+// 2056's motors reach (95% of their free speed). 1690's floor runs its 1.3in rollers at 3.9 m/s (75
+// RPS, 2:1), 4.4 passing: 2056's X60 through 3.57:1 on 1-5/8in rollers reaches 3.45 m/s; 1690's belts
+// run 7.6 m/s (95 RPS, 1.5:1 on 24T): 2056's X44s through 12:36 reach 5.0; 1690's vertical kicker
+// 1.9 m/s at its roller (60 RPS, 2.5:1 on 1in): 2056's side kicker (1-5/8in, 18:24) 19.5 RPS
+const MAXR = { x60: 0.95 * 100, x44: 0.95 * 125.5 };
+const surfRps = (v, r, ratio, max) => Math.min(max, (v / (2 * Math.PI * r)) * ratio);
+export const RPS = {
+  floor: [75, 85].map((n) => surfRps(2 * Math.PI * 0.0165 * (n / 2), FLOOR.r, FLOOR.ratio, MAXR.x60)),
+  belts: [95, 100].map((n) => surfRps(2 * Math.PI * BELT.pitch * (n / 1.5), BELT.pitch, BELT.ratio, MAXR.x44)),
+  vkick: surfRps(2 * Math.PI * 0.0125 * (60 / 2.5), VKICK.r, VKICK.ratio, MAXR.x44),
+};
 // the Stealth wheels' surface: a share of the shooter wheel's, and at least this (m/s; est., as 1690's)
 export const FEED_SHARE = 0.6, FEED_MIN = 5;
 // the backspin kicker's RPM per the flywheel's (est.: its surface at 0.8 of the wheel's)
@@ -106,7 +114,7 @@ export const RACK = { outV: 12, inV: 8, hold: 0.5 };
 // "temporarily retracting the intake to fully empty hopper while shooting": once the load's down to
 // RETRACT_AT while it shoots and isn't intaking (est.)
 export const RETRACT_AT = Number(globalThis.process?.env?.RETRACT_AT ?? 20);
-export const FLOOR_INTAKE = 75; // the floor's RPS while it intakes (est.)
+export const FLOOR_INTAKE = RPS.floor[0]; // the floor's RPS while it intakes (1690's: their scoring speed)
 // passing while intaking: the least it keeps in the hopper (est.: their CANrange's level)
 export const PASS_MIN = Number(globalThis.process?.env?.PASS_MIN ?? 8);
 // its X44 for the intake's state st ({ pos (m out) }): out, held there; in (retract)
@@ -287,8 +295,10 @@ export class Physical2056 extends PhysicalRobot {
     // (the intake in to push the last of the load to the floor, while it shoots and isn't intaking)
     this.retracting = this.feedingNow && !intaking && n <= RETRACT_AT;
     // ---- the indexer
+    // (1690's: "if our shooter wheels stay below their target velocity for a sustained period, we
+    // automatically slow down the conveyor": under 92% for 0.1 s, the floor and belts at 60%)
     this.slowT = sol && wheelSurf < 0.92 * surf ? this.slowT + dt : 0;
-    const k = pass ? 1 : 0;
+    const slow = this.slowT > 0.1 ? 0.6 : 1, k = pass ? 1 : 0;
     const rps = (n0, sh) => (n0 * TAU) / sh.motor.ratio;
     const vk = T.vkick;
     this.jamT = this.feedingNow && Math.abs(vk.motor.current) > 60 && Math.abs(vk.omega) < 0.2 * rps(RPS.vkick, vk) ? this.jamT + dt : 0;
@@ -297,10 +307,10 @@ export class Physical2056 extends PhysicalRobot {
     if (unjam) {
       speedLoop(T.floor, -rps(30, T.floor)); for (const b of T.belts) speedLoop(b, -rps(40, b)); speedLoop(vk, -rps(30, vk)); speedLoop(T.feed, -rps(30, T.feed));
     } else if (this.feedingNow) {
-      speedLoop(T.floor, rps(RPS.floor[k], T.floor));
-      for (const b of T.belts) speedLoop(b, rps(RPS.belts[k], b));
+      speedLoop(T.floor, rps(RPS.floor[k], T.floor) * slow);
+      for (const b of T.belts) speedLoop(b, rps(RPS.belts[k], b) * slow);
       speedLoop(vk, (this.backT > 0 ? -1 : 1) * rps(RPS.vkick, vk));
-      speedLoop(T.feed, Math.max(FEED_MIN, FEED_SHARE * surf) / FEED.r);
+      speedLoop(T.feed, (Math.max(FEED_MIN, FEED_SHARE * surf) / FEED.r) * slow);
     } else {
       for (const a of [T.floor, ...T.belts, vk, T.feed]) speedLoop(a, null);
       if (intaking) speedLoop(T.floor, rps(FLOOR_INTAKE, T.floor));
