@@ -5,7 +5,8 @@
 // vector (one FUEL at each end of the feeder: the vectored wheels' hand), shooter (FUEL fed from the
 // floor up the ramp at the shot table's rows: how fast and how steep they leave, and where they come
 // down; SHOT=rpm,hood tries one, MAP=1 a grid), tune (each row's shooter RPM re-found so the sim's FUEL
-// come down at the row's distance: js/mech/phys7769.js SHOTS, PASSES; ONLY=hub|pass, FROM=m), path (FUEL on a treadmill carpet, the robot
+// come down at the row's distance: js/mech/phys7769.js PASSES; ONLY=hub|pass, FROM=m), streamtune (the
+// HUB rows re-found on a full hopper's stream: js/mech/phys7769.js SHOTS), path (FUEL on a treadmill carpet, the robot
 // driving into them at 1 m/s, intaking and shooting), intake (the intake alone, 24 FUEL at SPEED),
 // intakefull (filled through the intake from the NEUTRAL ZONE's FUEL until it can't put more in:
 // tools/fillbench.mjs), hold (how many it holds, set in a layer at a time, everything off), dump (a
@@ -232,6 +233,24 @@ const tests = {
       console.log(`${kind === 'hub' ? 'SHOTS' : 'PASSES'}`, JSON.stringify(out));
     }
   },
+  // the HUB rows re-found on a full hopper's stream (dumped as dump does: its FUEL pushed in from
+  // behind leave faster than a few fed alone): the RPM whose shots' median comes down through the
+  // rim's height at the row's distance (FROM=m)
+  streamtune() {
+    const out = [];
+    for (const [d, rpm0, hood] of SHOTS.filter(([x]) => x >= Number(process.env.FROM ?? 0))) {
+      const at = (rpm) => { const L = dumpRun({ rpm, hood, layers: 6, sec: 5 }).land; return L.length ? med(L) : NaN; };
+      let a = rpm0, la = at(a), b = rpm0 * (la > d ? 0.93 : 1.07), lb = at(b);
+      for (let j = 0; j < 4 && Math.abs(lb - d) > 0.05; j++) {
+        const c = Number.isFinite(la) && Number.isFinite(lb) && lb !== la ? b + ((d - lb) * (b - a)) / (lb - la) : b * (lb > d ? 0.95 : 1.05);
+        a = b; la = lb; b = Math.max(1200, Math.min(6000, c)); lb = at(b);
+      }
+      const [r, l] = Math.abs(lb - d) <= Math.abs(la - d) ? [b, lb] : [a, la];
+      out.push([d, Math.round(r / 5) * 5, hood]);
+      console.log(`  hub ${d} m, hood ${hood}: ${Math.round(r)} RPM (median ${l.toFixed(2)} m; the 6-FUEL table's ${rpm0})`);
+    }
+    console.log('SHOTS', JSON.stringify(out));
+  },
   path() {
     const runs = [];
     for (let seed = 1; seed <= SEEDS; seed++) runs.push(pathRun(seed));
@@ -304,6 +323,23 @@ const tests = {
     console.log(`7769 dumps ${s.length} of ${n0} at its ${d} m row: ${in1} in the first second, ${((s.length - 1) / Math.max(1e-6, last - first)).toFixed(1)} FUEL/s over the whole dump (${(last - first).toFixed(2)} s)`);
   },
 };
+
+// a full hopper (layers of FUEL set in) fired at rpm and hood for sec s, the slide shuffling: where
+// its shots come down through the rim's height, back from the robot's center
+function dumpRun({ rpm, hood, layers = 9, sec = 8 }) {
+  const rg = rig({ hood }), { t, path, shooter } = rg;
+  const w = world();
+  const balls = [];
+  const step = (n, run) => { for (let i = 0; i < n; i++) { if (run) run(); path.step(DT, balls, balls); shooter.step(DT, balls); w.step(); } };
+  fill(w, balls, (n) => step(n, () => { rg.spin(rpm); rg.slideTo(SLIDE.out); rg.move(); }), layers);
+  const watch = shotWatch(shooter);
+  for (let k = 0; k < sec / DT; k++) {
+    step(1, () => { rg.spin(rpm); t.floor.cmd = 1; t.feedT.cmd = 1; rg.slideTo(shuffleGoal(k * DT)); rg.move(); });
+    watch.check(balls, k * DT);
+  }
+  w.free();
+  return { shots: watch.shots, land: watch.shots.map((o) => landAt(o, HUB.rimFront)).filter(Number.isFinite) };
+}
 
 function pathRun(seed, { shoot = true, n = 18, sec = 7 } = {}) {
   let sd = seed;
