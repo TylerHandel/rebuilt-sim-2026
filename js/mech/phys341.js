@@ -28,7 +28,7 @@
 import { Mechanism } from './mechanism.js';
 import { PhysicalRobot } from './physical.js';
 import {
-  build341, wheels341, shooterWheels, placeShooter, placeIntake, intakeRot, hoodElevation, pathSurfaces341, placeTurretSurfaces,
+  build341, wheels341, shooterWheels, placeShooter, placeIntake, intakeRot, hoodRot, hoodElevation, pathSurfaces341, placeTurretSurfaces,
   shotFor, HALF, INTAKE, SHOOTER, PRELOAD, PIVOT, TURRET,
 } from './r341.js';
 import PATH from './path341.js';
@@ -269,6 +269,9 @@ export class Physical341 extends PhysicalRobot {
   }
   // the arm's turn from the CAD's pose (rad), for drawing it
   armTurn() { return intakeRot(this.armDeg); }
+  // the hood's turn about the flywheel's axle from the CAD's pose (rad; their angle, not the shot's
+  // elevation), for drawing it
+  hoodTurn() { return hoodRot(this.hoodDeg); }
   // about how fast a FUEL leaves at the flywheel's speed now (m/s; tools/mechlab341.mjs shooter)
   exitSpeed() { const s = (Math.abs(this.t.fly.omega) * SHOOTER.fly.d) / 2; return Math.min(EXIT_PER_FLY_SURFACE * s, EXIT_SLIP[0] + EXIT_SLIP[1] * s); }
   // how many it holds in its path (tools/mechlab341.mjs hold)

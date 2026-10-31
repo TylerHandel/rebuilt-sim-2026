@@ -1,5 +1,5 @@
 {
-  "source": "341 Miss Daisy, \"Miss Daisy XXIV\" (Onshape 412a0db47e00e2399ebca57e, workspace b607133da9f21b6baa148170, element e3c2dacd85e82dde2bb28dd9), STEP through tools/step2glb.py; materials (\"bom\") put on these GLBs with tools/extract-parts.mjs --retag on 27 Oct, from a fresh STEP (1.2 mm, 0.45 rad, screws, nuts, washers and rivets skipped), its parts moved to microversion 93356765c0a2caa75df5241f, the GLBs' pose",
+  "source": "341 Miss Daisy, \"Miss Daisy XXIV\" (Onshape 412a0db47e00e2399ebca57e, workspace b607133da9f21b6baa148170, element e3c2dacd85e82dde2bb28dd9), STEP through tools/step2glb.py; materials (\"bom\") put on these GLBs with tools/extract-parts.mjs --retag on 27 Oct, from a fresh STEP (1.2 mm, 0.45 rad, screws, nuts, washers and rivets skipped), its parts moved to microversion 93356765c0a2caa75df5241f, the GLBs' pose; 341-turret and 341-hood extracted straight from that STEP (31 Oct)",
   "front": "-y",
   "bom": "341-materials.json",
   "parts": [
@@ -76,7 +76,40 @@
         "TTB-0027",
         "WCP-0370",
         "Right Hub",
-        "Left Hub"
+        "Left Hub",
+        "10DP Hood Plate",
+        "10 DP 3DP Rack",
+        "Belt Direction Reverser Plate",
+        "Stealth Wheel",
+        "Hex \\((7\\.225|8\\.673|1\\.76) in\\)",
+        "Round Tube \\((1\\.198|6\\.6)\" L\\)",
+        "30t Aluminum Spur Gear"
+      ],
+      "skipBox": [
+        [
+          -0.205,
+          -0.193,
+          0.49,
+          0.502,
+          -0.14,
+          -0.128
+        ],
+        [
+          -0.142,
+          -0.13,
+          0.512,
+          0.524,
+          0.023,
+          0.035
+        ],
+        [
+          -0.148,
+          -0.136,
+          0.458,
+          0.47,
+          0.026,
+          0.038
+        ]
       ],
       "onlyBox": [
         [
@@ -92,6 +125,77 @@
         -0.1015,
         0,
         -0.0765
+      ],
+      "smooth": true,
+      "ratio": 0.25,
+      "error": 0.0015
+    },
+    {
+      "out": "cad/robots/341-hood.glb",
+      "include": [
+        "Shooter + Table"
+      ],
+      "like": {
+        "glb": "r341.glb",
+        "node": "Shooter + Table <1>"
+      },
+      "exclude": [
+        "spacer",
+        "bearing",
+        "chain",
+        "belt(?! direction)",
+        "standoff",
+        "REV-11-1850",
+        "REV-11-1863",
+        "3D-Print Adapter",
+        "Grommet",
+        "Hub \\(",
+        "MotionX",
+        "Kraken X60 powered",
+        "TTB-0027",
+        "WCP-0370",
+        "Right Hub",
+        "Left Hub"
+      ],
+      "onlyName": [
+        "10DP Hood Plate",
+        "10 DP 3DP Rack",
+        "Belt Direction Reverser Plate",
+        "Stealth Wheel",
+        "Hex \\((7\\.225|8\\.673|1\\.76) in\\)",
+        "Round Tube \\((1\\.198|6\\.6)\" L\\)",
+        "30t Aluminum Spur Gear"
+      ],
+      "onlyBox": [
+        [
+          -0.205,
+          -0.193,
+          0.49,
+          0.502,
+          -0.14,
+          -0.128
+        ],
+        [
+          -0.142,
+          -0.13,
+          0.512,
+          0.524,
+          0.023,
+          0.035
+        ],
+        [
+          -0.148,
+          -0.136,
+          0.458,
+          0.47,
+          0.026,
+          0.038
+        ]
+      ],
+      "origin": [
+        -0.0061,
+        0.4659,
+        -0.1337
       ],
       "smooth": true,
       "ratio": 0.25,

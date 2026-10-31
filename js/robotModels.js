@@ -17,6 +17,7 @@ import * as D4 from './mech/r4414.js';
 import { NET as NET_1706 } from './mech/r1706.js';
 import * as R1690 from './mech/r1690.js';
 import { NET as NET_581 } from './mech/r581.js';
+import { SHOOTER as S341, hoodRot as hoodRot341, hoodElevation as hoodElevation341 } from './mech/r341.js';
 import { fuelTexture, squashable } from './fuelSkin.js';
 import { ALUMINUM_COLORS } from './aluminumColors.js';
 import { chain8793, chain4414, chain1690 } from './echainModel.js';
@@ -2856,11 +2857,16 @@ function build3928(cfg, alliance) {
 // From 341's public Onshape CAD ("Miss Daisy XXIV"), split by tools/extract-parts.mjs
 // (cad/robots/341.json): the body (drivetrain, the serializer tray with its three omni wheels,
 // the table and uptake, the L1 climber), the "brontosaurus" slapdown (exported down; origin on its
-// pivot) and the shooter on its turret (origin on the 92T turret gear's axis).
+// pivot), the shooter on its turret (origin on the 92T turret gear's axis) and its hood (the side
+// plates, racks, the two rows of Stealth wheels and the reverser; origin on the flywheel's axle).
 // where the CAD's shooter points as exported: FUEL come up the flywheel's back, from the hood's side,
 // and out over its top the other way (js/mech/r341.js: +x in the turret's frame). It was -150, half a
-// turn round: the drawn shooter faced away from where its FUEL went
-const TURRET_341_YAW = 30 * Math.PI / 180;
+// turn round: the drawn shooter faced away from where its FUEL went. (31.0: the flywheel's hex lies
+// 31.0 deg round from across the robot, its axle 0.111 m from the turret's axis)
+const TURRET_341_YAW = 31 * Math.PI / 180;
+// the flywheel's axle in the turret GLB's frame (341-hood.glb's origin less 341-turret.glb's): the
+// hood turns about it
+const HOOD_341_AXLE = [-0.0061 + 0.1015, 0.4659, -0.1337 + 0.0765];
 function build341(cfg, alliance) {
   const root = new THREE.Group();
   const L = cfg.frame.length, W = cfg.frame.width, bay = cfg.bay, sh = cfg.shooter, fold = cfg.intake.fold;
@@ -2893,26 +2899,56 @@ function build341(cfg, alliance) {
   root.add(turret);
   const tDrawn = new THREE.Group();
   turret.add(tDrawn);
-  for (const s of [-1, 1]) bx(0.4, 0.15, 0.006, M.alu, tDrawn, 0, 0.46, s * 0.1);
-  const fly = wheelStack(tDrawn, 0.18, 0.05, 2, blue, 0.14, 0.47, 0, 0.05);
-  cylZ(0.05, 0.12, std(0x1e9a8c, 0.6, 0.1), tDrawn, -0.14, 0.47, 0, 20);
-  for (let i = 0; i < 3; i++) cylZ(0.016, 0.2, yellow, tDrawn, 0.08 + i * 0.05, 0.53, 0, 10);
+  for (const s of [-1, 1]) bx(0.38, 0.16, 0.006, M.alu, tDrawn, -0.008, 0.47, s * 0.111);
+  // (a shaft across with wheels on it at zs, each w wide)
+  const shaftWheels = (parent, [x, y], r, w, len, mat, zs) => {
+    const g = new THREE.Group();
+    g.position.set(x, y, 0);
+    parent.add(g);
+    cylZ(0.006, len, M.alu, g, 0, 0, 0, 8);
+    for (const z of zs) cylZ(r, w, mat, g, 0, 0, z, 20);
+    return g;
+  };
+  const fly = shaftWheels(tDrawn, S341.fly.at, S341.fly.d / 2, 0.049, 0.26, blue, [-0.0245, 0.0245]);
+  cylZ(0.05, 0.12, std(0x1e9a8c, 0.6, 0.1), tDrawn, -0.16, 0.46, 0, 20);
+  shaftWheels(tDrawn, S341.feed.at, S341.feed.d / 2, 0.025, 0.23, M.black, [-0.038, -0.0125, 0.0125, 0.038]);
   const cadTurret = new THREE.Group();
   turret.add(cadTurret);
   cadTurret.rotation.y = -TURRET_341_YAW;
   cadTurret.position.set(0, 0, 0);
+  // the hood: on a pivot at the flywheel's axle, its axes the turret's, turned about its z (across
+  // the shot) as their hood turns it (js/mech/r341.js hoodRot: its back up and over, 1:1 by its rack,
+  // 0 to 31.3 deg); the CAD's in it turned back as the turret's is. Drawn: its side plates and its two
+  // rows of 2in Stealth wheels, behind the flywheel
+  const hoodAxle = new THREE.Group();
+  hoodAxle.position.set(...HOOD_341_AXLE);
+  hoodAxle.rotation.y = TURRET_341_YAW;
+  cadTurret.add(hoodAxle);
+  const hood = new THREE.Group();
+  hoodAxle.add(hood);
+  const hoodDrawn = new THREE.Group();
+  hood.add(hoodDrawn);
+  for (const s of [-1, 1]) bx(0.266, 0.152, 0.006, M.alu, hoodDrawn, -0.108, 0.002, s * 0.087);
+  for (const at of S341.hood) shaftWheels(hoodDrawn, at, S341.hoodD / 2, S341.hoodW / 2, 0.19, yellow, [-0.0125, 0.0125]);
+  const cadHood = new THREE.Group();
+  cadHood.rotation.y = -TURRET_341_YAW;
+  hood.add(cadHood);
   cadPart(root, 'robots/341-body.glb', () => { drawn.visible = false; });
   // the printed hubs of the table's mecanums and of the left ones on the pivot's shaft (the body's
   // and the arm's GLBs leave them out, so those wheels were only their little rollers)
   cadPart(root, 'robots/341-hubs.glb', () => {});
   cadPart(arm, 'robots/341-intake.glb', () => { armDrawn.visible = false; });
   cadPart(cadTurret, 'robots/341-turret.glb', () => { tDrawn.visible = false; });
+  cadPart(cadHood, 'robots/341-hood.glb', () => { hoodDrawn.visible = false; });
 
   const anim = (st, dt) => {
     arm.rotation.z = (1 - st.intakeDeploy) * fold.stowDeg * Math.PI / 180;
     for (const r of rollers) r.rotation.z -= st.intakeSpeed * dt * 40;
     for (const w of omnis) w.rotation.y += (st.feeding + 0.3 * st.intakeSpeed) * dt * 20;
     turret.rotation.y = st.turretYaw;
+    // (js/mech/phys341.js hoodTurn: their hood's own angle; else from the shot's elevation, which
+    // drops 1:1 as it turns)
+    hood.rotation.z = st.hoodTurn ?? hoodRot341(hoodElevation341(0) - st.hoodDeg);
     fly.rotation.z -= st.flywheel * dt * 8;
   };
   return { root, anim, stored: [], modules, extLen: 0 };
