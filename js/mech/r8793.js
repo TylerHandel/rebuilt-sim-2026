@@ -395,8 +395,10 @@ const interp = (t, x, i, j) => {
 // FlywheelDroopCompensator learns it). Past 80 rotations/s, unmeasured: it stops there. (Measured
 // again with the aim taking the feed's push off, js/mech/phys8793.js FEED_PUSH: the close shots, under
 // 48 rotations/s with the hood steep, left 4-5% under the rows that were here, 5.11 and 6.52 at 30
-// and 40, and came down short.)
-export const SHOT_TABLE = [[0, 0], [15, 2.7], [20, 3.51], [30, 4.85], [40, 6.18], [50, 7.50], [60, 8.56], [70, 9.67], [80, 10.69]];
+// and 40, and came down short. Measured again with the turret indexer sub-stepped, PATH_FAST: the FUEL
+// come up to the shooter faster and steadier and leave 2.2-2.7% faster than these rows were at every
+// speed from 43 to 65 rotations/s, four AI matches' 811 HUB shots; the rows from 30 up x 1.024.)
+export const SHOT_TABLE = [[0, 0], [15, 2.7], [20, 3.51], [30, 4.97], [40, 6.33], [50, 7.68], [60, 8.77], [70, 9.90], [80, 10.95]];
 export const exitSpeed = (rps) => interp(SHOT_TABLE, Math.max(0, rps), 0, 1);
 export const rpsFor = (v) => interp(SHOT_TABLE, Math.max(0, v), 1, 0);
 // their velocity loop (VelocityVoltage: kV x target + kP x error, in volts) toward targetRps,
