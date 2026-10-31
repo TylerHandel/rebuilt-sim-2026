@@ -11,7 +11,7 @@ import { Mechanism } from './mechanism.js';
 import { PhysicalRobot } from './physical.js';
 import {
   build8793, intake8793, conveyorWheels, armWheels, placeArm, indexerWheels, shooterWheels, placeShooter,
-  flywheelLoop, exitSpeed, rpsFor, pathSurfaces, armState, servoArm, turnArm, ARM, DUTY, DUTY_INDEXER, PRELOAD, PIVOT, SHOOTER,
+  flywheelLoop, PATH_FAST, exitSpeed, rpsFor, pathSurfaces, armState, servoArm, turnArm, ARM, DUTY, DUTY_INDEXER, PRELOAD, PIVOT, SHOOTER,
 } from './r8793.js';
 import PATH from './path8793.js';
 import * as THREE from 'three';
@@ -81,7 +81,7 @@ export class Physical8793 extends PhysicalRobot {
     const wheels = [...conveyorWheels(t), ...indexerWheels(t), ...arm];
     const sw = shooterWheels(t, 60);
     super(robot, {
-      path: new Mechanism({ body: robot.body, substeps: 6, shafts: [...new Set(wheels.map((w) => w.shaft)), t.pivot], wheels, surfaces: Object.values(s) }),
+      path: new Mechanism({ body: robot.body, substeps: 6, fast: PATH_FAST, shafts: [...new Set(wheels.map((w) => w.shaft)), t.pivot], wheels, surfaces: Object.values(s) }),
       shooter: new Mechanism({ body: robot.body, substeps: 6, sub: 8, shafts: [t.large, t.small], wheels: sw }),
       preload: PRELOAD,
     });

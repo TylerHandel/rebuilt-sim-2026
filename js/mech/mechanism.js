@@ -45,6 +45,7 @@ export const MU_FUEL = Number(globalThis.process?.env?.MU_FUEL ?? 0.3);
 const MU_SIDE = 0.3;                  // FUEL on a wheel's side (its plates, hub)
 const CARRIED = globalThis.process?.env?.CARRIED !== '0';
 const SUBMOTOR = globalThis.process?.env?.SUBMOTOR !== '0';
+const FAST = globalThis.process?.env?.FASTSUB !== '0';
 
 // ------------------------------------------------------------------ foam
 // one contact's dent d (m) -> force (N) and its slope (N/m): the plate test's curve at 2d.
@@ -530,8 +531,8 @@ export class Mechanism {
   // driving 1.5 m/s along the shot, 1690's 2-4% faster or slower and 2.6 deg flatter). One contact
   // step a step (a ball path, an intake) has nothing to carry: its FUEL and frame are both where
   // the step began, and the world moves both.
-  constructor({ body = null, shafts = [], wheels = [], surfaces = [], iterations = 6, gravity = [0, -9.81, 0], substeps = 4, sub = 1, carried = CARRIED } = {}) {
-    Object.assign(this, { body, shafts, wheels, surfaces, iterations, gravity, sub, carried });
+  constructor({ body = null, shafts = [], wheels = [], surfaces = [], iterations = 6, gravity = [0, -9.81, 0], substeps = 4, sub = 1, carried = CARRIED, fast = null } = {}) {
+    Object.assign(this, { body, shafts, wheels, surfaces, iterations, gravity, sub, carried, fast });
     this.gShare = (substeps + 1) / (2 * substeps);
     this.contacts = [];  // last step's, for drawing and tests
     this.dents = [];     // its last substep's, every one (step)
@@ -558,9 +559,20 @@ export class Mechanism {
       for (const s of this.shafts) s.integrate(h, this.V, slice);
       for (const t of new Set(this.shafts.map((s) => s.train).filter(Boolean))) t.integrate(h, this.V, slice);
     };
-    const subMotor = SUBMOTOR && this.sub > 1;
-    if (!subMotor) drives(dt, null);
     const fr0 = this._frame();
+    // (fast: { speed, sub }: a step with any of its FUEL moving faster than speed over the frame is
+    // sub-stepped sub times, as a shooter's always is)
+    let nSub = this.sub;
+    if (this.fast && nSub < this.fast.sub && FAST) {
+      const s2 = this.fast.speed ** 2;
+      for (const b of balls) {
+        const v = b.linvel(), t = b.translation(), r = sub([t.x, t.y, t.z], fr0.com), w = cross(fr0.w, r);
+        if ((v.x - fr0.v[0] - w[0]) ** 2 + (v.y - fr0.v[1] - w[1]) ** 2 + (v.z - fr0.v[2] - w[2]) ** 2 > s2) { nSub = this.fast.sub; break; }
+      }
+    }
+    this.nSub = nSub;
+    const subMotor = SUBMOTOR && nSub > 1;
+    if (!subMotor) drives(dt, null);
     let fr = fr0;
     const frameVel = (x) => add(fr.v, cross(fr.w, sub(x, fr.com)));
     // wheels in the world (and the pivot's axis, for one on an arm)
@@ -570,7 +582,7 @@ export class Mechanism {
       return w;
     });
     let W = place();
-    const g = this.gravity, n = this.sub, h = dt / n;
+    const g = this.gravity, n = nSub, h = dt / n;
     // ball states we work on. In one step (n = 1) a FUEL touching a wheel gets its new velocity
     // and the world moves it. Sub-stepped (n > 1, for contacts too quick for one step: a shooter's
     // nip), every FUEL that could reach a wheel this step is carried through it here in n steps,
@@ -594,6 +606,8 @@ export class Mechanism {
           return Math.abs(s) < wh.width / 2 + R + reach && len(sub(d, mul(a, s))) < wh.radius + R + reach;
         }) || (this.surfaces.length && this.surfaces.some((sf) => sf.touches(sf.toLocal(qrotInv(fr.q, sub(bc, fr.p))), b).length))) state(b);
       }
+      // (the FUEL that touch each other here, every one: one resting only on others is held up by them)
+      if (this.together) for (const b of balls) if (this.together.has(b)) state(b);
     }
     const reaction = [];
     const seen = new Map(); // the step's contacts (the firmest of each wheel and FUEL), for drawing and tests

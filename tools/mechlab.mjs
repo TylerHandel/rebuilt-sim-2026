@@ -15,7 +15,7 @@
 import { RAPIER } from '../js/physics.js';
 import { FUEL, IN, GROUP, groups } from '../js/constants.js';
 import { Mechanism, Shaft, Wheel, Motor, foam } from '../js/mech/mechanism.js';
-import { MU, COMPLIANT_TREAD, NECK, CONVEYOR, HORIZONTAL, build8793, intake8793, conveyorWheels, armWheels, shooterWheels, shooterSmallAt, flywheelLoop, codeExitSpeed, SHOOTER, INDEXER, DUTY_INDEXER, indexerWheels, pathSurfaces, placeArm, armState, servoArm, turnArm, ARM } from '../js/mech/r8793.js';
+import { MU, COMPLIANT_TREAD, NECK, CONVEYOR, HORIZONTAL, build8793, intake8793, conveyorWheels, armWheels, shooterWheels, shooterSmallAt, flywheelLoop, PATH_FAST, codeExitSpeed, SHOOTER, INDEXER, DUTY_INDEXER, indexerWheels, pathSurfaces, placeArm, armState, servoArm, turnArm, ARM } from '../js/mech/r8793.js';
 if (process.env.IDX_RATIO) INDEXER.ratio = Number(process.env.IDX_RATIO); // (to try other indexer gearing)
 if (process.env.C1PUSH) CONVEYOR.c1Push = Number(process.env.C1PUSH);
 import PATH_MESH from '../js/mech/path8793.js';
@@ -301,7 +301,7 @@ function pathRun(seed, { x44 = true, turret = false, e = 60, target = 60, nBalls
   const sf = pathSurfaces(PATH_MESH, { yaw });
   sf.arm.onShaft(trains.pivot, [ARM.pivot[0], ARM.pivot[1], 0]);
   const surfaces = Object.values(sf);
-  const mech = new Mechanism({ substeps: 6, sub: Number(process.env.PATHSUB ?? 1), shafts: [...new Set(wheels.map((x) => x.shaft)), trains.pivot], wheels, surfaces });
+  const mech = new Mechanism({ substeps: 6, sub: Number(process.env.PATHSUB ?? 1), fast: PATH_FAST, shafts: [...new Set(wheels.map((x) => x.shaft)), trains.pivot], wheels, surfaces });
   // the arm down on its pivot, under their position loop (as js/mech/phys8793.js runs it): the
   // FUEL under its rollers lift it. ARM=fixed holds it rigid on its stop instead.
   const armSt = armState((ROBOTS['8793'].intake.fold.stowDeg * Math.PI) / 180, 0), rigid = process.env.ARM === 'fixed';

@@ -315,6 +315,16 @@ export function indexerWheels({ ishafts }) {
   return wheels;
 }
 
+// The ball path sub-stepped 4 times (mechanism.js fast) while any of its FUEL moves faster than 4 m/s
+// over the robot: the turret indexer's flex wheels (13 m/s at their face) throw each FUEL up the rails'
+// ramp at 4-6 m/s, 3-5 cm a 120 Hz step, too far to follow its rails and wheels in one contact step:
+// FUEL came up to the shooter at 2-4.3 m/s by the step's phase against them, and the slow ones rode
+// the shooter's 4in wheel before its 2in wheels caught them (tools/mechlab.mjs carpet to shot, 12
+// runs: the exit 0.906-1.087 of SHOT_TABLE's at 60 rps, 10-90%; sub-stepped, 0.982-1.079, as with the
+// whole path sub-stepped 4 or 8 times; a 5 m/s threshold misses them). PATHFAST=speed,sub (0: none)
+const _pf = globalThis.process?.env?.PATHFAST ?? '4,4';
+export const PATH_FAST = _pf === '0' ? null : { speed: Number(_pf.split(',')[0]), sub: Number(_pf.split(',')[1]) };
+
 // ------------------------------------------------------------------ the shooter
 // On the turret (their CAD, Shooter assembly; turret frame: x along the shot, from the turret's
 // axis): a 4in 45A solid roller wheel on a shaft 0.127 m out from the axis and 0.411 m up, with a
