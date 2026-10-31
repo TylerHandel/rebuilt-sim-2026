@@ -340,32 +340,33 @@ export class OpponentAI {
     return remain;
   }
 
-  // Under a TRENCH's arm, between its skirt and the wall (1.28 m), a robot with its intake out
-  // sweeps wider than that as it turns: turning round in there wedges it across the opening, its
-  // corners on the wall and the skirt (6328 with its slam down: their code leaves it down; 2910
-  // aiming at its HUB). Once a turn in there isn't happening (0.4 s of it asked for and not
-  // turning), it holds a square heading it can turn to and drives on sideways or backward until
-  // it's out from under. Its width across the opening, L sin(a) + W cos(a) at a from along it (L
-  // its length with the intake out, W its width), is widest at atan(L / W): short of that it can
-  // turn back along the opening, past it on round to across it. Still not turning (it's wedged
-  // right at its widest), it tries the other way.
+  // Under a TRENCH's arm, between its skirt and the wall (1.28 m), a robot whose corners (its intake
+  // out) sweep wider than that as it turns can't turn round: turning in there, or turning to aim on
+  // its way in, wedges it across the opening, its corners on the wall and the skirt (6328 with its
+  // slam down: their code leaves it down; 2910 turning to aim at its HUB, 29 s to the end of a
+  // match). So in there it holds a square heading and drives along sideways or backward until it's
+  // out from under: the one it can turn to from where it's facing as it gets there. Its width
+  // across the opening, L sin(a) + W cos(a) at a from along it (L its length with the intake out, W
+  // its width), is widest at atan(L / W): short of that it turns back along the opening, past it on
+  // round to across it. Still not getting there after a second (wedged right at its widest), it
+  // tries the other way.
   _laneHeading(heading) {
     const r = this.robot;
     const reach = (r.cfg.intake.reach || 0) * r.intakeDeploy;
-    if (!underTrench(r.pos.x, r.pos.z, r.halfL + reach)) { this.laneLock = null; this.laneT = 0; return heading; }
-    const goal = this.laneLock ?? heading;
-    const blocked = Math.abs(wrapAngle(goal - r.yaw)) > 0.35 && Math.abs(r.omega) < 0.3;
-    this.laneT = blocked ? (this.laneT || 0) + this.dt : 0;
-    if (this.laneLock == null && this.laneT > 0.4) {
-      const q = Math.PI / 2, a = Math.abs(wrapAngle(r.yaw)), off = Math.min(a, Math.PI - a);
-      const along = Math.round(r.yaw / Math.PI) * Math.PI, across = Math.sign(wrapAngle(r.yaw) || 1) * q;
+    if (Math.hypot(r.halfL + reach, r.halfW) <= TRENCH.clearWidth / 2 || !underTrench(r.pos.x, r.pos.z, 0.3)) {
+      this.laneLock = null; this.laneT = 0;
+      return heading;
+    }
+    const along = Math.round(r.yaw / Math.PI) * Math.PI, across = Math.sign(wrapAngle(r.yaw) || 1) * Math.PI / 2;
+    if (this.laneLock == null) {
+      const a = Math.abs(wrapAngle(r.yaw)), off = Math.min(a, Math.PI - a);
       this.laneLock = off < Math.atan2(2 * r.halfL + reach, 2 * r.halfW) ? along : across;
       this.laneT = 0;
-    } else if (this.laneLock != null && this.laneT > 1.0) {
-      this.laneLock = Math.abs(wrapAngle(this.laneLock)) % Math.PI < 0.1 ? Math.sign(wrapAngle(r.yaw) || 1) * Math.PI / 2 : Math.round(r.yaw / Math.PI) * Math.PI;
-      this.laneT = 0;
     }
-    return this.laneLock ?? heading;
+    const stuck = Math.abs(wrapAngle(this.laneLock - r.yaw)) > 0.2 && Math.abs(r.omega) < 0.3;
+    this.laneT = stuck ? this.laneT + this.dt : 0;
+    if (this.laneT > 1.0) { this.laneLock = Math.abs(Math.cos(this.laneLock)) > 0.5 ? across : along; this.laneT = 0; }
+    return this.laneLock;
   }
 
   // ------------------------------------------------------------------ scoring
