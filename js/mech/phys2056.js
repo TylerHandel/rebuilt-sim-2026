@@ -54,15 +54,23 @@ export const FEED_SHARE = 0.6, FEED_MIN = 5;
 // the backspin kicker's RPM per the flywheel's (est.: its surface at 0.8 of the wheel's)
 export const KICK_RATIO = 1.6;
 const LATENCY = 0.05; // s: their loop and the turret's lag (est.)
-// Its shots, as the bench measures them (tools/mechlab2056.mjs shooter and calibrate): where the FUEL
-// leave (the turret's frame: s along the shot from its axis, y up); the release angle the hood's arm
-// gives (deg about the axle -> the FUEL's elevation: EL_MAP, measured; their code commands the hood's
-// geometric release angle, ELEV_GEOM=1 for that); the wheel's surface speed per exit speed (EXIT_K:
-// one coefficient, theirs).
-export const EXIT = { s: 0.03, y: 0.62 };
-export const EL_MAP = [[129.5, 39.5], [163.5, 73.5]];
-export const EXIT_K = 0.75;
+// Its shots, as the bench measures them (tools/mechlab2056.mjs calibrate: FUEL fed up the bore in a
+// stream by the indexer, the way it fires): where the FUEL leave (the turret's frame: s along the shot
+// from its axis, y up); the elevation each arm angle gives (EL_MAP: within 1-4 deg of the geometry's
+// release angle; ELEV_GEOM=1 commands the geometric angle, as their binder states the range); the
+// wheel's surface speed for an exit speed. Their code maps exit speed to wheel speed with "a manually
+// tuned coefficient" (EXIT_K: the bench's best single one, 0.59); in the sim the exit stops growing
+// near 8.8 m/s (the foam's grip on the wheel over the hood's wrap: 1690's does the same near 9.8), so
+// one coefficient would put long shots well short: EXIT_MAP is that coefficient tuned at each speed,
+// over the arm's HUB range (153-162 deg), PASS_MAP at the lowest release angle, where passes go
+// (ONE_K=1: their single coefficient).
+export const EXIT = { s: 0.048, y: 0.631 };
+export const EL_MAP = [[129.5, 35.5], [135, 41.1], [141, 45.6], [147, 50.5], [153, 57.2], [156, 61.4], [159, 65.3], [162, 69.6], [163.5, 72.7]];
+export const EXIT_K = 0.578;
+export const EXIT_MAP = [[0, 0], [5.65, 8], [6.13, 9], [6.49, 10], [6.6, 11], [6.94, 12], [7.2, 13], [7.65, 14], [8.13, 16], [8.48, 18], [8.64, 20]];
+export const PASS_MAP = [[0, 0], [5.9, 8], [7.2, 10], [7.95, 12], [8.32, 14], [8.74, 16], [8.86, 18], [8.91, 20]];
 const GEOM = typeof process !== 'undefined' && process.env?.ELEV_GEOM === '1';
+const ONE_K = typeof process !== 'undefined' && process.env?.ONE_K === '1';
 const interp = (t, x, a = 0, b = 1) => {
   if (x <= t[0][a]) return t[0][b];
   for (let k = 1; k < t.length; k++) if (x <= t[k][a]) return t[k - 1][b] + ((t[k][b] - t[k - 1][b]) * (x - t[k - 1][a])) / (t[k][a] - t[k - 1][a]);
@@ -72,9 +80,9 @@ const HOOD_RANGE = [SHOOTER.elMin + 90, SHOOTER.elMax + 90];
 // the hood's arm angle (deg about the axle) for an elevation (deg), and the elevation an angle gives
 export const hoodFor = (el) => clamp(GEOM ? el + 90 : interp([...EL_MAP].sort((p, q) => p[1] - q[1]), el, 1, 0), ...HOOD_RANGE);
 export const elevationAt = (h) => (GEOM ? h - 90 : interp(EL_MAP, h));
-// the wheel's surface speed (m/s) for an exit speed, and back (their one coefficient)
-export const surfFor = (v) => v / EXIT_K;
-export const exitAt = (surf) => surf * EXIT_K;
+// the wheel's surface speed (m/s) for an exit speed, and back
+export const surfFor = (v, pass = false) => (ONE_K ? v / EXIT_K : interp(pass ? PASS_MAP : EXIT_MAP, v));
+export const exitAt = (surf, pass = false) => (ONE_K ? surf * EXIT_K : interp(pass ? PASS_MAP : EXIT_MAP, surf, 1, 0));
 // (the hood down: its steep end, its arm lowest)
 export const HOOD_STOW = HOOD_RANGE[1];
 // the elevation passes go at: the hood at its lowest release angle
@@ -231,7 +239,7 @@ export class Physical2056 extends PhysicalRobot {
     const sol = on && point && !unjam ? this._aim(point, table) : null;
     this.want = sol;
     this.aimPsi = sol ? sol.psi : null;
-    const surf = sol ? surfFor(sol.v) : 0;
+    const surf = sol ? surfFor(sol.v, pass) : 0;
     const inTrench = underTrench(r.pos.x, r.pos.z, 0.45);
     this.s.net.cap = inTrench ? Math.max(0, TRENCH.clearHeight - 0.003 - NET.y) : PLATE.max;
     if (sol) {
@@ -273,7 +281,7 @@ export class Physical2056 extends PhysicalRobot {
       if (intaking) speedLoop(T.floor, rps(FLOOR_INTAKE, T.floor));
     }
     r.hoodDeg = elevationAt(this.hood);
-    r.flywheel = exitAt(wheelSurf);
+    r.flywheel = exitAt(wheelSurf, pass);
     r.ready = this.ready;
     r.feeding = this.feedingNow ? 1 : 0;
     r.intakeSpeed = T.intake.cmd > 0 ? 1 : T.intake.cmd < 0 ? -1 : 0;

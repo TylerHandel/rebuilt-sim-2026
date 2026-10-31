@@ -1227,12 +1227,12 @@ ROBOTS['2056'] = {
     turretPos: { x: -5.25 * IN, z: 7.25 * IN },
     // where FUEL leave the pinch between the 4in wheel and the backspin kicker, how steep (39.5-73.5
     // deg release by the hood's geometry; as measured: tools/mechlab2056.mjs) and fast
-    exitRadius: 0.03,
-    exitY: 0.62,
+    exitRadius: 0.05,
+    exitY: 0.631,
     turretRange: 185, turretRate: 720,
     bps: 15, // not published; its physical ball path sets the rate
-    hoodMin: 40, hoodMax: 74,
-    speedMax: 14,
+    hoodMin: 37, hoodMax: 72,
+    speedMax: 8.7, // (the bench: exits stop growing near 8.8 m/s)
     spinTau: 0.3,
     shotDrop: 0.006,
     speedSigma: 0.012, angleSigma: 0.55, yawSigma: 0.55,

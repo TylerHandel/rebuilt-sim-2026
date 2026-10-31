@@ -18,7 +18,7 @@ import { Mechanism } from '../js/mech/mechanism.js';
 import { sim2D, ShotTable } from '../js/ballistics.js';
 import {
   build2056, wheels2056, shooterWheel, kickerWheel, pathSurfaces2056, placeIntake, placeTurret, hoodElevation, kickAt, floorRoll, ROLL,
-  HALF_L, HALF_W, INTAKE, FLOOR, TOP, BELT, VKICK, FEED, SHOOTER, TURRET, NET, WALL, SLIDE,
+  HALF_L, HALF_W, INTAKE, FLOOR, TOP, BELT, VKICK, FEED, SHOOTER, TURRET, NET, WALL, SLIDE, MU as GRIP, TREAD, GUIDE_ARC,
 } from '../js/mech/r2056.js';
 import { speedLoop } from '../js/mech/phys1706.js';
 import { RPS, FEED_SHARE, FEED_MIN, KICK_RATIO, EXIT, hoodFor, surfFor, HOOD_STOW, FLOOR_INTAKE, RETRACT_AT, driveRacks, moveRacks, driveKick, moveKick } from '../js/mech/phys2056.js';
@@ -27,6 +27,10 @@ import { fillRun, fillReport } from './fillbench.mjs';
 
 await RAPIER.init();
 if (process.env.RR) ROLL.rr = Number(process.env.RR);
+// (GRIP_<material>, TREAD_<material>: other frictions and treads; GUIDER: the hood guide's radius, m)
+for (const k of Object.keys(GRIP)) if (process.env['GRIP_' + k]) GRIP[k] = Number(process.env['GRIP_' + k]);
+for (const k of Object.keys(TREAD)) if (process.env['TREAD_' + k]) TREAD[k] = Number(process.env['TREAD_' + k]);
+if (process.env.GUIDER) GUIDE_ARC.r = Number(process.env.GUIDER);
 const R = FUEL.radius, DT = 1 / 120, SEEDS = Number(process.env.SEEDS ?? 4), SPEED = Number(process.env.SPEED ?? 1);
 const HELD = groups(GROUP.HELD, 0xffff & ~GROUP.HELD);
 const DEG = Math.PI / 180, TAU = 2 * Math.PI;
@@ -213,20 +217,23 @@ const tests = {
   // elevation each arm angle gives (stream-fed: the way it fires)
   calibrate() {
     const hs = (process.env.HS?.split(',').map(Number)) ?? [129.5, 135, 141, 147, 153, 158, 163.5];
-    const vs = (process.env.VS?.split(',').map(Number)) ?? [9, 13, 17];
-    const el = [], k = [], xs = [], ys = [];
+    const vs = (process.env.VS?.split(',').map(Number)) ?? [6, 8, 10, 12, 14, 17, 20, 24];
+    const el = [], byV = new Map(), xs = [], ys = [];
     for (const h of hs) {
       const row = [];
       for (const v of vs) {
         const o = fedSome(h, v, { seeds: env('SEEDS', 2) });
         if (!o) continue;
-        row.push(o.el); k.push(o.v / v); xs.push(o.x); ys.push(o.y);
+        row.push(o.el); xs.push(o.x); ys.push(o.y);
+        byV.set(v, [...(byV.get(v) ?? []), o.v]);
       }
       if (row.length) el.push([h, med(row)]);
       console.log(`  arm ${h}: elevation ${row.map((e) => e.toFixed(1)).join('/')} at ${vs.join('/')} m/s`);
     }
+    const map = [...byV].map(([v, e]) => [Number(med(e).toFixed(2)), v]);
     console.log(`EL_MAP = ${JSON.stringify(el.map(([h, e]) => [h, Number(e.toFixed(1))]))}`);
-    console.log(`EXIT_K = ${med(k).toFixed(3)} (${Math.min(...k).toFixed(3)}..${Math.max(...k).toFixed(3)}); EXIT s ${med(xs).toFixed(3)}, y ${med(ys).toFixed(3)}`);
+    console.log(`EXIT_MAP (exit m/s, wheel surface m/s) = ${JSON.stringify([[0, 0], ...map])}`);
+    console.log(`one coefficient (theirs): ${med(map.map(([e, v]) => e / v)).toFixed(3)} (${map.map(([e, v]) => (e / v).toFixed(2)).join(' ')}); EXIT s ${med(xs).toFixed(3)}, y ${med(ys).toFixed(3)}`);
   },
   // FUEL laid on the floor, the indexer running and the shooter firing at 3 m
   feed() {
