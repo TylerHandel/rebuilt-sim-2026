@@ -44,6 +44,7 @@ const MU_FREE = 0.04;                 // an omni/mecanum wheel's rollers across 
 export const MU_FUEL = Number(globalThis.process?.env?.MU_FUEL ?? 0.3);
 const MU_SIDE = 0.3;                  // FUEL on a wheel's side (its plates, hub)
 const CARRIED = globalThis.process?.env?.CARRIED !== '0';
+const SUBMOTOR = globalThis.process?.env?.SUBMOTOR !== '0';
 
 // ------------------------------------------------------------------ foam
 // one contact's dent d (m) -> force (N) and its slope (N/m): the plate test's curve at 2d.
@@ -152,10 +153,11 @@ export class Shaft {
   // Its motor controller's velocity loop (vel: velLoop, below) in place of the plain duty in cmd
   // (null, the default)
   // the motor's step, with back-EMF taken implicitly
-  integrate(dt, V = 12) {
+  // (slice: { t0, T }, this is the part of a step T long from t0 on: velLoop)
+  integrate(dt, V = 12, slice = null) {
     if (this.train) return;
     const J = this.J;
-    if (this.vel && this.motor) velLoop(this, dt, (h) => this._drive(h, V, J));
+    if (this.vel && this.motor) velLoop(this, dt, (h) => this._drive(h, V, J), slice);
     else this._drive(dt, V, J);
     // (against a stop: it takes what would drive the shaft on into it)
     if (this.lo !== -Infinity || this.hi !== Infinity) { this._free = this._omega; this._omega = Math.min(this.hi, Math.max(this.lo, this._omega)); }
@@ -199,13 +201,25 @@ export class Shaft {
 // step or two while it fed; 604's serializer rollers (an X60 on a light train; G 1.1), kicked by
 // FUEL, between their 60 A supply limit and braking, up to 13 steps running. (Every other loop on
 // the physical robots is at G 0.7 or under: one a step is as good)
-function velLoop(a, dt, drive) {
+function velLoop(a, dt, drive, slice = null) {
   const { target, kV, kP, kS = 0, lo = -12, hi = 12, per = a.motor.ratio / TAU, rate = 1000 } = a.vel;
-  const n = Math.max(1, Math.ceil(dt * rate)), tgt = target * per;
-  for (let i = 0; i < n; i++) {
+  const tgt = target * per, set = () => {
     const volts = kV * tgt + kP * (tgt - a.omega * per) + kS * Math.sign(tgt);
     a.cmd = Math.min(1, Math.max(-1, Math.min(hi, Math.max(lo, volts)) / 12));
-    drive(dt / n);
+  };
+  if (!slice) {
+    const n = Math.max(1, Math.ceil(dt * rate));
+    for (let i = 0; i < n; i++) { set(); drive(dt / n); }
+    return;
+  }
+  // (a slice [t0, t0 + dt] of a step T long, its contacts sub-stepped: the controller's periods the
+  // same as a whole step's, T / ceil(T rate), each set at its start, the motor run through the slice)
+  const { t0, T } = slice, n = Math.max(1, Math.ceil(T * rate)), p = T / n, t1 = t0 + dt;
+  for (let t = t0; t < t1 - 1e-12;) {
+    const i = Math.floor(t / p + 1e-9), end = Math.min(t1, (i + 1) * p);
+    if (Math.abs(t - i * p) < 1e-9) set();
+    drive(end - t);
+    t = end;
   }
 }
 
@@ -233,9 +247,9 @@ export class Train {
   get J() { return this.motor.J + this.coupled.reduce((a, m) => a + m.motor.J * m.k * m.k, 0) + this.shafts.reduce((a, s) => a + s.inertia * s.k * s.k, 0); }
   get drag() { return this.shafts.reduce((a, s) => a + s.drag * s.k * s.k, 0); }
   // (vel: its main motor's controller's velocity loop in place of cmd, as a Shaft's: velLoop)
-  integrate(dt, V = 12) {
+  integrate(dt, V = 12, slice = null) {
     const J = this.J;
-    if (this.vel) velLoop(this, dt, (h) => this._drive(h, V, J));
+    if (this.vel) velLoop(this, dt, (h) => this._drive(h, V, J), slice);
     else this._drive(dt, V, J);
   }
   _drive(dt, V, J) {
@@ -538,8 +552,14 @@ export class Mechanism {
   step(dt, balls, together = null) {
     this.together = together ? new Set(together) : null;
     if (this.tally) this.tally.step = new Map();
-    for (const s of this.shafts) s.integrate(dt, this.V);
-    for (const t of new Set(this.shafts.map((s) => s.train).filter(Boolean))) t.integrate(dt, this.V);
+    // the motors: through the whole step at once, or (sub-stepped) through each sub-step before its
+    // contacts, so a wheel's motor drives it back up while a FUEL is dragging it down
+    const drives = (h, slice) => {
+      for (const s of this.shafts) s.integrate(h, this.V, slice);
+      for (const t of new Set(this.shafts.map((s) => s.train).filter(Boolean))) t.integrate(h, this.V, slice);
+    };
+    const subMotor = SUBMOTOR && this.sub > 1;
+    if (!subMotor) drives(dt, null);
     const fr0 = this._frame();
     let fr = fr0;
     const frameVel = (x) => add(fr.v, cross(fr.w, sub(x, fr.com)));
@@ -584,6 +604,7 @@ export class Mechanism {
       // (sub-stepped, the FUEL move on through the step with the robot's motion in them: carried, the
       // frame moves on with them, as the body will over the world's step)
       if (this.carried && n > 1 && k > 0 && (fr0.v.some((x) => x) || fr0.w.some((x) => x))) { fr = frameAt(fr0, k * h); W = place(); }
+      if (subMotor) drives(h, { t0: k * h, T: dt });
       if (n > 1) for (const st of S.values()) st.v = add(st.v, mul(g, h));
       const C = this._contacts(W, fr, n > 1 ? [...S.values()].map((st) => [st.b, st.c]) : balls.map((b) => { const t = b.translation(); return [b, [t.x, t.y, t.z]]; }), state);
       this._solve(C, h, frameVel, reaction);
