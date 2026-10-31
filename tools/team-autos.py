@@ -51,13 +51,17 @@ which are the sim's blue fx, fy.
   marker; no stop where an IntakeDeploy zone starts or ends.
 - 581 (their Trailblazer state machines, LeftNormalAuto / RightNormalAuto): their follower
   replayed over their segments' poses into a time-parameterized path (auto_581).
+- 6328 (their AutoBuilder's salesmen): tools/autos6328.py, from their path requests
+  (tools/vts6328/paths6328.json); each a program of their commands that js/auto6328.js runs live
+  (their salesman solver on what its cameras see, their drive-to-pose, launch and coast). Run on
+  its own, tools/autos6328.py writes just 6328's entry.
 
 The time-parameterized ones (PathPlanner, Choreo, Quikplan, 581's: timed()) run in the sim by their
 trajectories' clock, as their followers do (js/auto.js, AutoRunner._timed): the robot chases where
 the trajectory is by now with their controllers' P gains, and each path ends when its time is up,
 wherever the robot is. 2910's (drive to point) give each point a time limit instead.
 """
-import argparse, bisect, json, math, os, re
+import argparse, bisect, json, math, os, re, sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -1221,6 +1225,9 @@ def main():
         slug = re.sub(r'[^a-z0-9]+', '-', name.lower()).strip('-')
         autos.setdefault('1114', []).append({'id': f'1114-{slug}', 'name': name, 'side': side, 'source': f'PathPlanner "{file}"' + (' mirrored' if mirror else ''),
                                              'startFx': round(st[0], 3), 'startFy': round(st[1], 3), **timed(st, 3.5, 5.0, PP_POS_LAG), 'shootPreload': False, 'spinPts': True, 'points': pts})
+    sys.path.insert(0, HERE)
+    from autos6328 import autos_6328
+    autos['6328'] = autos_6328()
     out = os.path.join(ROOT, 'js', 'teamAutos.js')
     with open(out, 'w') as f:
         f.write('// The teams\' own AUTOs, from their robot code (tools/team-autos.py writes this file; see its\n')
@@ -1228,6 +1235,7 @@ def main():
         f.write('// shoot or wait lasts (s), or for until, the time into AUTO it waits for. A timed one\'s points\n')
         f.write('// also give dt, the time its trajectory takes to them from the point before (s), and rot, the\n')
         f.write('// heading there (deg, blue: 0 toward the red ALLIANCE WALL, 90 to the left); startYaw, its start\'s.\n')
+        f.write('// 6328\'s: one point whose step is a program of their commands, run live (js/auto6328.js).\n')
         plain = {k: v for k, v in autos.items() if k not in COMPACT}
         f.write('export const TEAM_AUTOS = ' + json.dumps(plain, separators=(',', ':')) + ';\n')
         # (a team with many autos, 604's, as compact points, [fx, fy, v, flags, dt, rot] and [.., action, t]
