@@ -146,6 +146,7 @@ export class OpponentAI {
     // picks up across into its zone as it goes; in its zone it intakes and shoots on the move.
     this.flow = cap < 20 && robot.cfg.shooter.type === 'turret';
     this.lastGainT = 0; this.intakedSeen = 0;
+    this.shotsSeen = 0; this.lastOutT = 0; this.wasShooting = false;
   }
 
   // room for more: under the load it stops at (and, for one that fills until its intake can't
@@ -169,6 +170,7 @@ export class OpponentAI {
       while (this.seen.length > 2 && this.seen[1].t < this.t - this.skill.lag) this.seen.shift();
     }
     Object.assign(cmd, { vx: 0, vz: 0, omega: 0, intake: false, shoot: false, pass: false, outtake: false, prespin: false, lower: false, lineup: false });
+    this.prevShooting = this.wasShooting; this.wasShooting = false;
     // an intake that stows folded up (8793's) comes down on the way under a TRENCH
     if (r.cfg.intake.fold && fitsTrench(r.cfg) && underTrench(r.pos.x, r.pos.z, r.halfL + 1.2)) cmd.lower = true;
     if (!m.isTeleop) { this.label = m.isAuto ? 'AUTO' : 'Waiting'; return; }
@@ -203,7 +205,7 @@ export class OpponentAI {
     this.shootingMode = false;
     if (this._climb()) return;
     if (this.mode === 'defend') this._defend(dt);
-    else { this._score(dt); this._yieldToFoes(); }
+    else { this._score(dt); this._yieldToFoes(); this.wasShooting = this.state === 'score' && cmd.shoot; }
     this._smooth(dt);
     // a physical robot whose ball path can lock up where its code can't see it (341's zipper):
     // nothing coming out, its driver lets go of the trigger for a moment and presses it again
@@ -410,6 +412,8 @@ export class OpponentAI {
     const stored = r.stored.length, cap = this.maxLoad;
     // (when the last FUEL got in, or it started collecting)
     if (r.stats.intaked !== this.intakedSeen || this.state !== 'collect') { this.intakedSeen = r.stats.intaked; this.lastGainT = this.t; }
+    // (when the last FUEL went out, or it last wasn't trying to shoot)
+    if (r.stats.shots !== this.shotsSeen || !this.prevShooting) { this.shotsSeen = r.stats.shots; this.lastOutT = this.t; }
     const active = m.hubActive(this.own);
     const nc = m.hubNextChange(this.own);
     const untilActive = active ? 0 : nc ?? Infinity;
@@ -454,7 +458,9 @@ export class OpponentAI {
         if (go && !stay) {
           this.state = 'score'; this.path = null; this.progress = null;
         }
-      } else if (stored === 0) {
+      } else if (stored === 0 || (stored <= 2 && this.t - this.lastOutT > 3)) {
+        // (empty, or the last one or two won't come out: a physical robot's FUEL come to rest where
+        // nothing feeds them, 6328's on its floor; it goes on collecting rather than wait on them)
         this.state = 'collect'; this.collectT = 0; this.path = null;
         this.hesitateT = this.skill.hesitate;
       } else if (!canShoot && untilActive > travel + B.topUp && this._hasRoom()) {
