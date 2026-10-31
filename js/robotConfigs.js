@@ -497,12 +497,11 @@ export const ROBOTS = {
     physical: '1690',
     frame: { length: 25.0 * IN, width: 29.0 * IN },
     // the CAD's driving pose (Closed: the climber down, the hood stowed at its steep end): its top, the
-    // turret's side plates, 0.553 m at any yaw (the polycarbonate top plate 0.551). The frame's
-    // collider is a prism to this height over the whole frame, which meets a TRENCH arm's edge in
-    // Rapier's contact margin within ~1 cm of it: 21.5in, the team's own figure, 7 mm under the
-    // turret's plates. Under a TRENCH the hood stays stowed (phys1690): lowered for a shot, its arms
-    // rise to ~0.65 m
-    height: 21.5 * IN,
+    // turret's side plates, 0.553 m at any yaw (the polycarbonate top plate 0.551): 21.8in, 12 mm
+    // under a TRENCH arm (the team's own figure is 21.5in). The frame's collider is a prism to this
+    // height over the whole frame. Under a TRENCH the hood stays stowed (phys1690): lowered for a
+    // shot, its arms rise to ~0.65 m
+    height: 0.553,
     mass: 63, // robot (up to 115 lb) + bumpers + battery
     // they geared down (and spiked wheels) mid-season for the BUMP, TRENCH and defense: 13.1 ft/s free.
     // Their CAD's modules are inverted (the X60 and X44 hang under the module's plate, shafts up into
@@ -1109,12 +1108,9 @@ export const ROBOTS = {
     physical: '6328',
     // DriveConstants: a 26.5 x 27.5in frame (33 x 34in with bumpers), 150 lb (darwinMassLbs)
     frame: { length: 26.5 * IN, width: 27.5 * IN },
-    // the hopper's walls and the launcher's top: their CAD's 0.556 m (21.9in) is 9 mm under the
-    // TRENCH's arm, and the physics' continuous collision (the robot's CCD) catches a top edge
-    // passing within a couple of cm of the arm's at speed and holds it there (their Davis sweep
-    // stood under it 2-4 s, then wedged off its lane on the TRENCH's side). 21.5in passes as theirs
-    // does (as 1690's, 2056's and 7769's colliders, for the same reason)
-    height: 21.5 * IN,
+    // the hopper's walls and the launcher's top: their CAD's 0.556 m (21.9in), 9 mm under a TRENCH
+    // arm
+    height: 0.556,
     mass: 68,
     // SDS MK5n (front) and MK5i (back) at R1, 7.03125:1 (darwinDriveReduction), their wheels'
     // 1.99in radius; Kraken X60s on torque current: 80 A stator (driveCurrentLimitAmps), the supply
@@ -1209,9 +1205,8 @@ ROBOTS['2056'] = {
   frame: { length: 25.5 * IN, width: 29.5 * IN },
   // the hood down (its arm lowest, its steep end): its top ~0.55 m (est.: the turret's uprights and
   // the A19 shooter drawing; they drive under the TRENCH, the hood kept down there by their "polygon
-  // zones"). The frame's collider is a prism to this height, which meets a TRENCH arm's edge in
-  // Rapier's contact margin within ~1 cm of it: 21.5in, as 1690's
-  height: 21.5 * IN,
+  // zones"): 21.75in, 13 mm under a TRENCH arm. The frame's collider is a prism to this height
+  height: 21.75 * IN,
   mass: 63.5, // the drawing package's assembly weight (A00, with bumpers and battery): 140.05 lb
   // SDS MK5n R1 (7.03:1) on Krakens, "a top speed of 15 ft/s" (binder); SDS spike grip 4in wheels;
   // their public base code's drive limits: 100 A stator, 80 A supply falling to 60 after 2 s
@@ -1272,11 +1267,9 @@ ROBOTS['7769'] = {
   physical: '7769',
   // their CAD's frame perimeter ("Limits": 25.5 x 29.5in)
   frame: { length: 25.5 * IN, width: 29.5 * IN },
-  // the hood and the stationary hopper sides are 0.555 m up in their CAD, 1 cm under the TRENCH's
-  // 22.25in; the frame's collider is a prism to this height, which meets a TRENCH arm's edge in
-  // Rapier's contact margin within ~1 cm of it (it wedged there going out in AUTO): 21.5in, as 2056's
-  // and 1690's
-  height: 21.5 * IN,
+  // the hood and the stationary hopper sides are 0.555 m up in their CAD (21.85in), 1 cm under the
+  // TRENCH's 22.25in; the frame's collider is a prism to this height
+  height: 0.555,
   mass: 66, // robot + bumpers + battery: an estimate (not published)
   // SDS MK5n with Kraken X60s (their CAD: the wheels 0.2508 m forward and back, 0.3016 m to each
   // side); the gearing isn't in it: R1 (7.03:1), an estimate
