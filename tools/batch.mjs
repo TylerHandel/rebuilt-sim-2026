@@ -110,5 +110,6 @@ if (flag('push')) {
     console.log(`pushed to batch-results (${c.slice(0, 7)})`);
   } catch (e) {
     console.log(`push failed (${String(e.message).split('\n')[0]}); the results are still in ${relative(ROOT, file)}`);
+    process.exitCode = 3;
   }
 }

@@ -82,7 +82,7 @@ async function run({ id, job }) {
     sha = worktreeAt(job.ref);
     const a = batchArgs(job);
     const K = knobs(WT);
-    const env = { PATH: process.env.PATH, HOME: process.env.HOME };
+    const env = { ...process.env }; // (git's own credentials and proxy settings; knobs added below)
     for (const [k, v] of Object.entries(job.env ?? {})) {
       if (!K.has(k) || !SAFE.test(String(v))) throw new Error(`env not allowed: ${k}`);
       env[k] = String(v);
