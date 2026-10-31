@@ -175,6 +175,15 @@ BEST_AUTOS[2056] = { start: 'rightTrench', preload: 'move', trips: [
   { out: 'bump', fx: 7.54, a: 1.51, b: 5.27, speed: 0.87, home: 'trench', shootAt: [2.96, 5.6] },
 ] };
 
+// 7769: set by reasoning, not searched: CHUNK holds ~60, fits under the TRENCH and doesn't shoot on
+// the move (the team), so 2910's and 1678's pattern: two full-load sweeps along the near half of the
+// NEUTRAL ZONE's FUEL, out and home under the TRENCH, stopping to dump near it each time (the team
+// shot from by the TRENCH). (Kept out of the BEST_AUTOS literal so it merges on its own.)
+BEST_AUTOS[7769] = { start: 'leftTrench', preload: 'stand', trips: [
+  { out: 'trench', fx: 7.53, a: 6.44, b: 3.6, speed: 0.45, home: 'trench', shootAt: [2.6, 6.0] },
+  { out: 'trench', fx: 7.88, a: 6.6, b: 3.9, speed: 0.55, home: 'trench', shootAt: [2.7, 6.0] },
+] };
+
 // Starting spots for one ALLIANCE's robots, so no two start on top of each other. entries (in
 // driver station order): { robot (key), auto, start, plan? }. Each gets the spot it wants if
 // it's free; 'best' on a robot whose team's code is in runs the team's own auto from the side it

@@ -20,6 +20,7 @@ import { NET as NET_581 } from './mech/r581.js';
 import { INTAKE as INTAKE_6328, WALLS as WALLS_6328, NET as NET_6328, KICK as KICK_6328, PIVOT as PIVOT_6328, DRUM as DRUM_6328, SHOOTER as SHOOTER_6328 } from './mech/r6328.js';
 import { SHOOTER as S341, hoodRot as hoodRot341, hoodElevation as hoodElevation341 } from './mech/r341.js';
 import * as R2056 from './mech/r2056.js';
+import * as R7769 from './mech/r7769.js';
 import { fuelTexture, squashable } from './fuelSkin.js';
 import { ALUMINUM_COLORS } from './aluminumColors.js';
 import { chain8793, chain4414, chain1690 } from './echainModel.js';
@@ -3621,6 +3622,83 @@ function build2056(cfg, alliance) {
   return { root, anim, stored: [], modules, extLen: cfg.storage.extLen };
 }
 
+// ============================================================ 7769 The CREW, CHUNK
+// From their public Onshape CAD ("Full Robot", assembly "Chunk", a STEP translation), split by
+// tools/extract-parts.mjs (cad/robots/7769.json): the body (drivetrain without the swerve modules and
+// bumpers the game draws, the belt floor, the ramp, feeder and shooter, the stationary hopper sides,
+// the climber's tube), the intake that slides out on its racks with the hopper's front and moving
+// sides (exported out), the kick bar on its arms (origin on their pin) and the adjustable hood (origin
+// on the shooter wheels' shaft, exported down). The slide's travel is an estimate (js/mech/r7769.js
+// SLIDE); the kick bar's swing and the hood's turn follow the physical robot (st.mech). The net over
+// the hopper isn't in the CAD: it's drawn.
+function build7769(cfg, alliance) {
+  const root = new THREE.Group();
+  const D = R7769, I = D.INTAKE, K = D.KICK, N = D.NET, A = D.AXLE;
+  addBumpers(root, cfg, alliance);
+  const modules = addDrivebase(root, cfg, 0, false);
+  const blue = std(cfg.colors.accent, 0.45, 0.3), dark = std(0x2a2c31, 0.6, 0.3);
+  // drawn stand-ins until the CAD loads
+  const drawn = new THREE.Group();
+  root.add(drawn);
+  addDrivebase(drawn, cfg, 0, true).forEach((md) => md.pivot.parent.removeFromParent());
+  for (const s of [-1, 1]) polyWall(drawn, 0.48, 0.45, 0.07, 0.33, s * D.NET.hw);
+  for (const s of [-1, 1]) bx(0.3, 0.45, 0.006, M.alu, drawn, -0.17, 0.32, s * 0.213);
+  cylZ(D.SHOOTER.wheel.r, 0.34, blue, drawn, A[0], A[1], 0, 22);
+  cylZ(D.FEED.compliant.r, 0.6, std(0x5cc24a, 0.7, 0), drawn, D.FEED.at[0], D.FEED.at[1], 0, 14);
+  // the intake on its racks (as exported: all the way out), the kick bar hanging from its arms' pin
+  const slide = new THREE.Group();
+  root.add(slide);
+  const slideDrawn = new THREE.Group();
+  slide.add(slideDrawn);
+  polyWall(slideDrawn, 2 * 0.343, 0.26, D.FRONT_X, 0.363, 0, Math.PI / 2);
+  for (const s of [-1, 1]) polyWall(slideDrawn, 0.5, 0.22, 0.37, 0.38, s * 0.345);
+  cylZ(I.r, I.width, dark, slideDrawn, I.at[0], I.at[1], 0, 18);
+  const kick = new THREE.Group();
+  kick.position.set(K.pin[0], K.pin[1], 0);
+  slide.add(kick);
+  // the hood on the wheels' shaft
+  const hood = new THREE.Group();
+  hood.position.set(A[0], A[1], 0);
+  root.add(hood);
+  cadPart(root, 'robots/7769-body.glb', () => { drawn.visible = false; });
+  cadPart(slide, 'robots/7769-slide.glb', () => { slideDrawn.visible = false; });
+  cadPart(kick, 'robots/7769-kick.glb', () => {});
+  cadPart(hood, 'robots/7769-hood.glb', () => {});
+  // the net (the team's "hopper net"; js/mech/r7769.js NET): pinned over the stationary sides and the
+  // hood's top, its front edge on the hopper front's top, riding out with it
+  const [inX, inY] = D.slideOffset(0), x1In = D.FRONT_X + inX;
+  const net = hopperNet(root, { x0: N.x0, x1: x1In, x1Out: D.FRONT_X, xFixed: N.xs, hw: N.hw, y: N.y0 + 0.004, yFront: N.yFront + inY + 0.004, NX: 22, NZ: 24, slack: { sag: 0.03, sagOut: 0.01 } });
+  // the rollers turning (a dark seam along each, so the CAD's static rollers are seen to turn): the
+  // intake roller on the slide, the feeder's shaft, the shooter's wheels, the belts' pulleys
+  const seamMat = std(0x111214, 0.9, 0.0);
+  const spinner = (parent, x, y, r, len) => {
+    const g = new THREE.Group();
+    g.position.set(x, y, 0);
+    parent.add(g);
+    bx(0.006, 0.004, len, seamMat, g, 0, r + 0.0015, 0);
+    bx(0.006, 0.004, len, seamMat, g, 0, -r - 0.0015, 0);
+    return g;
+  };
+  const rollerSpin = spinner(slide, I.at[0], I.at[1], I.r, I.width);
+  const feedSpin = spinner(root, D.FEED.at[0], D.FEED.at[1], D.FEED.compliant.r, 0.6);
+  const wheelSpin = spinner(root, A[0], A[1], D.SHOOTER.wheel.r, 0.34);
+  const beltSpin = [D.FLOOR.front, D.FLOOR.back].map(([x, y]) => spinner(root, x, y, D.FLOOR.r, 2 * D.FLOOR.hw));
+  const anim = (st, dt) => {
+    const mp = st.mech;
+    const ext = mp ? mp.ext : st.intakeDeploy * D.SLIDE.out;
+    const [dx, dy] = D.slideOffset(ext);
+    slide.position.set(dx, dy, 0);
+    kick.rotation.z = mp ? mp.kick : D.kickRot(ext);
+    hood.rotation.z = st.hoodTurn ?? 0;
+    rollerSpin.rotation.z += (mp ? mp.roller : -st.intakeSpeed * 100) * dt * 0.5;
+    feedSpin.rotation.z += (mp ? mp.feed : -st.feeding * 100) * dt * 0.5;
+    wheelSpin.rotation.z += Math.min(80, mp ? mp.wheels : (st.flywheel || 0) / 0.05) * dt * 0.4;
+    for (const g of beltSpin) g.rotation.z -= (mp ? mp.belts : st.feeding * 60) * dt * 0.5;
+    net.drape(st.load, dx - inX, { yFront: N.yFront + dy + 0.004 });
+  };
+  return { root, anim, stored: [], modules, extLen: D.SLIDE.out };
+}
+
 export function buildRobotModel(cfg, alliance) {
   let m;
   if (cfg.key === '2910') m = build2910(cfg, alliance);
@@ -3629,6 +3707,7 @@ export function buildRobotModel(cfg, alliance) {
   else if (cfg.key === '1678') m = build1678(cfg, alliance);
   else if (cfg.key === '1690') m = build1690(cfg, alliance);
   else if (cfg.key === '2056') m = build2056(cfg, alliance);
+  else if (cfg.key === '7769') m = build7769(cfg, alliance);
   else if (cfg.key === '4946') m = build4946(cfg, alliance);
   else if (cfg.key === '3928') m = build3928(cfg, alliance);
   else if (cfg.key === '341') m = build341(cfg, alliance);

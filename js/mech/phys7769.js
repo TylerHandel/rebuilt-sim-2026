@@ -40,7 +40,7 @@ const IDLE = { share: 0.7, rpm: 1500 };
 // shots that still come down into the HUB's opening from that far, by the CAD's geometry); the RPMs
 // are the ones at which the sim's FUEL, fed as in play, come down through the HUB's rim height over
 // its center (tools/mechlab7769.mjs tune)
-export const SHOTS = [[1.3, 2485, 0], [2.0, 2790, 3], [2.5, 2860, 6], [3.0, 2855, 10], [3.5, 3000, 13], [4.0, 3200, 16], [4.5, 3400, 19], [5.0, 3600, 22], [5.5, 3800, 24], [6.0, 4000, 26]];
+export const SHOTS = [[1.3, 2485, 0], [2.0, 2790, 3], [2.5, 2860, 6], [3.0, 2855, 10], [3.5, 3000, 13], [4.0, 3110, 16], [4.5, 3290, 19], [5.0, 3465, 22], [5.5, 3690, 24], [6.0, 3890, 26]];
 // passes (to the carpet at the row's distance): the hood all the way up (40 deg); past ~8 m its FUEL
 // slip on the wheels and go no farther (they leave at no more than ~9.5 m/s)
 export const PASSES = [[4.0, 2210, 35], [5.0, 2605, 35], [6.0, 3010, 35], [7.0, 3515, 35], [8.0, 4035, 35]];
@@ -53,7 +53,7 @@ export const shotFor = (kind, d) => { const t = kind === 'pass' ? PASSES : SHOTS
 // the slide's position loop (an estimate): volts toward goal (m out) from ext
 export const slideVolts = (goal, ext) => clamp(40 * 12 * (goal - ext) / 1.0, -12, 12);
 // the Truffle Shuffle (estimates): in to depth and back out, every period, from when it starts
-export const SHUFFLE = { depth: 0.12, period: 0.8, delay: 0.4 };
+export const SHUFFLE = { depth: Number(globalThis.process?.env?.SHUF_D ?? 0.25), period: Number(globalThis.process?.env?.SHUF_P ?? 1.0), delay: 0.4 };
 export const shuffleGoal = (t) => (t < SHUFFLE.delay ? SLIDE.out : ((t - SHUFFLE.delay) % SHUFFLE.period) < SHUFFLE.period / 2 ? SLIDE.out - SHUFFLE.depth : SLIDE.out);
 
 export class Physical7769 extends PhysicalRobot {
