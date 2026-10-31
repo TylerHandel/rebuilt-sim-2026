@@ -1186,6 +1186,71 @@ export const CLIMBER_OPTIONS = {
   l3: { maxLevel: 3, times: [0, 1.6, 4.0, 7.0] },
 };
 
+// 2056 OP Robotics "Desperate Measures" (technical binder + CAD drawing package, 2056.ca; Chief
+// Delphi t/525183): 25.5x29.5in swerve (SDS MK5n R1), a linear-extending two-roller intake on
+// polycarbonate racks, a roller floor under a net into a "singulator" (two belts, a side kicker, a
+// quarter pipe and two Stealth wheels) up into a turret on an 8in bearing (4in wheel, a backspin
+// kicker on the hood's arm, 39.5-73.5 deg release). Its design follows 1690's (the binder's
+// foreword). Kept out of the ROBOTS literal so it merges on its own.
+ROBOTS['2056'] = {
+  key: '2056',
+  team: 2056,
+  teamName: 'OP Robotics',
+  robotName: 'Desperate Measures',
+  archetype: 'Compact turret',
+  blurb: 'A turret on an 8in bearing that shoots on the move and passes from anywhere. A roller floor under a net carries FUEL back to two belts along the back, which run them into a quarter pipe and up between two Stealth wheels into the turret, where a 4in urethane wheel throws them against a backspin kicker on the hood\'s arm. The two-roller intake slides out on polycarbonate racks.',
+  // built of its physical mechanisms (js/mech/r2056.js, phys2056.js) from their binder and drawings
+  physical: '2056',
+  frame: { length: 25.5 * IN, width: 29.5 * IN },
+  // the hood down (its arm lowest, its steep end): its top ~0.55 m (est.: the turret's uprights and
+  // the A19 shooter drawing; they drive under the TRENCH, the hood kept down there by their "polygon
+  // zones")
+  height: 21.75 * IN,
+  mass: 63.5, // the drawing package's assembly weight (A00, with bumpers and battery): 140.05 lb
+  // SDS MK5n R1 (7.03:1) on Krakens, "a top speed of 15 ft/s" (binder); SDS spike grip 4in wheels;
+  // their public base code's drive limits: 100 A stator, 80 A supply falling to 60 after 2 s
+  drive: { ratio: 7.03, stator: 100, supply: 60, moduleAt: [9.875 * IN, 11.875 * IN] },
+  // over-bumper: two 2-1/8in rollers on racks that slide out 0.33 m (est.) with the intake's own
+  // hopper front and sides
+  intake: { width: 23.5 * IN, reach: 0.22, rate: 200, pull: 5, deployTime: 0.35, side: 'front', latched: true },
+  storage: { extLen: 0.31, extend: 'latched', box: { y0: 0.2, y1: 0.482, hw: 0.352 } },
+  // (for the planning model only: the physical robot's ball path is js/mech/r2056.js)
+  bay: {
+    x0: -0.21, x1: 0.324, hw: 0.346, top: 0.545,
+    dome: { h: 0.01, x0: -0.02, cx: 0, cz: 0, rHole: -1 },
+    floor: { a: 0.16, b: 0.07, lo: 0.14, hi: 0.18 },
+    drive: 'floor', driveSpeed: 2.0,
+    feed: { x: -0.1334, z: 0.1842, via: [[-0.134, 0.3, 0.184], [-0.134, 0.45, 0.184]] },
+  },
+  shooter: {
+    type: 'turret',
+    turretPos: { x: -5.25 * IN, z: 7.25 * IN },
+    // where FUEL leave the pinch between the 4in wheel and the backspin kicker, how steep (39.5-73.5
+    // deg release by the hood's geometry; as measured: tools/mechlab2056.mjs) and fast
+    exitRadius: 0.03,
+    exitY: 0.62,
+    turretRange: 185, turretRate: 720,
+    bps: 15, // not published; its physical ball path sets the rate
+    hoodMin: 40, hoodMax: 74,
+    speedMax: 14,
+    spinTau: 0.3,
+    shotDrop: 0.006,
+    speedSigma: 0.012, angleSigma: 0.55, yawSigma: 0.55,
+  },
+  climber: null, // none in the binder or drawings
+  stats: { 'Shot rate': '', Aiming: 'Turret', 'Top speed': '', Trench: 'Yes' },
+  // raw aluminum and black, the blue 4in urethane wheel (binder renders)
+  colors: { frame: 0xb8bdc4, accent: 0x2a6fd8, trim: 0x1d1f24 },
+};
+{
+  const cfg = ROBOTS['2056'], [mx, mz] = modulePoints(cfg)[0];
+  const dt = new Drivetrain(cfg.drive, cfg.mass, cfg.frame.length, cfg.frame.width, Math.hypot(mx, mz));
+  Object.assign(cfg.drive, dt.stats());
+  const ft = (v) => (v / 0.3048).toFixed(1);
+  cfg.stats['Top speed'] = `${ft(dt.topSpeed)} ft/s (${ft(dt.freeSpeed)} free)`;
+}
+ROBOT_ORDER.push('2056');
+
 export const AUTO_ROUTINES = {
   best: { name: 'Best for this robot', desc: 'The team\'s own AUTO where their code is public (8793, 2910, 1678, 604, 1114, 581: from the side it starts on), otherwise the highest-scoring AUTO found for the robot (its own start position, NEUTRAL ZONE sweeps and DEPOT runs), or else the preload and a NEUTRAL ZONE sweep.' },
   none: { name: 'No auto', desc: 'Robot sits still.' },

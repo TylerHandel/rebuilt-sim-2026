@@ -166,6 +166,14 @@ export function mirrorPlan(plan) {
   };
 }
 
+// 2056: set by reasoning, not searched: 1690's plan (the robot 2056's follows, its turret likewise at
+// the back): a short slow sweep near the wall out through the TRENCH, then a fast pass across out over
+// the BUMP and home through the TRENCH. (Kept out of the BEST_AUTOS literal so it merges on its own.)
+BEST_AUTOS[2056] = { start: 'rightTrench', preload: 'move', trips: [
+  { out: 'trench', fx: 8.42, a: 1.35, b: 2.57, speed: 0.32, home: 'bump', shootAt: [2.77, 2.44] },
+  { out: 'bump', fx: 7.54, a: 1.51, b: 5.27, speed: 0.87, home: 'trench', shootAt: [2.96, 5.6] },
+] };
+
 // Starting spots for one ALLIANCE's robots, so no two start on top of each other. entries (in
 // driver station order): { robot (key), auto, start, plan? }. Each gets the spot it wants if
 // it's free; 'best' on a robot whose team's code is in runs the team's own auto from the side it

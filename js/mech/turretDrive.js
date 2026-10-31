@@ -128,3 +128,20 @@ export function drive1690({ chain = true } = {}) {
     chain: chain ? (yaw) => chainLoad1690(ch, yaw) : null,
   });
 }
+
+// ---------------------------------------------------------------- 2056
+// Their binder: an 8in ID X-contact bearing (Lilly Bearing), a 1/4in 10 DP turret gear, "1x Kraken X44
+// on turret rotation, 8:40 - 10:100 reduction" (50:1, ~900 deg/s free), "+/- 185 deg of rotation with
+// custom printed energy chain", homed on a hall effect sensor and tracked on the X44's own encoder
+// (their thread); Motion Magic to setpoints "with standard PID for continuous targeting". The loop
+// as 1690's (kP 3 V per motor rotation, kD 0.1, the X44's 1/Kv 0.096, kS 0.15 V), stator 40 A, supply
+// 30 A; what turns (the shooter's plates, its two X60s, the hood's and kicker's X44s: J 0.07), the
+// bearing's and chain's friction 1.0 N m: all estimates. The printed chain's own pull isn't modeled.
+export function drive2056() {
+  return new TurretDrive({
+    motor: new Motor('krakenX44', { ratio: 50, statorLimit: 40, supplyLimit: 30, eff: 0.9 }),
+    J: 0.07, friction: 1.0, viscous: 0.02,
+    gains: { kP: 3, kD: 0.1, kV: 0.096, kS: 0.15 },
+    maxRate: 360 * DEG, limits: [-185 * DEG, 185 * DEG],
+  });
+}
