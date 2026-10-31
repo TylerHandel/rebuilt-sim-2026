@@ -46,7 +46,9 @@ export const INTAKE = {
   main: { at: [0.143, 0.368], d: Number(globalThis.process?.env?.IN_D ?? 0.0643), mu: Number(globalThis.process?.env?.IN_MU ?? 1.3), tread: Number(globalThis.process?.env?.IN_TREAD ?? 10000) },
   // the 1.25in kicker bar at the front of the bumper when it's down: locked in place, not free to
   // turn (the team); the roller rolls FUEL up over it
-  kicker: { at: [0.312, 0.322], d: 0.0326 },
+  // (moved out along the carpet onto the bumper's face, its plate flush with the bumper's edge (the
+  // user): the CAD's [0.312, 0.322] put it 1.2 cm into the bumper. KICK_CAD=1 for the CAD's)
+  kicker: { at: globalThis.process?.env?.KICK_CAD ? [0.312, 0.322] : [0.3043, 0.3305], d: 0.0326 },
   // free polycarbonate sleeves on dead shafts (one rides on the bumper's top when it's down)
   idlers: [{ at: [0.253, 0.247], d: 0.0188 }, { at: [0.131, 0.329], d: 0.0188 }],
   stowed: 130, partIn: 50,

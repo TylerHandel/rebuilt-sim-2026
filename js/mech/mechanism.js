@@ -38,9 +38,10 @@ const R = FUEL.radius, MB = FUEL.mass, TAU = 2 * Math.PI;
 const IB = 0.4 * MB * R * R;         // solid foam sphere
 const ZETA = 0.25;                    // foam damping ratio (a free FUEL bounces back ~45%)
 const MU_FREE = 0.04;                 // an omni/mecanum wheel's rollers across their free direction
-// FUEL on FUEL: foam gripping foam (an estimate), so FUEL pressed together roll and spin each
-// other along rather than slide
-export const MU_FUEL = Number(globalThis.process?.env?.MU_FUEL ?? 0.6);
+// FUEL on FUEL: their smooth skins (the user) slide on each other (0.3, an estimate; it was 0.6, foam
+// gripping foam, which wedged them at single-roller intakes: 1678's and 1690's took 55 and 34 down
+// the NEUTRAL ZONE's line at 3 m/s, 62 and 45 at 0.3). MU_FUEL to try others
+export const MU_FUEL = Number(globalThis.process?.env?.MU_FUEL ?? 0.3);
 const MU_SIDE = 0.3;                  // FUEL on a wheel's side (its plates, hub)
 
 // ------------------------------------------------------------------ foam
