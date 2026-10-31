@@ -16,7 +16,10 @@ const D = {
 const F = { starting: 4.0219, neutralZoneNear: 5.2225, neutralZoneFar: 11.3185, center: FIELD_L / 2, hubX: 4.6188, midY: FIELD_W / 2, leftBumpMiddle: 5.5585, rightBumpStart: 3.4376, leftBumpEnd: 4.6314, fuelPoolLeft: [8.2705, 6.3446], fuelPoolRight: [8.2705, 1.7244] };
 // their launch poses (AutoFieldConstants.Launch: stationary, the launcher aimed at the HUB)
 const LAUNCH = { leftBump: [3.3219, 5.5585, 130.3973], rightBump: [3.3219, FIELD_W - 5.5585, -130.3973], leftTrench: [3.0504, 7.1297, 116.8714], rightTrench: [3.0504, FIELD_W - 7.1297, -116.8714] };
-const AUTO_START = { intake: 1.0, spin: 1.5 }; // (RobotContainer: the intake runs 1 s in, the flywheel tracks 1.5 s in)
+// (RobotContainer: the slam deploys 0.5 s in, its roller runs from 1 s, the flywheel tracks from
+// 1.5 s. The sim's intake command deploys and runs it together: from the deploy, so the arm comes
+// down where theirs does, before it reaches the FUEL, not onto them)
+const AUTO_START = { intake: 0.5, spin: 1.5 };
 const LAUNCH_TIME = 3.0, DEPOT_LAUNCH_TIME = 1.5, INDEX_T = 0.35 + 1.2; // AutoBuilder; CompactingCommands' delay and intake timeout
 
 // the robot's pose in their frame (blue field coordinates, its ALLIANCE's side turned to blue's)
@@ -321,7 +324,7 @@ const STEPS = {
   },
 };
 
-// The step: its program's commands in turn. The intake runs from 1 s in (their autonomous trigger),
+// The step: its program's commands in turn. The intake runs from 0.5 s in (their autonomous triggers),
 // but not while it launches (their index retracts the slam, its intake timing out); the flywheel
 // tracks the HUB from 1.5 s (runTrackTargetCommand: js/mech/phys6328.js, prespin). Coasting (their
 // ALWAYS_COAST): the drive let go, the robot rolling on and slowing

@@ -1109,7 +1109,11 @@ export const ROBOTS = {
     physical: '6328',
     // DriveConstants: a 26.5 x 27.5in frame (33 x 34in with bumpers), 150 lb (darwinMassLbs)
     frame: { length: 26.5 * IN, width: 27.5 * IN },
-    height: 21.9 * IN, // the hopper's walls and the launcher's top (their CAD: 0.556 m)
+    // the hopper's walls and the launcher's top: their CAD's 0.556 m (21.9in) is 9 mm under the
+    // TRENCH's arm, and the physics' continuous collision (the robot's CCD) catches a top edge
+    // passing within a couple of cm of the arm's at speed and holds it there (their Davis sweep
+    // stood under it 2-4 s, then wedged off its lane on the TRENCH's side). 21.5in passes as theirs does
+    height: 21.5 * IN,
     mass: 68,
     // SDS MK5n (front) and MK5i (back) at R1, 7.03125:1 (darwinDriveReduction), their wheels'
     // 1.99in radius; Kraken X60s on torque current: 80 A stator (driveCurrentLimitAmps), the supply
