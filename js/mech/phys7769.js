@@ -40,7 +40,10 @@ const IDLE = { share: 0.7, rpm: 1500 };
 // shots that still come down into the HUB's opening from that far, by the CAD's geometry); the RPMs
 // are the ones at which the sim's FUEL, fed as in play, come down through the HUB's rim height over
 // its center (tools/mechlab7769.mjs tune)
-export const SHOTS = [[1.3, 2385, 0], [2.0, 2635, 3], [2.5, 2715, 6], [3.0, 2740, 10], [3.5, 2840, 13], [4.0, 2940, 16], [4.5, 3060, 19], [5.0, 3220, 22], [5.5, 3385, 24], [6.0, 3620, 26]];
+// (re-found on a full hopper's stream, streamtune, with the wheels' motors driving through each FUEL's
+// contact, mechanism.js: up to 3% less RPM from 5 m out, where a stream's FUEL used to drag the wheels
+// down further)
+export const SHOTS = [[1.3, 2380, 0], [2.0, 2650, 3], [2.5, 2690, 6], [3.0, 2720, 10], [3.5, 2810, 13], [4.0, 2920, 16], [4.5, 3045, 19], [5.0, 3195, 22], [5.5, 3335, 24], [6.0, 3570, 26]];
 // passes (to the carpet at the row's distance): the hood all the way up (40 deg); past ~8 m its FUEL
 // slip on the wheels and go no farther (they leave at no more than ~9.5 m/s)
 export const PASSES = [[2.5, 1600, 35], [3.0, 1820, 35], [4.0, 2210, 35], [5.0, 2590, 35], [6.0, 3025, 35], [7.0, 3505, 35], [8.0, 4000, 35]];
