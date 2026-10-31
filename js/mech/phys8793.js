@@ -37,6 +37,14 @@ const HOLD_FULL = Number(globalThis.process?.env?.HOLDFULL ?? 0.5);
 // (a match's every shot, its exit against what was expected: median 1.05); scaled so the aim expects
 // what they do (EXITK=1 for the table as it is)
 const EXIT_K = Number(globalThis.process?.env?.EXITK ?? 1.05);
+// The feed's push, as their AimSolver takes it off the shot (TurretConstants FEEDER_FORWARD_PUSH_MPS,
+// FEEDER_BACKWARD_PUSH_AT_90_MPS; feederPushForwardMps): the indexer throws each FUEL rearward up
+// the turret's bore, and it leaves carrying some of that, along the chassis: fwd cos^2 - back sin^2
+// of the turret's angle on it (m/s forward). Theirs, 0.45 and 0.35, are untuned ("TODO: tune
+// empirically from test shots"); these are the sim's FUEL in its matches (every HUB shot's heading
+// off the aim against the turret's angle: 2-3 deg toward the rear with it out to the side, the
+// elevation a degree flatter with it facing back, steeper facing forward). FEEDPUSH=fwd,back
+const FEED_PUSH = (globalThis.process?.env?.FEEDPUSH ?? '-0.15,0.2').split(',').map(Number);
 const HOLD_SPEED = Number(globalThis.process?.env?.HOLDSPEED ?? 0);
 const _su = globalThis.process?.env?.STOPUNJAM ?? 'all', STOP_UNJAM = _su === '0' ? '' : _su;
 
@@ -330,6 +338,9 @@ export class Physical8793 extends PhysicalRobot {
     const ix = this.t.indexer;
     console.log(`${tag} t ${t.toFixed(1)} feed ${this.feed ? 1 : 0} indexer ${(Math.abs(ix.omega) / (2 * Math.PI)).toFixed(0)} rps ${Math.abs(ix.motor.current).toFixed(0)} A, rollers ${(Math.abs(this.t.horizontal.omega) / (2 * Math.PI)).toFixed(1)} rps ${Math.abs(this.t.horizontal.motor.current).toFixed(0)} A, held ${this.r.stored?.length ?? '?'}: ${out.join(' | ')}`);
   }
+
+  // the feed's push on a shot with the turret at a (rad) on the chassis: m/s along it, forward (FEED_PUSH)
+  feedPush(a) { return FEED_PUSH[0] * Math.cos(a) ** 2 - FEED_PUSH[1] * Math.sin(a) ** 2; }
 
   // how many it holds, about, with the arm down: 7 in the frame (tools/mechlab.mjs slots) and a
   // couple more up on its arm (what it carries in matches)

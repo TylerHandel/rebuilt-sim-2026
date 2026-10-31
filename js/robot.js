@@ -1171,6 +1171,11 @@ export class Robot {
         const dd = Math.hypot(dx, dz) || 1;
         exit = new THREE.Vector3(c.x + (dx / dd) * sh.exitRadius, c.y, c.z + (dz / dd) * sh.exitRadius);
         lv = this.velocityAt(exit);
+        // (a physical robot whose FUEL leave carrying a push of its own feed, along the chassis,
+        // says how much for the turret's angle on it, as the last aim had it: phys.feedPush, m/s
+        // forward. The aim takes it off what the shooter has to give, as the robot's motion)
+        const push = this.phys?.feedPush?.(wrapAngle((this._lastPsi ?? Math.atan2(-dz, dx)) - this.yaw));
+        if (push) { lv.x += push * Math.cos(this.yaw); lv.z -= push * Math.sin(this.yaw); }
       }
       let sol = solveMovingShot(tgt.table, exit, lv, tgt);
       // (where FUEL leaves moves with the hood: solve again from where it leaves at that angle)
