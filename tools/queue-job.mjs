@@ -3,6 +3,7 @@
 //       e.g. -- --pairs 6328:2910,2056:2910 --seeds 1-6     prints the job id
 //   node tools/queue-job.mjs --wait <id> [--timeout 180]     waits (minutes) and prints the summary
 //   node tools/queue-job.mjs --status                         runners alive, jobs started/failed/done
+//   node tools/queue-job.mjs --cancel <id>[,<id>] [--reason x]  skip queued jobs
 // The ref must be on origin (push first). Results land on `batch-results` as results/batch/<id>.json.
 import { dirname, join, resolve } from 'path';
 import { fileURLToPath } from 'url';
@@ -22,6 +23,12 @@ if (own.includes('--status')) {
   const q = tip(ROOT, 'batch-queue');
   const queued = q ? git(ROOT, ['ls-tree', '--name-only', q, 'queue/']).split('\n').filter(Boolean) : [];
   console.log(`${queued.length} queued; ${files.filter((x) => x.startsWith('results/batch/')).length} finished`);
+} else if (arg('cancel')) {
+  // a queued job the runner hasn't finished: marked failed, so it's skipped (one already running
+  // still finishes)
+  const ids = arg('cancel').split(','), why = arg('reason', 'cancelled');
+  pushFiles(ROOT, 'batch-results', Object.fromEntries(ids.map((id) => [`status/${id}.failed`, { text: JSON.stringify({ at: new Date().toISOString(), error: `cancelled: ${why}` }) }])), `cancel ${ids.join(' ')}`);
+  console.log(`cancelled ${ids.join(', ')}`);
 } else if (arg('wait')) {
   const id = arg('wait'), until = Date.now() + +arg('timeout', 180) * 60000;
   for (;;) {
