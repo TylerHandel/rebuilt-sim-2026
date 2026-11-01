@@ -6,7 +6,8 @@
 // how fast and how steep they leave, and whether their table's shots come down in the HUB), path
 // (FUEL on a treadmill carpet, the robot driving into them at 1 m/s: intake, floor, tower, drum;
 // how many and how fast), intake (their INTAKING alone), hold (how many it holds, everything off),
-// dump (a full one fired at their 2.8 m shot, with their compaction).
+// dump (a full one fired at their 2.8 m shot, with their compaction), tune (their score table's rows
+// re-found by shooting a partial load as play fires it: js/mech/r581.js SIM_SCORE_RPM; LAYERS=1).
 // Env: SEEDS (6), SPEED (1 m/s), STUCK (where the ones left over are), SHOT=rpm,hood (one shot of
 // your own), NOCOMPACT=1 (the dump without the intake coming in)
 import { RAPIER } from '../js/physics.js';
@@ -332,7 +333,57 @@ const tests = {
     console.log(`  (${left.length} still in it, the intake ${(r.ext / IN).toFixed(1)}in out, the floor up ${(floorRot(r.ext) * 180 / Math.PI).toFixed(1)} deg; the drum down to ${minRpm.toFixed(0)} RPM of ${want.rpm.toFixed(0)}; shots come down at the rim ${med(land).toFixed(2)} m back (median; ${Math.min(...land).toFixed(2)}..${Math.max(...land).toFixed(2)}), the HUB's center 2.79)`);
     console.log(`581 dumps ${s.length} of ${n0}: ${in1} in the first second, ${best} in its best, ${((s.length - 1) / (s[s.length - 1] - first)).toFixed(1)} FUEL/s over the whole dump; ${esc.report()}`);
   },
+  // their score table's rows re-found by shooting as play feeds them (js/mech/r581.js SIM_SCORE_RPM):
+  // a partial load (LAYERS, 1: ~20 FUEL dropped in and settled) fired at the row's hood with their
+  // SCORE sequence (streamShots), and the drum RPM whose shots come down through the HUB's rim
+  // height over its center on average, found by the secant method from their RPM; and between the rows
+  tune() {
+    const layers = Number(process.env.LAYERS ?? 1);
+    const at = (rpm, hood) => {
+      const L = streamShots({ rpm, hood }, layers).map((q) => landing(q) - q.x).filter(Number.isFinite);
+      return { land: L.length ? L.reduce((a, b) => a + b, 0) / L.length : NaN, n: L.length, spread: L.length ? Math.max(...L) - Math.min(...L) : NaN };
+    };
+    const lerp = (t, x) => { if (x <= t[0][0]) return t[0][1]; for (let k = 1; k < t.length; k++) if (x <= t[k][0]) return t[k - 1][1] + ((t[k][1] - t[k - 1][1]) * (x - t[k - 1][0])) / (t[k][0] - t[k - 1][0]); return t[t.length - 1][1]; };
+    const e = (x, d) => `${x - d > 0 ? '+' : ''}${(x - d).toFixed(2)}`;
+    const out = [];
+    for (const [d, rpm0] of SCORE_RPM) {
+      const hood = shotFor('score', d, { theirs: true }).hood, theirs = at(rpm0, hood);
+      let a = rpm0, la = theirs.land, b = rpm0 * (la > d ? 0.95 : 1.05), lb = at(b, hood).land;
+      for (let k = 0; k < 6 && Math.abs(lb - d) > 0.02 && Math.abs(lb - la) > 1e-3; k++) { const c = b + ((d - lb) * (b - a)) / (lb - la); a = b; la = lb; b = c; lb = at(b, hood).land; }
+      const best = Math.round(b / 5) * 5, mine = at(best, hood);
+      out.push([d, best]);
+      console.log(`  score ${d} m, hood ${hood.toFixed(1)}: their ${rpm0} RPM: ${theirs.n} land ${theirs.land.toFixed(2)} m (${e(theirs.land, d)}); the sim's FUEL come down there at ${best} RPM (x${(best / rpm0).toFixed(3)}): ${mine.n} land ${mine.land.toFixed(2)} m (spread ${mine.spread.toFixed(2)})`);
+    }
+    console.log('SIM_SCORE_RPM', JSON.stringify(out));
+    for (const d of [2.0, 2.4, 3.1, 4.2]) {
+      const hood = shotFor('score', d, { theirs: true }).hood, a = at(lerp(SCORE_RPM, d), hood), b = at(lerp(out, d), hood);
+      console.log(`  between: ${d} m, hood ${hood.toFixed(1)}: their ${lerp(SCORE_RPM, d).toFixed(0)} RPM lands ${e(a.land, d)}, the re-found ${lerp(out, d).toFixed(0)} ${e(b.land, d)}`);
+    }
+  },
 };
+
+// a partial load fired at want ({ rpm, hood }) as play fires it (their SCORE: floor and tower 10 V,
+// the intake's rollers 5 V and in to 8.3in, then to 5in after 0.7 s; the feeder feedforward's 20 A
+// for 0.7 s): the shots (shotWatch's) in the 6 s after it starts firing
+function streamShots(want, layers = 1) {
+  const r = rig({ hood: want.hood });
+  const { t, path, shooter } = r;
+  const w = world();
+  const balls = [];
+  const step = (n, run) => { for (let i = 0; i < n; i++) { if (run) run(); path.step(DT, balls, balls); shooter.step(DT, balls); w.step(); } };
+  fill(w, balls, (n) => step(n, () => { drum(t, want.rpm); deploy(r, DEPLOY.INTAKE); }), layers);
+  const watch = shotWatch(shooter);
+  t.floor.cmd = 10 / 12; t.feederT.cmd = 10 / 12; t.intake.cmd = 5 / 12;
+  for (let k = 0; k < 6 / DT; k++) {
+    const T = k * DT, compact = T >= 0.7;
+    if (compact) t.intake.cmd = null;
+    step(1, () => { drum(t, want.rpm, T < 0.7 ? 20 : 0); deploy(r, compact ? 5 : DEPLOY.SCORE_COMPACTION_WAITING, true); });
+    moveDeploy(r);
+    watch.check(balls, T);
+  }
+  w.free();
+  return watch.shots;
+}
 
 function pathRun(seed, { shoot = true, n = 20, sec = 7 } = {}) {
   let sd = seed;
