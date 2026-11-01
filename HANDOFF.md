@@ -202,8 +202,40 @@ For a new Claude Code session. The latest work is on branch `claude/great-hypati
 - A compacting intake's roller was a wall (`hopper.wall = _compactorX()`) even when it was down on the carpet under a box pushed out over it: 1678's FUEL stopped at x 0.38 with the box front at 0.555, leaving a strip empty against the front panel. `_compactorX` is now Infinity while the roller is below the hopper floor, so it only sweeps FUEL once it has folded up into the load. 1678 fills to 67 (was 61); folding in still compacts and stalls part way when full (1678, 971, 2910, 4930, 1706).
 - 1678's AUTO scores 8-20 FUEL less over seeds 1-4 (76-81 vs 82-97): its entry used to sit in front of that invisible wall, so new FUEL never had the pile to push.
 
+## Done: field element sizes from the CAD and drawings
+- Every size of the TRENCH, TOWER, DEPOT, OUTPOST, guardrail and alliance walls in `js/constants.js` is now measured in the raw field CAD (`tools/field-parts.py` on the raw export of `tools/onshape-export.sh`; part bounding boxes and outlines, in inches) and checked against the drawings (GE-26xxx sheets in the game-specific PDF, FE-2026 in the dimension PDF), each cited in a comment. Old → new:
+
+  | | was (manual) | now | source |
+  |---|---|---|---|
+  | TRENCH arm underside / top | 22.25 / 26.25 in | same, flat and square-edged, both TRENCHES | GE-26214-01, GE-26224; FE-2026 sh. 8 (22.25 ±0.25) |
+  | TRENCH arms | one 6 in arm, both the same | FIXED (scoring-table side, world +z for both ALLIANCES): 6 in, on 8.66 in past the guardrail. HINGED (far side): 4 in tube to 43.07 in from the guardrail, 8 in cross tube to 47.07, a 14 in fork (3 in tubes 4-7 in off the middle) back to the pivot | GE-26201/26202/26214/26224 |
+  | TRENCH opening / skirt | 50.34 / 62.28 in | 50.34 / 62.34 in (plastic 158.84, skirt faces 108.50 and 96.50 off the center line) | GE-26211/26212; FE-2026 sh. 8 |
+  | TRENCH skirt ends / top | 8.5 / 18.86 in at 30° | 8.0 / 18.85 in at 30° (flat 4.7 in either side) | GE-26213 |
+  | TRENCH risers | the 6 in arm post to 26.25 in | FIXED 6 in to 26.25; HINGED 6 in, aluminum, to 29.25 | GE-26204/26220 |
+  | AprilTag mount | middle of the opening (25.17 in in), 3 in thick | 25.37 in in from the guardrail, 2.94 in with tags, tags 35 in up | GE-26203; FE-2026 sh. 4 |
+  | TOWER uprights | 41.6 in from the wall, 3.5 deep, 72.1 tall | 41.755 (40 to the face), 3.51, 72.125 | GE-26500 sh. 2 |
+  | TOWER support tube | 2 in, 35-37 in | 1.75 in, 35.125-36.875 in | GE-26510 |
+  | TOWER gussets | box to 30.6 in, 4 in out | wall gusset's edge from 28.37 in at the wall to the tube 8.05 in out; a 6.5 in gusset on each upright over the tube | GE-26509, GE-26508 |
+  | TOWER braces | none | two 2 in tubes, 35-37 in, from the wall 2.97 in off the middle to the support tubes | GE-26507 |
+  | TOWER base | 45.18 × 39 × 0.25 in | 45.06 × 39 × 0.28 in (top off the carpet) | GE-26501-01 |
+  | TOWER/OUTPOST AprilTags | ±8.5 in about the middle | 31/29 on the middle, 32/30 17 in toward fy+ | FE-2026 sh. 11 |
+  | DEPOT | 42 × 27 in, 3 × 1.125 in bars | unchanged (checked) | GE-26601 |
+  | OUTPOST wall | 1.35 m + 3 cm | 49.25 in (DS 3 starts at fy 50.84 in) | GE-26002 |
+  | OUTPOST openings | 32 × 7 at 1.88; 31.8 × 7 at 28.1 | 32 × 7 at 1.87; 32 × 7 at 28.12 (CHUTE 31.67 inside) | GE-26002, GE-26005 |
+  | CHUTE | 1.0 m long from the wall's back, 15° | 32 in from the wall's face, 15° | GE-26005-03 |
+  | CORRAL | 35.8 × 37.6 in from the wall's back, 8.13 tall | 35.75 wide, its back 37.58 behind the wall's face, 8.12 tall; plus the ramp (1.87 in at the frame's back down to the floor 27.95 in back) | GE-26010, GE-26009 |
+  | guardrail | 20 in | 20.1 in (plastic 0-19 in, top rail to 20.10) | FE-00022/00055-57 |
+  | DRIVER STATION | base 36.8, wall 78.8 in, DS 1/2 split at fy 6.33 m, DS centers 7.2/5.45/2.35 m | base 36.87, top rail 78.25, split at 244.09 in, centers 280.09/208.09/86.84 in | FE-00043, FE-00007 |
+  | tape | starting lines, center line | + the black 3 in tape down the field's long middle | field CAD |
+
+- The TRENCH arm parts are one list (`trenchArmParts` in constants.js) used by the colliders (field.js) and `TRENCH_ARMS` (nav.js: the boxes the hopper presses FUEL out of, 8793's arm test, the GPU sim). `TRENCH_ARMS` has 5 boxes per ALLIANCE now (FIXED arm; HINGED main tube, cross tube, two fork tubes). The trench tools (`tools/trenchprobe.mjs`, `trench1690/2056/7769/8793.mjs`) still drive the blue left lane, which is the HINGED TRENCH; `FIXED=1` drives the FIXED one.
+- The HANDOFF note that "the Block CAD bounding box puts the inside edge of the fixed TRENCH about 8 cm closer" was about the simplified Block CAD element; the full assembly's skirt is where `TRENCH.width` says (within 0.06 in). FE-2026 sheet 4 gives the FIXED opening as 50.67 in: its section is cut through a field gate, not the TRENCH.
+- 1678's lid (`lidCollider`) is now registered with `passesUnder` like the frame: down, its top is 1.6 cm under the arm, and from 3 m/s its edge was caught on the arm's edge (stopped to 0.02 m/s, under the new arm boxes; the old geometry missed it by luck of the contact normal).
+
 ## Other open items
-- The HUB and BUMP sizes were checked against the drawing. All element positions were checked against the field CAD. The TRENCH, TOWER, DEPOT and OUTPOST *sizes* still come from the game manual, so compare them with the drawing pages above or measure them in the CAD. Note that the Block CAD bounding box puts the inside edge of the fixed TRENCH about 8 cm closer to the guardrail than `TRENCH.width` does.
+- Field sizes are all from the CAD and drawings now (above). Left as they were, small: the CAD's HUB exit in the NEUTRAL ZONE face runs from 30.12 to 39.00 in (`HUB.exitTop` is 38.88), with a brace (GE-26302) 37.73-41.52 in up 1.8 in inside the face; the BUMP's plastic is 73.08 in wide (73.00). The DRIVER STATION's acrylic stands 0.3 in into the field and its base's cap 0.56 in (the wall collider is flat at the diamond plate).
+- FUEL staging (not a field element, so not changed): the field CAD stages 360 FUEL in the NEUTRAL ZONE (all preloads taken) as a 12 × 30 block at a 6.0 in pitch, its first columns 3 in either side of the CENTER LINE (FE-2026 sheet 3: 35.95 in and 90.95 in to the block's edges); `Field.neutralSlots` lays out 12 × 34 at 6.04-6.07 in, the first columns 4 in off the line, and takes FUEL off the corners when fewer are staged. Check it against the game manual's staging figure before changing it: it moves every AUTO's pickups.
+- `tools/nn/gpusim-params.json` wasn't re-exported: it was already behind the robots (no 6328, 2056, 7769), and a re-export brings those in with the new TRENCH arm boxes.
 - Optional: a longer AI self-play training run, `npm run train -- --gens 30 --pop 12 --scenarios 6 --resume`.
 
 ## Gotchas
