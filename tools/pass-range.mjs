@@ -16,6 +16,9 @@ import { PHYSICS_DT, BLUE, HALF_L, FUEL, HUB } from '../js/constants.js';
 import { DEG } from '../js/util.js';
 import { backspin } from '../js/ballistics.js';
 import { ROBOTS } from '../js/robotConfigs.js';
+// (where shots land against where they're aimed: aimed from the truth, as the tables are fit;
+// AIMTRUTH=0 for the robots' pose estimates, js/localize.js)
+process.env.AIMTRUTH ??= '1';
 
 const args = process.argv.slice(2);
 const arg = (k, d) => { const i = args.indexOf('--' + k); return i >= 0 ? args[i + 1] : d; };

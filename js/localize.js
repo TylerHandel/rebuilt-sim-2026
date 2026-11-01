@@ -62,7 +62,8 @@ import { Field } from './field.js';
 const DEG = Math.PI / 180;
 const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 const env = globalThis.process?.env;
-export const AIM_TRUTH = env?.AIMTRUTH === '1' || (typeof location !== 'undefined' && new URLSearchParams(location.search).has('aimtruth'));
+// (read when each robot is made, so a tool can set it before it builds its game)
+export const aimTruth = () => globalThis.process?.env?.AIMTRUTH === '1' || (typeof location !== 'undefined' && new URLSearchParams(location.search).has('aimtruth'));
 const LOOP = 0.02;          // robot code's loop (s)
 const AIR_T = 0.3;          // s off the floor that a wheel spins at its setpoint (a BUMP's crest)
 const SPIN_T = 0.25;        // s barely moving with its wheels driven: stalled, its wheels spinning
@@ -225,7 +226,7 @@ const between = (a, b) => { // a^-1 b
 export class Localizer {
   constructor(robot) {
     this.r = robot;
-    this.truth = AIM_TRUTH;
+    this.truth = aimTruth(); // (and a robot built alone, never init'ed by a game: the truth)
     this.prof = profileFor(robot.cfg);
     this.ready = false;
   }
