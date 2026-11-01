@@ -132,7 +132,9 @@ function watcher(r, fuel, physics, field) {
       h.push(s);
       while (h.length && h[0].t < t - KEEP - 0.01) h.shift();
       const inPlan = Math.abs(l[0]) < hL && Math.abs(l[2]) < hW;
-      const low = inPlan && l[1] < UNDER_Y;
+      // (once under, it stays under until it's 3 cm higher: one pressed up into the belly bobs about
+      // UNDER_Y)
+      const low = inPlan && l[1] < UNDER_Y + (open.has(b) ? 0.03 : 0);
       const under = low && l[1] + R > BUMPER_Y0 + 0.01;
       if (low && !under) time.overhang += PHYSICS_DT;
       if (under) {

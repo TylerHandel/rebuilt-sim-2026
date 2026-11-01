@@ -549,6 +549,10 @@ export class Robot {
     this.body.resetTorques(true);
     if (this.climbState === 'climbing' || this.climbState === 'hanging' || this.climbState === 'descending') {
       this._climbStep(dt);
+      // (a physical robot's mechanisms go on holding what's in it as it climbs: its FUEL pass through
+      // its own colliders, and without its floors under them 1678's whole load fell out through the
+      // bottom onto the carpet under it as it climbed, tools/under-frame.mjs)
+      if (this.phys) this.phys.preStep(dt, this.lastT);
       return;
     }
     const d = this.cfg.drive;
