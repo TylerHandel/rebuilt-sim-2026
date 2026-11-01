@@ -36,6 +36,8 @@ import { MOTORS } from '../drivetrain.js';
 
 const R = FUEL.radius, MB = FUEL.mass, TAU = 2 * Math.PI;
 const IB = 0.4 * MB * R * R;         // solid foam sphere
+// (a contact's twisting friction, mechanism.js _solve: 3 pi / 16 of mu a N; TWIST=0 in the environment: none)
+const TWIST = globalThis.process?.env?.TWIST !== '0', TWIST_K = (3 * Math.PI) / 16;
 const ZETA = 0.25;                    // foam damping ratio (a free FUEL bounces back ~45%)
 const MU_FREE = 0.04;                 // an omni/mecanum wheel's rollers across their free direction
 // FUEL on FUEL: their smooth skins (the user) slide on each other (0.3, an estimate; it was 0.6, foam
@@ -626,7 +628,7 @@ export class Mechanism {
       if (subMotor) drives(h, { t0: k * h, T: dt });
       if (n > 1) for (const st of S.values()) st.v = add(st.v, mul(g, h));
       const C = this._contacts(W, fr, n > 1 ? [...S.values()].map((st) => [st.b, st.c]) : balls.map((b) => { const t = b.translation(); return [b, [t.x, t.y, t.z]]; }), state);
-      this._solve(C, h, frameVel, reaction);
+      this._solve(C, h, frameVel, reaction, fr.w);
       if (n > 1) for (const st of S.values()) st.c = add(st.c, mul(st.v, h));
       for (const ct of C) {
         if (ct.st2) continue;
@@ -791,7 +793,7 @@ export class Mechanism {
   }
 
   // the contacts' impulses over a step of h (projected Gauss-Seidel)
-  _solve(C, h, frameVel, reaction) {
+  _solve(C, h, frameVel, reaction, frameW = [0, 0, 0]) {
     // relative velocity of the ball's surface over the wheel's at the contact
     const relVel = (ct) => {
       const { st, st2, W1, x, rb, rw } = ct;
@@ -841,6 +843,21 @@ export class Mechanism {
             const l = Math.max(-lim, Math.min(lim, f.lam - dot(relVel(ct), f.u) * f.m));
             apply(ct, f.u, l - f.lam);
             f.lam = l;
+          }
+        }
+        // twist: the foam's flattened patch (radius about sqrt(R depth)) rubbing round the normal
+        // resists the FUEL's spin about it relative to what it presses on, up to 3 pi / 16 mu a N
+        // (a Hertzian patch's), where a point contact can't: a FUEL spinning about the line to a
+        // wheel or hood would keep that spin through a shot, and leave with sidespin (TWIST=0: none)
+        if (TWIST && ct.depth > 0) {
+          const { st, st2, W1, n } = ct;
+          const wOther = st2 ? st2.w : add(frameW, mul(W1.a, W1.wh.shaft.omega));
+          const wr = dot(sub(st.w, wOther), n), lim = TWIST_K * ct.fric[0].mu * Math.sqrt(R * ct.depth) * ct.lamN;
+          const im = st2 ? 2 / IB : 1 / IB, l = Math.max(-lim, Math.min(lim, (ct.lamT ?? 0) - wr / im)), dl = l - (ct.lamT ?? 0);
+          if (dl) {
+            st.w = add(st.w, mul(n, dl / IB));
+            if (st2) st2.w = add(st2.w, mul(n, -dl / IB));
+            ct.lamT = l;
           }
         }
       }

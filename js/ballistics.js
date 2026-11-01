@@ -9,13 +9,17 @@ const SIM_DT = 1 / 240;
 
 // the lift coefficient at spin ratio S = R w / v (constants.js liftK)
 export const liftCoef = (S) => (S > 0 ? S / (1 + 2 * S) : 0);
-// the Magnus acceleration on a FUEL moving at v with spin w (world vectors {x,y,z}): liftK C_L |v|
-// along (w-hat x v)
+// the Magnus acceleration on a FUEL moving at v with spin w (world vectors {x,y,z}): liftK C_L |v|^2
+// along w x v, from the spin square to its course alone (its spin about its course, a rifled
+// ball's, turns no air across it: neither lifts it nor counts in the spin ratio S = R |w_perp| / v)
 export function magnus(v, w, out = { x: 0, y: 0, z: 0 }) {
-  const wl = Math.hypot(w.x, w.y, w.z), sp = Math.hypot(v.x, v.y, v.z);
-  if (wl < 1e-6 || sp < 0.3) { out.x = 0; out.y = 0; out.z = 0; return out; }
+  const sp = Math.hypot(v.x, v.y, v.z);
+  if (sp < 0.3) { out.x = 0; out.y = 0; out.z = 0; return out; }
+  const a = (w.x * v.x + w.y * v.y + w.z * v.z) / (sp * sp);
+  const px = w.x - a * v.x, py = w.y - a * v.y, pz = w.z - a * v.z, wl = Math.hypot(px, py, pz);
+  if (wl < 1e-6) { out.x = 0; out.y = 0; out.z = 0; return out; }
   const f = (KL * liftCoef((RB * wl) / sp) * sp) / wl;
-  out.x = f * (w.y * v.z - w.z * v.y); out.y = f * (w.z * v.x - w.x * v.z); out.z = f * (w.x * v.y - w.y * v.x);
+  out.x = f * (py * v.z - pz * v.y); out.y = f * (pz * v.x - px * v.z); out.z = f * (px * v.y - py * v.x);
   return out;
 }
 // a shot's backspin (rad/s; + lifts it): its spin about the level axis square to its course,
