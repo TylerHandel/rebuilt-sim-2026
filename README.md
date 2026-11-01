@@ -295,14 +295,14 @@ Sources:
 
 ## What's simulated
 
-**Field** (2026 Game Manual section 5, the official AprilTag layout and the official field CAD):
-- 651.2 × 317.7 in field.
+**Field** (FIRST's official field CAD, its drawings, the official AprilTag layout and the 2026 Game Manual section 5; the sizes and where each comes from are in `js/constants.js`):
+- 651.2 × 317.7 in field (DRIVER STATION diamond plate to diamond plate, guardrail plastic to guardrail plastic).
 - HUBS: 47 in, with a 58.4 in wide net 10.3 in behind them (from the GE-26300 drawing). Their tops follow the field CAD: a polycarbonate hexagonal funnel, 41.7 in across the flats at its level 72 in rim, with its corners toward the ALLIANCE WALL and the NEUTRAL ZONE. Its walls slope in to a level hexagon 1.52 m up, standing above the box's alliance-colored deck. That deck slopes down toward the NEUTRAL ZONE, from 1.52 m to 1.415 m, so FUEL that lands on it outside the funnel mostly rolls off. FUEL leaves through a 35.6 in wide opening in the NEUTRAL ZONE face, 30.1 in off the carpet, and drops onto the field.
 - BUMPS: 73 × 44.4 × 6.5 in with 15° ramps.
-- TRENCHES: 22.25 in clearance.
-- TOWERS: rungs at 27, 45 and 63 in. Behind the uprights, the support tubes back to the TOWER WALL are 35 to 37 in up, as in the field CAD, so any robot under the 30 in height limit can drive behind the TOWER.
-- DEPOTS (24 FUEL each) and OUTPOSTS, with the CHUTE (24 FUEL), CHUTE DOOR and CORRAL. The TOWER, OUTPOST and DEPOT positions match the field CAD: the blue TOWER is centered on AprilTag 31 and the blue OUTPOST on 29, and the red ones mirror them.
-- 20 in guardrails and the alliance walls.
+- TRENCHES (field CAD GE-26200, drawings FE-2026 sheets 4 and 8, GE-26201/26202): the opening is 50.34 in from the guardrail to the skirt and the arm's underside 22.25 in off the carpet, flat and square-edged all the way across. Each ALLIANCE has two that aren't alike. The FIXED one, on the scoring-table side for both ALLIANCES (the field is mirrored about the CENTER LINE here, not turned), has a 6 in wide arm (along the field) that runs on 8.7 in past the guardrail. The HINGED one, on the far side, has a 4 in arm; 43 in in from the guardrail it widens to an 8 in cross tube and a 14 in fork back to its pivot on a 29.25 in riser, so its last 7 in over the opening are wider. Both stand on a 12 in skirt on the BUMP side, ramping up at 30° from 8 in at its ends to 18.85 in, and carry an AprilTag mount (11.5 in wide, up to 40.25 in) 25.4 in in from the guardrail.
+- TOWERS (GE-26500): rungs at 27, 45 and 63 in on uprights 40 in from the TOWER WALL to their faces. Behind the uprights, the 1.75 in support tubes back to the TOWER WALL are 35.1 to 36.9 in up, with the gussets under their wall ends (down to 28.4 in at the wall, 8 in out) and the two braces from the wall out to them, so any robot under the 30 in height limit can drive behind the TOWER.
+- DEPOTS (24 FUEL each; 42 × 27 in of 3 × 1 in tube) and OUTPOSTS (a 49.25 in stretch of wall: the base opening 1.87 to 8.87 in up, the CHUTE's 28.12 to 35.12 in, both 32 in wide), with the CHUTE (24 FUEL, 15°, 32 in long), CHUTE DOOR and CORRAL (35.75 in wide, its back 37.6 in behind the wall, a ramp in it down from the base opening). The TOWER, OUTPOST and DEPOT positions match the field CAD: the blue TOWER is centered on AprilTag 31 and the blue OUTPOST on 29 (32 and 30 are 17 in from them, away from the scoring table), and the red ones mirror them.
+- 20.1 in guardrails and the alliance walls: DRIVER STATIONS 72 in wide (36.9 in diamond plate base, glass to the 78.25 in top rail), the TOWER WALL between DS 2 and DS 3, the OUTPOST between DS 3 and the guardrail.
 
 **FUEL:**
 - 504 balls: 400–408 staged in the NEUTRAL ZONE (34 × 12 grid), 48 in the DEPOTS, 48 in the CHUTES, plus up to 8 preloaded.
