@@ -57,10 +57,13 @@ const AIM_SUB = globalThis.process?.env?.AIM === 'sub';
 // indexer (calibrate FED=1), the way it fires: those leave about 4% faster than lone FUEL thrown up
 // the bore, pressed into the wheel by the next one. Re-measured with the wheel's motor driving it
 // through the FUEL's contact (mechanism.js: the motors through the sub-steps): 2-4% less wheel for
-// the same exit, the stream topping out at ~9.1 m/s from 21 m/s of wheel (past it, a guess: 24).
+// the same exit, the stream topping out at ~9.1 m/s from 21 m/s of wheel (past it, a guess: 24). In
+// AI matches (four against 2910) those left 2-3.5% faster than asked from 8.5 m/s up, where the FUEL
+// slip on the wheel and a little more wheel goes a long way, coming down 0.3-0.4 m long: the points
+// from 8.57 m/s up moved to the wheel that gave what was asked there.
 export const EXIT = { s: 0.03, y: 0.66 };
 export const EL_MAP = [[125, 37.4], [143.9, 57.6], [144.6, 58], [145.8, 59], [147.2, 59.7], [148.4, 61], [150.5, 63], [151.7, 63.8], [153.7, 66.1], [156.5, 68.6], [160, 72], [163.1, 75], [172, 84.9]];
-export const EXIT_MAP = [[0, 0], [4, 4.84], [5.95, 7.23], [6.04, 7.37], [6.4, 7.9], [6.77, 8.45], [7.14, 9.02], [7.57, 9.75], [7.89, 10.42], [8.3, 12.55], [8.57, 15.05], [8.83, 17.7], [9.06, 21.09], [9.8, 24]];
+export const EXIT_MAP = [[0, 0], [4, 4.84], [5.95, 7.23], [6.04, 7.37], [6.4, 7.9], [6.77, 8.45], [7.14, 9.02], [7.57, 9.75], [7.89, 10.42], [8.3, 12.55], [8.57, 13.3], [8.83, 14.8], [9.06, 17.0], [9.8, 24]];
 const interp = (t, x, a = 0, b = 1) => {
   if (x <= t[0][a]) return t[0][b];
   for (let k = 1; k < t.length; k++) if (x <= t[k][a]) return t[k - 1][b] + ((t[k][b] - t[k - 1][b]) * (x - t[k - 1][a])) / (t[k][a] - t[k - 1][a]);
