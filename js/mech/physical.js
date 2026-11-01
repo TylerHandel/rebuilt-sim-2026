@@ -90,6 +90,7 @@ export class PhysicalRobot {
     this.held = [];           // FUEL in its ball path
     this.near = [];           // FUEL its mechanisms might touch this step
     this.inShooter = new Set();
+    this.wheeled = new Set();  // (of those, the ones a shooter's wheel has had hold of)
     this.owned = new Set();   // FUEL its ball path (or intake) has hold of
     this.shot = new Map();    // FUEL it's just shot -> when (on their way out: not its to hold)
     this.counted = new Set(); // FUEL counted as intaked, until shot or gone from around it
@@ -249,9 +250,16 @@ export class PhysicalRobot {
     const byBody = new Map(this.near.map((b) => [b.body, b]));
     const touching = new Set(this.shooter.contacts.map((c) => byBody.get(c.ball)).filter(Boolean));
     for (const b of touching) this.inShooter.add(b);
+    // (a shot goes through the shooter's wheels: one that only brushed its surfaces, the turret's
+    // or the hood's, and was flung off by something else isn't one. 4414's Dye Rotor threw a FUEL
+    // along the turret's side 4 m/s: read as shot, let go, it fell through the hopper's floor and lay
+    // under the frame, tools/under-frame.mjs)
+    for (const c of this.shooter.contacts) if (c.wheel instanceof Wheel) { const b = byBody.get(c.ball); if (b) this.wheeled.add(b); }
     for (const b of [...this.inShooter]) {
       if (touching.has(b)) continue;
       this.inShooter.delete(b);
+      const wheeled = this.wheeled.delete(b);
+      if (!wheeled) continue;
       // (how fast it leaves the robot: its velocity less the robot's there. Its own alone, a FUEL in
       // the hopper of a robot driving 3 m/s up a BUMP that brushed the shooter's surfaces read as
       // shot: let go, it fell through the floor and lay under the frame, 4414's, tools/under-frame.mjs)
