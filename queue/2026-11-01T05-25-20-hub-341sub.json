@@ -1,0 +1,12 @@
+{
+ "ref": "f5def26fe85061b94ca7d2053becdb3abbb1935a",
+ "args": [
+  "--pairs",
+  "341:2910",
+  "--seeds",
+  "1-8",
+  "--jobs",
+  "12"
+ ],
+ "env": {}
+}
