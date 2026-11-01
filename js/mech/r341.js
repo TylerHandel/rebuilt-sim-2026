@@ -116,20 +116,21 @@ const interp = (t, x) => {
 // Their tables' rows re-found by shooting (tools/mechlab341.mjs tune): at their distances and
 // hood angles, the flywheel RPM at which the sim's FUEL, the preload fed up the uptake as play
 // feeds it, come down through the HUB's rim height over its center (ferrying: on the carpet at
-// the distance). Their own RPMs put the HUB's shots 0.36-0.52 m short at 1.5-5.5 m and every ferry
-// 1.2-4.2 m short: the sim's FUEL leave at ~0.68 of the flywheel's surface speed (the hood's
-// Stealth wheels turn at half its surface speed) and fly with the Magnus lift of the backspin
-// that gives them, so the HUB's rows ask 4-28% more (the 1.51 m row, the steepest, most), the
-// ferry's 18-30% (50% at 13.94 m). Past ~3000 RPM the FUEL are pulled off the flywheel toward
-// the hood's wheels as they go round it (the foam's squeeze can't hold them to it), so the RPM
-// climbs steeply for the last few meters: their 16 m row is flat out (5500: the flywheel's 5700
-// free, less room for its loop to catch up), ~15.4 m. The HUB's 14 m row (no HUB shot comes from
-// there; it sets the slope past 5.5 m) is their RPM times the 5.5 m row's factor. Two of the
-// ferry's rows are the sim's own: 4 m, short of their first, where the sim's pass targets can be,
-// and 9 m. THEIR_SHOTS=1 in the environment: their own RPMs.
+// the distance). Their own RPMs put the HUB's shots short at 1.5-5.5 m and every ferry 1.2-4 m
+// short: the sim's FUEL leave at ~0.68 of the flywheel's surface speed (the hood's Stealth wheels
+// turn at half its surface speed) and fly with the Magnus lift of the backspin that gives them, so
+// the HUB's rows ask 1-5% more, the ferry's 14-28% (43% at 13.94 m). Past ~3000 RPM the FUEL are
+// pulled off the flywheel toward the hood's wheels as they go round it (the foam's squeeze can't
+// hold them to it), so the RPM climbs steeply for the last few meters: their 16 m row is flat out
+// (5500: the flywheel's 5700 free, less room for its loop to catch up), ~15.2 m. The HUB's 14 m
+// row (no HUB shot comes from there; it sets the slope past 5.5 m) is their RPM times the 5.5 m
+// row's factor. Two of the ferry's rows are the sim's own: 4 m, short of their first, where the
+// sim's pass targets can be, and 9 m. (Its turret's bore and hood stay the ball path's, met once a
+// step: carried by its shooter, as the others' hoods are, they slowed a stream 8% in play, not on
+// the bench.) THEIR_SHOTS=1 in the environment: their own RPMs.
 export const SIM_SHOTS = {
-  rpm: [[1.51, 2555], [2.38, 2300], [3.07, 2230], [3.5, 2270], [4.24, 2300], [5.5, 2525], [14, 3380]],
-  feedRpm: [[4, 1715], [5.5, 2130], [7.5, 2605], [9, 2925], [10.5, 3245], [13.94, 4640], [16, 5500]],
+  rpm: [[1.51, 2055], [2.38, 2145], [3.07, 2110], [3.5, 2195], [4.24, 2230], [5.5, 2455], [14, 3285]],
+  feedRpm: [[4, 1665], [5.5, 2060], [7.5, 2555], [9, 2885], [10.5, 3225], [13.94, 4430], [16, 5500]],
 };
 const THEIR_SHOTS = typeof process !== 'undefined' && !!process.env?.THEIR_SHOTS;
 export function shotFor(kind, d, { theirs = THEIR_SHOTS } = {}) {

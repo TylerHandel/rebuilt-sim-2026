@@ -24,7 +24,7 @@
 // THEIR_SHOTS=1: their tables' own RPMs instead of the re-found ones (js/mech/r341.js)
 import { RAPIER } from '../js/physics.js';
 import { FUEL, GROUP, groups, HUB } from '../js/constants.js';
-import { Mechanism, handOff } from '../js/mech/mechanism.js';
+import { Mechanism } from '../js/mech/mechanism.js';
 import { sim2D, backspin } from '../js/ballistics.js';
 import {
   build341, wheels341, shooterWheels, pathSurfaces341, placeIntake, intakeRot, placeShooter, placeTurretSurfaces, hoodElevation,
@@ -65,7 +65,7 @@ function rig({ deg = DOWN, hood = 0, yaw = 0 } = {}) {
   const pathW = [...w.pivotRow, ...w.arm, ...w.table, ...w.uptake, ...w.omnis];
   const path = new Mechanism({ substeps: 6, shafts: [...new Set(pathW.map((x) => x.shaft)), t.pivot], wheels: pathW, surfaces: Object.values(s) });
   const shooter = new Mechanism({ substeps: 6, sub: 8, shafts: [t.fly, t.stealth, t.feed], wheels: sw });
-  handOff(path, shooter, [s.turret, s.hood]); // (the hood: met at each of the shooter's sub-steps)
+
   for (const tr of [t.intake, t.serializer, t.feederT, t.shooter]) tr.cmd = null;
   // (the arm held where it is)
   t.pivot.inertia = 1e6;
