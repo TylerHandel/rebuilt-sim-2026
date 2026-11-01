@@ -6,7 +6,7 @@
 // js/mech/phys2910.js) adds its mechanisms, where its ball path is, and its code's controls.
 import { FUEL } from '../constants.js';
 import { BUMPER_T, BUMPER_Y0, BUMPER_Y1 } from '../robotConfigs.js';
-import { Wheel } from './mechanism.js';
+import { Block, Wheel } from './mechanism.js';
 
 const R = FUEL.radius;
 // A robot whose hopper is full when its intake can't put more in (naturalFull: 2910's and 1678's;
@@ -162,6 +162,17 @@ export class PhysicalRobot {
   // the FUEL near it that the shooter's wheels might touch (each robot's own)
   shooterBalls(near) { return near; }
 
+  // the bumpers' bottom edge (robot frame): its ball path's own bumper's (a solid Block, from its CAD
+  // where it has one: 1114's 0.048 m, 341's 0.041, 604's and 7769's 0.038), or the generic. (Below
+  // that, owned, the Block pushed a FUEL out the nearest way, its bottom, under the frame: 1114's)
+  _bumperY0() {
+    if (this.bumperY0 === undefined) {
+      const ys = this.path.surfaces.filter((s) => s instanceof Block && s.name.startsWith('bumper')).map((b) => b.c[1] - b.h[1] - b.r);
+      this.bumperY0 = Math.max(BUMPER_Y0, ...(ys.length ? [Math.min(...ys)] : []));
+    }
+    return this.bumperY0;
+  }
+
   // before the world's step (after the robot has posed its moving parts): which FUEL are its,
   // and run the mechanisms
   stepMechanisms(dt, t) {
@@ -187,7 +198,7 @@ export class PhysicalRobot {
       // pitched or not: all of the front's, 2056 rode up onto the FUEL in its mouth at a wall,
       // each one it lifted its nose on no longer the intake's, and scored a sixth less)
       const l = this._local(p), f = r.cfg.frame;
-      const under = l[1] < BUMPER_Y0 && Math.abs(l[0]) < f.length / 2 + BUMPER_T && Math.abs(l[2]) < f.width / 2 + BUMPER_T;
+      const under = l[1] < this._bumperY0() && Math.abs(l[0]) < f.length / 2 + BUMPER_T && Math.abs(l[2]) < f.width / 2 + BUMPER_T;
       const w = under ? { ...this.where(...l), own: false, held: false } : this.where(...l);
       if (w.own) {
         r.fuel.own(b, t);
