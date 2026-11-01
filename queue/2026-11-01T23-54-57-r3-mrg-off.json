@@ -1,0 +1,20 @@
+{
+ "ref": "9bb44580ffc76d66158649ae3ebfaf04afc8ae7b",
+ "args": [
+  "--seeds",
+  "1-2",
+  "--jobs",
+  "12"
+ ],
+ "env": {
+  "SCHED3V3": "26",
+  "NAVMARGIN": "0",
+  "UNSTICK": "0",
+  "WALLFUEL": "0",
+  "CLAIM": "0",
+  "SHOOTHERE": "0",
+  "FULLGO": "0",
+  "AUTOAVOID": "0",
+  "OLDAUTOS": "1"
+ }
+}
