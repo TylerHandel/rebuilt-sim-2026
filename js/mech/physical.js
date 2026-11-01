@@ -5,7 +5,7 @@
 // FUEL it has hold of, what got in, and what got shot. Each robot (js/mech/phys8793.js,
 // js/mech/phys2910.js) adds its mechanisms, where its ball path is, and its code's controls.
 import { FUEL } from '../constants.js';
-import { BUMPER_Y0, BUMPER_Y1 } from '../robotConfigs.js';
+import { BUMPER_T, BUMPER_Y0, BUMPER_Y1 } from '../robotConfigs.js';
 import { Wheel } from './mechanism.js';
 
 const R = FUEL.radius;
@@ -178,13 +178,16 @@ export class PhysicalRobot {
         if (t - this.shot.get(b) < 0.35) continue;
         this.shot.delete(b);
       }
-      // (not one whose center is below the bumpers' bottom edge, in front: the robot's nose,
-      // pitched up coming off a BUMP or riding up a pile, is over it, and its intake can't reach it.
-      // The robot's own collider has to meet that one as the nose comes down: owned, it went
-      // through the bumper's foot and lay under the frame, the robot carrying it about for up to
-      // 45 s (341, 8793, 1114, 6328, 1678...: tools/under-frame.mjs). 2910's where() did this first)
-      const l = this._local(p);
-      const w = l[1] < BUMPER_Y0 ? { ...this.where(...l), own: false, held: false } : this.where(...l);
+      // (not one under the bumpers, its center inside their outline in plan and below their bottom
+      // edge: the robot's nose, pitched up coming off a BUMP, is coming down on it, and the robot's
+      // own collider has to meet it. Owned, it went through the bumper's foot and lay under the
+      // frame, the robot carrying it about for up to two minutes (341, 8793, 1678, 1690, 2056...:
+      // tools/under-frame.mjs). One out in front of the bumpers stays the intake's, the robot
+      // pitched or not: all of the front's, 2056 rode up onto the FUEL in its mouth at a wall,
+      // each one it lifted its nose on no longer the intake's, and scored a sixth less)
+      const l = this._local(p), f = r.cfg.frame;
+      const under = l[1] < BUMPER_Y0 && Math.abs(l[0]) < f.length / 2 + BUMPER_T && Math.abs(l[2]) < f.width / 2 + BUMPER_T;
+      const w = under ? { ...this.where(...l), own: false, held: false } : this.where(...l);
       if (w.own) {
         r.fuel.own(b, t);
         owned.add(b);
