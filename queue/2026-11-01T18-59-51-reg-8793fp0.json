@@ -1,0 +1,12 @@
+{
+ "ref": "2e898c094d0b7a927ac96cda3f9f66fd158faf58",
+ "args": [
+  "--pairs",
+  "8793:2910",
+  "--seeds",
+  "1-8"
+ ],
+ "env": {
+  "FEEDPUSH": "0"
+ }
+}
