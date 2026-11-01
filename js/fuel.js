@@ -244,7 +244,10 @@ export class FuelManager {
         }
       }
       b.prevVel = { x: v.x, y: v.y, z: v.z };
-      if (b.ignoring && t >= b.ignoreUntil) {
+      // (one let go, coming down, is solid to robots again as soon as it's clear of them, its time
+      // up or not: a weak shot from 4414 that fell back beside it within the 0.35 s went in through
+      // its side under the hopper and lay under the frame, tools/under-frame.mjs)
+      if (b.ignoring && (t >= b.ignoreUntil || (!b.held && v.y < -0.5))) {
         // (not while it's still inside a robot: solid again there, it would be stuck in it)
         if (this._inRobot(p)) b.ignoreUntil = t + 0.1;
         else {
