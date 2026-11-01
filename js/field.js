@@ -609,7 +609,6 @@ export class Field {
       }
     }
 
-
     // ================================================================ ALLIANCE WALL
     const wallT = 0.12;
     const wx = wallX - wallT / 2;
