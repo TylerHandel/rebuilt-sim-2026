@@ -173,10 +173,15 @@ export class FuelManager {
     b.launch = null;
     b.hubFresh = false;
   }
-  unown(b) {
+  // (solid: to robots too, at once, where the robot's colliders push it off it: one let go against
+  // its bumpers, not inside it)
+  unown(b, solid = false) {
     if (!b.held) return;
     b.held = false;
-    b.col.setCollisionGroups(NO_ROBOT_GROUPS);
+    if (solid) {
+      b.col.setCollisionGroups(NORMAL_GROUPS);
+      b.ignoring = false;
+    } else b.col.setCollisionGroups(NO_ROBOT_GROUPS);
   }
   // ...and one it has just shot out: in flight from where it is, as a launch
   release(b, info) {

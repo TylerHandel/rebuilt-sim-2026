@@ -5,6 +5,7 @@
 // FUEL it has hold of, what got in, and what got shot. Each robot (js/mech/phys8793.js,
 // js/mech/phys2910.js) adds its mechanisms, where its ball path is, and its code's controls.
 import { FUEL } from '../constants.js';
+import { BUMPER_Y0, BUMPER_Y1 } from '../robotConfigs.js';
 import { Wheel } from './mechanism.js';
 
 const R = FUEL.radius;
@@ -177,7 +178,13 @@ export class PhysicalRobot {
         if (t - this.shot.get(b) < 0.35) continue;
         this.shot.delete(b);
       }
-      const w = this.where(...this._local(p));
+      // (not one whose center is below the bumpers' bottom edge, in front: the robot's nose,
+      // pitched up coming off a BUMP or riding up a pile, is over it, and its intake can't reach it.
+      // The robot's own collider has to meet that one as the nose comes down: owned, it went
+      // through the bumper's foot and lay under the frame, the robot carrying it about for up to
+      // 45 s (341, 8793, 1114, 6328, 1678...: tools/under-frame.mjs). 2910's where() did this first)
+      const l = this._local(p);
+      const w = l[1] < BUMPER_Y0 ? { ...this.where(...l), own: false, held: false } : this.where(...l);
       if (w.own) {
         r.fuel.own(b, t);
         owned.add(b);
@@ -185,8 +192,17 @@ export class PhysicalRobot {
       }
       if (w.own || w.near) near.push(b);
     }
-    // (the ones it's let go of: solid to the other FUEL again)
-    for (const b of this.owned) if (!owned.has(b) && b.state === 'field') r.fuel.unown(b);
+    // (the ones it's let go of: solid to the other FUEL again, and to robots once clear of them;
+    // one let go low beside or in front of the frame, against the bumpers, at once: the bumpers
+    // push it off as they would have. Not solid to them until it was clear, one the intake let go
+    // of at the side of its mouth as the robot drove on into it went through the bumper's corner
+    // and lay under the frame: 1678, 1114, tools/under-frame.mjs)
+    const f = r.cfg.frame;
+    for (const b of this.owned) {
+      if (owned.has(b) || b.state !== 'field') continue;
+      const [x, y, z] = this._local(b.pos);
+      r.fuel.unown(b, y < BUMPER_Y1 && (Math.abs(x) >= f.length / 2 || Math.abs(z) >= f.width / 2));
+    }
     this.owned = owned;
     this.near = near;
     this.held = held;
