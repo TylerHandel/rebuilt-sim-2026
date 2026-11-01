@@ -51,7 +51,7 @@ const opts = {
     const o = game.robots.filter((x) => x !== r).reduce((a, x) => (Math.hypot(x.pos.x - r.pos.x, x.pos.z - r.pos.z) < Math.hypot(a.pos.x - r.pos.x, a.pos.z - r.pos.z) ? x : a));
     const b = ai.ball;
     const nx = ai.path?.[0];
-    const line = `${f2(m.phaseTime).padStart(6)} pos ${f2(r.pos.x)},${f2(r.pos.z)} yaw ${(r.yaw * 57.3).toFixed(0)} v ${f2(have)} cmd ${f2(c.vx)},${f2(c.vz)} w ${f2(c.omega)} in ${c.intake ? 1 : 0}/${f2(r.intakeDeploy)} sh ${c.shoot ? 1 : 0} ps ${c.pass ? 1 : 0} held ${r.stored.length} | ${ai.state} "${ai.label}" ball ${b ? `${f2(b.pos.x)},${f2(b.pos.z)}` : '-'} next ${nx ? `${f2(nx.x)},${f2(nx.z)}` : '-'} goal ${ai.goal ? `${f2(ai.goal.x)},${f2(ai.goal.z)}` : '-'} | nearest ${o.cfg.key} ${f2(o.pos.x)},${f2(o.pos.z)} tilt ${f2(r.traction ?? 1)}`;
+    const line = `${f2(m.phaseTime).padStart(6)} pos ${f2(r.pos.x)},${f2(r.pos.z)} yaw ${(r.yaw * 57.3).toFixed(0)} v ${f2(have)} cmd ${f2(c.vx)},${f2(c.vz)} w ${f2(c.omega)} in ${c.intake ? 1 : 0}/${f2(r.intakeDeploy)} sh ${c.shoot ? 1 : 0} ps ${c.pass ? 1 : 0} held ${r.stored.length} rdy ${r.ready ? 1 : 0}${r.status ? ` [${r.status}]` : ''} | ${ai.state} "${ai.label}" ball ${b ? `${f2(b.pos.x)},${f2(b.pos.z)}` : '-'} next ${nx ? `${f2(nx.x)},${f2(nx.z)}` : '-'} goal ${ai.goal ? `${f2(ai.goal.x)},${f2(ai.goal.z)}` : '-'} | nearest ${o.cfg.key} ${f2(o.pos.x)},${f2(o.pos.z)} tilt ${f2(r.traction ?? 1)}`;
     const stuck = want > 1 && have < 0.2;
     if (all) { if (m.phaseTime >= nextAll) { console.log(line); nextAll += 0.5; } return; }
     if (stuck) {

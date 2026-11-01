@@ -567,8 +567,15 @@ export class OpponentAI {
         // then goes on collecting; shooting on the move it emptied a load at a third of its rate
         // (2056: 43 in 8 s, its turret chasing the aim as it drove round its zone after scraps)
         if (TURRETDUMP && !this.flow) {
-          if (stored >= TURRETDUMP) this.dumping = true;
+          // (done when it's down to a couple, or nothing has come out for a second and a half:
+          // the last few in a physical hopper often don't feed)
+          // (not again for 4 s after one that stalled)
+          if (stored >= TURRETDUMP && !this.dumping && this.t > (this.dumpCool ?? 0)) { this.dumping = true; this.dumpShots = { n: r.stats.shots, t: this.t }; }
           else if (stored <= 2) this.dumping = false;
+          if (this.dumping) {
+            if (r.stats.shots !== this.dumpShots.n) this.dumpShots = { n: r.stats.shots, t: this.t };
+            else if (this.t - this.dumpShots.t > 1.5) { this.dumping = false; this.dumpCool = this.t + 4; }
+          }
           // (only where a shot from standing works: well inside the zone, off the BUMP, not right
           // under the HUB; elsewhere it shoots on as it goes)
           const c = Field.hubCenter(this.own), dh = Math.hypot(r.pos.x - c.x, r.pos.z - c.z);
