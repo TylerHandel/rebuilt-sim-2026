@@ -201,7 +201,7 @@ export class Physical1114 extends PhysicalRobot {
     }
     let want = null;
     if (this.aim) {
-      const tgt = this.aimMode === 'pass' ? this.passTarget() : Field.hubCenter(r.alliance), d = Math.hypot(tgt.x - r.pos.x, tgt.z - r.pos.z);
+      const tgt = this.aimMode === 'pass' ? r.aimPt(this.passTarget()) : r.aimHub(), d = Math.hypot(tgt.x - r.pos.x, tgt.z - r.pos.z);
       // (heading in, the HUB shot for where it is, held within its table's rows from 1.6 to 4.5 m,
       // 2390-3500 RPM: farther out it would ask up to 5800, and their Shoot's gate (within 500 under)
       // lets an over-speed shot go long)

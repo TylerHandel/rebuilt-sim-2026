@@ -243,11 +243,11 @@ export class Physical581 extends PhysicalRobot {
     const intaking = on && !!r.cmd.intake, eject = on && !!outtake;
     const pass = mode === 'pass';
     const held = on && feeding && setpoint > 0 && !!r.shot;
-    const v = r.body.linvel(), speed = Math.hypot(v.x, v.z);
+    const v = r.estVel(), speed = Math.hypot(v.x, v.z);
     const beast = !!match?.isTeleop && match.phaseTime > 135;
     let want = null, dist = 0;
     if (held) {
-      const tgt = pass ? this._feedPoint() : Field.hubCenter(r.alliance);
+      const tgt = pass ? r.aimPt(this._feedPoint()) : r.aimHub();
       // (moving, their shoot-on-the-move aims at the target moved by the shot's flight: the
       // distance to that)
       const aim = speed > 0.2 && r.shot.aim && !pass ? r.shot.aim : tgt;
@@ -258,7 +258,7 @@ export class Physical581 extends PhysicalRobot {
     const rpm = (T.drum.omega / TAU) * 60;
     // (WARMUP_SCORE: in teleop, full, in its zone, not intaking, facing within 90 deg: the drum to
     // the shot's speed ahead of time)
-    const hubD = (() => { const c = Field.hubCenter(r.alliance); return Math.hypot(c.x - r.pos.x, c.z - r.pos.z); })();
+    const hubD = (() => { const c = r.aimHub(); return Math.hypot(c.x - r.pos.x, c.z - r.pos.z); })();
     const warm = on && !held && !!match?.isTeleop && capacity === 'HIGH' && r.inAllianceZone?.() && !intaking && Math.abs(r.aimErr ?? Math.PI) < Math.PI / 2;
     if (!held) this.robotState = warm ? 'WARMUP_SCORE' : 'IDLE';
     else if (!this.robotState.includes(pass ? 'FEED' : 'SCORE') || this.robotState === 'WARMUP_SCORE') this.robotState = pass ? 'PREPARE_FEED' : 'PREPARE_SCORE';

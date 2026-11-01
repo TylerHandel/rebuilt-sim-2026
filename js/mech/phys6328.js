@@ -218,7 +218,7 @@ export class Physical6328 extends PhysicalRobot {
     // which leads the target for the robot's motion as their lookahead does)
     let want = null, dist = 0, valid = false;
     if (held || track) {
-      const tgt = pass ? this.passTarget() : Field.hubCenter(r.alliance);
+      const tgt = pass ? r.aimPt(this.passTarget()) : r.aimHub();
       const aim = !pass && r.shot.aim ? r.shot.aim : tgt, L = this._launcher();
       dist = Math.hypot(aim.x - L.x, aim.z - L.z);
       // (tracking, not launching: their own maps' speeds. The sim's passes need far more, 400-500

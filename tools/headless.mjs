@@ -51,6 +51,7 @@ export async function runMatch(a, b, { allianceA = BLUE, seed = 1, trace = null 
   // seed after building the world: THREE draws Math.random for object UUIDs, and the field's
   // shared materials are only created on the first build in a process
   Math.random = mulberry32(seed);
+  globalThis.SIM_SEED = seed; // (js/localize.js: each robot's own draws)
   try {
     const game = createGame(world, matchSettings(a, b, allianceA));
     const m = game.match;
@@ -79,6 +80,7 @@ export async function runGame(settings, { seed = 1, trace = null } = {}) {
   const realRandom = Math.random;
   const world = await createWorld();
   Math.random = mulberry32(seed);
+  globalThis.SIM_SEED = seed; // (js/localize.js: each robot's own draws)
   try {
     const game = createGame(world, { climber: 'none', preload: 8, hp: 'auto', ...settings });
     const m = game.match;

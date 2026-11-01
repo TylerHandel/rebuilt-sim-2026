@@ -201,7 +201,7 @@ export class Physical604 extends PhysicalRobot {
   // shot to the target (their table's for the HUB, a 55 deg feed otherwise) less the turret's own
   // velocity; its heading (aimPsi, which the robot turns the turret to), launch angle and speed
   _aim(dt, feed) {
-    const r = this.r, b = r.body, v = b.linvel(), w = b.angvel().y;
+    const r = this.r, b = r.body, v = r.estVel(), w = r.estOmega();
     // (the robot's acceleration, low-passed over their 20 ms loop)
     const k = 1 - Math.pow(0.5, dt / 0.02);
     if (!this.va) this.va = { vx: v.x, vz: v.z, ax: 0, az: 0 };
@@ -213,7 +213,7 @@ export class Physical604 extends PhysicalRobot {
     const ox = AXIS[0] * Math.cos(yaw) + AXIS[1] * Math.sin(yaw), oz = -AXIS[0] * Math.sin(yaw) + AXIS[1] * Math.cos(yaw);
     const tx = px + ox, tz = pz + oz;
     const vtx = v.x + this.va.ax * L + w * oz, vtz = v.z + this.va.az * L - w * ox;
-    const tgt = feed ? this.passTarget() : Field.hubCenter(r.alliance);
+    const tgt = feed ? r.aimPt(this.passTarget()) : r.aimHub();
     const dx = tgt.x - tx, dz = tgt.z - tz, d = Math.hypot(dx, dz);
     let v0, phi0;
     if (feed) { phi0 = FEED.angle * DEG; v0 = feedSpeed(d); }

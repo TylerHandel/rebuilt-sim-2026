@@ -228,12 +228,12 @@ export class Physical341 extends PhysicalRobot {
   // own half, 1.6 s from the far half, 1.8 s from the far ALLIANCE ZONE) off the target.
   // aimPsi: the turret's field heading to it (Robot._shooter turns the turret there)
   _aim(dt, pass) {
-    const r = this.r, tp = this._world([TURRET[0], 0, TURRET[1]]), c = r.body.translation(), v = r.body.linvel(), w = r.body.angvel().y;
+    const r = this.r, tp = this._world([TURRET[0], 0, TURRET[1]]), c = r.body.translation(), v = r.estVel(), w = r.estOmega();
     const vx = v.x + w * (tp.z - c.z), vz = v.z - w * (tp.x - c.x);
     const k = 1 - Math.pow(0.75, dt / 0.02);
     this.fv = this.fv ?? { x: vx, z: vz };
     this.fv.x += k * (vx - this.fv.x); this.fv.z += k * (vz - this.fv.z);
-    const tgt = pass && r.shot ? r.shot.target : Field.hubCenter(r.alliance);
+    const tgt = pass && r.shot ? r.shot.target : r.aimHub();
     const own = r.alliance === 'blue' ? r.pos.x + HALF_L : HALF_L - r.pos.x; // (from its own wall)
     const tof = !pass ? 1.16 : own < HALF_L ? 1.3 : own < 2 * HALF_L - ALLIANCE_ZONE_DEPTH ? 1.6 : 1.8;
     const ax = tgt.x - this.fv.x * tof, az = tgt.z - this.fv.z * tof;

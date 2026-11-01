@@ -261,7 +261,7 @@ export class Physical2056 extends PhysicalRobot {
   // the hood's steep end driving in close, 1 shot in 10 toward the HUB, which went long, and pairs
   // off the maps'.)
   _aim(tgt, table) {
-    const r = this.r, b = r.body, v = b.linvel(), w = b.angvel().y, L = LATENCY;
+    const r = this.r, b = r.body, v = r.estVel(), w = r.estOmega(), L = LATENCY;
     const c = b.translation(), yaw = r.yaw + w * L, cy = Math.cos(yaw), sy = Math.sin(yaw);
     const [tx, tz] = TURRET.at;
     const ox = tx * cy + tz * sy, oz = -tx * sy + tz * cy;
@@ -280,7 +280,7 @@ export class Physical2056 extends PhysicalRobot {
     // ---- the shot
     const tgt = r.shot?.target, pass = tgt?.mode === 'pass';
     const table = pass ? r.passTable : r.hubTable;
-    const point = tgt ? (pass ? { x: tgt.x, z: tgt.z } : Field.hubCenter(r.alliance)) : null;
+    const point = tgt ? (pass ? { x: tgt.x, z: tgt.z } : r.aimHub()) : null;
     const sol = on && point && !unjam ? this._aim(point, table) : null;
     this.want = sol;
     this.aimPsi = sol ? sol.psi : null;
