@@ -125,11 +125,12 @@ export const clampHood = (deg) => Math.max(SHOOTER.hoodMin, Math.min(SHOOTER.hoo
 // less (to 0.96 of the table's RPM at the median) than under four at once (0.94): the rows ask
 // 6-8% less. THEIR_SHOTS=1 in the environment: their own.
 export const SIM_SCORE_RPM = [[1.42, 1240], [2.79, 1440], [3.46, 1510], [4.92, 1760]];
-// and their feed table's, the same way, coming down on the carpet at the row's distance: their 1500
-// RPM at 6 m comes down at 4.85 m, their 2500 at 8.71 m at 9.2 m (in AI matches their passes to 5-7
-// m came down 1.2 m short at the median): 6 m 1730, 8.71 m 2160; past it, up to their 2500 (their
-// table's most) at 13.6 m, as far as that carries (~9.2 m)
-export const SIM_FEED_RPM = [[6.0, 1730], [8.71, 2160], [13.6, 2500]];
+// and their feed table's 6 m row the same way, coming down on the carpet: their 1500 RPM comes down at
+// 4.85 m (in AI matches their passes to 5-7 m came down 1.2 m short at the median): 1730. Their
+// 8.71 m row stays theirs (2500, their table's most): the bench puts it 0.5 m long (2160 would land),
+// but in the matches their passes to 7-9 m came down on the point at the median, and eight held
+// (tools/pass-range.mjs) short of it
+export const SIM_FEED_RPM = [[6.0, 1730], [8.71, 2500], [13.6, 2500]];
 const THEIR_SHOTS = typeof process !== 'undefined' && !!process.env?.THEIR_SHOTS;
 export function shotFor(kind, d, { theirs = THEIR_SHOTS } = {}) {
   const feed = kind === 'feed';
