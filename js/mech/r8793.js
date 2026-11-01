@@ -401,8 +401,11 @@ const interp = (t, x, i, j) => {
 // speed from 43 to 65 rotations/s, four AI matches' 811 HUB shots; the rows from 30 up x 1.024. With
 // the foam as played with, constants.js, the bench's FUEL leave as before up to 60 rotations/s and
 // faster from 70 up (9.74, 10.99 and 11.6 m/s at 70, 80 and 90, where they slipped to 9.34, 9.74
-// and 9.87): those rows are the bench's times the 60 row's 1.04 of it in play.)
-export const SHOT_TABLE = [[0, 0], [15, 2.7], [20, 3.51], [30, 4.97], [40, 6.33], [50, 7.68], [60, 8.77], [70, 10.13], [80, 11.43], [90, 12.06]];
+// and 9.87): those rows are the bench's times the 60 row's 1.04 of it in play. Measured again in play
+// with the foam as played with, six AI matches' 1876 HUB shots: from 42 to 66 rotations/s they left
+// 0.8-1.6% under these rows, 1.3% at the median (the fresh foam's 0-1.4%), and came down short; the
+// rows from 30 to 70 x 0.987.)
+export const SHOT_TABLE = [[0, 0], [15, 2.7], [20, 3.51], [30, 4.91], [40, 6.25], [50, 7.58], [60, 8.66], [70, 10.0], [80, 11.43], [90, 12.06]];
 export const exitSpeed = (rps) => interp(SHOT_TABLE, Math.max(0, rps), 0, 1);
 export const rpsFor = (v) => interp(SHOT_TABLE, Math.max(0, v), 1, 0);
 // their velocity loop (VelocityVoltage: kV x target + kP x error, in volts) toward targetRps,
