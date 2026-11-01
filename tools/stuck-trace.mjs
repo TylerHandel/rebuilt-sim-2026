@@ -3,7 +3,7 @@
 // the FUEL it's going for, the next path point, what it's asked for and what's around it.
 //   node --import ./tools/node-env.mjs tools/stuck-trace.mjs <robot> [seed] [opponent 2910] [--all]
 // --all prints every 0.5 s of TELEOP instead.
-import { runMatch } from './headless.mjs';
+import { runMatch, runGame } from './headless.mjs';
 import { PHYSICS_DT } from '../js/constants.js';
 
 const pos = process.argv.slice(2).filter((a) => !a.startsWith('--'));
@@ -37,16 +37,21 @@ function touching(game, r) {
 const hist = [];
 let after = 0, nextAll = 0;
 const f2 = (v) => v.toFixed(2);
-await runMatch({ strategy: 'scorer', skill: 'champs', robot: key }, { strategy: 'scorer', skill: 'champs', robot: opp }, {
+// (3 v 3: robot 2910+4414+1690 against opponent 1678+7769+2056; WHO=1 traces the second robot of
+// the first ALLIANCE, and so on)
+const three = key.includes('+');
+const sl = (k) => k.split('+').map((robot) => ({ robot, auto: 'best', start: 'rightTrench', driver: 'scorer', skill: 'champs' }));
+const who = +(process.env.WHO ?? 0);
+const opts = {
   seed,
   trace(game, step) {
     if (step % 30 || !game.match.isTeleop) return;
-    const r = game.robot, u = game.units.find((x) => x.robot === r), ai = u.ai, c = r.cmd, m = game.match;
+    const r = three ? game.units[who].robot : game.robot, u = game.units.find((x) => x.robot === r), ai = u.ai, c = r.cmd, m = game.match;
     const want = Math.hypot(c.vx, c.vz), have = Math.hypot(r.vel.x, r.vel.z);
-    const o = game.opp.robot;
+    const o = game.robots.filter((x) => x !== r).reduce((a, x) => (Math.hypot(x.pos.x - r.pos.x, x.pos.z - r.pos.z) < Math.hypot(a.pos.x - r.pos.x, a.pos.z - r.pos.z) ? x : a));
     const b = ai.ball;
     const nx = ai.path?.[0];
-    const line = `${f2(m.phaseTime).padStart(6)} pos ${f2(r.pos.x)},${f2(r.pos.z)} yaw ${(r.yaw * 57.3).toFixed(0)} v ${f2(have)} cmd ${f2(c.vx)},${f2(c.vz)} w ${f2(c.omega)} in ${c.intake ? 1 : 0}/${f2(r.intakeDeploy)} sh ${c.shoot ? 1 : 0} ps ${c.pass ? 1 : 0} held ${r.stored.length} | ${ai.state} "${ai.label}" ball ${b ? `${f2(b.pos.x)},${f2(b.pos.z)}` : '-'} next ${nx ? `${f2(nx.x)},${f2(nx.z)}` : '-'} goal ${ai.goal ? `${f2(ai.goal.x)},${f2(ai.goal.z)}` : '-'} | opp ${f2(o.pos.x)},${f2(o.pos.z)} tilt ${f2(r.traction ?? 1)}`;
+    const line = `${f2(m.phaseTime).padStart(6)} pos ${f2(r.pos.x)},${f2(r.pos.z)} yaw ${(r.yaw * 57.3).toFixed(0)} v ${f2(have)} cmd ${f2(c.vx)},${f2(c.vz)} w ${f2(c.omega)} in ${c.intake ? 1 : 0}/${f2(r.intakeDeploy)} sh ${c.shoot ? 1 : 0} ps ${c.pass ? 1 : 0} held ${r.stored.length} | ${ai.state} "${ai.label}" ball ${b ? `${f2(b.pos.x)},${f2(b.pos.z)}` : '-'} next ${nx ? `${f2(nx.x)},${f2(nx.z)}` : '-'} goal ${ai.goal ? `${f2(ai.goal.x)},${f2(ai.goal.z)}` : '-'} | nearest ${o.cfg.key} ${f2(o.pos.x)},${f2(o.pos.z)} tilt ${f2(r.traction ?? 1)}`;
     const stuck = want > 1 && have < 0.2;
     if (all) { if (m.phaseTime >= nextAll) { console.log(line); nextAll += 0.5; } return; }
     if (stuck) {
@@ -56,4 +61,7 @@ await runMatch({ strategy: 'scorer', skill: 'champs', robot: key }, { strategy: 
     } else if (after > 0) { console.log('  ' + line); after--; }
     hist.push(line); if (hist.length > 4) hist.shift();
   },
-});
+};
+if (three) await runGame({ matchMode: '3v3', slots: [...sl(key), ...sl(opp)] }, opts);
+else await runMatch({ strategy: 'scorer', skill: 'champs', robot: key }, { strategy: 'scorer', skill: 'champs', robot: opp }, opts);
+

@@ -1387,6 +1387,9 @@ tools/bench.mjs, tools/intake-test.mjs   regression checks: AI matches, and a st
 tools/pass-range.mjs        long passes: each robot from 10, 13 and 15 m out (--d), where its FUEL come down, how fast and steep they leave and their backspin (R w / v)
 tools/fuel-contacts.mjs     loose FUEL against a robot's own simplified colliders (intake-test / team-auto-eval --contacts)
 tools/ai-trips.mjs          how full the scripted Scorers are when they head in, and their points
+tools/audit.mjs             a match's per-robot audit (FUEL by period, idle / stuck / staged time, where it collects); match.mjs prints it (AUDIT lines)
+tools/ai-audit.mjs          sums the audits of match batches per robot (--vs another set); epa-compare.mjs: the sim's ranking against Statbotics EPA (tools/epa-2026.json)
+tools/stuck-trace.mjs       a robot's stuck moments (or --all) and what its colliders touch; auto3v3.mjs a 3 v 3's AUTO; auto-end.mjs when AUTOs finish; depotprobe.mjs over the DEPOT barriers
 js/nn/                      neural-net driver: observations, policy (plain-JS MLP), in-game driver, recorder
 tools/nn/                   neural-net trainer (train.py, PyTorch) and its simulation worker (worker.mjs)
 nn.html                     neural-net training dashboard

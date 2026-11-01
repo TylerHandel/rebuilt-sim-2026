@@ -23,6 +23,13 @@ const NAVMARGIN = knob(globalThis.process?.env?.NAVMARGIN, 1);
 const UNSTICK = knob(globalThis.process?.env?.UNSTICK, 1);
 // WALLFUEL: how many meters further FUEL against a wall counts as (0: as before)
 const WALLFUEL = knob(globalThis.process?.env?.WALLFUEL, 2);
+// CLAIM=0: partners don't leave each other's piles alone (3 v 3)
+const CLAIM = knob(globalThis.process?.env?.CLAIM, 1);
+// SHOOTHERE=0: a chassis-aimed shooter always drives to its set spot to shoot
+const SHOOTHERE = knob(globalThis.process?.env?.SHOOTHERE, 1);
+// FULLGO=0: a robot whose intake is full short of half its rating doesn't head in, and a chassis-aimed
+// shooter drives in at its shooting speed, as before
+const FULLGO = knob(globalThis.process?.env?.FULLGO, 1);
 
 export const OPP_STRATEGIES = {
   off: { name: 'Off (solo)', desc: 'No opponent: just you, the FUEL and the clock.' },
@@ -109,6 +116,11 @@ export class OpponentAI {
     this.skillKey = skill;
     this.skill = OPP_SKILLS[skill] || OPP_SKILLS.regional;
     this.brain = brainFor(skill, brain);
+    // (BRAINSET=stockpile:0.5,zoneMin:10 overrides strategy numbers for every AI, for A/B runs)
+    for (const kv of (globalThis.process?.env?.BRAINSET || '').split(',').filter(Boolean)) {
+      const [k, v] = kv.split(':');
+      if (k in BRAIN_SPEC && Number.isFinite(+v)) this.brain[k] = +v;
+    }
     // routes with the TRENCH open, and without it for when a load bulging the net (or a raised
     // lid) makes the robot too tall to get under the arm
     // (it plans as a circle that fits inside it; its corners, turned, and its intake out reach
@@ -182,6 +194,7 @@ export class OpponentAI {
     }
     Object.assign(cmd, { vx: 0, vz: 0, omega: 0, intake: false, shoot: false, pass: false, outtake: false, prespin: false, lower: false, lineup: false });
     this.prevShooting = this.wasShooting; this.wasShooting = false;
+    r.aiBall = null;
     // an intake that stows folded up (8793's) comes down on the way under a TRENCH
     if (r.cfg.intake.fold && fitsTrench(r.cfg) && underTrench(r.pos.x, r.pos.z, r.halfL + 1.2)) cmd.lower = true;
     if (!m.isTeleop) { this.label = m.isAuto ? 'AUTO' : 'Waiting'; return; }
@@ -217,6 +230,8 @@ export class OpponentAI {
     if (this._climb()) return;
     if (this.mode === 'defend') this._defend(dt);
     else { this._score(dt); this._yieldToFoes(); this.wasShooting = this.state === 'score' && cmd.shoot; }
+    // (where it's collecting, for its partners' _pickBall)
+    r.aiBall = this.mode !== 'defend' && (this.state === 'collect' || this.state === 'feed') && this.ball ? { x: this.ball.pos.x, z: this.ball.pos.z } : null;
     this._smooth(dt);
     // a physical robot whose ball path can lock up where its code can't see it (341's zipper):
     // nothing coming out, its driver lets go of the trigger for a moment and presses it again
@@ -310,7 +325,11 @@ export class OpponentAI {
     const r = this.robot, cmd = r.cmd, B = this.brain;
     // shooting mode lasts the whole time it shoots/passes on the move, not just while it holds
     // FUEL, so it doesn't sprint off every time it runs empty for a moment
-    const firing = ((cmd.shoot || cmd.pass) && r.stored.length > 0) || this.shootingMode;
+    // (a chassis-aimed shooter still more than a meter from where it shoots drives in at full speed:
+    // it can't be aimed until it gets there, and creeping in at the shooting speed held it up, over
+    // a DEPOT barrier for one)
+    const drivingIn = FULLGO && !this.turret && this.state === 'score' && this.homeRemain > 1.0;
+    const firing = (((cmd.shoot || cmd.pass) && r.stored.length > 0) || this.shootingMode) && !drivingIn;
     if (firing) {
       const last = this.wasFiring && this.lastCmd ? this.lastCmd : { vx: r.vel.x, vz: r.vel.z };
       let vx = cmd.vx, vz = cmd.vz;
@@ -410,8 +429,20 @@ export class OpponentAI {
   // ------------------------------------------------------------------ scoring
   get turret() { return this.robot.cfg.shooter.type === 'turret'; }
 
-  // where a chassis-aimed shooter (2910) goes to shoot from
+  // where a chassis-aimed shooter (2910) goes to shoot from: already well inside its zone, at a
+  // good distance from the HUB, clear of the walls and the TRENCH, it shoots from where it is (held
+  // there until it's done) rather than driving on to the set spot
   _spot() {
+    const r = this.robot;
+    if (SHOOTHERE && this.state === 'score' && r.lastInZone) {
+      if (!this.here) {
+        const c = Field.hubCenter(this.own), d = Math.hypot(r.pos.x - c.x, r.pos.z - c.z);
+        const inside = Math.abs(r.pos.x - Field.allianceLineX(this.own)), clear = Math.max(r.halfL, r.halfW) + 0.25;
+        if (inside > 0.9 && d > 1.7 && d < 3.6 && HALF_L - Math.abs(r.pos.x) > clear && HALF_W - Math.abs(r.pos.z) > clear
+          && !underTrench(r.pos.x, r.pos.z, 0.8)) this.here = { x: r.pos.x, z: r.pos.z };
+      }
+      if (this.here) return this.here;
+    }
     const s = this.own === BLUE ? 1 : -1;
     const zMin = this.brain.spotZ;
     const z = clamp(this.robot.pos.z, -2.6, 2.6);
@@ -453,12 +484,13 @@ export class OpponentAI {
     const active = m.hubActive(this.own);
     const nc = m.hubNextChange(this.own);
     const untilActive = active ? 0 : nc ?? Infinity;
+    if (this.state !== 'score') this.here = null;
     const home = this._home();
     const travel = Math.hypot(home.x - r.pos.x, home.z - r.pos.z) / (r.cfg.drive.maxSpeed * this.skill.speed * 0.7) + 1;
     const left = TIMING.teleop - m.phaseTime;
     const canShoot = active || this._inGrace();
     // off shift: feed our zone until it's time to load the hopper and head in
-    const loadTime = Math.max(0, cap - stored) / Math.max(0.8, this.rate);
+    const loadTime = FULLGO && r.full ? 0 : Math.max(0, cap - stored) / Math.max(0.8, this.rate);
     const feed = B.shuttle >= 0.5 && !canShoot && untilActive > travel + loadTime + B.stageMargin;
 
     this.thinkT -= dt;
@@ -482,7 +514,9 @@ export class OpponentAI {
         // getting in for 2 s, or three quarters of it and nothing for 3 s, it's as full as it'll
         // get here)
         const stale = this.t - this.lastGainT;
-        const go = stored >= this.stopAt || (r.full && stored >= 0.5 * cap)
+        // (its intake full and nothing more getting in for 1.5 s: as full as it'll get, however
+        // many that is; it used to wander with its intake up, full at 36 of 1678's 78, for 25 s)
+        const go = stored >= this.stopAt || (r.full && stored >= 0.5 * cap) || (FULLGO && r.full && stored >= 3 && stale > 1.5)
           || (this.natural && ((stored >= cap && stale > 2) || (stored >= 0.75 * cap && stale > 3)))
           || (stored >= this.fillTarget && active)
           || lastCall
@@ -557,6 +591,7 @@ export class OpponentAI {
       face = Math.atan2(-(c.z - r.pos.z), c.x - r.pos.x) - r.aimOffset;
     }
     const remain = this._drive(home.x, home.z, { avoid: !bully, speed: 1, face });
+    this.homeRemain = remain;
     const settled = this.skill.sotm || (remain < 0.3 && Math.hypot(r.vel.x, r.vel.z) < 0.3);
     r.cmd.shoot = canShoot && r.lastInZone && settled;
     // pick up what's on the way (an intake that raises the robot's top, 1678's lid, not near a
@@ -735,6 +770,14 @@ export class OpponentAI {
       if (!feed && own && sparse && d > 1.0) continue; // scraps: only grab them if they're right here
       let gain = 1 + B.density * (Math.min(room, around(i, j)) - 1);
       for (const P of this.others) if (Math.hypot(p.x - P.pos.x, p.z - P.pos.z) < 1.3) gain *= 0.5; // leave it to them
+      // FUEL round where a partner nearer to it is already going: leave that pile to it, so an
+      // ALLIANCE spreads out instead of all three going for the same one
+      if (CLAIM) {
+        for (const P of this.mates) {
+          const g = P.aiBall;
+          if (g && Math.hypot(p.x - g.x, p.z - g.z) < 1.5 && Math.hypot(P.pos.x - g.x, P.pos.z - g.z) < Math.hypot(r.pos.x - g.x, r.pos.z - g.z)) gain *= 0.35;
+        }
+      }
       // stealing from the opponent's zone counts twice: one fewer for them, one more for us
       if (Field.inAllianceZone(oppZone, p.x)) gain *= 1 + 0.3 * B.steal;
       // turning round to go back for it

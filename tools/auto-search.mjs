@@ -2,6 +2,7 @@
 // tweaks of the best, each played headless against the other robots' current best AUTOs on
 // both alliances. Prints the winners; copy them into BEST_AUTOS.
 //   node --import ./tools/node-env.mjs tools/auto-search.mjs [--robots 2910,4414] [--n 40] [--refine 24]
+//     [--opps 2910,4414] (only these opponents) [--workers 2]
 import { Worker } from 'node:worker_threads';
 import { cpus } from 'node:os';
 import { BEST_AUTOS } from '../js/auto.js';
@@ -23,7 +24,7 @@ const workers = [];
 const queue = [];
 const pending = new Map();
 let nextId = 0;
-await Promise.all(Array.from({ length: Math.max(1, cpus().length) }, () => new Promise((res) => {
+await Promise.all(Array.from({ length: Math.max(1, +opt('workers', cpus().length)) }, () => new Promise((res) => {
   const w = new Worker(new URL('./auto-worker.mjs', import.meta.url), { execArgv: ['--import', new URL('./node-env.mjs', import.meta.url).pathname] });
   w.busy = false;
   w.on('message', (m) => {
@@ -84,7 +85,7 @@ function tweak(key, plan) {
 
 const best = { ...BEST_AUTOS };
 async function score(key, plan) {
-  const opps = ROBOT_KEYS.length ? Object.keys(ROBOTS).filter((k) => k !== key) : [];
+  const opps = (opt('opps') ? opt('opps').split(',') : Object.keys(ROBOTS)).filter((k) => k !== key);
   const jobs = [];
   for (const o of opps) for (const s of SEEDS) jobs.push(run({ robot: key, plan }, { robot: o, plan: best[o] }, s));
   const res = await Promise.all(jobs);
