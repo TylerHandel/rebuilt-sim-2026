@@ -254,7 +254,8 @@ export class Physical4414 extends PhysicalRobot {
         let de = d;
         for (let k = 0; k < 2; k++) {
           const o = shooterFor(v0, el), y0 = fitOf('y', o.rad, o.hood);
-          const a = sim2D(y0, v0, el * DEG, HUB.rimFront)?.d, z = sim2D(y0 + dh, v0, el * DEG, HUB.rimFront)?.d;
+          const w0 = ((r.cfg.shooter.spin ?? 0) * v0) / R; // (its backspin's lift, as the table has it)
+          const a = sim2D(y0, v0, el * DEG, HUB.rimFront, 0, w0)?.d, z = sim2D(y0 + dh, v0, el * DEG, HUB.rimFront, 0, w0)?.d;
           if (a === undefined || z === undefined) break;
           de = d - (z - a);
           ({ v: v0, el } = launchFor(de));

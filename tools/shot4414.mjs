@@ -13,7 +13,8 @@
 //   node --import ./tools/node-env.mjs tools/shot4414.mjs
 import { readFileSync, writeFileSync } from 'fs';
 import { sim2D } from '../js/ballistics.js';
-import { HUB } from '../js/constants.js';
+import { HUB, FUEL } from '../js/constants.js';
+import { ROBOTS } from '../js/robotConfigs.js';
 import { SHOOTER } from '../js/mech/r4414.js';
 
 const map = JSON.parse(readFileSync('tools/shot4414-map.json', 'utf8')).filter((m) => m.n >= 2);
@@ -38,9 +39,13 @@ console.log(`fits over ${map.length} map points: exit speed rms ${rms('v').toFix
 
 const D2R = Math.PI / 180;
 // where a shot at (rad, hood) comes down through the HUB's opening height, from the turret's axis
+// (with the Magnus lift of the backspin its FUEL leave with: the config's spin ratio R w / v, as
+// measured in play. A steep shot's lift leans back toward the robot: without it the table's
+// shots came down 0.1-0.4 m short from 4 m out in play)
+const SPIN = Number(process.env.SPIN ?? ROBOTS['4414'].shooter.spin ?? 0);
 function land(rad, hood) {
   const v = ev(C.v, rad, hood), el = ev(C.el, rad, hood), x = ev(C.x, rad, hood), y = ev(C.y, rad, hood);
-  const hit = sim2D(y, v, el * D2R, HUB.rimFront);
+  const hit = sim2D(y, v, el * D2R, HUB.rimFront, 0, (SPIN * v) / FUEL.radius);
   return hit ? { d: x + hit.d, alpha: hit.alpha / D2R, v, el } : null;
 }
 const RAD = [200, 700], HEADROOM = 5;
