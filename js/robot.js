@@ -52,7 +52,13 @@ const AIM_VEL_TAU = 0.05;
 // profile takes over. (It was 7/s: linear to 65 deg, so the profile hardly ever ran, and with the
 // aim's feed-forward a 40 deg turn in took 0.42 s; now 0.28 s, without overshoot.)
 const AIM_GAIN = 14;
-const FLOOR_QUERY = groups(GROUP.WHEEL, GROUP.STATIC | GROUP.TERRAIN); // what the wheels drive on
+// what the wheels drive on: the floor, and a FUEL a wheel stands on (pressed into the carpet by the
+// robot's weight, it doesn't roll away under the tread). Wheels sit inside the bumpers, so one only
+// stands on a FUEL when the robot is up on FUEL: without it, a robot landing off a BUMP onto FUEL, or
+// riding up onto the NEUTRAL ZONE's, was stranded there for the rest of the match, its wheels turning
+// in the air (2056 in 1 of 6 matches once FUEL under its nose met its bumper, tools/under-frame.mjs);
+// a real one crawls off. (A FUEL in a robot's ball path is HELD, not BALL: no wheel stands on it.)
+const FLOOR_QUERY = groups(GROUP.WHEEL, GROUP.STATIC | GROUP.TERRAIN | GROUP.BALL);
 const R = FUEL.radius;
 // FUEL the intake has grabbed is held by the rollers: it still hits field structures, but not
 // this robot, other FUEL, or the floor features the robot is driving over
@@ -576,8 +582,8 @@ export class Robot {
     const wheel = Math.hypot(tvx, tvz) + Math.abs(tw) * this.drivetrain.r;
     if (wheel > d.maxSpeed) { const k = d.maxSpeed / wheel; tvx *= k; tvz *= k; tw *= k; }
     // the wheels only push on what they're touching: the drive has as much grip as the share of
-    // wheels on the floor (carpet, BUMPS, DEPOT barriers). Up on FUEL or another robot, it
-    // coasts instead of climbing further.
+    // wheels on the floor (carpet, BUMPS, DEPOT barriers) or standing on a FUEL. Up on another
+    // robot, it coasts instead of climbing further.
     const down = this._wheelsDown();
     const grip = this.traction = down.filter(Boolean).length / this.wheelPts.length;
     // Tires and frame flex soak up the kick from a sharp edge (a DEPOT barrier at full speed, a
@@ -604,7 +610,7 @@ export class Robot {
   }
 
   // Which wheels touch the floor: a short ray down from each wheel's center finds the carpet,
-  // a BUMP or a DEPOT barrier (not FUEL, not robots) within its radius (plus a little give)
+  // a BUMP, a DEPOT barrier or a FUEL it stands on (not robots) within its radius (plus a little give)
   _wheelsDown() {
     const world = this.physics.world;
     const q = this.body.rotation(), p = this.body.translation();
