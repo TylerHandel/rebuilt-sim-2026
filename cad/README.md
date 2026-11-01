@@ -1,7 +1,7 @@
 # Real CAD in the game
 
 Put CAD exports in this folder and list them in `manifest.json`. The game loads them at startup.
-Physics always uses the colliders built in `js/field.js`; CAD is visual. They come from the game-manual dimensions, and the TRENCHES' shape (the sloped skirt, the 6 in arm and the AprilTag mount on it) was measured off this CAD so the colliders match what you see.
+Physics always uses the colliders built in `js/field.js`; CAD is visual. Their dimensions (`js/constants.js`) are measured off this CAD (the raw export, with `tools/field-parts.py`) and checked against FIRST's field drawings, so the colliders match what you see: the TRENCHES (a FIXED one with a 6 in arm and a HINGED one with a 4 in arm, cross tube and fork per ALLIANCE, the sloped skirt and AprilTag mount), the TOWERS, DEPOTS, OUTPOSTS, guardrails and alliance walls.
 
 ## The field
 `field/field.glb` is the official field CAD (Onshape document 8a691e28680da30504859fce, "FE-2026: REBUILT
