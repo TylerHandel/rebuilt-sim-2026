@@ -61,9 +61,13 @@ const AIM_SUB = globalThis.process?.env?.AIM === 'sub';
 // FUEL at 11.1: pulled off the wheel toward the hood's feeder wheels as they go round it, the
 // squeeze can't hold them to it; past 16.3 m/s of wheel the points are the lone FUEL's, 4% slower,
 // as the stream's ran at 16 m/s). (It topped out at ~9.1 m/s from 21 m/s with the fresh foam.)
+// In AI matches (two against 2910) the bench's points held to 8.3 m/s (0.991-0.997 of what was
+// asked), and past it the FUEL left 2-4% faster than asked, where they slip on the wheel and a
+// little more wheel goes a long way, and came down 0.2-0.6 m long: the points from 8.57 m/s up are
+// the wheel that gave what was asked in play (as they were with the fresh foam).
 export const EXIT = { s: 0.03, y: 0.66 };
 export const EL_MAP = [[125, 37.4], [144.7, 57.6], [145.2, 57.9], [146.5, 59], [147.6, 60], [148.7, 61], [151.1, 63], [152.1, 63.9], [154.5, 65.9], [157.3, 68.6], [161, 72], [164, 75], [172, 84.9]];
-export const EXIT_MAP = [[0, 0], [4, 4.84], [5.95, 7.22], [6.04, 7.34], [6.4, 7.85], [6.77, 8.45], [7.17, 9.16], [7.55, 9.81], [7.87, 10.35], [8.25, 11.04], [8.57, 12.02], [8.98, 14.15], [9.34, 16.33], [10.65, 20], [10.7, 24]];
+export const EXIT_MAP = [[0, 0], [4, 4.84], [5.95, 7.22], [6.04, 7.34], [6.4, 7.85], [6.77, 8.45], [7.17, 9.16], [7.55, 9.81], [7.87, 10.35], [8.25, 11.04], [8.57, 11.67], [8.95, 12.33], [9.44, 15.75], [9.72, 17.22], [10.65, 20], [10.7, 24]];
 const interp = (t, x, a = 0, b = 1) => {
   if (x <= t[0][a]) return t[0][b];
   for (let k = 1; k < t.length; k++) if (x <= t[k][a]) return t[k - 1][b] + ((t[k][b] - t[k - 1][b]) * (x - t[k - 1][a])) / (t[k][a] - t[k - 1][a]);
