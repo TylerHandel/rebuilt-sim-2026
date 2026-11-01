@@ -30,6 +30,9 @@ const SHOOTHERE = knob(globalThis.process?.env?.SHOOTHERE, 1);
 // FULLGO=0: a robot whose intake is full short of half its rating doesn't head in, and a chassis-aimed
 // shooter drives in at its shooting speed, as before
 const FULLGO = knob(globalThis.process?.env?.FULLGO, 1);
+// TURRETCAP=n: a turret collecting in its zone drives at full speed while it holds fewer than n
+// (0: held to its shooting speed with any aboard, as before)
+const TURRETCAP = knob(globalThis.process?.env?.TURRETCAP, 0);
 
 export const OPP_STRATEGIES = {
   off: { name: 'Off (solo)', desc: 'No opponent: just you, the FUEL and the clock.' },
@@ -329,7 +332,10 @@ export class OpponentAI {
     // it can't be aimed until it gets there, and creeping in at the shooting speed held it up, over
     // a DEPOT barrier for one)
     const drivingIn = FULLGO && !this.turret && this.state === 'score' && this.homeRemain > 1.0;
-    const firing = (((cmd.shoot || cmd.pass) && r.stored.length > 0) || this.shootingMode) && !drivingIn;
+    // (and a turret collecting in its zone with only a FUEL or two aboard isn't held to its shooting
+    // speed for them: TURRETCAP; it used to cross its whole zone at 45% for one FUEL)
+    const fewAboard = TURRETCAP && this.turret && this.state === 'collect' && r.stored.length < TURRETCAP;
+    const firing = (((cmd.shoot || cmd.pass) && r.stored.length > 0) || this.shootingMode) && !drivingIn && !fewAboard;
     if (firing) {
       const last = this.wasFiring && this.lastCmd ? this.lastCmd : { vx: r.vel.x, vz: r.vel.z };
       let vx = cmd.vx, vz = cmd.vz;
