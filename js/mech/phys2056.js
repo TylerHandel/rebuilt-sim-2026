@@ -98,7 +98,9 @@ const HOLD = 0.3;
 // that coefficient tuned at each speed, the bench's stream-fed (tools/mechlab2056.mjs calibrate).
 // PASS_MAP: the bench at the lowest release angle, where passes go (ONE_K=1: their single
 // coefficient). (Re-measured with the foam as played with, constants.js: it topped out at 8.2 m/s)
-export const EXIT = { s: 0.098, y: 0.661 };
+// (EXIT.y: 9.3 mm higher than the bench's 0.661 with the MK5n rail at SDS's 1.75-3.75in, r2056.js
+// RAIL: the turret, its deck, bore, quarter pipe and feed wheels all moved up together)
+export const EXIT = { s: 0.098, y: 0.6703 };
 export const EL_MAP = [[129.5, 36.8], [135, 42.3], [141, 48.2], [147, 53.9], [153, 59.9], [158, 64.6], [163.5, 70.5]];
 export const EXIT_K = 0.676;
 export const EXIT_MAP = [[0, 0], [4.89, 6], [6.06, 8], [7.24, 10], [8.36, 12], [9.02, 14], [9.36, 17], [9.71, 20], [9.74, 24]];

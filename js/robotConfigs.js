@@ -1216,8 +1216,10 @@ ROBOTS['2056'] = {
   frame: { length: 25.5 * IN, width: 29.5 * IN },
   // the hood down (its arm lowest, its steep end): its top ~0.55 m (est.: the turret's uprights and
   // the A19 shooter drawing; they drive under the TRENCH, the hood kept down there by their "polygon
-  // zones"): 21.75in, 13 mm under a TRENCH arm. The frame's collider is a prism to this height
-  height: 21.75 * IN,
+  // zones"): 21.75in on the first passes' rail, 22.1in with the MK5n rail at SDS's 1.75-3.75in
+  // (js/mech/r2056.js RAIL: the turret 9.3 mm higher), 3 mm under a TRENCH arm. The frame's collider
+  // is a prism to this height
+  height: 22.1 * IN,
   mass: 63.5, // the drawing package's assembly weight (A00, with bumpers and battery): 140.05 lb
   // SDS MK5n R1 (7.03:1) on Krakens, "a top speed of 15 ft/s" (binder); SDS spike grip 4in wheels;
   // their public base code's drive limits: 100 A stator, 80 A supply falling to 60 after 2 s
@@ -1225,12 +1227,12 @@ ROBOTS['2056'] = {
   // over-bumper: two 2-1/8in rollers on racks that slide 12.25in out (0.32 m along them, 15.2 deg
   // down: the drawings' A41) with the intake's own hopper front and sides
   intake: { width: 23.5 * IN, reach: 0.22, rate: 200, pull: 5, deployTime: 0.35, side: 'front', latched: true },
-  storage: { extLen: 0.31, extend: 'latched', box: { y0: 0.2, y1: 0.462, hw: 0.352 } },
+  storage: { extLen: 0.31, extend: 'latched', box: { y0: 0.2, y1: 0.467, hw: 0.352 } },
   // (for the planning model only: the physical robot's ball path is js/mech/r2056.js)
   bay: {
-    x0: -0.21, x1: 0.324, hw: 0.346, top: 0.544,
+    x0: -0.21, x1: 0.324, hw: 0.346, top: 0.533,
     dome: { h: 0.01, x0: -0.02, cx: 0, cz: 0, rHole: -1 },
-    floor: { a: 0.16, b: 0.07, lo: 0.13, hi: 0.174 },
+    floor: { a: 0.16, b: 0.07, lo: 0.141, hi: 0.183 },
     drive: 'floor', driveSpeed: 2.0,
     feed: { x: -0.1334, z: 0.1842, via: [[-0.134, 0.3, 0.184], [-0.134, 0.45, 0.184]] },
   },
@@ -1240,7 +1242,7 @@ ROBOTS['2056'] = {
     // where FUEL leave the pinch between the 4in wheel and the backspin kicker, how steep (39.5-73.5
     // deg release by the hood's geometry; as measured: tools/mechlab2056.mjs) and fast
     exitRadius: 0.098,
-    exitY: 0.661,
+    exitY: 0.6703,
     turretRange: 185, turretRate: 720,
     bps: 15, // not published; its physical ball path sets the rate
     hoodMin: 37, hoodMax: 70,
