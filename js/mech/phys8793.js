@@ -47,8 +47,15 @@ const EXIT_K = Number(globalThis.process?.env?.EXITK ?? 1.035);
 // off the aim against the turret's angle: 2-3 deg toward the rear with it out to the side, the
 // elevation a degree flatter with it facing back, steeper facing forward; re-fit with the shooter's
 // frame carried with the robot and its turret indexer sub-stepped: -0.15, 0.2 before, the heading's
-// rms 3.06 -> 2.17 deg over four matches' 811 HUB shots). FEEDPUSH=fwd,back
-const FEED_PUSH = (globalThis.process?.env?.FEEDPUSH ?? '-0.35,0.25').split(',').map(Number);
+// rms 3.06 -> 2.17 deg over four matches' 811 HUB shots; -0.35, 0.25). With the twisting friction at
+// the shooter's wheels (mechanism.js TWIST) the FUEL leave with none of it: gripped between the two
+// wheels, patch and all, a FUEL can't keep a sideways velocity or the spin about the line to a wheel
+// that turned it into one (tools/mechlab.mjs robot YAW=90: heading +1.4 deg with TWIST=0, 0.0 with
+// it; in four AI matches with FEEDPUSH=0,0, every HUB shot's velocity less what the aim asked, in
+// the chassis' frame, -0.05..+0.05 m/s along it and across at every turret angle). Taking off the
+// push it no longer has swung its heading +-4 deg (10th-90th percentile) at the HUB: 0, 0.
+// FEEDPUSH=fwd,back
+const FEED_PUSH = (globalThis.process?.env?.FEEDPUSH ?? '0,0').split(',').map(Number);
 // Its HUB shots crossed the rim's height 0.15-0.2 m long (median) from 3 m out, where the aim's
 // flight model has them 0.09 m long (its aim point is the opening's middle, 1.95 m up, over the
 // rim): they leave a few cm higher than it solves from and a few tenths of a degree flatter, and
