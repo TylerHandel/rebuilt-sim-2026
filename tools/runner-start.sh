@@ -10,7 +10,7 @@ export NVM_DIR="$HOME/.nvm"
 mkdir -p results/runner-logs
 while true; do
   git pull -q --ff-only || echo "git pull failed; running the code that's here"
-  node tools/runner.mjs "$@" 2>&1 | tee -a results/runner-logs/runner.log
-  echo "runner stopped; starting again in 30 s"
-  sleep 30
+  SIM_RUNNER_LOOP=1 node tools/runner.mjs "$@" 2>&1 | tee -a results/runner-logs/runner.log
+  echo "runner stopped; starting again in 10 s"
+  sleep 10
 done
