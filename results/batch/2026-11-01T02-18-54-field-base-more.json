@@ -1,0 +1,1512 @@
+{
+ "name": "2026-11-01T02-18-54-field-base-more",
+ "threads": 16,
+ "jobs": 12,
+ "commit": "794e46c",
+ "strategy": "scorer",
+ "skill": "champs",
+ "seeds": [
+  9,
+  10,
+  11,
+  12,
+  13,
+  14,
+  15,
+  16,
+  17,
+  18,
+  19,
+  20,
+  21,
+  22,
+  23,
+  24
+ ],
+ "env": {},
+ "minutes": 16.710016666666668,
+ "summary": "robot  matches  avg pts  avg FUEL  avg launched  avg passes  fouls  W-L-T\n2910        48    537.3     531.6         654.7       117.7      1  48-0-0\n1690        16    351.6     350.7         484.5        89.2      0  0-16-0\n604         16    272.4     272.4         477.1        98.8     17  0-16-0\n8793        16    187.3     187.3         456.0       220.0      2  0-16-0",
+ "results": [
+  {
+   "a": "8793",
+   "b": "2910",
+   "seed": 10,
+   "ok": {
+    "robot": "2910",
+    "pts": 505,
+    "fuel": 505,
+    "launched": 698,
+    "passes": 184,
+    "fouls": []
+   },
+   "A": {
+    "robot": "8793",
+    "pts": 219,
+    "fuel": 219,
+    "launched": 501,
+    "passes": 239,
+    "fouls": []
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 505,
+    "fuel": 505,
+    "launched": 698,
+    "passes": 184,
+    "fouls": []
+   },
+   "s": 193.039
+  },
+  {
+   "a": "8793",
+   "b": "2910",
+   "seed": 15,
+   "ok": {
+    "robot": "2910",
+    "pts": 533,
+    "fuel": 533,
+    "launched": 693,
+    "passes": 158,
+    "fouls": []
+   },
+   "A": {
+    "robot": "8793",
+    "pts": 200,
+    "fuel": 200,
+    "launched": 495,
+    "passes": 215,
+    "fouls": []
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 533,
+    "fuel": 533,
+    "launched": 693,
+    "passes": 158,
+    "fouls": []
+   },
+   "s": 197.321
+  },
+  {
+   "a": "8793",
+   "b": "2910",
+   "seed": 11,
+   "ok": {
+    "robot": "2910",
+    "pts": 509,
+    "fuel": 509,
+    "launched": 645,
+    "passes": 126,
+    "fouls": []
+   },
+   "A": {
+    "robot": "8793",
+    "pts": 104,
+    "fuel": 104,
+    "launched": 326,
+    "passes": 196,
+    "fouls": []
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 509,
+    "fuel": 509,
+    "launched": 645,
+    "passes": 126,
+    "fouls": []
+   },
+   "s": 197.416
+  },
+  {
+   "a": "8793",
+   "b": "2910",
+   "seed": 18,
+   "ok": {
+    "robot": "2910",
+    "pts": 532,
+    "fuel": 532,
+    "launched": 665,
+    "passes": 119,
+    "fouls": []
+   },
+   "A": {
+    "robot": "8793",
+    "pts": 154,
+    "fuel": 154,
+    "launched": 406,
+    "passes": 198,
+    "fouls": []
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 532,
+    "fuel": 532,
+    "launched": 665,
+    "passes": 119,
+    "fouls": []
+   },
+   "s": 201.991
+  },
+  {
+   "a": "8793",
+   "b": "2910",
+   "seed": 19,
+   "ok": {
+    "robot": "2910",
+    "pts": 586,
+    "fuel": 586,
+    "launched": 751,
+    "passes": 153,
+    "fouls": []
+   },
+   "A": {
+    "robot": "8793",
+    "pts": 196,
+    "fuel": 196,
+    "launched": 476,
+    "passes": 236,
+    "fouls": []
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 586,
+    "fuel": 586,
+    "launched": 751,
+    "passes": 153,
+    "fouls": []
+   },
+   "s": 204.351
+  },
+  {
+   "a": "8793",
+   "b": "2910",
+   "seed": 17,
+   "ok": {
+    "robot": "2910",
+    "pts": 548,
+    "fuel": 543,
+    "launched": 689,
+    "passes": 131,
+    "fouls": []
+   },
+   "A": {
+    "robot": "8793",
+    "pts": 178,
+    "fuel": 178,
+    "launched": 452,
+    "passes": 232,
+    "fouls": [
+     "G415"
+    ]
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 548,
+    "fuel": 543,
+    "launched": 689,
+    "passes": 131,
+    "fouls": []
+   },
+   "s": 204.629
+  },
+  {
+   "a": "8793",
+   "b": "2910",
+   "seed": 16,
+   "ok": {
+    "robot": "2910",
+    "pts": 534,
+    "fuel": 534,
+    "launched": 615,
+    "passes": 73,
+    "fouls": []
+   },
+   "A": {
+    "robot": "8793",
+    "pts": 205,
+    "fuel": 205,
+    "launched": 486,
+    "passes": 220,
+    "fouls": []
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 534,
+    "fuel": 534,
+    "launched": 615,
+    "passes": 73,
+    "fouls": []
+   },
+   "s": 206.188
+  },
+  {
+   "a": "8793",
+   "b": "2910",
+   "seed": 9,
+   "ok": {
+    "robot": "2910",
+    "pts": 570,
+    "fuel": 570,
+    "launched": 720,
+    "passes": 147,
+    "fouls": []
+   },
+   "A": {
+    "robot": "8793",
+    "pts": 201,
+    "fuel": 201,
+    "launched": 461,
+    "passes": 201,
+    "fouls": []
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 570,
+    "fuel": 570,
+    "launched": 720,
+    "passes": 147,
+    "fouls": []
+   },
+   "s": 206.279
+  },
+  {
+   "a": "8793",
+   "b": "2910",
+   "seed": 14,
+   "ok": {
+    "robot": "2910",
+    "pts": 591,
+    "fuel": 591,
+    "launched": 750,
+    "passes": 167,
+    "fouls": []
+   },
+   "A": {
+    "robot": "8793",
+    "pts": 207,
+    "fuel": 207,
+    "launched": 485,
+    "passes": 247,
+    "fouls": []
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 591,
+    "fuel": 591,
+    "launched": 750,
+    "passes": 167,
+    "fouls": []
+   },
+   "s": 206.652
+  },
+  {
+   "a": "8793",
+   "b": "2910",
+   "seed": 12,
+   "ok": {
+    "robot": "2910",
+    "pts": 521,
+    "fuel": 521,
+    "launched": 673,
+    "passes": 158,
+    "fouls": []
+   },
+   "A": {
+    "robot": "8793",
+    "pts": 207,
+    "fuel": 207,
+    "launched": 538,
+    "passes": 275,
+    "fouls": []
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 521,
+    "fuel": 521,
+    "launched": 673,
+    "passes": 158,
+    "fouls": []
+   },
+   "s": 209.154
+  },
+  {
+   "a": "8793",
+   "b": "2910",
+   "seed": 20,
+   "ok": {
+    "robot": "2910",
+    "pts": 549,
+    "fuel": 549,
+    "launched": 651,
+    "passes": 103,
+    "fouls": []
+   },
+   "A": {
+    "robot": "8793",
+    "pts": 189,
+    "fuel": 189,
+    "launched": 440,
+    "passes": 220,
+    "fouls": []
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 549,
+    "fuel": 549,
+    "launched": 651,
+    "passes": 103,
+    "fouls": []
+   },
+   "s": 210.344
+  },
+  {
+   "a": "8793",
+   "b": "2910",
+   "seed": 13,
+   "ok": {
+    "robot": "2910",
+    "pts": 545,
+    "fuel": 530,
+    "launched": 632,
+    "passes": 102,
+    "fouls": []
+   },
+   "A": {
+    "robot": "8793",
+    "pts": 169,
+    "fuel": 169,
+    "launched": 417,
+    "passes": 207,
+    "fouls": [
+     "G407"
+    ]
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 545,
+    "fuel": 530,
+    "launched": 632,
+    "passes": 102,
+    "fouls": []
+   },
+   "s": 212.922
+  },
+  {
+   "a": "8793",
+   "b": "2910",
+   "seed": 21,
+   "ok": {
+    "robot": "2910",
+    "pts": 609,
+    "fuel": 609,
+    "launched": 747,
+    "passes": 135,
+    "fouls": []
+   },
+   "A": {
+    "robot": "8793",
+    "pts": 176,
+    "fuel": 176,
+    "launched": 399,
+    "passes": 178,
+    "fouls": []
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 609,
+    "fuel": 609,
+    "launched": 747,
+    "passes": 135,
+    "fouls": []
+   },
+   "s": 207.641
+  },
+  {
+   "a": "8793",
+   "b": "2910",
+   "seed": 22,
+   "ok": {
+    "robot": "2910",
+    "pts": 540,
+    "fuel": 540,
+    "launched": 726,
+    "passes": 182,
+    "fouls": []
+   },
+   "A": {
+    "robot": "8793",
+    "pts": 204,
+    "fuel": 204,
+    "launched": 481,
+    "passes": 212,
+    "fouls": []
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 540,
+    "fuel": 540,
+    "launched": 726,
+    "passes": 182,
+    "fouls": []
+   },
+   "s": 205.072
+  },
+  {
+   "a": "8793",
+   "b": "2910",
+   "seed": 23,
+   "ok": {
+    "robot": "2910",
+    "pts": 473,
+    "fuel": 473,
+    "launched": 628,
+    "passes": 143,
+    "fouls": []
+   },
+   "A": {
+    "robot": "8793",
+    "pts": 210,
+    "fuel": 210,
+    "launched": 504,
+    "passes": 247,
+    "fouls": []
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 473,
+    "fuel": 473,
+    "launched": 628,
+    "passes": 143,
+    "fouls": []
+   },
+   "s": 210.375
+  },
+  {
+   "a": "8793",
+   "b": "2910",
+   "seed": 24,
+   "ok": {
+    "robot": "2910",
+    "pts": 499,
+    "fuel": 499,
+    "launched": 647,
+    "passes": 150,
+    "fouls": []
+   },
+   "A": {
+    "robot": "8793",
+    "pts": 177,
+    "fuel": 177,
+    "launched": 429,
+    "passes": 197,
+    "fouls": []
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 499,
+    "fuel": 499,
+    "launched": 647,
+    "passes": 150,
+    "fouls": []
+   },
+   "s": 208.202
+  },
+  {
+   "a": "604",
+   "b": "2910",
+   "seed": 10,
+   "ok": {
+    "robot": "2910",
+    "pts": 556,
+    "fuel": 541,
+    "launched": 659,
+    "passes": 119,
+    "fouls": []
+   },
+   "A": {
+    "robot": "604",
+    "pts": 254,
+    "fuel": 254,
+    "launched": 517,
+    "passes": 131,
+    "fouls": [
+     "G403"
+    ]
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 556,
+    "fuel": 541,
+    "launched": 659,
+    "passes": 119,
+    "fouls": []
+   },
+   "s": 234.563
+  },
+  {
+   "a": "604",
+   "b": "2910",
+   "seed": 14,
+   "ok": {
+    "robot": "2910",
+    "pts": 507,
+    "fuel": 492,
+    "launched": 579,
+    "passes": 91,
+    "fouls": []
+   },
+   "A": {
+    "robot": "604",
+    "pts": 279,
+    "fuel": 279,
+    "launched": 521,
+    "passes": 110,
+    "fouls": [
+     "G403"
+    ]
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 507,
+    "fuel": 492,
+    "launched": 579,
+    "passes": 91,
+    "fouls": []
+   },
+   "s": 231.639
+  },
+  {
+   "a": "604",
+   "b": "2910",
+   "seed": 13,
+   "ok": {
+    "robot": "2910",
+    "pts": 582,
+    "fuel": 567,
+    "launched": 705,
+    "passes": 139,
+    "fouls": []
+   },
+   "A": {
+    "robot": "604",
+    "pts": 265,
+    "fuel": 265,
+    "launched": 462,
+    "passes": 125,
+    "fouls": [
+     "G403"
+    ]
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 582,
+    "fuel": 567,
+    "launched": 705,
+    "passes": 139,
+    "fouls": []
+   },
+   "s": 243.949
+  },
+  {
+   "a": "604",
+   "b": "2910",
+   "seed": 11,
+   "ok": {
+    "robot": "2910",
+    "pts": 545,
+    "fuel": 530,
+    "launched": 655,
+    "passes": 113,
+    "fouls": []
+   },
+   "A": {
+    "robot": "604",
+    "pts": 263,
+    "fuel": 263,
+    "launched": 505,
+    "passes": 120,
+    "fouls": [
+     "G403"
+    ]
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 545,
+    "fuel": 530,
+    "launched": 655,
+    "passes": 113,
+    "fouls": []
+   },
+   "s": 246.628
+  },
+  {
+   "a": "604",
+   "b": "2910",
+   "seed": 15,
+   "ok": {
+    "robot": "2910",
+    "pts": 527,
+    "fuel": 512,
+    "launched": 614,
+    "passes": 99,
+    "fouls": []
+   },
+   "A": {
+    "robot": "604",
+    "pts": 310,
+    "fuel": 310,
+    "launched": 457,
+    "passes": 67,
+    "fouls": [
+     "G403"
+    ]
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 527,
+    "fuel": 512,
+    "launched": 614,
+    "passes": 99,
+    "fouls": []
+   },
+   "s": 245.028
+  },
+  {
+   "a": "604",
+   "b": "2910",
+   "seed": 12,
+   "ok": {
+    "robot": "2910",
+    "pts": 567,
+    "fuel": 537,
+    "launched": 599,
+    "passes": 59,
+    "fouls": []
+   },
+   "A": {
+    "robot": "604",
+    "pts": 280,
+    "fuel": 280,
+    "launched": 510,
+    "passes": 108,
+    "fouls": [
+     "G403",
+     "G407"
+    ]
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 567,
+    "fuel": 537,
+    "launched": 599,
+    "passes": 59,
+    "fouls": []
+   },
+   "s": 259.068
+  },
+  {
+   "a": "604",
+   "b": "2910",
+   "seed": 16,
+   "ok": {
+    "robot": "2910",
+    "pts": 494,
+    "fuel": 479,
+    "launched": 609,
+    "passes": 111,
+    "fouls": []
+   },
+   "A": {
+    "robot": "604",
+    "pts": 268,
+    "fuel": 268,
+    "launched": 482,
+    "passes": 93,
+    "fouls": [
+     "G403"
+    ]
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 494,
+    "fuel": 479,
+    "launched": 609,
+    "passes": 111,
+    "fouls": []
+   },
+   "s": 255.663
+  },
+  {
+   "a": "604",
+   "b": "2910",
+   "seed": 9,
+   "ok": {
+    "robot": "2910",
+    "pts": 509,
+    "fuel": 494,
+    "launched": 600,
+    "passes": 109,
+    "fouls": []
+   },
+   "A": {
+    "robot": "604",
+    "pts": 317,
+    "fuel": 317,
+    "launched": 553,
+    "passes": 112,
+    "fouls": [
+     "G403"
+    ]
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 509,
+    "fuel": 494,
+    "launched": 600,
+    "passes": 109,
+    "fouls": []
+   },
+   "s": 274.044
+  },
+  {
+   "a": "604",
+   "b": "2910",
+   "seed": 19,
+   "ok": {
+    "robot": "2910",
+    "pts": 551,
+    "fuel": 536,
+    "launched": 655,
+    "passes": 125,
+    "fouls": []
+   },
+   "A": {
+    "robot": "604",
+    "pts": 262,
+    "fuel": 262,
+    "launched": 397,
+    "passes": 55,
+    "fouls": [
+     "G403"
+    ]
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 551,
+    "fuel": 536,
+    "launched": 655,
+    "passes": 125,
+    "fouls": []
+   },
+   "s": 233.082
+  },
+  {
+   "a": "604",
+   "b": "2910",
+   "seed": 18,
+   "ok": {
+    "robot": "2910",
+    "pts": 580,
+    "fuel": 565,
+    "launched": 697,
+    "passes": 125,
+    "fouls": []
+   },
+   "A": {
+    "robot": "604",
+    "pts": 318,
+    "fuel": 318,
+    "launched": 549,
+    "passes": 112,
+    "fouls": [
+     "G403"
+    ]
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 580,
+    "fuel": 565,
+    "launched": 697,
+    "passes": 125,
+    "fouls": []
+   },
+   "s": 255.925
+  },
+  {
+   "a": "604",
+   "b": "2910",
+   "seed": 17,
+   "ok": {
+    "robot": "2910",
+    "pts": 532,
+    "fuel": 517,
+    "launched": 613,
+    "passes": 95,
+    "fouls": []
+   },
+   "A": {
+    "robot": "604",
+    "pts": 264,
+    "fuel": 264,
+    "launched": 440,
+    "passes": 71,
+    "fouls": [
+     "G403"
+    ]
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 532,
+    "fuel": 517,
+    "launched": 613,
+    "passes": 95,
+    "fouls": []
+   },
+   "s": 262.598
+  },
+  {
+   "a": "604",
+   "b": "2910",
+   "seed": 20,
+   "ok": {
+    "robot": "2910",
+    "pts": 483,
+    "fuel": 468,
+    "launched": 582,
+    "passes": 112,
+    "fouls": []
+   },
+   "A": {
+    "robot": "604",
+    "pts": 313,
+    "fuel": 313,
+    "launched": 571,
+    "passes": 139,
+    "fouls": [
+     "G403"
+    ]
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 483,
+    "fuel": 468,
+    "launched": 582,
+    "passes": 112,
+    "fouls": []
+   },
+   "s": 257.782
+  },
+  {
+   "a": "604",
+   "b": "2910",
+   "seed": 21,
+   "ok": {
+    "robot": "2910",
+    "pts": 559,
+    "fuel": 544,
+    "launched": 700,
+    "passes": 150,
+    "fouls": []
+   },
+   "A": {
+    "robot": "604",
+    "pts": 238,
+    "fuel": 238,
+    "launched": 408,
+    "passes": 72,
+    "fouls": [
+     "G403"
+    ]
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 559,
+    "fuel": 544,
+    "launched": 700,
+    "passes": 150,
+    "fouls": []
+   },
+   "s": 239.47
+  },
+  {
+   "a": "604",
+   "b": "2910",
+   "seed": 24,
+   "ok": {
+    "robot": "2910",
+    "pts": 557,
+    "fuel": 542,
+    "launched": 662,
+    "passes": 109,
+    "fouls": []
+   },
+   "A": {
+    "robot": "604",
+    "pts": 269,
+    "fuel": 269,
+    "launched": 448,
+    "passes": 81,
+    "fouls": [
+     "G403"
+    ]
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 557,
+    "fuel": 542,
+    "launched": 662,
+    "passes": 109,
+    "fouls": []
+   },
+   "s": 247.536
+  },
+  {
+   "a": "604",
+   "b": "2910",
+   "seed": 23,
+   "ok": {
+    "robot": "2910",
+    "pts": 570,
+    "fuel": 555,
+    "launched": 661,
+    "passes": 108,
+    "fouls": []
+   },
+   "A": {
+    "robot": "604",
+    "pts": 280,
+    "fuel": 280,
+    "launched": 512,
+    "passes": 110,
+    "fouls": [
+     "G403"
+    ]
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 570,
+    "fuel": 555,
+    "launched": 661,
+    "passes": 108,
+    "fouls": []
+   },
+   "s": 259.911
+  },
+  {
+   "a": "1690",
+   "b": "2910",
+   "seed": 9,
+   "ok": {
+    "robot": "2910",
+    "pts": 565,
+    "fuel": 565,
+    "launched": 604,
+    "passes": 44,
+    "fouls": []
+   },
+   "A": {
+    "robot": "1690",
+    "pts": 331,
+    "fuel": 331,
+    "launched": 449,
+    "passes": 66,
+    "fouls": []
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 565,
+    "fuel": 565,
+    "launched": 604,
+    "passes": 44,
+    "fouls": []
+   },
+   "s": 257.25
+  },
+  {
+   "a": "604",
+   "b": "2910",
+   "seed": 22,
+   "ok": {
+    "robot": "2910",
+    "pts": 571,
+    "fuel": 556,
+    "launched": 658,
+    "passes": 93,
+    "fouls": []
+   },
+   "A": {
+    "robot": "604",
+    "pts": 179,
+    "fuel": 179,
+    "launched": 302,
+    "passes": 75,
+    "fouls": [
+     "G403"
+    ]
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 571,
+    "fuel": 556,
+    "launched": 658,
+    "passes": 93,
+    "fouls": []
+   },
+   "s": 285.711
+  },
+  {
+   "a": "1690",
+   "b": "2910",
+   "seed": 10,
+   "ok": {
+    "robot": "2910",
+    "pts": 537,
+    "fuel": 537,
+    "launched": 637,
+    "passes": 93,
+    "fouls": [
+     "G407"
+    ]
+   },
+   "A": {
+    "robot": "1690",
+    "pts": 312,
+    "fuel": 297,
+    "launched": 335,
+    "passes": 16,
+    "fouls": []
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 537,
+    "fuel": 537,
+    "launched": 637,
+    "passes": 93,
+    "fouls": [
+     "G407"
+    ]
+   },
+   "s": 263.21
+  },
+  {
+   "a": "1690",
+   "b": "2910",
+   "seed": 12,
+   "ok": {
+    "robot": "2910",
+    "pts": 539,
+    "fuel": 539,
+    "launched": 679,
+    "passes": 115,
+    "fouls": []
+   },
+   "A": {
+    "robot": "1690",
+    "pts": 337,
+    "fuel": 337,
+    "launched": 487,
+    "passes": 106,
+    "fouls": []
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 539,
+    "fuel": 539,
+    "launched": 679,
+    "passes": 115,
+    "fouls": []
+   },
+   "s": 263.848
+  },
+  {
+   "a": "1690",
+   "b": "2910",
+   "seed": 11,
+   "ok": {
+    "robot": "2910",
+    "pts": 526,
+    "fuel": 526,
+    "launched": 613,
+    "passes": 72,
+    "fouls": []
+   },
+   "A": {
+    "robot": "1690",
+    "pts": 387,
+    "fuel": 387,
+    "launched": 602,
+    "passes": 158,
+    "fouls": []
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 526,
+    "fuel": 526,
+    "launched": 613,
+    "passes": 72,
+    "fouls": []
+   },
+   "s": 304.477
+  },
+  {
+   "a": "1690",
+   "b": "2910",
+   "seed": 14,
+   "ok": {
+    "robot": "2910",
+    "pts": 505,
+    "fuel": 505,
+    "launched": 623,
+    "passes": 114,
+    "fouls": []
+   },
+   "A": {
+    "robot": "1690",
+    "pts": 381,
+    "fuel": 381,
+    "launched": 506,
+    "passes": 83,
+    "fouls": []
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 505,
+    "fuel": 505,
+    "launched": 623,
+    "passes": 114,
+    "fouls": []
+   },
+   "s": 266.195
+  },
+  {
+   "a": "1690",
+   "b": "2910",
+   "seed": 13,
+   "ok": {
+    "robot": "2910",
+    "pts": 473,
+    "fuel": 473,
+    "launched": 623,
+    "passes": 143,
+    "fouls": []
+   },
+   "A": {
+    "robot": "1690",
+    "pts": 329,
+    "fuel": 329,
+    "launched": 522,
+    "passes": 143,
+    "fouls": []
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 473,
+    "fuel": 473,
+    "launched": 623,
+    "passes": 143,
+    "fouls": []
+   },
+   "s": 288.737
+  },
+  {
+   "a": "1690",
+   "b": "2910",
+   "seed": 16,
+   "ok": {
+    "robot": "2910",
+    "pts": 478,
+    "fuel": 478,
+    "launched": 614,
+    "passes": 125,
+    "fouls": []
+   },
+   "A": {
+    "robot": "1690",
+    "pts": 328,
+    "fuel": 328,
+    "launched": 499,
+    "passes": 110,
+    "fouls": []
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 478,
+    "fuel": 478,
+    "launched": 614,
+    "passes": 125,
+    "fouls": []
+   },
+   "s": 286.178
+  },
+  {
+   "a": "1690",
+   "b": "2910",
+   "seed": 17,
+   "ok": {
+    "robot": "2910",
+    "pts": 524,
+    "fuel": 524,
+    "launched": 682,
+    "passes": 142,
+    "fouls": []
+   },
+   "A": {
+    "robot": "1690",
+    "pts": 365,
+    "fuel": 365,
+    "launched": 527,
+    "passes": 101,
+    "fouls": []
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 524,
+    "fuel": 524,
+    "launched": 682,
+    "passes": 142,
+    "fouls": []
+   },
+   "s": 278.646
+  },
+  {
+   "a": "1690",
+   "b": "2910",
+   "seed": 15,
+   "ok": {
+    "robot": "2910",
+    "pts": 502,
+    "fuel": 502,
+    "launched": 620,
+    "passes": 107,
+    "fouls": []
+   },
+   "A": {
+    "robot": "1690",
+    "pts": 385,
+    "fuel": 385,
+    "launched": 526,
+    "passes": 95,
+    "fouls": []
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 502,
+    "fuel": 502,
+    "launched": 620,
+    "passes": 107,
+    "fouls": []
+   },
+   "s": 294.153
+  },
+  {
+   "a": "1690",
+   "b": "2910",
+   "seed": 22,
+   "ok": {
+    "robot": "2910",
+    "pts": 464,
+    "fuel": 464,
+    "launched": 585,
+    "passes": 113,
+    "fouls": []
+   },
+   "A": {
+    "robot": "1690",
+    "pts": 368,
+    "fuel": 368,
+    "launched": 447,
+    "passes": 28,
+    "fouls": []
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 464,
+    "fuel": 464,
+    "launched": 585,
+    "passes": 113,
+    "fouls": []
+   },
+   "s": 244.652
+  },
+  {
+   "a": "1690",
+   "b": "2910",
+   "seed": 19,
+   "ok": {
+    "robot": "2910",
+    "pts": 548,
+    "fuel": 548,
+    "launched": 576,
+    "passes": 32,
+    "fouls": []
+   },
+   "A": {
+    "robot": "1690",
+    "pts": 370,
+    "fuel": 370,
+    "launched": 527,
+    "passes": 99,
+    "fouls": []
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 548,
+    "fuel": 548,
+    "launched": 576,
+    "passes": 32,
+    "fouls": []
+   },
+   "s": 277.706
+  },
+  {
+   "a": "1690",
+   "b": "2910",
+   "seed": 20,
+   "ok": {
+    "robot": "2910",
+    "pts": 537,
+    "fuel": 537,
+    "launched": 670,
+    "passes": 126,
+    "fouls": []
+   },
+   "A": {
+    "robot": "1690",
+    "pts": 285,
+    "fuel": 285,
+    "launched": 372,
+    "passes": 68,
+    "fouls": []
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 537,
+    "fuel": 537,
+    "launched": 670,
+    "passes": 126,
+    "fouls": []
+   },
+   "s": 276.579
+  },
+  {
+   "a": "1690",
+   "b": "2910",
+   "seed": 23,
+   "ok": {
+    "robot": "2910",
+    "pts": 555,
+    "fuel": 555,
+    "launched": 664,
+    "passes": 97,
+    "fouls": []
+   },
+   "A": {
+    "robot": "1690",
+    "pts": 413,
+    "fuel": 413,
+    "launched": 528,
+    "passes": 88,
+    "fouls": []
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 555,
+    "fuel": 555,
+    "launched": 664,
+    "passes": 97,
+    "fouls": []
+   },
+   "s": 250.617
+  },
+  {
+   "a": "1690",
+   "b": "2910",
+   "seed": 21,
+   "ok": {
+    "robot": "2910",
+    "pts": 587,
+    "fuel": 587,
+    "launched": 690,
+    "passes": 91,
+    "fouls": []
+   },
+   "A": {
+    "robot": "1690",
+    "pts": 399,
+    "fuel": 399,
+    "launched": 589,
+    "passes": 130,
+    "fouls": []
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 587,
+    "fuel": 587,
+    "launched": 690,
+    "passes": 91,
+    "fouls": []
+   },
+   "s": 268.807
+  },
+  {
+   "a": "1690",
+   "b": "2910",
+   "seed": 18,
+   "ok": {
+    "robot": "2910",
+    "pts": 556,
+    "fuel": 556,
+    "launched": 699,
+    "passes": 141,
+    "fouls": []
+   },
+   "A": {
+    "robot": "1690",
+    "pts": 279,
+    "fuel": 279,
+    "launched": 400,
+    "passes": 86,
+    "fouls": []
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 556,
+    "fuel": 556,
+    "launched": 699,
+    "passes": 141,
+    "fouls": []
+   },
+   "s": 296.59
+  },
+  {
+   "a": "1690",
+   "b": "2910",
+   "seed": 24,
+   "ok": {
+    "robot": "2910",
+    "pts": 562,
+    "fuel": 562,
+    "launched": 670,
+    "passes": 107,
+    "fouls": []
+   },
+   "A": {
+    "robot": "1690",
+    "pts": 357,
+    "fuel": 357,
+    "launched": 436,
+    "passes": 50,
+    "fouls": []
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 562,
+    "fuel": 562,
+    "launched": 670,
+    "passes": 107,
+    "fouls": []
+   },
+   "s": 229.513
+  }
+ ]
+}
