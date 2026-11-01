@@ -100,7 +100,10 @@ export class Physical1114 extends PhysicalRobot {
   }
 
   where(x, y, z) {
-    const inFrame = Math.abs(x) < HALF_L && Math.abs(z) < HALF_W && y > 0.05 && y < 0.8;
+    // (up off the carpet: the lowest FUEL on its floor, in the valley, sit 0.16 m up; one lower
+    // than 0.105 is on the carpet under the frame, not in the ball path, and the robot's collider
+    // is what meets it. It was 0.05: one that got under the frame was held, and carried about)
+    const inFrame = Math.abs(x) < HALF_L && Math.abs(z) < HALF_W && y > 0.105 && y < 0.8;
     // out front: the box, as far out as it is (the intake roller and kicker at its front)
     const front = HALF_L + this.ext + 0.02;
     const inFront = x >= HALF_L && x < front && Math.abs(z) < 0.375 && y < 0.75;

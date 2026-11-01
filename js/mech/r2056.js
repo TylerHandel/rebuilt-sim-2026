@@ -12,43 +12,46 @@
 // How the drawings were read: each sheet is a 300 dpi scan of a SolidWorks sheet (A-size part sheets:
 // 75 px/in at 1:4, 100 at 1:3; B-size assemblies: 24.1-24.3 px/in at 1:4, 48.6 at 1:2), each view
 // scaled on a printed dimension or a known part and cross-checked. Heights hang off the frame rail:
-// 2x1 tube on edge on SDS MK5n modules, 0.035-0.086 m (the same modules' rails in 7769's and 1690's
-// CAD). Sheets by their DWG NO (OPR26-B-...):
+// 2x1 tube on edge between the plates of SDS MK5n modules, 1.75-3.75in (RAIL below: SDS's layout
+// drawing), placed in each view by the frame-mounted plates' tab holes (P450, P513) on the rail's two
+// rows of holes. Sheets by their DWG NO (OPR26-B-...):
 //   - frame 25.5 x 29.5 (binder; A02: rails 25.0 x 29.0, the side rails P002 16.5in between the corner
 //     modules, centred), modules +-9.875 / +-11.875 (A00 sheet 2); the turret 5.25in back and 7.25in
 //     right of center (A00 "-X/-Y TURRET OFFSET"; P150 turret base plate: its bearing bore 7.2in from the
 //     plate's back edge and 7.25 from its right end, 28.0 across).
 //   - the roller floor: P450 (conveyor side frame, A-size 1:4) holds all nine rollers' stub shafts;
 //     its four tabs bolt to the side rail P002's inner face (their hole patterns match: 4.12/4.0/4.13in,
-//     two rows 1in apart 0.49in under the rail's top), so the holes give each axle's place: back three
-//     level 0.132 m up, three rising at 45 mm pitch (25T pulleys on the 43T belts, A40/A42 BOMs: 215 mm
-//     less 125 is 2 x 45 mm), front three level at 0.174 m, 52.5 mm apart (the two 46T belts). P451
+//     two rows 1in apart, 0.5in either side of its centreline), so the holes give each axle's place:
+//     back three level 0.141 m up, three rising at 45 mm pitch (25T pulleys on the 43T belts, A40/A42
+//     BOMs: 215 mm less 125 is 2 x 45 mm), front three level at 0.183 m, 52.5 mm apart (the two 46T
+//     belts). P451
 //     (the right side frame) shows the six long ones' other ends the same. Six A40 (26.5in: 24.75in
 //     tube, 1-5/8in over the silicone) in front, three A42 (18.6in: 16.875in tube) behind them, short of
-//     the turret's side (A41 top view). The two A43 (16.5in) rollers: a second short row 7.2in over the
-//     floor's back ones in A41's front view (est. fore and aft: 1690's two, the 43T belt's 45 mm apart).
+//     the turret's side (A41 top view). The two A43 (16.5in) rollers: P450's two upper stub-shaft
+//     holes, straight over the floor's back two, 0.325 m up, driven the other way off the floor's
+//     gearbox (A41 detail A).
 //     Floor drive: X60, 14:36 20 DP then 18:25 5mm HTD (binder; A41's 18T pulleys and 70T belts).
-//   - the hopper: its left side P586-R2 (15.688 x 11.382) spans -3.25 to +12.56in, its top 0.544 m
+//   - the hopper: its left side P586-R2 (15.688 x 11.382) spans -3.25 to +12.56in, its top 0.533 m
 //     (A41 side view, on P450's tabs); "2025 barge net top" across it (binder).
 //   - the conveyors: A44 (bottom side feed: 2x 170T 15 mm belts on 24T pulleys, 365 mm between them)
 //     sits on the frame (its plates' foot 1.68in under the pulleys' axis, A44 section A-A): its run's
-//     top 0.149 m; A14 (top side feed: 150T, 315 mm) on the turret's structure: its pulleys' axes 0.31
-//     m up, 1.5in right and 10.9in left of center (A10's front view, scaled on P150's 28in), with a 2in
+//     top 0.158 m; A14 (top side feed: 150T, 315 mm) on the turret's structure: its pulleys' axes
+//     0.319 m up, 1.5in right and 10.9in left of center (A10's front view, scaled on P150's 28in), with a 2in
 //     Stealth wheel on its turret end, 2.0in past its pulley (A14), which is the quarter pipe's center
 //     (P157 bent at R 6.75: a FUEL round it comes up 7.3in right of center, under the turret's axis).
 //   - the turret's deck: the uprights P154 (12.63) and P155 (10.63) differ by the rail's 2in (P154
-//     reaches the rail's foot, P155 stands on its top), so the turret base plate P150 is 0.356 m up;
+//     reaches the rail's foot, P155 stands on its top), so the turret base plate P150 is 0.365 m up;
 //     the bearing, retainer and the 1/4in 100T gear put the gear's top 1.1in over it (A10 side view):
-//     0.384 m. The shooter's axle 3.5in toward the shot and 2.83in over the gear (A19, scaled on the
+//     0.393 m. The shooter's axle 3.5in toward the shot and 2.83in over the gear (A19, scaled on the
 //     gear: the first pass); its other parts as before (A19, A11, P105-P116).
-//   - the intake (A41's side view, the intake out; A51; P511/P512): the bash bar's front 25.0in out, so
-//     12.25in of travel from the frame's front; the racks P512 (22.593, 16.8in of 8 DP teeth) at 15.2 deg
-//     (0.311 m out, 0.085 m down); its rollers on the washer plates' corners (A50's end screws in A41's
-//     and A51's side views, the 75T belt's 112.5 mm between them; A51's front view puts them above and
-//     below the bash bar): 0.577 m out, 0.166 up and 0.529, 0.267; the bar 0.191-0.241 m; the kicker
-//     bar's arms (P555-R6) on their pin 0.467 m out, 0.194 up, hanging to two 0.75in tubes (P556,
-//     A52-R2) 0.033 and 0.054 m up, just in front of the bumper; the hopper front's top 0.462 m (P581:
-//     27.25 wide, bent back to a lip over the top roller).
+//   - the intake (A41's side view, the intake out, placed by P513's and P450's tab holes, fore and aft by
+//     P450's tabs, centred on the side rail; A51; P511/P512): the bash bar's front 24.4in out, 12.25in
+//     of travel (est.); the racks P512 (22.593, 16.8in of 8 DP teeth) at 15.2 deg (0.311 m out, 0.085 m
+//     down); its rollers on the washer plates' (P510) corners (A50's end screws in A41's and A51's side
+//     views, the 75T belt's 112.5 mm between them): 0.564 m out, 0.169 up and 0.516, 0.271; the bar
+//     0.194-0.246 m; the kicker bar's arms (P555-R6) on their pin 0.453 m out, 0.200 up, hanging to two
+//     0.75in tubes (P556, A52-R2) 0.039 and 0.059 m up, just in front of the bumper; the hopper front's
+//     top 0.467 m (P581: 27.25 wide, bent back to a lip over the top roller).
 // Robot frame: x forward (the intake end), y up, z to its right.
 import { IN, FUEL } from '../constants.js';
 import { Block, Motor, Shaft, Surface, Train, Wheel, BUMPER_MU } from './mechanism.js';
@@ -64,23 +67,31 @@ export const TREAD = { silicone: 20000, stealth: 12000, urethane: 30000, belt: 2
 
 // ------------------------------------------------------------------ the layout (robot frame, m)
 export const HALF_L = 12.75 * IN, HALF_W = 14.75 * IN; // 25.5 x 29.5in (the binder)
+// the frame rail (2x1 on edge) on SDS MK5n modules (A01: "SWERVE MODULE A/B", 5.937 lb each, SDS's
+// ready-to-run MK5n's 5.9; the binder: MK5n R1), the main plate on top of the rail as SDS's layout
+// drawing (MK5n Layout Drawing REV1): floor to the module's main plate 3.75in, 2.00in under it for the
+// rail: 1.75 to 3.75in. Its two rows of 10-32 holes (P002) are 0.5in either side of its centerline, 2.75in
+// up, and every frame-mounted plate's tabs (P450, P513) bolt to them. (The first passes had the rail
+// at 0.035-0.086 m from 1690's and 7769's CAD: everything rail-referenced is 9.3 mm higher now.)
+export const RAIL = { y: [1.75 * IN, 3.75 * IN], c: 2.75 * IN };
 // the hopper: its sides' inside faces (the intake's 27.25in hopper front, P581, and 26.5in rollers:
 // 0.346 m each side), the side panels' top (P586-R2 in A41's side view: 0.544 m)
-export const WALL = { left: -0.346, right: 0.346, top: 0.544 };
+export const WALL = { left: -0.346, right: 0.346, top: 0.533 };
 // the roller floor: [x, y] of each roller's axle, front to back (P450's holes on the side rail: see
 // above), z from each one's left end to its right (long: 25.5in of sleeve on the 24.75in tube; short:
 // 17.6in on the 16.875in tube); every roller 1:1 with the drive roller (25T pulleys round)
 export const FLOOR = {
   r: (1.625 / 2) * IN,
-  at: [[0.2952, 0.1738], [0.2426, 0.1738], [0.1900, 0.1737], [0.1403, 0.1694], [0.0970, 0.1569], [0.0537, 0.1442], [0.0107, 0.1321], [-0.0342, 0.1322], [-0.0792, 0.1321]],
+  at: [[0.2952, 0.1830], [0.2426, 0.1830], [0.1900, 0.1830], [0.1403, 0.1786], [0.0970, 0.1661], [0.0537, 0.1536], [0.0107, 0.1414], [-0.0342, 0.1414], [-0.0792, 0.1414]],
   z0: Array(9).fill(-0.324), z1: [0.324, 0.324, 0.324, 0.324, 0.324, 0.324, 0.123, 0.123, 0.123],
   ratio: (36 / 14) * (25 / 18),
   k: Array(9).fill(1),
 };
-// the two A43 rollers (16.5in: 15.5in of sleeve) over the floor's back, 0.316 m up (A41's front view:
-// a short row 7.2in over the floor's short rollers; fore and aft est.: 1690's two, 45 mm apart as the
-// A43s' 43T belt makes them), turning the other way, 1:1 off the floor's drive
-export const TOP = { at: [[-0.0342, 0.316], [-0.0792, 0.316]], r: (1.625 / 2) * IN, z: [-0.324, 0.07], k: [-1, -1] };
+// the two A43 rollers (16.5in: 15.5in of sleeve) over the floor's back two, 0.325 m up (P450's two
+// upper stub-shaft holes, 45 mm apart straight over the back two rollers' holes; A41's side view shows
+// their screws there), turning the other way at the floor's speed (A41 detail A: the floor's output
+// and theirs either side of the X60's 36T idler, each 18:25 on a 70T belt)
+export const TOP = { at: [[-0.0342, 0.3253], [-0.0792, 0.3253]], r: (1.625 / 2) * IN, z: [-0.324, 0.07], k: [-1, -1] };
 // the foam's rolling resistance on the floor's rollers (as 1690's: 0.08 of what presses it there;
 // with every roller at one speed a FUEL resting between two would otherwise spin in place)
 export const ROLL = { rr: 0.08 };
@@ -91,30 +102,30 @@ export const ROLL = { rr: 0.08 };
 // and their pitch radius; X44s through 12:36
 export const BELT = {
   x: [-0.158, -0.110], r: 0.0203, pitch: (24 * 0.005) / (2 * Math.PI), ratio: 36 / 12,
-  bottom: { y: 0.149, z: [0.1158 - 0.365, 0.1158] }, // its top run (A44 on the frame)
-  top: { y: 0.310 - 0.0203, z: [-0.2766, 0.0378] },  // its bottom run (A14)
+  bottom: { y: 0.1583, z: [0.1158 - 0.365, 0.1158] }, // its top run (A44 on the frame)
+  top: { y: 0.3193 - 0.0203, z: [-0.2766, 0.0378] },  // its bottom run (A14)
 };
 // the backing behind the belts (est.: polycarbonate), the channel's front wall over the quarter pipe
 export const BACK = { x: -0.2105, front: -0.056 };
 // the turret: its axis (A00), the bore up through its bearing (the 8in ID: the turret's opening, est.
 // 0.088 m, as 1690's) from the base plate's top to the gear's, the turret gear's top (the deck: P154/
 // P155 and A10's side view, above); travel +-185 deg (the binder)
-export const TURRET = { at: [-5.25 * IN, 7.25 * IN], bore: { r: 0.088, y: [0.359, 0.384] }, deck: 0.384, range: 185 };
+export const TURRET = { at: [-5.25 * IN, 7.25 * IN], bore: { r: 0.088, y: [0.3683, 0.3932] }, deck: 0.3932, range: 185 };
 // the side kicker: a 1.625in polyurethane sleeve 1.75in long (A11), standing in front of the belts'
 // channel at the quarter pipe's infeed (est. where), halfway up between the belts' runs, its X44's 18T
 // on the axle's 24T (est.: A10's BOM has the 18T pulley)
-export const VKICK = { at: [-0.0415, 0.10], y: [0.219 - 0.875 * IN, 0.219 + 0.875 * IN], r: (1.625 / 2) * IN, ratio: 24 / 18 };
+export const VKICK = { at: [-0.0415, 0.10], y: [0.2283 - 0.875 * IN, 0.2283 + 0.875 * IN], r: (1.625 / 2) * IN, ratio: 24 / 18 };
 // the quarter pipe: the shooter feed plate's 6.75in bend (P157: UP 70 deg; its flats and the frame's
 // guides round it: est. 90 deg in all), its center the A14's Stealth wheel (A10, A14: 0.088 m right of
 // center, 0.311 up), so a FUEL off the bottom belt's run rides round it and comes up under the
 // turret's axis (c: [z, y]); across the channel (x)
-export const PIPE = { R: 6.75 * IN, c: [0.088, 0.311], x: [-0.214, BACK.front], top: TURRET.bore.y[0] };
+export const PIPE = { R: 6.75 * IN, c: [0.088, 0.3203], x: [-0.214, BACK.front], top: TURRET.bore.y[0] };
 // the dual Stealth wheels (2in, 50A, est. 1in wide each), [z, y]: the A14's at the pipe's center,
 // driving the FUEL round it, the other (A10 item 19) across the bore over the pipe's end (its height
 // from A10's side view, ~0.33 m); one X60, 16:28, both shafts at its speed (the second turned back 1:1)
 export const FEED = {
   x: -0.134, w: 0.025, r: 1 * IN,
-  wheels: [[PIPE.c[0], PIPE.c[1]], [TURRET.at[1] + (R + 1 * IN - 0.0044), 0.33]],
+  wheels: [[PIPE.c[0], PIPE.c[1]], [TURRET.at[1] + (R + 1 * IN - 0.0044), 0.3393]],
   ratio: 28 / 16,
 };
 // the shooter, in the turret's frame (s along the shot, y up, z across; A19): the 4in wheel's axle
@@ -137,21 +148,23 @@ export const SHOOTER = {
 // the carriage's travel along its racks (12.25in out from the frame's front at 15.2 deg: 0.311 m out,
 // 0.085 m down); its two rollers ([x, y, r] as retracted: 2in polycarbonate under a 2-1/8in, 1/16in
 // wall polyurethane sleeve, A50) on the two corners of the triangular washer plates (P510) where
-// A50's 1/4-20 end screws show: the bottom one 0.577 m out and 0.166 m up, just behind and under the
-// bash bar's back, its underside 1 cm into a FUEL on the carpet; the top one 0.112 m from it (the 75T
-// belt between two 30T: 112.5 mm), 0.529 m out and 0.267 up, over the bar's height (A51's front view
+// A50's 1/4-20 end screws show: the bottom one 0.564 m out and 0.169 m up, just behind and under the
+// bash bar's back, its underside 8 mm into a FUEL on the carpet; the top one 0.112 m from it (the 75T
+// belt between two 30T: 112.5 mm), 0.516 m out and 0.271 up, over the bar's height (A51's front view
 // shows them above and below the bar, the A50 balloons on them). Both turn the same way, their
 // undersides running back (a straight 75T belt from one to the other; the X60's pulley in the plates'
-// round hole, 60 mm from the bottom roller on a 48T belt, drives the bottom one), as the sim's had
-// them. Their X60's 12:30 (the binder; A51's BOM has an 18T pulley, 18:30). The intake's front (the
-// 2x1 bash bar's front, out: 25.0in), its sides (the intake's hopper sides, P583), the front panel
-// (P581, out: from 0.344 m to its top, 0.462), its lower part bent back 55 deg and 35 deg to a lip
-// over the top roller (P581's 2.5in and 0.76in flats: back to 0.564 m, 0.308 up), the 2x1 bash bar on
-// edge under it (out: 0.191 to 0.241 m, A41's and A51's side and front views; FUEL pass under it).
-// The kicker bar: two arms (P555-R6) hanging from their pin on the side plates (0.467 m out, 0.194 up)
-// to two 0.75in tubes across (P556 aluminum, A52-R2 Lexan): one 0.161 m straight under the pin, 0.033 m
-// up, the other 34 mm behind it and 21 mm higher (a short ramp up toward the bumper's face, 1.7 cm
-// behind it); the surgical tubing (est.) holds them down at the drawn pose, FUEL can lift them
+// round hole, 59-60 mm from both rollers' holes on P510, drives the bottom one on a 48T belt), as the
+// sim's had them. One X60 drives both: 12:30 (the binder, as played; A51's BOM: an 18T on a 48T
+// belt, 18:30, the same drive before a pulley change: P510 fits either, 59.2 or 60.8 mm on a 46T);
+// the kicker bar turns on bushings (P514), undriven. The intake's front (the 2x1 bash bar's front,
+// out: 24.4in), its sides (the intake's hopper sides, P583), the front panel (P581, out: from 0.348 m
+// to its top, 0.467), its lower part bent back 55 deg and 35 deg to a lip over the top roller (P581's
+// 2.5in and 0.76in flats: back to 0.552 m, 0.312 up), the 2x1 bash bar on edge under it, bolted
+// through the side plates (out: 0.194 to 0.246 m, A41's side view; FUEL pass under it).
+// The kicker bar: two arms (P555-R6) hanging from their pin on the side plates (0.453 m out, 0.200 up)
+// to two 0.75in tubes across (P556 aluminum, A52-R2 Lexan): one 0.162 m straight under the pin, 0.039 m
+// up, the other 34.5 mm behind it and 20 mm higher (a short ramp up toward the bumper's face, 2.6 mm
+// in front of it); the surgical tubing (est.) holds them down at the drawn pose, FUEL can lift them
 // forward, the bumper's face folds them up and forward coming in.
 // INTAKE1690=1: the first pass's places instead (1690's rollers and kicker bar, mirrored onto 2056's
 // slide), for comparison
@@ -164,13 +177,13 @@ export const INTAKE1690 = globalThis.process?.env?.INTAKE1690 === '1';
 const EXT = (x, y) => [x - DRAWN[0] + SLIDE_OUT[0], y - DRAWN[1] + SLIDE_OUT[1]];
 export const INTAKE = {
   slide: SLIDE_OUT, width: 23.5 * IN, rackDeg: 15.2,
-  rollers: (INTAKE1690 ? [[0.5657, 0.167], [0.5097, 0.2599]] : [[0.577, 0.166], [0.529, 0.267]]).map(([x, y]) => [...OUT(x, y), (2.125 / 2) * IN]), ratio: 30 / 12,
-  frame: { front: EXT(0.635, 0)[0], sides: 0.352, top: EXT(0, 0.462)[1], panel: EXT(0, 0.344)[1], lip: [EXT(0.583, 0.308), EXT(0.564, 0.308)], bash: [EXT(0, 0.191)[1], EXT(0, 0.241)[1]] },
+  rollers: (INTAKE1690 ? [[0.5657, 0.167], [0.5097, 0.2599]] : [[0.5638, 0.1693], [0.5157, 0.2707]]).map(([x, y]) => [...OUT(x, y), (2.125 / 2) * IN]), ratio: 30 / 12,
+  frame: { front: EXT(0.6202, 0)[0], sides: 0.352, top: EXT(0, 0.467)[1], panel: EXT(0, 0.348)[1], lip: [EXT(0.5705, 0.312), EXT(0.5515, 0.312)], bash: [EXT(0, 0.1944)[1], EXT(0, 0.2456)[1]] },
   // (the kicker bar's arms: their pin, the first tube's distance from it, both tubes in the arms'
   // frame (+x toward the first), their angle folded (a0, deg) and how far they fall from it to their
   // stop)
   kick: {
-    ...(INTAKE1690 ? { pivot: OUT(0.2787, 0.1703), len: 0.186, tubes: [[0.186, 0]], a0: 55, fall: -90.2 } : { pivot: OUT(0.467, 0.194), len: 0.161, tubes: [[0.161, 0], [0.140, -0.034]], a0: 0, fall: -90 }),
+    ...(INTAKE1690 ? { pivot: OUT(0.2787, 0.1703), len: 0.186, tubes: [[0.186, 0]], a0: 55, fall: -90.2 } : { pivot: OUT(0.4530, 0.1996), len: 0.1617, tubes: [[0.1617, 0], [0.1411, -0.0345]], a0: 0, fall: -90 }),
     r: 0.375 * IN, width: 27.81 * IN, mass: 0.25, J: 0.008, tubing: { preload: 1.0, rate: 1.0 },
   },
 };
@@ -179,9 +192,9 @@ export const INTAKE = {
 export const SLIDE = { pinion: 0.75 * IN, ratio: 40 / 8, mass: 4.5, travel: Math.hypot(...INTAKE.slide), dir: [INTAKE.slide[0] / Math.hypot(...INTAKE.slide), INTAKE.slide[1] / Math.hypot(...INTAKE.slide), 0] };
 // the preload (8): three in the belts' channel, three on the floor, two on top of them
 export const PRELOAD = [
-  ...[-0.22, -0.07, 0.02].map((z) => [-0.135, 0.23, z]),
-  ...[-0.24, -0.09, 0.06].map((z) => [0.13, 0.25, z]),
-  ...[-0.17, -0.02].map((z) => [0.12, 0.40, z]),
+  ...[-0.22, -0.07, 0.02].map((z) => [-0.135, 0.24, z]),
+  ...[-0.24, -0.09, 0.06].map((z) => [0.13, 0.26, z]),
+  ...[-0.17, -0.02].map((z) => [0.12, 0.41, z]),
 ];
 // the hopper guide: in plan, from the third long roller's right end to the short rollers' end
 export const GUIDE = { from: [FLOOR.at[2][0], WALL.right], to: [FLOOR.at[6][0] - 0.004, FLOOR.z1[6]] };
@@ -314,7 +327,7 @@ function body() {
     guard(),
     // (over the top conveyor's beam, the hopper's back slopes down to the floor, so no FUEL rest on
     // the beam: est.)
-    grid(3, N(W.left - GUIDE.to[1]), (u, v) => [lerp(BACK.x, BELT.x[1] + 0.004, u), lerp(0.43, BELT.top.y + 2 * BELT.r + 0.008, u), lerp(W.left, GUIDE.to[1], v)]),
+    grid(3, N(W.left - GUIDE.to[1]), (u, v) => [lerp(BACK.x, BELT.x[1] + 0.004, u), lerp(0.439, BELT.top.y + 2 * BELT.r + 0.008, u), lerp(W.left, GUIDE.to[1], v)]),
     quarterPipe(),
   );
 }

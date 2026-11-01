@@ -94,7 +94,10 @@ export class Physical7769 extends PhysicalRobot {
 
   frontX() { return FRONT_X + slideOffset(this.ext)[0]; }
   where(x, y, z) {
-    const inFrame = Math.abs(x) < HALF_L && Math.abs(z) < HALF && y > 0.05 && y < 0.62;
+    // (up off the carpet: FUEL on its belt floor sit 0.25 m up and more; one lower than 0.105 is on
+    // the carpet under the frame, not in the ball path. It was 0.05: one that got under the frame
+    // was held, and carried about)
+    const inFrame = Math.abs(x) < HALF_L && Math.abs(z) < HALF && y > 0.105 && y < 0.62;
     const front = this.frontX() + 0.03;
     const inFront = x >= HALF_L && x < Math.max(front, HALF_L + 0.2) && Math.abs(z) < HALF && y < 0.6;
     return {

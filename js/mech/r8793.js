@@ -20,7 +20,7 @@
 import { IN, FUEL } from '../constants.js';
 const FUEL_R = FUEL.radius, DEG = Math.PI / 180;
 import { BUMPER_T, BUMPER_Y0, BUMPER_Y1 } from '../robotConfigs.js';
-import { Motor, Shaft, Surface, Train, Wheel, BUMPER_MU } from './mechanism.js';
+import { Block, Motor, Shaft, Surface, Train, Wheel, BUMPER_MU } from './mechanism.js';
 
 // the gear chains: [name, belt/gear ratio from the shaft before (driver:driven teeth), roller
 // diameter (m), friction against FUEL, what's on it]. Conveyor 3 is the intake's pivot shaft (it's
@@ -492,9 +492,17 @@ export function guideSurface() {
 // off the carpet for seconds at a time (in one match, more than 8 deg up for 11% of the time it
 // was down, against 1% at 1-1/8in). 16 seeds of 8793 v 8793: 23 unjams a match and 166 points at
 // 1-1/8in, 19 and 153 at 3/4, against 38 and 173 with the arm rigid at 3/4.
+// It's a solid block (js/mech/mechanism.js Block: pressed into it however far, a FUEL is pushed back
+// out the nearest way), as 341's and 2910's are. It was its face and top alone, a sheet: the arm
+// folding up over a FUEL at the bumper's foot, or its rollers coming down on one, pressed it through
+// the face, and it sat inside the bumper against the frame, or got under it, the robot carrying it
+// about for seconds (tools/under-frame.mjs). Its edges are 3 mm round, square as the sheet's were (1 cm
+// round, tools/mechlab.mjs robot shot a median 11 of 12, not 12). OLD_BUMPER=1: the sheet.
+const OLD_BUMPER = typeof process !== 'undefined' && !!process.env?.OLD_BUMPER;
 export function bumperSurface({ halfL = 13.75 * IN, halfW = 13.75 * IN + BUMPER_T, mu = BUMPER_MU, tread = 20000, squeeze = (9 / 8) * IN } = {}) {
   const [tx, ty] = [ARM.pivot[0] + ARM.rollers[3][0], ARM.pivot[1] + ARM.rollers[3][1]], reach = 1 * IN + FUEL_R * 2 - squeeze;
   const x1 = Math.min(halfL + BUMPER_T, tx - Math.sqrt(reach * reach - (BUMPER_Y1 - ty) ** 2));
+  if (!OLD_BUMPER) return new Block({ name: 'bumper', x0: halfL, x1, y0: BUMPER_Y0, y1: BUMPER_Y1, hw: halfW, r: 0.003, mu, tread });
   const V = [
     x1, BUMPER_Y0, -halfW, x1, BUMPER_Y0, halfW, x1, BUMPER_Y1, halfW, x1, BUMPER_Y1, -halfW, // face
     halfL, BUMPER_Y1, -halfW, halfL, BUMPER_Y1, halfW,                                         // top, back edge
