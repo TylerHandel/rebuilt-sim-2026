@@ -112,7 +112,7 @@ export class Physical6328 extends PhysicalRobot {
     const pathWheels = [...w.floor, ...w.kick, ...w.intake];
     super(robot, {
       path: new Mechanism({ body: robot.body, substeps: 6, shafts: [...new Set(pathWheels.map((x) => x.shaft)), t.pivot], wheels: pathWheels, surfaces: Object.values(s) }),
-      shooter: new Mechanism({ body: robot.body, substeps: 6, sub: 8, shafts: [t.drum, t.hood], wheels: [w.drum, ...w.hood] }),
+      shooter: new Mechanism({ body: robot.body, substeps: 6, sub: 8, shafts: [t.drum, t.hood], wheels: [w.drum, ...w.hood], surfaces: [s.hood] }),
       // (full when its intake can't put more in: js/mech/physical.js. Over the front of the hopper,
       // from 0.15 m forward to the sliding front, under the net: a layer of ~12 FUEL, packed against
       // it when two thirds of them are)

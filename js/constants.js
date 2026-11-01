@@ -56,6 +56,13 @@ export const FUEL = {
   neutralMax: 408,
   // quadratic drag coefficient k = 0.5*rho*Cd*A/m  (Cd~0.47 sphere)
   dragK: (0.5 * 1.225 * 0.47 * Math.PI * ((5.91 * IN) / 2) ** 2) / 0.215,
+  // Magnus lift on a spinning FUEL: F = 0.5 rho A C_L v^2 across its flight, toward (spin x
+  // velocity), so a shooter's backspin lifts it. liftK = 0.5 rho A / m (per m); C_L from the spin
+  // ratio S = R w / v (the surface's speed from the spin over the flight speed): S / (1 + 2 S), the
+  // shape measured for spinning spheres (about S at low spin, 0.25 at S = 0.5, 0.33 at S = 1;
+  // ballistics.js liftCoef). The spin itself barely decays in flight (aerodynamic torque on a light
+  // foam sphere: under 2%/s at 10 m/s), so it's held as it left.
+  liftK: (0.5 * 1.225 * Math.PI * ((5.91 * IN) / 2) ** 2) / 0.215,
   rollDecel: 0.35,         // carpet rolling resistance (m/s^2)
   restitution: 0.45,
   friction: 0.35,          // foam on foam / field elements (low so FUEL slides off walls and rolls on)

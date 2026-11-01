@@ -191,8 +191,13 @@ export class PhysicalRobot {
     this.near = near;
     this.held = held;
     // (FUEL it holds pressing on each other: foam on foam, worked out with its wheels)
-    this.path.step(dt, near.map((b) => b.body), [...owned].map((b) => b.body));
-    if (this.shooter) this.shooter.step(dt, this.shooterBalls(near).map((b) => b.body));
+    // (the shooter's FUEL: the surfaces it carries that the ball path has too, its hood, are its
+    // alone for them, met at each of its sub-steps: Mechanism.step's skip)
+    const sb = this.shooter ? this.shooterBalls(near).map((b) => b.body) : [];
+    this._shared ??= new Set(this.shooter ? this.shooter.surfaces.filter((sf) => this.path.surfaces.includes(sf)) : []);
+    const skip = this._shared.size && sb.length ? { surfaces: this._shared, balls: new Set(sb) } : null;
+    this.path.step(dt, near.map((b) => b.body), [...owned].map((b) => b.body), skip);
+    if (this.shooter) this.shooter.step(dt, sb);
     this._squash(near);
   }
 

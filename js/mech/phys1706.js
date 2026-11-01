@@ -110,7 +110,7 @@ export class Physical1706 extends PhysicalRobot {
     const pathWheels = [...w.intake, ...w.kicker];
     super(robot, {
       path: new Mechanism({ body: robot.body, substeps: 6, shafts: [...new Set(pathWheels.map((x) => x.shaft)), t.pivot, ...t.spin], wheels: pathWheels, surfaces: [s.body, s.bowl, s.intake, s.hopper, ...s.spin, ...s.turret, ...s.hood, s.bumper, s.net] }),
-      shooter: new Mechanism({ body: robot.body, substeps: 6, sub: 8, shafts: sw.flat().map((x) => x.shaft), wheels: sw.flat() }),
+      shooter: new Mechanism({ body: robot.body, substeps: 6, sub: 8, shafts: sw.flat().map((x) => x.shaft), wheels: sw.flat(), surfaces: [...s.turret, ...s.hood] }),
       // (full when its intake can't put more in: js/mech/physical.js. Over the front half of the
       // hopper and the box, under the net: a layer of ~12 FUEL, packed against it when two thirds
       // are)

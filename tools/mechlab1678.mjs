@@ -16,8 +16,8 @@
 // each quarter second)
 import { RAPIER } from '../js/physics.js';
 import { FUEL, GROUP, groups, HUB } from '../js/constants.js';
-import { Mechanism } from '../js/mech/mechanism.js';
-import { sim2D } from '../js/ballistics.js';
+import { Mechanism, handOff } from '../js/mech/mechanism.js';
+import { sim2D, backspin } from '../js/ballistics.js';
 import {
   build1678, wheels1678, pathSurfaces1678, placeIntake, placeHood, placeNet, intakeRot, slotExt, slotRate, SLOT, hoodRot, hoodElevation, shotFor, REGRESSIONS,
   INTAKE, SHOOTER, TUNNEL, FEEDER, FLEX, FLOOR, TUNNEL_D, DRUM, PIVOT, RANGES,
@@ -61,6 +61,7 @@ function rig({ deg = Number(process.env.ARM ?? INTAKE.down), hood = SHOOTER.hood
   const pathW = [...wh.floor, ...wh.tunnel, ...wh.intake];
   const path = new Mechanism({ substeps: 6, shafts: [...new Set(pathW.map((x) => x.shaft)), t.pivot], wheels: pathW, surfaces: Object.values(s) });
   const shooter = new Mechanism({ substeps: 6, sub: 8, shafts: [t.drum, t.hood], wheels: [wh.drum, ...wh.hood] });
+  handOff(path, shooter, [s.hood]); // (the hood: met at each of the shooter's sub-steps)
   for (const tr of [t.intake, t.floor, t.tunnel, t.feederT, t.shooter]) tr.cmd = null;
   return { t, wh, s, path, shooter };
 }
@@ -73,7 +74,7 @@ function drum(t, rpm) {
 const tunnel = (t, rpm, max = 12) => tunnelLoop(t, { rpm, max });
 // a FUEL leaving the drum: where it comes down through the HUB's rim height, back from the exit
 function landing(o) {
-  const hit = sim2D(o.y, o.v, (o.el * Math.PI) / 180, HUB.rimFront);
+  const hit = sim2D(o.y, o.v, (o.el * Math.PI) / 180, HUB.rimFront, 0, o.s ?? 0);
   return hit ? hit.d : NaN;
 }
 // a FUEL that touched the drum and has left it going up and back: shot
@@ -89,7 +90,7 @@ function shotWatch(shooter) {
           const v = b.linvel(), p = b.translation();
           // (going up and back over the drum: not one kicked up forward off it, a rebound off the
           // one ahead, which falls back onto it)
-          if (v.y > 2 && v.x < 0) { shots.push({ t, v: Math.hypot(v.x, v.y, v.z), el: (Math.atan2(v.y, -v.x) * 180) / Math.PI, x: p.x, y: p.y, b }); b.setTranslation({ x: 50 + shots.length, y: 5, z: 0 }, true); }
+          if (v.y > 2 && v.x < 0) { shots.push({ t, v: Math.hypot(v.x, v.y, v.z), s: backspin(v, b.angvel()), el: (Math.atan2(v.y, -v.x) * 180) / Math.PI, x: p.x, y: p.y, b }); b.setTranslation({ x: 50 + shots.length, y: 5, z: 0 }, true); }
         }
       }
     },
@@ -157,7 +158,7 @@ const tests = {
       const surf = t.drum.omega * SHOOTER.drum.d / 2;
       const land = landing(o) - o.x;
       console.log(`  ${kind} ${d} m (${want.rpm.toFixed(0)} RPM, hood ${want.hood}): ${outs.length}/3 out at ${o.v.toFixed(2)} m/s (${(o.v / surf).toFixed(2)} of the drum's ${surf.toFixed(1)}; the estimate ${EXIT_PER_DRUM_SURFACE}), ${o.el.toFixed(1)} deg (${hoodElevation(want.hood).toFixed(1)} by the CAD's geometry), ` +
-        (kind === 'hub' ? `comes down at the rim ${land.toFixed(2)} m back (HUB's center ${d} m: ${land - d > 0 ? '+' : ''}${(land - d).toFixed(2)})` : `comes down to the carpet ~${(sim2D(o.y, o.v, (o.el * Math.PI) / 180, 0.1)?.d - o.x).toFixed(1)} m back`));
+        (kind === 'hub' ? `comes down at the rim ${land.toFixed(2)} m back (HUB's center ${d} m: ${land - d > 0 ? '+' : ''}${(land - d).toFixed(2)})` : `comes down to the carpet ~${(sim2D(o.y, o.v, (o.el * Math.PI) / 180, 0.1, 0, o.s ?? 0)?.d - o.x).toFixed(1)} m back`));
     }
   },
   // their ferry and far tables' rows re-found by shooting: at each row's hood angle and tunnel
@@ -190,7 +191,7 @@ const tests = {
       }
       w.free();
       const H = kind === 'hub' ? HUB.rimFront : R;
-      const L = watch.shots.map((o) => { const h = sim2D(o.y, o.v, (o.el * Math.PI) / 180, H); return h ? h.d - o.x : NaN; }).filter(Number.isFinite);
+      const L = watch.shots.map((o) => { const h = sim2D(o.y, o.v, (o.el * Math.PI) / 180, H, 0, o.s ?? 0); return h ? h.d - o.x : NaN; }).filter(Number.isFinite);
       if (process.env.TUNELOG) console.log(`      ${rpm.toFixed(0)}: ${watch.shots.map((o, k) => `${o.t.toFixed(2)}s ${o.v.toFixed(2)}@${o.el.toFixed(0)} ${(L[k] ?? NaN).toFixed(2)}`).join(' | ')}`);
       return { land: L.length ? L.reduce((a, b) => a + b, 0) / L.length : NaN, n: L.length, spread: L.length ? Math.max(...L) - Math.min(...L) : NaN };
     };

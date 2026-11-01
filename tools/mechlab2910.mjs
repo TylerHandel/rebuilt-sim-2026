@@ -16,8 +16,8 @@
 // second), TRACE (the drum, floor and arm), LIFTLOG (how many FUEL are up the lift), DRUM (the drum's turns per motor turn, to try others than the CAD's ~24:42)
 import { RAPIER } from '../js/physics.js';
 import { FUEL, GROUP, groups, HUB } from '../js/constants.js';
-import { Mechanism } from '../js/mech/mechanism.js';
-import { sim2D } from '../js/ballistics.js';
+import { Mechanism, handOff } from '../js/mech/mechanism.js';
+import { sim2D, backspin } from '../js/ballistics.js';
 import {
   build2910, wheels2910, pathSurfaces2910, placeIntake, placeHood, hoodElevation, shotFor, SHOT_TABLE, PASS_TABLE, THEIR_PASS_TABLE, passFor, intakeLimits,
   INTAKE, SHOOTER, FLOOR, DRUM, PIVOT, RANGES,
@@ -60,6 +60,7 @@ function rig({ deg = INTAKE.deploy, hood = 0 } = {}) {
   const pathW = [...wh.floor, ...wh.indexer, ...wh.intake];
   const path = new Mechanism({ substeps: 6, shafts: [...new Set(pathW.map((x) => x.shaft)), t.pivot], wheels: pathW, surfaces: Object.values(s) });
   const shooter = new Mechanism({ substeps: 6, sub: 8, shafts: [t.drum, t.hood], wheels: [wh.drum, ...wh.hood] });
+  handOff(path, shooter, [s.hood]); // (the hood: met at each of the shooter's sub-steps)
   return { t, wh, s, path, shooter };
 }
 // their flywheel velocity loop toward rpm (motor)
@@ -70,7 +71,7 @@ function flywheel(t, rpm) {
 
 // a FUEL leaving the drum: where it comes down through the HUB's rim height, back from the exit
 function landing(o) {
-  const hit = sim2D(o.y, o.v, (o.el * Math.PI) / 180, HUB.rimFront);
+  const hit = sim2D(o.y, o.v, (o.el * Math.PI) / 180, HUB.rimFront, 0, o.s ?? 0);
   return hit ? hit.d : NaN;
 }
 
@@ -172,12 +173,12 @@ const tests = {
             touched.delete(b);
             const v = b.linvel(), p = b.translation();
             // (up and back over the drum: not one kicked forward off it by the one ahead)
-            if (v.y > 2 && v.x < 0) { outs.push({ drum: now() / rpm, v: Math.hypot(v.x, v.y, v.z), el: (Math.atan2(v.y, -v.x) * 180) / Math.PI, x: p.x, y: p.y }); b.setTranslation({ x: 50 + outs.length, y: 5, z: 0 }, true); }
+            if (v.y > 2 && v.x < 0) { outs.push({ drum: now() / rpm, v: Math.hypot(v.x, v.y, v.z), s: backspin(v, b.angvel()), el: (Math.atan2(v.y, -v.x) * 180) / Math.PI, x: p.x, y: p.y }); b.setTranslation({ x: 50 + outs.length, y: 5, z: 0 }, true); }
           }
         }
       }
       w.free();
-      const L = outs.map((o) => { const h = sim2D(o.y, o.v, (o.el * Math.PI) / 180, H); return h ? h.d - o.x : NaN; }).filter(Number.isFinite);
+      const L = outs.map((o) => { const h = sim2D(o.y, o.v, (o.el * Math.PI) / 180, H, 0, o.s ?? 0); return h ? h.d - o.x : NaN; }).filter(Number.isFinite);
       return { land: L.length ? L.reduce((a, b) => a + b, 0) / L.length : NaN, n: L.length, spread: L.length ? Math.max(...L) - Math.min(...L) : NaN, v: med(outs.map((o) => o.v)), drum: med(outs.map((o) => o.drum)) };
     };
     for (const [d, rpm, hood] of SHOT_TABLE) {
@@ -351,7 +352,7 @@ function dumpRun(seed) {
       else if (touched.has(b)) {
         touched.delete(b);
         const v = b.linvel(), p = b.translation();
-        if (v.y > 2) { shots.push({ t: k * DT, v: Math.hypot(v.x, v.y, v.z), el: (Math.atan2(v.y, -v.x) * 180) / Math.PI, x: p.x, y: p.y }); b.setTranslation({ x: 50 + shots.length, y: 5, z: 0 }, true); }
+        if (v.y > 2) { shots.push({ t: k * DT, v: Math.hypot(v.x, v.y, v.z), s: backspin(v, b.angvel()), el: (Math.atan2(v.y, -v.x) * 180) / Math.PI, x: p.x, y: p.y }); b.setTranslation({ x: 50 + shots.length, y: 5, z: 0 }, true); }
       }
     }
   }

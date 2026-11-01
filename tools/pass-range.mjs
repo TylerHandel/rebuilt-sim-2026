@@ -13,6 +13,7 @@ import { createWorld, mulberry32 } from './headless.mjs';
 import { createGame, stepGame, frameGame } from '../js/game.js';
 import { PHYSICS_DT, BLUE, HALF_L, FUEL } from '../js/constants.js';
 import { DEG } from '../js/util.js';
+import { backspin } from '../js/ballistics.js';
 import { ROBOTS } from '../js/robotConfigs.js';
 
 const args = process.argv.slice(2);
@@ -80,8 +81,9 @@ async function run(id, d) {
           s = { top: b.pos.y, done: false };
           seen.set(b, s);
           // (the FUEL's own speed and climb as it leaves, and what the robot thinks its exit speed is)
-          const lv = b.body.linvel(), h = Math.hypot(lv.x, lv.z);
-          fires.push({ v: r.flywheel, hood: r.hoodDeg, t: m.t, bv: Math.hypot(h, lv.y), bel: Math.atan2(lv.y, h) / DEG });
+          const lv = b.body.linvel(), h = Math.hypot(lv.x, lv.z), bv = Math.hypot(h, lv.y);
+          // (and its backspin, as the spin ratio R w / v: what lifts it in flight)
+          fires.push({ v: r.flywheel, hood: r.hoodDeg, t: m.t, bv, bel: Math.atan2(lv.y, h) / DEG, S: (backspin(lv, b.body.angvel()) * R) / bv });
           tFirst ??= m.t;
           ex ??= { x: b.pos.x, z: b.pos.z };
         }
@@ -91,7 +93,7 @@ async function run(id, d) {
       }
     }
     const fired = r.stats.shots - shots0;
-    if (process.env.PASSLOG) for (const [k, f] of fires.entries()) console.log(`  ${id} ${d} m: shot ${k} at ${f.t.toFixed(2)} s, ${f.bv.toFixed(1)} m/s @${f.bel.toFixed(0)} (robot: ${f.v.toFixed(1)} @${f.hood.toFixed(0)}), lands ${lands[k] ? (lands[k].x + HALF_L).toFixed(1) + ", " + lands[k].z.toFixed(1) + " (y " + lands[k].y.toFixed(2) + ")" : "-"}`);
+    if (process.env.PASSLOG) for (const [k, f] of fires.entries()) console.log(`  ${id} ${d} m: shot ${k} at ${f.t.toFixed(2)} s, ${f.bv.toFixed(1)} m/s @${f.bel.toFixed(0)} spin ${f.S.toFixed(2)} (robot: ${f.v.toFixed(1)} @${f.hood.toFixed(0)}), lands ${lands[k] ? (lands[k].x + HALF_L).toFixed(1) + ", " + lands[k].z.toFixed(1) + " (y " + lands[k].y.toFixed(2) + ")" : "-"}`);
     ex ??= r.pos;
     let short = NaN, lat = NaN, landD = NaN, tD = NaN;
     if (tgt && lands.length) {
@@ -103,7 +105,7 @@ async function run(id, d) {
     } else if (tgt) tD = Math.hypot(tgt.x - ex.x, tgt.z - ex.z);
     const topStatus = [...status].sort((a, b) => b[1] - a[1]).slice(0, 2).map(([s, n]) => `${s} ${(n * PHYSICS_DT).toFixed(1)}s`).join(', ');
     return {
-      id, d, fired, of: start, left: r.stored.length, v: med(fires.map((f) => f.v)), hood: med(fires.map((f) => f.hood)), bv: med(fires.map((f) => f.bv)), bel: med(fires.map((f) => f.bel)), first: tFirst,
+      id, d, fired, of: start, left: r.stored.length, v: med(fires.map((f) => f.v)), hood: med(fires.map((f) => f.hood)), bv: med(fires.map((f) => f.bv)), bel: med(fires.map((f) => f.bel)), S: med(fires.map((f) => f.S)), first: tFirst,
       tD, landD, short, lat, landX: med(lands.map((p) => p.x + HALF_L)), tgtX: tgt ? tgt.x + HALF_L : NaN, topStatus,
     };
   } finally {
@@ -113,10 +115,10 @@ async function run(id, d) {
 }
 
 const f = (v, n = 1) => (Number.isFinite(v) ? v.toFixed(n) : '-');
-console.log('robot  from wall  shots (held, left)  exit m/s  hood  FUEL m/s @deg  target dist  lands at  short by  aside   target (m from wall)  status');
+console.log('robot  from wall  shots (held, left)  exit m/s  hood  FUEL m/s @deg  spin  target dist  lands at  short by  aside   target (m from wall)  status');
 for (const id of robots) {
   for (const d of dists) {
     const o = await run(id, d);
-    console.log(`${id.padEnd(6)} ${String(d).padStart(5)} m   ${String(o.fired).padStart(2)} (${o.of}, ${o.left})   ${f(o.v).padStart(6)}   ${f(o.hood, 0).padStart(4)}   ${f(o.bv).padStart(5)} @${f(o.bel, 0).padStart(2)}   ${f(o.tD).padStart(8)} m  ${f(o.landD).padStart(6)} m  ${f(o.short).padStart(6)} m  ${f(o.lat).padStart(5)} m   x ${f(o.tgtX)} / lands x ${f(o.landX)}   ${o.topStatus}`);
+    console.log(`${id.padEnd(6)} ${String(d).padStart(5)} m   ${String(o.fired).padStart(2)} (${o.of}, ${o.left})   ${f(o.v).padStart(6)}   ${f(o.hood, 0).padStart(4)}   ${f(o.bv).padStart(5)} @${f(o.bel, 0).padStart(2)}  ${f(o.S, 2).padStart(5)}  ${f(o.tD).padStart(8)} m  ${f(o.landD).padStart(6)} m  ${f(o.short).padStart(6)} m  ${f(o.lat).padStart(5)} m   x ${f(o.tgtX)} / lands x ${f(o.landX)}   ${o.topStatus}`);
   }
 }

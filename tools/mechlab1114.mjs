@@ -33,8 +33,8 @@
 // JSON), TRACE=i (path)
 import { RAPIER } from '../js/physics.js';
 import { FUEL, GROUP, groups, HUB } from '../js/constants.js';
-import { Mechanism } from '../js/mech/mechanism.js';
-import { sim2D } from '../js/ballistics.js';
+import { Mechanism, handOff } from '../js/mech/mechanism.js';
+import { sim2D, backspin } from '../js/ballistics.js';
 import {
   build1114, wheels1114, pathSurfaces1114, placeSlide, placeIntake, placeHood, hoodRot, hoodElevation, shotFor, slideTurns, kickerRot, slideOffset, slideStops,
   HUB_LUT, PASS_LUT, SLIDE, SLIDE_POS, SHOOTER, BALLEVATOR, FLOOR, ELEV, SQUISH, SIDE, INTAKE, FLY, RANGE, BLANKET, PANEL,
@@ -71,6 +71,7 @@ function rig({ ext = SLIDE.out, hood = SHOOTER.hoodHome } = {}) {
   const pathW = [...wh.floor, ...wh.squish, ...wh.side, ...wh.passive, ...wh.elev, ...wh.wall, ...wh.intake];
   const path = new Mechanism({ substeps: 6, shafts: [...new Set(pathW.map((x) => x.shaft)), t.slide], wheels: pathW, surfaces: Object.values(s) });
   const shooter = new Mechanism({ substeps: 6, sub: 8, shafts: [t.fly, t.hood], wheels: [wh.fly, ...wh.hood] });
+  handOff(path, shooter, [s.hood]); // (the hood: met at each of the shooter's sub-steps)
   for (const tr of [t.intake, t.floor, t.sideT, t.elev, t.shooter]) tr.cmd = null;
   t.slide.cmd = null;
   if (process.env.STATOR) t.shooter.motor.statorLimit = Number(process.env.STATOR);
@@ -112,7 +113,7 @@ function moveSlide(r) {
 // a FUEL leaving the flywheel: how far forward from the robot's center it comes down through the
 // HUB's rim height
 function landing(o) {
-  const hit = sim2D(o.y, o.v, (o.el * Math.PI) / 180, HUB.rimFront);
+  const hit = sim2D(o.y, o.v, (o.el * Math.PI) / 180, HUB.rimFront, 0, o.s ?? 0);
   return hit ? o.x + hit.d : NaN;
 }
 // a FUEL that touched the flywheel and has left it going up: shot
@@ -126,7 +127,7 @@ function shotWatch(shooter) {
         else if (touched.has(b)) {
           touched.delete(b);
           const v = b.linvel(), p = b.translation();
-          if (v.y > 2) { shots.push({ t, v: Math.hypot(v.x, v.y, v.z), el: (Math.atan2(v.y, v.x) * 180) / Math.PI, x: p.x, y: p.y, z: p.z, b }); b.setTranslation({ x: 50 + shots.length, y: 5, z: 0 }, true); }
+          if (v.y > 2) { shots.push({ t, v: Math.hypot(v.x, v.y, v.z), s: backspin(v, b.angvel()), el: (Math.atan2(v.y, v.x) * 180) / Math.PI, x: p.x, y: p.y, z: p.z, b }); b.setTranslation({ x: 50 + shots.length, y: 5, z: 0 }, true); }
         }
       }
     },
@@ -265,7 +266,7 @@ const tests = {
       const land = landing(o);
       if (process.env.MAP) { console.log(`  map ${want.rpm} ${want.hood} ${o.v.toFixed(3)} ${o.el.toFixed(2)} ${o.x.toFixed(3)} ${o.y.toFixed(3)}`); continue; }
       console.log(`  ${kind} ${d} m (${want.rpm.toFixed(0)} RPM, hood ${want.hood.toFixed(1)}): ${outs.length}/2 out at ${o.v.toFixed(2)} m/s (${(o.v / surf).toFixed(2)} of the flywheel's ${surf.toFixed(1)}; the estimate ${EXIT_PER_FLY_SURFACE}), ${o.el.toFixed(1)} deg (${hoodElevation(want.hood).toFixed(1)} by the CAD's geometry) from ${o.x.toFixed(2)},${o.y.toFixed(2)}, the motors down to ${minRpm.toFixed(0)}; ` +
-        (kind === 'hub' ? `comes down at the rim ${land.toFixed(2)} m out (the HUB's center ${d} m: ${land - d > 0 ? '+' : ''}${(land - d).toFixed(2)})` : kind === 'pass' ? `comes down to the carpet ~${(o.x + sim2D(o.y, o.v, (o.el * Math.PI) / 180, 0.1)?.d).toFixed(1)} m out (their ${d})` : `rim ${land.toFixed(2)} m`));
+        (kind === 'hub' ? `comes down at the rim ${land.toFixed(2)} m out (the HUB's center ${d} m: ${land - d > 0 ? '+' : ''}${(land - d).toFixed(2)})` : kind === 'pass' ? `comes down to the carpet ~${(o.x + sim2D(o.y, o.v, (o.el * Math.PI) / 180, 0.1, 0, o.s ?? 0)?.d).toFixed(1)} m out (their ${d})` : `rim ${land.toFixed(2)} m`));
     }
   },
   // their LUT's rows re-tuned to the sim's FUEL: at each row's hood angle, the motor RPM whose
@@ -283,7 +284,7 @@ const tests = {
       const watch = shotWatch(shooter);
       for (let i = 0; i < 3 / DT && watch.shots.length < balls.length; i++) { path.step(DT, balls, balls); shooter.step(DT, balls); w.step(); watch.check(balls, i * DT); }
       w.free();
-      const L = watch.shots.map((o) => { const h = sim2D(o.y, o.v, (o.el * Math.PI) / 180, H); return h ? o.x + h.d : NaN; }).filter(Number.isFinite);
+      const L = watch.shots.map((o) => { const h = sim2D(o.y, o.v, (o.el * Math.PI) / 180, H, 0, o.s ?? 0); return h ? o.x + h.d : NaN; }).filter(Number.isFinite);
       return L.length ? mean(L) : NaN;
     };
     const out = { hub: [], pass: [] };
