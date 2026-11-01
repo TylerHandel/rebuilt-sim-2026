@@ -201,14 +201,15 @@ BEST_AUTOS[2056] = { start: 'rightTrench', preload: 'move', trips: [
   { out: 'bump', fx: 7.73, a: 1.58, b: 4.85, speed: 0.61, home: 'bump', shootAt: [2.69, 5.55] },
 ] };
 
-// 7769: set by reasoning and a few tries, not searched: CHUNK holds ~60, intakes ~30 FUEL/s along the
-// NEUTRAL ZONE's line and doesn't shoot on the move (the team), so a long sweep over the BUMP, home
-// the same way to dump standing (~45 AUTO shots), then a short one (~20 more as AUTO ends). Out and
-// home under the TRENCH it got there later, after the other robots had scattered the line (~20).
+// 7769: searched (tools/auto-search.mjs --robots 7769 --opps 2910,4414 --n 24 --refine 16): 91.0 AUTO
+// FUEL against those two, where the plan it had (set by reasoning and a few tries: a long sweep over
+// the BUMP and a short one) scored 71.3; the team's real AUTO scores 67 (Statbotics). A sweep out and
+// home over the BUMP, one back across the line out under the TRENCH, then the DEPOT.
 // (Kept out of the BEST_AUTOS literal so it merges on its own.)
-BEST_AUTOS[7769] = { start: 'rightBump', preload: 'stand', trips: [
-  { out: 'bump', fx: 7.6, a: 2.0, b: 5.6, speed: 0.45, home: 'bump', shootAt: [2.7, 2.6] },
-  { out: 'bump', fx: 7.85, a: 2.6, b: 4.2, speed: 0.6, home: 'bump', shootAt: [2.7, 2.6] },
+BEST_AUTOS[7769] = { start: 'rightTrench', preload: 'move', trips: [
+  { out: 'bump', fx: 8.43, a: 2.23, b: 4.14, speed: 0.77, home: 'bump', shootAt: [3.37, 6.37] },
+  { out: 'trench', fx: 7.38, a: 6.04, b: 3.29, speed: 0.69, home: 'bump', shootAt: [2.77, 1.71] },
+  { depot: true, speed: 0.42 },
 ] };
 
 // Starting spots for one ALLIANCE's robots, so no two start on top of each other. entries (in

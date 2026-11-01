@@ -33,6 +33,9 @@ const FULLGO = knob(globalThis.process?.env?.FULLGO, 1);
 // TURRETCAP=n: a turret collecting in its zone drives at full speed while it holds fewer than n
 // (0: held to its shooting speed with any aboard, as before)
 const TURRETCAP = knob(globalThis.process?.env?.TURRETCAP, 0);
+// TURRETDUMP=n: a turret back in its zone with n or more aboard stands and empties them before it
+// collects on (0: it shoots them on the move as it collects, as before)
+const TURRETDUMP = knob(globalThis.process?.env?.TURRETDUMP, 0);
 
 export const OPP_STRATEGIES = {
   off: { name: 'Off (solo)', desc: 'No opponent: just you, the FUEL and the clock.' },
@@ -491,6 +494,7 @@ export class OpponentAI {
     const nc = m.hubNextChange(this.own);
     const untilActive = active ? 0 : nc ?? Infinity;
     if (this.state !== 'score') this.here = null;
+    if (!(this.state === 'collect' && this.turret && r.lastInZone && (active || this._inGrace()))) this.dumping = false;
     const home = this._home();
     const travel = Math.hypot(home.x - r.pos.x, home.z - r.pos.z) / (r.cfg.drive.maxSpeed * this.skill.speed * 0.7) + 1;
     const left = TIMING.teleop - m.phaseTime;
@@ -559,6 +563,21 @@ export class OpponentAI {
         this.shootingMode = stored > 0; // full speed when there's nothing to shoot
         r.cmd.shoot = stored > 0;
         this.label = `Shooting while collecting (${stored})`;
+        // back in its zone with a load (TURRETDUMP or more aboard): it stands and empties it first,
+        // then goes on collecting; shooting on the move it emptied a load at a third of its rate
+        // (2056: 43 in 8 s, its turret chasing the aim as it drove round its zone after scraps)
+        if (TURRETDUMP && !this.flow) {
+          if (stored >= TURRETDUMP) this.dumping = true;
+          else if (stored <= 2) this.dumping = false;
+          // (only where a shot from standing works: well inside the zone, off the BUMP, not right
+          // under the HUB; elsewhere it shoots on as it goes)
+          const c = Field.hubCenter(this.own), dh = Math.hypot(r.pos.x - c.x, r.pos.z - c.z);
+          const stand = Math.abs(r.pos.x - Field.allianceLineX(this.own)) > 0.8 && dh > 1.8 && dh < 5 && (r.traction ?? 1) > 0.95;
+          if (this.dumping && stand) {
+            r.cmd.vx = 0; r.cmd.vz = 0; r.cmd.omega = 0; r.cmd.intake = false;
+            this.label = `Emptying its load (${stored})`;
+          }
+        }
       } else if (this.flow && canShoot && !r.lastInZone && stored > 0 && this._passOn(left, travel)) {
         // out of its zone and staying out for more: pass what it picks up across as it goes
         r.passTarget = this._dropPoint();
