@@ -19,10 +19,48 @@ export class Physics {
     // (the TRENCH arms: as static, but a member of their own group, which an intake arm the TRENCH
     // pushes down on its pivot leaves out: GROUP.TRENCH_ARM)
     this.trenchArmGroups = groups(GROUP.TRENCH_ARM, GROUP.BALL | GROUP.HELD | GROUP.ROBOT | GROUP.WHEEL | GROUP.INTAKE);
+    // What passes under a TRENCH arm without reaching it isn't stopped by it. Rapier makes contacts
+    // within its prediction distance (2 cm) and lets the solver close each one by no more than its
+    // gap per step along its normal (a speculative contact). Coming in under the arm, a robot's top
+    // edge meets the arm's lower edge edge-on, so the normal points along the gap between the two
+    // edges, slanted: a robot driving level under the arm with h to spare is read as closing on it
+    // at its speed times the slant, and from 2h/dt (2.2 m/s at 9 mm, 3 at 13 mm, 4.6 at 19 mm) the
+    // solver pushed back on one that was never going to touch it: it stopped dead at the arm's edge,
+    // or slowed and was turned. A collider registered with passesUnder (a robot's frame) is left
+    // out of the solver against the TRENCH arms (its solver groups, the arms' contacts still made)
+    // while near one, its highest point by the end of the step, top(), stays under their underside:
+    // reaching it, its contacts with them are solved as before.
+    this.arms = [];            // the TRENCH arm colliders' boxes (world: center, half sizes)
+    this.armsBottom = Infinity; // the lowest arm's underside
+    this.underArm = [];        // { collider, top, under }
+    this.armSolverGroups = ((GROUP.TRENCH_ARM & 0xffff) << 16) | 0xffff;
+    this.underSolverGroups = (0xffff0000 | (0xffff & ~GROUP.TRENCH_ARM)) >>> 0;
   }
 
   step() {
+    for (const u of this.underArm) {
+      const p = u.collider.translation();
+      // (only near an arm, where it matters: 1 m round it covers any frame and its step)
+      if (!this.arms.some((a) => Math.abs(p.x - a.x) < a.hx + 1 && Math.abs(p.z - a.z) < a.hz + 1)) continue;
+      const under = u.top() < this.armsBottom;
+      if (under !== u.under) {
+        u.under = under;
+        u.collider.setSolverGroups(under ? this.underSolverGroups : 0xffffffff);
+      }
+    }
     this.world.step();
+  }
+
+  // collider (a robot's frame) passes under a TRENCH arm untouched while top() (the highest it
+  // reaches by the end of the coming step) is under the arm's underside
+  passesUnder(collider, top) {
+    // (under to start with, as it's made: a robot that reaches the arm is found to when it nears it)
+    collider.setSolverGroups(this.underSolverGroups);
+    this.underArm.push({ collider, top, under: true });
+  }
+
+  forget(collider) {
+    this.underArm = this.underArm.filter((u) => u.collider !== collider);
   }
 
   _finish(desc, opts = {}) {
@@ -31,7 +69,16 @@ export class Physics {
     desc.setCollisionGroups(opts.groups ?? this.staticGroups);
     if (opts.translation) desc.setTranslation(opts.translation.x, opts.translation.y, opts.translation.z);
     if (opts.rotation) desc.setRotation(opts.rotation);
-    return this.world.createCollider(desc, this.fixedBody);
+    // (a TRENCH arm, an unrotated box: a member of its own solver group, see underArm)
+    const arm = opts.groups === this.trenchArmGroups;
+    if (arm) desc.setSolverGroups(this.armSolverGroups);
+    const c = this.world.createCollider(desc, this.fixedBody);
+    if (arm) {
+      const t = c.translation(), h = c.halfExtents();
+      this.arms.push({ x: t.x, z: t.z, hx: h.x, hz: h.z });
+      this.armsBottom = Math.min(this.armsBottom, t.y - h.y);
+    }
+    return c;
   }
 
   // Axis-aligned (optionally yaw-rotated) static box given center and half extents

@@ -196,7 +196,29 @@ export class Robot {
       .setFriction(0.05).setFrictionCombineRule(RAPIER.CoefficientCombineRule.Min)
       .setRestitution(0.1)
       .setCollisionGroups(groups(GROUP.ROBOT, GROUP.STATIC | GROUP.TERRAIN | GROUP.BALL | GROUP.ROBOT_BARRIER | GROUP.ROBOT | GROUP.INTAKE));
-    world.createCollider(upper, this.body);
+    const frame = this.frameCollider = world.createCollider(upper, this.body);
+    // a TRENCH arm stops the frame only if it reaches the arm: its highest corner, where it is now
+    // or rising to by the end of the step, up to the arm's underside (js/physics.js underArm:
+    // without this, driving in under the arm with a few mm to spare caught on its edge)
+    {
+      const body = this.body, dt = world.timestep, n = up.length / 3;
+      this.physics.passesUnder(frame, () => {
+        const p = body.translation(), q = body.rotation(), v = body.linvel(), w = body.angvel(), c = body.worldCom();
+        // (the body's rotation, as rows)
+        const rx = [1 - 2 * (q.y * q.y + q.z * q.z), 2 * (q.x * q.y - q.w * q.z), 2 * (q.x * q.z + q.w * q.y)];
+        const ry = [2 * (q.x * q.y + q.w * q.z), 1 - 2 * (q.x * q.x + q.z * q.z), 2 * (q.y * q.z - q.w * q.x)];
+        const rz = [2 * (q.x * q.z - q.w * q.y), 2 * (q.y * q.z + q.w * q.x), 1 - 2 * (q.x * q.x + q.y * q.y)];
+        let top = -Infinity;
+        for (let i = 0; i < n; i++) {
+          const x = up[3 * i], y = up[3 * i + 1], z = up[3 * i + 2];
+          const wx = p.x + rx[0] * x + rx[1] * y + rx[2] * z, wy = p.y + ry[0] * x + ry[1] * y + ry[2] * z, wz = p.z + rz[0] * x + rz[1] * y + rz[2] * z;
+          // (the corner's own velocity: the body's at its center of mass plus its turning)
+          const vy = v.y + w.z * (wx - c.x) - w.x * (wz - c.z);
+          top = Math.max(top, wy + Math.max(0, vy) * dt);
+        }
+        return top;
+      });
+    }
     // most of a robot's weight is low (drivetrain, battery, motors): mass only, it touches nothing
     world.createCollider(RAPIER.ColliderDesc.cuboid(sL, 0.03, sW).setTranslation(0, 0.05, 0).setMass(cfg.mass * 0.5).setCollisionGroups(0), this.body);
     this.wheelPts = [];
@@ -403,6 +425,7 @@ export class Robot {
 
   destroy() {
     this.hopper.clear();
+    this.physics.forget(this.frameCollider);
     this.physics.world.removeRigidBody(this.body);
     this.scene.remove(this.visual);
   }

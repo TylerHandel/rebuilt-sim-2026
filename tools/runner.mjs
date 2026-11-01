@@ -18,11 +18,13 @@ const args = process.argv.slice(2);
 const arg = (k, d) => { const i = args.indexOf('--' + k); return i >= 0 ? args[i + 1] : d; };
 const JOBS = +arg('jobs', Math.max(1, cpus().length - 4));
 const POLL = +arg('poll', 60) * 1000;
+const ONLY = arg('only', ''); // (only jobs whose id contains this: for trying the runner out)
 const WT = resolve(ROOT, '..', 'rebuilt-sim-runner');
 const LOGS = join(ROOT, 'results', 'runner-logs');
 mkdirSync(LOGS, { recursive: true });
 
 const SAFE = /^[\w.,:+-]{1,200}$/;
+const REF = /^\w[\w./-]{0,99}$/; // a branch (wip/x) or a commit
 const FLAGS = { pairs: 1, roundrobin: 0, robots: 1, seeds: 1, strategy: 1, skill: 1, jobs: 1 };
 const log = (s) => console.log(`${new Date().toLocaleTimeString()} ${s}`);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -59,26 +61,37 @@ function worktreeAt(ref) {
   return sha;
 }
 
+// queued jobs not yet done, oldest first; one this machine started and never finished (the
+// runner was stopped mid-job) runs again, once
 function pending() {
   const q = tip(ROOT, 'batch-queue');
   if (!q) return [];
   const r = tip(ROOT, 'batch-results');
   const done = new Set(r ? git(ROOT, ['ls-tree', '-r', '--name-only', r]).split('\n') : []);
-  return git(ROOT, ['ls-tree', '--name-only', q, 'queue/']).split('\n').filter((p) => p.endsWith('.json'))
-    .map((p) => p.slice(6, -5)).filter((id) => /^[\w.-]{1,100}$/.test(id))
-    .filter((id) => !done.has(`results/batch/${id}.json`) && !done.has(`status/${id}.failed`) && !done.has(`status/${id}.started`))
-    .sort().map((id) => ({ id, job: JSON.parse(git(ROOT, ['show', `${q}:queue/${id}.json`])) }));
+  const out = [];
+  for (const id of git(ROOT, ['ls-tree', '--name-only', q, 'queue/']).split('\n').filter((p) => p.endsWith('.json')).map((p) => p.slice(6, -5)).sort()) {
+    if (!/^[\w.-]{1,100}$/.test(id) || (ONLY && !id.includes(ONLY)) || done.has(`results/batch/${id}.json`) || done.has(`status/${id}.failed`)) continue;
+    let attempt = 1;
+    if (done.has(`status/${id}.started`)) {
+      const st = JSON.parse(git(ROOT, ['show', `${r}:status/${id}.started`]));
+      if (st.host !== hostname()) continue; // another machine's
+      if ((st.attempt ?? 1) >= 2) { status(id, 'failed', { at: new Date().toISOString(), error: 'interrupted twice' }); continue; }
+      attempt = (st.attempt ?? 1) + 1;
+    }
+    out.push({ id, attempt, job: JSON.parse(git(ROOT, ['show', `${q}:queue/${id}.json`])) });
+  }
+  return out;
 }
 
 function status(id, kind, body) {
   try { pushFiles(ROOT, 'batch-results', { [`status/${id}.${kind}`]: { text: JSON.stringify(body, null, 1) } }, `${kind} ${id}`); } catch (e) { log(`status push failed: ${String(e.message).split('\n')[0]}`); }
 }
 
-async function run({ id, job }) {
-  log(`job ${id}: ${JSON.stringify(job)}`);
+async function run({ id, job, attempt }) {
+  log(`job ${id}${attempt > 1 ? ` (again: it was interrupted)` : ''}: ${JSON.stringify(job)}`);
   let sha;
   try {
-    if (!SAFE.test(job.ref ?? '')) throw new Error('bad ref');
+    if (!REF.test(job.ref ?? '') || job.ref.includes('..')) throw new Error('bad ref');
     sha = worktreeAt(job.ref);
     const a = batchArgs(job);
     const K = knobs(WT);
@@ -87,7 +100,7 @@ async function run({ id, job }) {
       if (!K.has(k) || !SAFE.test(String(v))) throw new Error(`env not allowed: ${k}`);
       env[k] = String(v);
     }
-    status(id, 'started', { at: new Date().toISOString(), commit: sha, threads: cpus().length, args: a, env: job.env ?? {} });
+    status(id, 'started', { at: new Date().toISOString(), host: hostname(), attempt, commit: sha, threads: cpus().length, args: a, env: job.env ?? {} });
     const out = createWriteStream(join(LOGS, `${id}.log`));
     const code = await new Promise((res) => {
       const p = spawn(process.execPath, ['tools/batch.mjs', ...a, '--name', id, '--push'], { cwd: WT, env });
@@ -106,7 +119,12 @@ async function run({ id, job }) {
 
 log(`runner on ${hostname()}: ${cpus().length} threads, ${JOBS} matches at a time, checking every ${POLL / 1000} s (Ctrl+C stops)`);
 status(`runner-${hostname()}`, 'alive', { at: new Date().toISOString(), threads: cpus().length, jobs: JOBS });
+const SELF = readFileSync(fileURLToPath(import.meta.url), 'utf8');
+function updated() {
+  try { git(ROOT, ['fetch', '-q', 'origin', 'main-aogjl4']); return git(ROOT, ['show', 'FETCH_HEAD:tools/runner.mjs']) !== SELF.trim(); } catch { return false; }
+}
 for (;;) {
+  if (process.env.SIM_RUNNER_LOOP && updated()) { log('a newer runner is on origin: restarting'); process.exit(0); }
   let list = [];
   try { list = pending(); } catch (e) { log(`couldn't read the queue: ${String(e.message).split('\n')[0]}`); }
   if (list.length) await run(list[0]); else await sleep(POLL);
