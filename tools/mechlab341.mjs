@@ -214,7 +214,7 @@ const tests = {
         stepBoth(path, shooter, live); w.step();
         watch.check(live, i * DT);
         for (const o of watch.shots) o.est ??= Math.min(EXIT_PER_FLY_SURFACE * (Math.abs(t.fly.omega) * SHOOTER.fly.d) / 2, EXIT_SLIP[0] + (EXIT_SLIP[1] * Math.abs(t.fly.omega) * SHOOTER.fly.d) / 2);
-        if (process.env.HOODLOG) for (const c of shooter.contacts) if (c.wheel.name.startsWith('hood (CAD)')) hoodHits.add(c.ball);
+        if (process.env.HOODLOG) for (const c of shooter.contacts) if (c.wheel.name.startsWith('hood (CAD)')) { hoodHits.add(c.ball); if (process.env.HOODLOG === '2') console.log(`        hood contact n ${c.n.map((x) => x.toFixed(2)).join(',')} ${c.force.toFixed(0)} N at ${c.x.map((x) => x.toFixed(3)).join(',')}`); }
       }
       w.free();
       const H = kind === 'hub' ? HUB.rimFront : R;
