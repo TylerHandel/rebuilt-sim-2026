@@ -43,7 +43,9 @@ const IDLE = { share: 0.7, rpm: 1500 };
 // (re-found on a full hopper's stream, streamtune, with the wheels' motors driving through each FUEL's
 // contact, mechanism.js: up to 3% less RPM from 5 m out, where a stream's FUEL used to drag the wheels
 // down further)
-export const SHOTS = [[1.3, 2380, 0], [2.0, 2650, 3], [2.5, 2690, 6], [3.0, 2720, 10], [3.5, 2810, 13], [4.0, 2920, 16], [4.5, 3045, 19], [5.0, 3195, 22], [5.5, 3335, 24], [6.0, 3570, 26]];
+// (and again with the foam as played with, constants.js, and the Magnus lift of the FUEL's backspin:
+// 0-6% less RPM from 4 m out, 2% more at 1.3 m)
+export const SHOTS = [[1.3, 2430, 0], [2.0, 2685, 3], [2.5, 2720, 6], [3.0, 2720, 10], [3.5, 2815, 13], [4.0, 2875, 16], [4.5, 2980, 19], [5.0, 3095, 22], [5.5, 3220, 24], [6.0, 3350, 26]];
 // passes (to the carpet at the row's distance; tools/mechlab7769.mjs tune): the hood all the way up
 // (40 deg), out to 12 m (5440 RPM; the four X60s' 6000 free). (With the foam as played with,
 // constants.js; it was ~8 m, the FUEL leaving at no more than ~9.5 m/s, pulled off the wheels)

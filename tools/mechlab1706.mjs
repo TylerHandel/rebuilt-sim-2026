@@ -103,7 +103,8 @@ function shotWatch(r) {
     check(balls, t) {
       for (const b of balls) {
         const c = r.shooter.contacts.find((q) => q.ball === b);
-        if (c) touched.set(b, r.sw.findIndex((ws) => ws.includes(c.wheel)));
+        // (which turret: its wheels', or its turret's or hood's surfaces, which the shooter carries)
+        if (c) { const i = r.sw.findIndex((ws) => ws.includes(c.wheel)); touched.set(b, i >= 0 ? i : [0, 1].find((k) => c.wheel === r.s.turret[k] || c.wheel === r.s.hood[k]) ?? touched.get(b) ?? 0); }
         else if (touched.has(b)) {
           const i = touched.get(b); touched.delete(b);
           const v = b.linvel(), p = b.translation();
