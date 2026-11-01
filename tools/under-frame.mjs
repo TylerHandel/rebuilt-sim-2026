@@ -34,9 +34,10 @@ import { BUMPER_Y0 } from '../js/robotConfigs.js';
 import { writeFileSync } from 'fs';
 
 // under: its center within the frame's perimeter (MARGIN past it: 2 cm into the bumper behind it)
-// and lower than UNDER_Y, and its top over the bumpers' bottom edge (a FUEL lower than that, under a
+// and lower than UNDER_Y (on the carpet, 0.075; 1678's tunnel under its hopper carries FUEL 0.10-0.11
+// up), and its top over the bumpers' bottom edge (a FUEL lower than that, under a
 // robot up on a BUMP, isn't under its frame: the robot overhangs it, and that's counted apart)
-const R = FUEL.radius, UNDER_Y = 0.11, MARGIN = 0.02, KEEP = 1.0, SAMPLE = 0.05;
+const R = FUEL.radius, UNDER_Y = 0.095, MARGIN = 0.02, KEEP = 1.0, SAMPLE = 0.05;
 const args = process.argv.slice(2);
 const arg = (k, d) => { const i = args.indexOf('--' + k); return i >= 0 ? args[i + 1] : d; };
 const flag = (k) => args.includes('--' + k);

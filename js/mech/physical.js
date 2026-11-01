@@ -249,7 +249,12 @@ export class PhysicalRobot {
     for (const b of [...this.inShooter]) {
       if (touching.has(b)) continue;
       this.inShooter.delete(b);
-      const v = b.body.linvel();
+      // (how fast it leaves the robot: its velocity less the robot's there. Its own alone, a FUEL in
+      // the hopper of a robot driving 3 m/s up a BUMP that brushed the shooter's surfaces read as
+      // shot: let go, it fell through the floor and lay under the frame, 4414's, tools/under-frame.mjs)
+      const u = b.body.linvel(), rb = r.body, rv = rb.linvel(), w = rb.angvel(), c = rb.worldCom(), p = b.body.translation();
+      const d = [p.x - c.x, p.y - c.y, p.z - c.z];
+      const v = { x: u.x - rv.x - (w.y * d[2] - w.z * d[1]), y: u.y - rv.y - (w.z * d[0] - w.x * d[2]), z: u.z - rv.z - (w.x * d[1] - w.y * d[0]) };
       if (Math.hypot(v.x, v.y, v.z) < 3 || v.y < 0) continue; // dropped back down, not shot
       this.counted.delete(b);
       this.owned.delete(b);
