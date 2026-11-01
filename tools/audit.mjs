@@ -13,6 +13,8 @@
 //             3 s+), carryOut (HUB active, holding 5+, out of its zone), inZoneOff (its HUB off, in its
 //             zone, not staged), emptyActive (HUB active, empty, in its zone)
 //   idleBy    idle seconds by what its AI said it was doing (its label)
+//   coll/took TELEOP seconds collecting (its AI's collect or feed) and FUEL taken in, by where it was:
+//             own (its ALLIANCE ZONE), mid (the NEUTRAL ZONE), opp (the other ALLIANCE's ZONE)
 //   labels    TELEOP seconds by label; cycles (trips to score), firstScore (TELEOP s to its first FUEL)
 //   stuckEp   the longest stuck stretches: { t, s, by, x, z, label }
 import { PHYSICS_DT, HALF_L, HALF_W, HUB, TIMING, BUMP, DEPOT } from '../js/constants.js';
@@ -55,6 +57,8 @@ export function makeAudit() {
         u, robot: r.cfg.key, alliance: r.alliance, station: (u.entry.station ?? 0) + 1, driver: u.entry.driver,
         pts: { auto: 0, trans: 0, a1: 0, a2: 0, end: 0, inactive: 0 },
         sec: { teleop: 0, idle: 0, staged: 0, stuck: 0, holdIdle: 0, carryOut: 0, inZoneOff: 0, emptyActive: 0 },
+        // TELEOP seconds collecting, and FUEL taken in, in its own ALLIANCE ZONE / the NEUTRAL ZONE / the other's
+        coll: { own: 0, mid: 0, opp: 0 }, took: { own: 0, mid: 0, opp: 0 },
         stuckBy: {}, idleBy: {}, labels: {}, stuckEp: [], cycles: 0, unsticks: 0, firstScore: null,
         last: { t: 0, intaked: r.stats.intaked, shots: r.stats.shots, prog: 0, state: null, label: null, stuck: null, outT: 0 },
       });
@@ -99,6 +103,9 @@ export function makeAudit() {
       s.teleop += DT;
       const label = key(ai?.label), cmd = r.cmd || {};
       x.labels[label] = (x.labels[label] || 0) + DT;
+      const where = Field.inAllianceZone(r.alliance, r.pos.x) ? 'own' : Field.inAllianceZone(r.alliance === 'blue' ? 'red' : 'blue', r.pos.x) ? 'opp' : 'mid';
+      if (ai && (ai.state === 'collect' || ai.state === 'feed')) x.coll[where] += DT;
+      x.took[where] += r.stats.intaked - L.intaked;
       if (r.stats.intaked !== L.intaked || r.stats.shots !== L.shots) { L.prog = T; L.intaked = r.stats.intaked; L.shots = r.stats.shots; }
       if (ai && ai.state !== L.state) { if (ai.state === 'score') x.cycles++; L.state = ai.state; }
       if (label === 'Unsticking' && L.label !== 'Unsticking') x.unsticks++;
@@ -135,7 +142,7 @@ export function makeAudit() {
         robot: x.robot, alliance: x.alliance, station: x.station, driver: x.driver,
         pts: x.pts, launched: r.stats.shots, passes: r.stats.passes, intaked: r.stats.intaked, unjams: r.stats.unjams || 0,
         unsticks: x.unsticks, cycles: x.cycles, firstScore: x.firstScore, fouls: m.score[x.alliance].fouls.length,
-        sec: r1(x.sec), stuckBy: r1(x.stuckBy), idleBy: r1(x.idleBy), labels: r1(x.labels),
+        coll: r1(x.coll), took: x.took, sec: r1(x.sec), stuckBy: r1(x.stuckBy), idleBy: r1(x.idleBy), labels: r1(x.labels),
         stuckEp: x.stuckEp.sort((a, b) => b.s - a.s).slice(0, 4).map((e) => ({ ...e, s: +e.s.toFixed(1) })),
       });
     }

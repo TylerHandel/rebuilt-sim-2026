@@ -80,6 +80,13 @@ for (const k of robots) {
     console.log(`  vs base (${b.n}): pts ${f1(s.pts - b.pts, 0)}, AUTO ${f1(s.auto - b.auto, 0)}, idle ${f1(s.idle - b.idle, 0)}, stuck ${f1(s.stuck - b.stuck, 0)}, launched ${f1(s.launched - b.launched, 0)}`);
   }
 }
+console.log('\ncollecting: seconds a match and FUEL taken in a second there (own zone / NEUTRAL ZONE / their zone)');
+for (const k of robots) {
+  const rows = per[k].filter((x) => x.coll);
+  if (!rows.length) continue;
+  const f = (w) => { const s = mean(rows, (x) => x.coll[w]), n = mean(rows, (x) => x.took[w]); return `${s.toFixed(0).padStart(3)} s ${(n / Math.max(1, s)).toFixed(2)}/s`; };
+  console.log(`${k.padEnd(6)} own ${f('own')} | mid ${f('mid')} | opp ${f('opp')}`);
+}
 console.log('\nstuck against (s a match) / idle while (s a match) / first FUEL in TELEOP (s) / unjams');
 for (const k of robots) {
   const s = stats(per[k]);

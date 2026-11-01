@@ -30,16 +30,17 @@ for (const f of files) {
     for (const x of r.audit) {
       // (a 1 v 1 reference set: only the robot facing the reference, plus the reference's self-match)
       if (onlyVs) { const vs = r.a === x.robot ? r.b : r.a; if (vs !== onlyVs || (r.a === r.b && x.alliance !== 'blue')) continue; }
-      const p = (per[x.robot] ??= { n: 0, pts: 0, auto: 0, tele: 0 });
+      const p = (per[x.robot] ??= { n: 0, pts: 0, auto: 0, tele: 0, trans: 0, a1: 0, a2: 0, end: 0 });
       const auto = x.pts.auto, tele = x.pts.trans + x.pts.a1 + x.pts.a2 + x.pts.end;
       p.n++; p.pts += auto + tele; p.auto += auto; p.tele += tele;
+      for (const k of ['trans', 'a1', 'a2', 'end']) p[k] += x.pts[k];
     }
   }
 }
 const keys = Object.keys(per).filter((k) => EPA[k] && !exclude.has(k));
 const rows = keys.map((k) => {
   const p = per[k], e = EPA[k];
-  return { k, n: p.n, pts: p.pts / p.n, auto: p.auto / p.n, tele: p.tele / p.n, epa: e.total, eAuto: e.auto, eTele: e.trans + e.a1 + e.a2 + e.end, eRank: e.rank };
+  return { k, n: p.n, pts: p.pts / p.n, auto: p.auto / p.n, tele: p.tele / p.n, trans: p.trans / p.n, a1: p.a1 / p.n, a2: p.a2 / p.n, end: p.end / p.n, e, epa: e.total, eAuto: e.auto, eTele: e.trans + e.a1 + e.a2 + e.end, eRank: e.rank };
 });
 const median = (a) => { const s = [...a].sort((x, y) => x - y); return s.length % 2 ? s[(s.length - 1) / 2] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2; };
 const mPts = median(rows.map((r) => r.pts / r.epa)), mAuto = median(rows.map((r) => r.auto / r.eAuto)), mTele = median(rows.map((r) => r.tele / r.eTele));
@@ -54,3 +55,7 @@ for (const r of [...rows].sort((a, b) => b.epa - a.epa)) {
   console.log(`${r.k.padEnd(5)} ${r.epa.toFixed(0).padStart(4)} (${String(r.eRank).padStart(4)}) ${r.pts.toFixed(0).padStart(8)} ${String(r.n).padStart(3)} | ${String(epaRank.get(r.k)).padStart(8)} ${String(simRank.get(r.k)).padStart(3)} | ${(r.pts / r.epa / mPts).toFixed(2)}  ${r.auto.toFixed(0).padStart(4)}/${r.eAuto.toFixed(0).padStart(3)} ${(r.auto / r.eAuto / mAuto).toFixed(2)}  ${r.tele.toFixed(0).padStart(6)}/${r.eTele.toFixed(0).padStart(3)} ${(r.tele / r.eTele / mTele).toFixed(2)}`);
 }
 console.log(`median sim/EPA: points ${mPts.toFixed(2)}, AUTO ${mAuto.toFixed(2)}, TELEOP ${mTele.toFixed(2)}; Spearman rank correlation: points ${spearman((r) => r.pts, (r) => r.epa).toFixed(2)}, AUTO ${spearman((r) => r.auto, (r) => r.eAuto).toFixed(2)}, TELEOP ${spearman((r) => r.tele, (r) => r.eTele).toFixed(2)}`);
+console.log('\nby period, sim / EPA (FUEL a match): TRANSITION, first and second active SHIFT, END GAME');
+for (const r of [...rows].sort((a, b) => b.epa - a.epa)) {
+  console.log(`${r.k.padEnd(5)} ${['trans', 'a1', 'a2', 'end'].map((k) => `${r[k].toFixed(0).padStart(4)}/${r.e[k].toFixed(0).padStart(3)}`).join('  ')}`);
+}
