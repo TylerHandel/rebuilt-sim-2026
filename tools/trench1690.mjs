@@ -25,7 +25,8 @@ const [A, ...rest] = game.units.map((u) => u.robot);
 rest.forEach((r, i) => r.spawn(-7 + i, 0, 0));
 const balls = world.fuel.balls;
 for (const b of balls) b.body.setEnabled(false);
-const lane = fw(3.2, FIELD_W - 0.64);
+// (the blue left TRENCH, the HINGED one with its 4in arm; FIXED=1: the blue right one, its 6in arm)
+const lane = fw(3.2, process.env.FIXED ? 0.64 : FIELD_W - 0.64);
 const beam = TRENCH_ARMS.reduce((a, b) => (Math.hypot(b.x - lane.x, b.z - lane.z) < Math.hypot(a.x - lane.x, a.z - lane.z) ? b : a));
 const ph = A.phys;
 

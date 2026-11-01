@@ -1,7 +1,8 @@
 // A robot driven empty under the blue left TRENCH's arm at a steady speed: through or stopped, how
 // slow it got under the arm, and the contacts its colliders had with the arm (those the solver pushed
 // on). KEY: the robot (6328); HEIGHT: its collider's height in m (its config's); SPEED (1.5 m/s);
-// DIR=-1 the other way; V=1 each contact; T=1 its height and tilt every 10 steps.
+// DIR=-1 the other way; FIXED=1 under the FIXED TRENCH (6in arm) instead of the HINGED one (4in);
+// V=1 each contact; T=1 its height and tilt every 10 steps.
 //   KEY=6328 HEIGHT=0.5715 SPEED=3 node --import ./tools/node-env.mjs tools/trenchprobe.mjs
 import { createWorld, matchSettings, mulberry32 } from './headless.mjs';
 import { ROBOTS } from '../js/robotConfigs.js';
@@ -22,7 +23,8 @@ while (!game.match.isTeleop && step < 30000) run(1);
 const [A, ...rest] = game.units.map((u) => u.robot);
 rest.forEach((r, i) => r.spawn(-7 + i, 0, 0));
 for (const b of world.fuel.balls) b.body.setEnabled(false);
-const lane = fw(3.2, FIELD_W - 0.64);
+// (the blue left TRENCH, the HINGED one with its 4in arm; FIXED=1: the blue right one, its 6in arm)
+const lane = fw(3.2, process.env.FIXED ? 0.64 : FIELD_W - 0.64);
 const beam = TRENCH_ARMS.reduce((a, b) => (Math.hypot(b.x - lane.x, b.z - lane.z) < Math.hypot(a.x - lane.x, a.z - lane.z) ? b : a));
 const W = world.physics.world;
 const armCols = [];

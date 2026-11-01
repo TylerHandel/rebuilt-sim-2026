@@ -195,8 +195,8 @@ export const TOWER = {
   uprightGusset: 6.5 * IN,
   braceY: 36.0 * IN,
   braceTube: 2.0 * IN,
-  braceIn: 1.15 * IN,              // a brace's centerline: from the wall 1.15in off the middle
-  braceOut: 14.5 * IN,             // to 14.5in out, 16in off the middle (on the support tube)
+  braceIn: 2.97 * IN,              // a brace's centerline: from the wall 2.97in off the middle
+  braceOut: 13.03 * IN,            // to the support tube's side, 13.03in out and 16in off the middle
   braceSide: 16.0 * IN,
   tagStep: 17.0 * IN,              // AprilTag 32 is 17in from 31 (on the middle) toward fy+
 };

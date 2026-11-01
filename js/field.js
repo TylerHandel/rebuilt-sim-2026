@@ -232,7 +232,10 @@ export class Field {
     rect(0, 0, ALLIANCE_ZONE_DEPTH, FIELD_W, 'rgba(47,111,240,0.06)');
     rect(FIELD_L - ALLIANCE_ZONE_DEPTH, 0, FIELD_L, FIELD_W, 'rgba(224,52,52,0.04)');
     const tape = 2 * IN;
-    // ROBOT STARTING LINES (edge of each ALLIANCE ZONE)
+    // black 3in gaffer tape over the carpet's seam, down the middle of the field's length (field CAD)
+    rect(0, FIELD_W / 2 - 1.5 * IN, FIELD_L, FIELD_W / 2 + 1.5 * IN, '#1e1f23');
+    // ROBOT STARTING LINES (edge of each ALLIANCE ZONE: 2in tape, its far edge 158.61in from the
+    // ALLIANCE WALL, against the TRENCH and HUB; field CAD and FE-2026 sheet 3)
     rect(ALLIANCE_ZONE_DEPTH - tape, 0, ALLIANCE_ZONE_DEPTH, FIELD_W, '#2f6ff0');
     rect(FIELD_L - ALLIANCE_ZONE_DEPTH, 0, FIELD_L - ALLIANCE_ZONE_DEPTH + tape, FIELD_W, '#e03434');
     // CENTER LINE
