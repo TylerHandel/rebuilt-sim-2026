@@ -175,10 +175,15 @@ export class FuelManager {
     b.launch = null;
     b.hubFresh = false;
   }
-  unown(b) {
+  // (solid: to robots too, at once, where the robot's colliders push it off it: one let go against
+  // its bumpers, not inside it)
+  unown(b, solid = false) {
     if (!b.held) return;
     b.held = false;
-    b.col.setCollisionGroups(NO_ROBOT_GROUPS);
+    if (solid) {
+      b.col.setCollisionGroups(NORMAL_GROUPS);
+      b.ignoring = false;
+    } else b.col.setCollisionGroups(NO_ROBOT_GROUPS);
   }
   // ...and one it has just shot out: in flight from where it is, as a launch
   release(b, info) {
@@ -247,7 +252,10 @@ export class FuelManager {
         }
       }
       b.prevVel = { x: v.x, y: v.y, z: v.z };
-      if (b.ignoring && t >= b.ignoreUntil) {
+      // (one let go, coming down, is solid to robots again as soon as it's clear of them, its time
+      // up or not: a weak shot from 4414 that fell back beside it within the 0.35 s went in through
+      // its side under the hopper and lay under the frame, tools/under-frame.mjs)
+      if (b.ignoring && (t >= b.ignoreUntil || (!b.held && v.y < -0.5))) {
         // (not while it's still inside a robot: solid again there, it would be stuck in it)
         if (this._inRobot(p)) b.ignoreUntil = t + 0.1;
         else {
@@ -266,6 +274,16 @@ export class FuelManager {
     this.physics.world.intersectionsWithShape(p, { x: 0, y: 0, z: 0, w: 1 }, this._core, () => { hit = true; return false; },
       undefined, IN_ROBOT_QUERY);
     return hit;
+  }
+
+  // whether a FUEL put down at (x, z) would be clear of every robot: 0.45 m from its bumpers (an
+  // intake reaches 0.33 m past them)
+  _clearOfRobots({ x, z }) {
+    this._clear ||= new RAPIER.Ball(R + 0.45);
+    let hit = false;
+    this.physics.world.intersectionsWithShape({ x, y: R + 0.02, z }, { x: 0, y: 0, z: 0, w: 1 }, this._clear, () => { hit = true; return false; },
+      undefined, IN_ROBOT_QUERY);
+    return !hit;
   }
 
   // ------------------------------------------------------------------ per frame
@@ -330,8 +348,13 @@ export class FuelManager {
     for (let i = this.outQueue.length - 1; i >= 0; i--) {
       const q = this.outQueue[i];
       if (t < q.at) continue;
+      // (where no robot is: along the edge to the nearest spot clear of their bumpers and intakes,
+      // or a moment later. Put down where one stood, it came back inside its bumper or under its
+      // intake, and lay under the frame: 2056 and 341 waiting at the OUTPOST, tools/under-frame.mjs)
+      const at = [0, 0.5, -0.5, 1, -1, 1.5, -1.5, 2, -2].map((d) => ({ x: q.x, z: clamp(q.z + d, -HALF_W + 0.35, HALF_W - 0.35) })).find((c) => this._clearOfRobots(c));
+      if (!at) { q.at = t + 0.5; continue; }
       this.outQueue.splice(i, 1);
-      this.launch(q.b, { x: q.x, y: R + 0.02, z: q.z }, { x: 0, y: 0, z: 0 }, {});
+      this.launch(q.b, { x: at.x, y: R + 0.02, z: at.z }, { x: 0, y: 0, z: 0 }, {});
       q.b.inFlight = false;
     }
   }

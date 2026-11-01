@@ -5,7 +5,8 @@
 // FUEL it has hold of, what got in, and what got shot. Each robot (js/mech/phys8793.js,
 // js/mech/phys2910.js) adds its mechanisms, where its ball path is, and its code's controls.
 import { FUEL } from '../constants.js';
-import { Wheel } from './mechanism.js';
+import { BUMPER_T, BUMPER_Y0, BUMPER_Y1 } from '../robotConfigs.js';
+import { Block, Wheel } from './mechanism.js';
 
 const R = FUEL.radius;
 // A robot whose hopper is full when its intake can't put more in (naturalFull: 2910's and 1678's;
@@ -90,6 +91,7 @@ export class PhysicalRobot {
     this.held = [];           // FUEL in its ball path
     this.near = [];           // FUEL its mechanisms might touch this step
     this.inShooter = new Set();
+    this.wheeled = new Set();  // (of those, the ones a shooter's wheel has had hold of)
     this.owned = new Set();   // FUEL its ball path (or intake) has hold of
     this.shot = new Map();    // FUEL it's just shot -> when (on their way out: not its to hold)
     this.counted = new Set(); // FUEL counted as intaked, until shot or gone from around it
@@ -161,6 +163,17 @@ export class PhysicalRobot {
   // the FUEL near it that the shooter's wheels might touch (each robot's own)
   shooterBalls(near) { return near; }
 
+  // the bumpers' bottom edge (robot frame): its ball path's own bumper's (a solid Block, from its CAD
+  // where it has one: 1114's 0.048 m, 341's 0.041, 604's and 7769's 0.038), or the generic. (Below
+  // that, owned, the Block pushed a FUEL out the nearest way, its bottom, under the frame: 1114's)
+  _bumperY0() {
+    if (this.bumperY0 === undefined) {
+      const ys = this.path.surfaces.filter((s) => s instanceof Block && s.name.startsWith('bumper')).map((b) => b.c[1] - b.h[1] - b.r);
+      this.bumperY0 = Math.max(BUMPER_Y0, ...(ys.length ? [Math.min(...ys)] : []));
+    }
+    return this.bumperY0;
+  }
+
   // before the world's step (after the robot has posed its moving parts): which FUEL are its,
   // and run the mechanisms
   stepMechanisms(dt, t) {
@@ -178,7 +191,16 @@ export class PhysicalRobot {
         if (t - this.shot.get(b) < 0.35) continue;
         this.shot.delete(b);
       }
-      const w = this.where(...this._local(p));
+      // (not one under the bumpers, its center inside their outline in plan and below their bottom
+      // edge: the robot's nose, pitched up coming off a BUMP, is coming down on it, and the robot's
+      // own collider has to meet it. Owned, it went through the bumper's foot and lay under the
+      // frame, the robot carrying it about for up to two minutes (341, 8793, 1678, 1690, 2056...:
+      // tools/under-frame.mjs). One out in front of the bumpers stays the intake's, the robot
+      // pitched or not: all of the front's, 2056 rode up onto the FUEL in its mouth at a wall,
+      // each one it lifted its nose on no longer the intake's, and scored a sixth less)
+      const l = this._local(p), f = r.cfg.frame;
+      const under = l[1] < this._bumperY0() && Math.abs(l[0]) < f.length / 2 + BUMPER_T && Math.abs(l[2]) < f.width / 2 + BUMPER_T;
+      const w = under ? { ...this.where(...l), own: false, held: false } : this.where(...l);
       if (w.own) {
         r.fuel.own(b, t);
         owned.add(b);
@@ -186,8 +208,17 @@ export class PhysicalRobot {
       }
       if (w.own || w.near) near.push(b);
     }
-    // (the ones it's let go of: solid to the other FUEL again)
-    for (const b of this.owned) if (!owned.has(b) && b.state === 'field') r.fuel.unown(b);
+    // (the ones it's let go of: solid to the other FUEL again, and to robots once clear of them;
+    // one let go low beside or in front of the frame, against the bumpers, at once: the bumpers
+    // push it off as they would have. Not solid to them until it was clear, one the intake let go
+    // of at the side of its mouth as the robot drove on into it went through the bumper's corner
+    // and lay under the frame: 1678, 1114, tools/under-frame.mjs)
+    const f = r.cfg.frame;
+    for (const b of this.owned) {
+      if (owned.has(b) || b.state !== 'field') continue;
+      const [x, y, z] = this._local(b.pos);
+      r.fuel.unown(b, y < BUMPER_Y1 && (Math.abs(x) >= f.length / 2 || Math.abs(z) >= f.width / 2));
+    }
     this.owned = owned;
     this.near = near;
     this.held = held;
@@ -240,10 +271,22 @@ export class PhysicalRobot {
     const byBody = new Map(this.near.map((b) => [b.body, b]));
     const touching = new Set(this.shooter.contacts.map((c) => byBody.get(c.ball)).filter(Boolean));
     for (const b of touching) this.inShooter.add(b);
+    // (a shot goes through the shooter's wheels: one that only brushed its surfaces, the turret's
+    // or the hood's, and was flung off by something else isn't one. 4414's Dye Rotor threw a FUEL
+    // along the turret's side 4 m/s: read as shot, let go, it fell through the hopper's floor and lay
+    // under the frame, tools/under-frame.mjs)
+    for (const c of this.shooter.contacts) if (c.wheel instanceof Wheel) { const b = byBody.get(c.ball); if (b) this.wheeled.add(b); }
     for (const b of [...this.inShooter]) {
       if (touching.has(b)) continue;
       this.inShooter.delete(b);
-      const v = b.body.linvel();
+      const wheeled = this.wheeled.delete(b);
+      if (!wheeled) continue;
+      // (how fast it leaves the robot: its velocity less the robot's there. Its own alone, a FUEL in
+      // the hopper of a robot driving 3 m/s up a BUMP that brushed the shooter's surfaces read as
+      // shot: let go, it fell through the floor and lay under the frame, 4414's, tools/under-frame.mjs)
+      const u = b.body.linvel(), rb = r.body, rv = rb.linvel(), w = rb.angvel(), c = rb.worldCom(), p = b.body.translation();
+      const d = [p.x - c.x, p.y - c.y, p.z - c.z];
+      const v = { x: u.x - rv.x - (w.y * d[2] - w.z * d[1]), y: u.y - rv.y - (w.z * d[0] - w.x * d[2]), z: u.z - rv.z - (w.x * d[1] - w.y * d[0]) };
       if (Math.hypot(v.x, v.y, v.z) < 3 || v.y < 0) continue; // dropped back down, not shot
       this.counted.delete(b);
       this.owned.delete(b);
