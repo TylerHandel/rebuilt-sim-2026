@@ -93,7 +93,7 @@ export function createGame(world, settings, { onEvent = () => {}, prev = null } 
   const robots = units.map((u) => u.robot);
   // each robot's pose estimate (js/localize.js): its own seeded draws, by its slot
   robots.forEach((r, i) => r.loc.init(robots, i));
-  for (const u of units) u.auto.foes = robots.filter((r) => r.alliance !== u.robot.alliance);
+  for (const u of units) { u.auto.foes = robots.filter((r) => r.alliance !== u.robot.alliance); u.auto.others = robots.filter((r) => r !== u.robot); }
   for (const u of units) {
     if (u.human || u.external) continue;
     const a = u.robot.alliance;

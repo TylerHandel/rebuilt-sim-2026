@@ -11,6 +11,32 @@ import { TEAM_AUTOS } from './teamAutos.js';
 import { holdOffFoes } from './rules.js';
 import { step6328 } from './auto6328.js';
 
+
+// AUTOAVOID=0: AUTOs drive their routes straight into robots in the way, as before
+const AUTOAVOID = (globalThis.process?.env?.AUTOAVOID ?? '1') !== '0';
+// (steer cmd round robots within about half a meter of its bumpers, ahead of where it's going)
+function steerAround(r, others, cmd) {
+  const v = Math.hypot(cmd.vx, cmd.vz);
+  if (v < 0.3 || !others?.length) return;
+  const ux = cmd.vx / v, uz = cmd.vz / v;
+  let ax = 0, az = 0, slow = 0;
+  for (const P of others) {
+    const ox = P.pos.x - r.pos.x, oz = P.pos.z - r.pos.z, od = Math.hypot(ox, oz);
+    const R = Math.max(r.halfL, r.halfW) + Math.max(P.halfL, P.halfW) + 0.1;
+    if (od < 1e-3 || od > R + 0.6) continue;
+    const ahead = (ox * ux + oz * uz) / od;
+    if (ahead < 0.3) continue;
+    const lat = -ox * uz + oz * ux; // (its offset to our left, +: along (-uz, ux))
+    const sgn = lat > 0 ? -1 : 1;
+    const k = clamp((R + 0.6 - od) / 0.6, 0, 1) * ahead;
+    ax += sgn * -uz * k; az += sgn * ux * k;
+    slow = Math.max(slow, k);
+  }
+  if (!slow) return;
+  cmd.vx = cmd.vx * (1 - 0.5 * slow) + ax * v * 0.8;
+  cmd.vz = cmd.vz * (1 - 0.5 * slow) + az * v * 0.8;
+}
+
 export const START_POSITIONS = {
   leftTrench: { name: 'Left Trench', fy: FIELD_W - 0.64 },
   leftBump: { name: 'Left Bump', fy: HUB.fy + HUB.size / 2 + 0.93 },
@@ -235,6 +261,7 @@ export class AutoRunner {
     this.stepT = 0;
     this.done = false;
     this.foes = []; // the other alliance's robots (game.js): its intake out, it doesn't drive into one (G415)
+    this.others = []; // every other robot (game.js): it steers round one in its way
   }
 
   // mirror for start side (routines are authored for the right side / low fy); never so close to
@@ -504,6 +531,10 @@ export class AutoRunner {
       // its intake out, about to reach inside an opponent's FRAME PERIMETER (one crossing right in
       // front of it): not into it (G415 is on the robot driving in); the route goes on round it
       holdOffFoes(r, this.foes, cmd);
+      // another robot right in its way (an ALLIANCE partner on its own route in a 3 v 3, an opponent
+      // at the CENTER LINE): it steers round it on the side it's already passing, easing off, instead
+      // of driving into it and pushing (3 v 3 AUTOs used to wedge nose to nose for seconds)
+      if (AUTOAVOID) steerAround(r, this.others, cmd);
       // heading: face the direction of travel (intake first) unless told otherwise
       let face = s.face !== undefined ? (this.alliance === 'blue' ? s.face : s.face + Math.PI) : Math.atan2(-dz, dx);
       if (this.left && s.face === undefined) face = Math.atan2(-dz, dx);
