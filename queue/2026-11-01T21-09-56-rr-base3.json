@@ -1,0 +1,11 @@
+{
+ "ref": "66a0779eb6cf17382124a8bb3609c371cd863aba",
+ "args": [
+  "--roundrobin",
+  "--seeds",
+  "1-3",
+  "--jobs",
+  "12"
+ ],
+ "env": {}
+}
