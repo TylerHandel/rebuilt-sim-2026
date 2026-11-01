@@ -114,7 +114,7 @@ export const FEED_HOOD = [[6.0, 35], [8.71, 40], [13.6, 40]];
 // 0.7 s with the hopper full, 15 A for 0.1 s otherwise
 export const FEEDER_FF = [[0, 0], [20, 0], [30, 15], [50, 22]];
 export const clampHood = (deg) => Math.max(SHOOTER.hoodMin, Math.min(SHOOTER.hoodMax, deg));
-// Their score table's RPMs, the sim's equivalent, re-found by shooting as play fires them
+// Their score and feed tables' RPMs, the sim's equivalents, re-found by shooting as play fires them
 // (tools/mechlab581.mjs tune: a partial load, ~19 FUEL, fired with their SCORE sequence and
 // compaction). Their own RPMs, fired that way, come down through the rim's height 0.3-0.8 m long
 // (in AI matches, eight seeds, their standing shots 0.30-0.36 m long at a median from 2 to 3.4 m,
@@ -125,10 +125,15 @@ export const clampHood = (deg) => Math.max(SHOOTER.hoodMin, Math.min(SHOOTER.hoo
 // less (to 0.96 of the table's RPM at the median) than under four at once (0.94): the rows ask
 // 6-8% less. THEIR_SHOTS=1 in the environment: their own.
 export const SIM_SCORE_RPM = [[1.42, 1240], [2.79, 1440], [3.46, 1510], [4.92, 1760]];
+// and their feed table's, the same way, coming down on the carpet at the row's distance: their 1500
+// RPM at 6 m comes down at 4.85 m, their 2500 at 8.71 m at 9.2 m (in AI matches their passes to 5-7
+// m came down 1.2 m short at the median): 6 m 1730, 8.71 m 2160; past it, up to their 2500 (their
+// table's most) at 13.6 m, as far as that carries (~9.2 m)
+export const SIM_FEED_RPM = [[6.0, 1730], [8.71, 2160], [13.6, 2500]];
 const THEIR_SHOTS = typeof process !== 'undefined' && !!process.env?.THEIR_SHOTS;
 export function shotFor(kind, d, { theirs = THEIR_SHOTS } = {}) {
   const feed = kind === 'feed';
-  return { rpm: Math.min(6000, interp(feed ? FEED_RPM : theirs ? SCORE_RPM : SIM_SCORE_RPM, d)), hood: clampHood(interp(feed ? FEED_HOOD : SCORE_HOOD, d)) };
+  return { rpm: Math.min(6000, interp(feed ? (theirs ? FEED_RPM : SIM_FEED_RPM) : theirs ? SCORE_RPM : SIM_SCORE_RPM, d)), hood: clampHood(interp(feed ? FEED_HOOD : SCORE_HOOD, d)) };
 }
 export const feederFF = (amps) => interp(FEEDER_FF, amps);
 // the deploy's positions (their DeployState, inches out from all the way in) and its config

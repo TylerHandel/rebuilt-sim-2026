@@ -339,23 +339,37 @@ const tests = {
   // height over its center on average, found by the secant method from their RPM; and between the rows
   tune() {
     const layers = Number(process.env.LAYERS ?? 1);
-    const at = (rpm, hood) => {
-      const L = streamShots({ rpm, hood }, layers).map((q) => landing(q) - q.x).filter(Number.isFinite);
+    // (H: the height they're measured coming down through: the rim's, or for a feed the carpet's)
+    const at = (rpm, hood, H = HUB.rimFront) => {
+      const L = streamShots({ rpm, hood }, layers).map((q) => { const h = sim2D(q.y, q.v, (q.el * Math.PI) / 180, H, 0, q.s ?? 0); return h ? h.d - q.x : NaN; }).filter(Number.isFinite);
       return { land: L.length ? L.reduce((a, b) => a + b, 0) / L.length : NaN, n: L.length, spread: L.length ? Math.max(...L) - Math.min(...L) : NaN };
     };
     const lerp = (t, x) => { if (x <= t[0][0]) return t[0][1]; for (let k = 1; k < t.length; k++) if (x <= t[k][0]) return t[k - 1][1] + ((t[k][1] - t[k - 1][1]) * (x - t[k - 1][0])) / (t[k][0] - t[k - 1][0]); return t[t.length - 1][1]; };
     const e = (x, d) => `${x - d > 0 ? '+' : ''}${(x - d).toFixed(2)}`;
     const out = [];
-    for (const [d, rpm0] of SCORE_RPM) {
+    for (const [d, rpm0] of process.env.FEEDONLY ? [] : SCORE_RPM) {
       const hood = shotFor('score', d, { theirs: true }).hood, theirs = at(rpm0, hood);
       let a = rpm0, la = theirs.land, b = rpm0 * (la > d ? 0.95 : 1.05), lb = at(b, hood).land;
-      for (let k = 0; k < 6 && Math.abs(lb - d) > 0.02 && Math.abs(lb - la) > 1e-3; k++) { const c = b + ((d - lb) * (b - a)) / (lb - la); a = b; la = lb; b = c; lb = at(b, hood).land; }
+      for (let k = 0; k < 6 && Math.abs(lb - d) > 0.02 && Math.abs(lb - la) > 1e-3; k++) { const c = Math.max(0.7 * rpm0, Math.min(1.3 * rpm0, b + ((d - lb) * (b - a)) / (lb - la))); a = b; la = lb; b = c; lb = at(b, hood).land; }
       const best = Math.round(b / 5) * 5, mine = at(best, hood);
       out.push([d, best]);
       console.log(`  score ${d} m, hood ${hood.toFixed(1)}: their ${rpm0} RPM: ${theirs.n} land ${theirs.land.toFixed(2)} m (${e(theirs.land, d)}); the sim's FUEL come down there at ${best} RPM (x${(best / rpm0).toFixed(3)}): ${mine.n} land ${mine.land.toFixed(2)} m (spread ${mine.spread.toFixed(2)})`);
     }
     console.log('SIM_SCORE_RPM', JSON.stringify(out));
-    for (const d of [2.0, 2.4, 3.1, 4.2]) {
+    // their feed table's rows the same way, coming down on the carpet at the row's distance (its last
+    // row, 13.6 m, stays theirs: its most, for as far as that carries)
+    const feed = [];
+    for (const [d, rpm0] of FEED_RPM.filter(([d]) => d < 10)) {
+      const hood = shotFor('feed', d).hood, theirs = at(rpm0, hood, 0.1);
+      let a = rpm0, la = theirs.land, b = rpm0 * (la > d ? 0.95 : 1.05), lb = at(b, hood, 0.1).land;
+      for (let k = 0; k < 6 && Math.abs(lb - d) > 0.05 && Math.abs(lb - la) > 1e-3; k++) { const c = Math.max(0.7 * rpm0, Math.min(1.3 * rpm0, b + ((d - lb) * (b - a)) / (lb - la))); a = b; la = lb; b = c; lb = at(b, hood, 0.1).land; }
+      const best = Math.round(b / 5) * 5, mine = at(best, hood, 0.1);
+      feed.push([d, best]);
+      console.log(`  feed ${d} m, hood ${hood.toFixed(1)}: their ${rpm0} RPM: ${theirs.n} land ${theirs.land.toFixed(2)} m (${e(theirs.land, d)}); the sim's come down there at ${best} RPM (x${(best / rpm0).toFixed(3)}): ${mine.n} land ${mine.land.toFixed(2)} m (spread ${mine.spread.toFixed(2)})`);
+    }
+    feed.push(FEED_RPM[FEED_RPM.length - 1]);
+    console.log('SIM_FEED_RPM', JSON.stringify(feed));
+    for (const d of process.env.FEEDONLY ? [] : [2.0, 2.4, 3.1, 4.2]) {
       const hood = shotFor('score', d, { theirs: true }).hood, a = at(lerp(SCORE_RPM, d), hood), b = at(lerp(out, d), hood);
       console.log(`  between: ${d} m, hood ${hood.toFixed(1)}: their ${lerp(SCORE_RPM, d).toFixed(0)} RPM lands ${e(a.land, d)}, the re-found ${lerp(out, d).toFixed(0)} ${e(b.land, d)}`);
     }
