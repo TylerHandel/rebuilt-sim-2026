@@ -167,7 +167,7 @@ const tests = {
   // ferry's floor and feeder at 3 V, the tunnel held to 5 V), come down on the carpet at the row's
   // distance from the robot's center (a search between 1200 RPM and MAXRPM, 4200: the drum
   // gets to 4350 under its loop); prints what js/mech/r1678.js keeps as SIM_PASS. And the HUB's
-  // rows the same way, at their RPMs: where they come down through the rim's height
+  // rows the same way, through the rim's height over the HUB's center (KINDS=hub,ferry,far)
   tune() {
     const MAX = Number(process.env.MAXRPM ?? 4200), SETTLED = !!process.env.SETTLED;
     const shoot = (kind, rpm, hood, tun) => {
@@ -196,17 +196,13 @@ const tests = {
       return { land: L.length ? L.reduce((a, b) => a + b, 0) / L.length : NaN, n: L.length, spread: L.length ? Math.max(...L) - Math.min(...L) : NaN };
     };
     const out = {};
-    for (const kind of ['hub', 'ferry', 'far']) {
+    for (const kind of (process.env.KINDS ?? 'hub,ferry,far').split(',')) {
       const tb = REGRESSIONS[kind];
       out[kind] = [];
       for (let k = 0; k < tb.rpm.length; k++) {
         const [d, rpm0] = tb.rpm[k], hood = tb.hood[k][1], tun = tb.tunnel[k][1];
         if (d === 0) { out[kind].push(null); continue; } // (their Double.MIN_VALUE row: the next one's)
-        if (kind === 'hub') {
-          const s = shoot(kind, rpm0, hood, tun);
-          console.log(`  hub ${d} m, hood ${hood}, ${rpm0} RPM: ${s.n}/6 come down through the rim's height ${s.land.toFixed(2)} m back (${s.land - d > 0 ? '+' : ''}${(s.land - d).toFixed(2)}; spread ${s.spread.toFixed(2)})`);
-          continue;
-        }
+        // (a HUB row: through the rim's height over the HUB's center; their own RPM's landing told too)
         const theirs = shoot(kind, rpm0, hood, tun).land;
         // (bracketed, then regula falsi: past ~2500 RPM the FUEL slip on the drum and the
         // landing barely moves with the speed, where a secant runs off)
@@ -224,7 +220,7 @@ const tests = {
         out[kind].push(best);
         console.log(`  ${kind} ${d} m, hood ${hood}: their ${rpm0} RPM lands ${theirs.toFixed(2)} m (${(theirs - d).toFixed(2)}); ${ok ? `the sim's FUEL come down there at ${best} RPM (x${(best / rpm0).toFixed(3)})` : `out of reach: flat out (${MAX}) lands ${at.toFixed(2)} m (${(at - d).toFixed(2)})`}`);
       }
-      if (kind !== 'hub') { out[kind][0] = out[kind][1]; console.log(`SIM_PASS.${kind}`, JSON.stringify(out[kind])); }
+      out[kind][0] = out[kind][1]; console.log(`SIM_PASS.${kind}`, JSON.stringify(out[kind]));
     }
   },
   // carpet to shot: FUEL in front, the robot driving into them; intaking, then shooting at 3.2 m

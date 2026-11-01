@@ -317,12 +317,20 @@ export class Physical6328 extends PhysicalRobot {
   // how far out the hopper's front is (m)
   extNow() { return slideExt(this.armDeg); }
   // about how fast a FUEL leaves at the drum's speed now (m/s; tools/mechlab6328.mjs shooter)
-  exitSpeed() { return EXIT_PER_DRUM_SURFACE * Math.abs(this.t.drum.omega) * SHOOTER.drum.r; }
+  exitSpeed() { return exitFor(Math.abs(this.t.drum.omega) * SHOOTER.drum.r); }
   // how many it holds, about: 71-77 through its intake in play, full first at 63-65 (tools/intake-
   // test.mjs 1.5 and 3 --along --return), 64-75 on the bench (tools/mechlab6328.mjs intakefull);
   // the binder's "~75 fuel capacity at peak". Only a rating, for the HUD and the AI's plans: it's
   // full when its intake can't put more in (js/mech/physical.js)
   capacity() { return 70; }
 }
-// a FUEL's exit speed over the drum's surface speed (tools/mechlab6328.mjs shooter measures it)
+// a FUEL's exit speed over the drum's surface speed (tools/mechlab6328.mjs shooter measures it), and
+// the exit speed at a drum surface speed (m/s): 0.75 of it slow, the FUEL slipping more the faster it
+// turns (SHOT=fly,38,6: 0.69 at 12.7 m/s, 0.58 at 20.3, 12.0 m/s at 25.4)
 export const EXIT_PER_DRUM_SURFACE = 0.75;
+const EXIT_CURVE = [[0, 0], [7.6, 5.7], [12.7, 8.72], [15.2, 10.03], [17.8, 10.96], [20.3, 11.78], [25.4, 12.03]];
+export function exitFor(surf) {
+  const t = EXIT_CURVE;
+  for (let k = 1; k < t.length; k++) if (surf <= t[k][0]) return t[k - 1][1] + ((t[k][1] - t[k - 1][1]) * (surf - t[k - 1][0])) / (t[k][0] - t[k - 1][0]);
+  return t[t.length - 1][1];
+}

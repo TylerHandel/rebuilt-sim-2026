@@ -530,14 +530,14 @@ export const ROBOTS = {
       type: 'turret',
       turretPos: { x: -0.134, z: -0.1872 },
       // where FUEL leave the pinch between the 4in wheel and the hood's feeder wheels, and how steep and
-      // fast: the hood turns about the wheel's axle, FUEL leaving at 37 to 85 deg, at up to ~9.8 m/s (the
+      // fast: the hood turns about the wheel's axle, FUEL leaving at 37 to 85 deg, at up to ~10.6 m/s (the
       // wheel's two X60s geared 28t:42t top out near 20 m/s at its face; tools/mechlab1690.mjs shooter)
       exitRadius: 0.03,
       exitY: 0.66,
       turretRange: 200, turretRate: 720,
       bps: 13, // counted over a cycle in their reveal thread; its physical ball path sets the rate
       hoodMin: 37, hoodMax: 83,
-      speedMax: 9.8,
+      speedMax: 10.6,
       spinTau: 0.3, // no added flywheel mass
       shotDrop: 0.006,
       speedSigma: 0.012, angleSigma: 0.55, yawSigma: 0.55,
@@ -1228,12 +1228,12 @@ ROBOTS['2056'] = {
     turretPos: { x: -5.25 * IN, z: 7.25 * IN },
     // where FUEL leave the pinch between the 4in wheel and the backspin kicker, how steep (39.5-73.5
     // deg release by the hood's geometry; as measured: tools/mechlab2056.mjs) and fast
-    exitRadius: 0.07,
-    exitY: 0.686,
+    exitRadius: 0.098,
+    exitY: 0.661,
     turretRange: 185, turretRate: 720,
     bps: 15, // not published; its physical ball path sets the rate
-    hoodMin: 37, hoodMax: 68,
-    speedMax: 8.2, // (the bench's stream: exits stop growing near 8.2 m/s; js/mech/phys2056.js EXIT_MAP)
+    hoodMin: 37, hoodMax: 70,
+    speedMax: 9.7, // (the bench's stream: exits stop growing near 9.7 m/s; js/mech/phys2056.js EXIT_MAP)
     spinTau: 0.3,
     shotDrop: 0.006,
     speedSigma: 0.012, angleSigma: 0.55, yawSigma: 0.55,

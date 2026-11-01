@@ -351,10 +351,10 @@ export class Physical1678 extends PhysicalRobot {
   _prefillStop() { const S = this.set; S.tunnel = null; S.floor = null; S.feeder = null; }
 
   // about how fast a FUEL leaves at the drum's speed now (m/s; tools/mechlab1678.mjs shooter):
-  // EXIT_PER_DRUM_SURFACE of its surface speed, up to where the FUEL start to slip on it (~2500
-  // RPM; js/mech/r1678.js SIM_PASS), and barely faster after: 8.45 m/s at 12.2 m/s of drum
-  // surface, 8.96 at 19.7 (at 4200 RPM)
-  exitSpeed() { const s = Math.abs(this.t.drum.omega) * SHOOTER.drum.d / 2; return Math.min(EXIT_PER_DRUM_SURFACE * s, 7.6 + 0.07 * s); }
+  // EXIT_PER_DRUM_SURFACE of its surface speed, up to where the FUEL start to slip on it (~3000
+  // RPM; js/mech/r1678.js SIM_PASS), and barely faster after: 10.1 m/s at 14.1 m/s of drum
+  // surface, 10.9 at 16.5, 11.1 at 19.7 (at 4200 RPM)
+  exitSpeed() { const s = Math.abs(this.t.drum.omega) * SHOOTER.drum.d / 2; return s <= 14.1 ? EXIT_PER_DRUM_SURFACE * s : s <= 16.5 ? 10.1 + (0.77 * (s - 14.1)) / 2.4 : Math.min(11.1, 10.87 + (0.24 * (s - 16.5)) / 3.2); }
 
   // how many it holds, about: the team's 75-80 with the extension out. Only a rating, for the HUD
   // and the AI's plans: it's full when its intake can't put more in (js/mech/physical.js): 70-88
@@ -363,4 +363,4 @@ export class Physical1678 extends PhysicalRobot {
   capacity() { return 78; }
 }
 // a FUEL's exit speed over the drum's surface speed (tools/mechlab1678.mjs shooter measures it)
-export const EXIT_PER_DRUM_SURFACE = 0.71;
+export const EXIT_PER_DRUM_SURFACE = 0.72;

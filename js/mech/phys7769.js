@@ -44,9 +44,10 @@ const IDLE = { share: 0.7, rpm: 1500 };
 // contact, mechanism.js: up to 3% less RPM from 5 m out, where a stream's FUEL used to drag the wheels
 // down further)
 export const SHOTS = [[1.3, 2380, 0], [2.0, 2650, 3], [2.5, 2690, 6], [3.0, 2720, 10], [3.5, 2810, 13], [4.0, 2920, 16], [4.5, 3045, 19], [5.0, 3195, 22], [5.5, 3335, 24], [6.0, 3570, 26]];
-// passes (to the carpet at the row's distance): the hood all the way up (40 deg); past ~8 m its FUEL
-// slip on the wheels and go no farther (they leave at no more than ~9.5 m/s)
-export const PASSES = [[2.5, 1600, 35], [3.0, 1820, 35], [4.0, 2210, 35], [5.0, 2590, 35], [6.0, 3025, 35], [7.0, 3505, 35], [8.0, 4000, 35]];
+// passes (to the carpet at the row's distance; tools/mechlab7769.mjs tune): the hood all the way up
+// (40 deg), out to 12 m (5440 RPM; the four X60s' 6000 free). (With the foam as played with,
+// constants.js; it was ~8 m, the FUEL leaving at no more than ~9.5 m/s, pulled off the wheels)
+export const PASSES = [[2.5, 1580, 35], [3.0, 1770, 35], [4.0, 2145, 35], [5.0, 2490, 35], [6.0, 2835, 35], [7.0, 3325, 35], [8.0, 3680, 35], [9.0, 3970, 35], [10.0, 4500, 35], [11.0, 4885, 35], [12.0, 5440, 35]];
 const interp = (t, x, j) => {
   if (x <= t[0][0]) return t[0][j];
   for (let k = 1; k < t.length; k++) if (x <= t[k][0]) return t[k - 1][j] + ((t[k][j] - t[k - 1][j]) * (x - t[k - 1][0])) / (t[k][0] - t[k - 1][0]);
