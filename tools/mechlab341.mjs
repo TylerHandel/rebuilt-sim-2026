@@ -69,10 +69,11 @@ function rig({ deg = DOWN, hood = 0, yaw = 0 } = {}) {
   // robots' hoods are; the 1in feed wheel pinches FUEL against the bore, so both sides of the pinch
   // are solved together. In play 341 stays the old way: js/mech/r341.js SIM_SHOTS)
   if (process.env.HOODSUB === '1') handOff(path, shooter, [s.turret, s.hood]);
+  if (process.env.HOODSUB === 'bore') handOff(path, shooter, [s.turret]);
   for (const tr of [t.intake, t.serializer, t.feederT, t.shooter]) tr.cmd = null;
   // (the arm held where it is)
   t.pivot.inertia = 1e6;
-  path.shared = new Set([s.turret, s.hood]);
+  path.shared = new Set(process.env.HOODSUB === 'bore' ? [s.turret] : [s.turret, s.hood]);
   return { t, w, s, sw, path, shooter };
 }
 // one step of both: every FUEL to the shooter, or (SPLIT=y) only those above y, as play gives it
@@ -80,7 +81,7 @@ function rig({ deg = DOWN, hood = 0, yaw = 0 } = {}) {
 function stepBoth(path, shooter, live) {
   if (!process.env.SPLIT) { path.step(DT, live, live); shooter.step(DT, live); return; }
   const sb = live.filter((b) => b.translation().y > +process.env.SPLIT);
-  path.step(DT, live, live, process.env.HOODSUB === '1' ? { surfaces: path.shared, balls: new Set(sb) } : null);
+  path.step(DT, live, live, process.env.HOODSUB === '1' || process.env.HOODSUB === 'bore' ? { surfaces: path.shared, balls: new Set(sb) } : null);
   shooter.step(DT, sb);
 }
 // their flywheel velocity loop toward rpm (motor RPM, direct to the flywheel), no reverse volts
