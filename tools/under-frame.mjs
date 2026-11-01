@@ -20,7 +20,8 @@
 //             bottom edge rides over the FUEL in front
 //   dropped   came down from the ball path inside the frame (through its floor, or pushed down)
 //   ghost     in over an edge while not solid to robots after being let go (released, shot)
-// Then per robot: how many, and the FUEL-seconds under its frame (AUTO and TELEOP).
+// Then per robot: how many, and the FUEL-seconds under its frame (AUTO and TELEOP); and how long it
+// was stranded (in play, no wheel on the floor: up on FUEL or a robot) and its longest stretch.
 //   node --import ./tools/node-env.mjs tools/under-frame.mjs --pairs 341:2910,8793:2910 --seeds 1-2 [--quiet]
 //   node --import ./tools/node-env.mjs tools/under-frame.mjs --intake 1.5 [--along] [--robots 341,8793] [--time 4]
 //   --3v3 a,b,c:d,e,f   one 3 v 3 match (blue a,b,c against red d,e,f), all scorers at champs
@@ -78,6 +79,8 @@ function watcher(r, fuel, physics, field) {
   const episodes = [];
   const time = { auto: 0, teleop: 0, other: 0, overhang: 0 };
   let maxNow = 0;
+  // (stranded: in play, not climbing, no wheel on the floor: up on FUEL or a robot)
+  const strand = { t: 0, run: 0, max: 0 };
   // the intake's half width (where its CAD's mouth is): the widest of its front wheels
   const ph = r.phys;
   const mouthHW = Math.max(ic.width / 2, ...((ph?.path?.wheels || []).filter((w) => w.center[0] > hL - 0.05 && w.center[1] < 0.3).map((w) => Math.abs(w.center[2]) + w.width / 2)));
@@ -150,6 +153,7 @@ function watcher(r, fuel, physics, field) {
       } else if (open.has(b)) close(b, t, 'out');
     }
     maxNow = Math.max(maxNow, now);
+    if ((phase === 'auto' || phase === 'teleop') && r.climbState === 'none' && r.traction === 0) { strand.t += PHYSICS_DT; strand.run += PHYSICS_DT; strand.max = Math.max(strand.max, strand.run); } else strand.run = 0;
   }
 
   function start(b, h, t, phase) {
@@ -196,7 +200,7 @@ function watcher(r, fuel, physics, field) {
     episodes.push(e);
   }
   function finish(t) { for (const b of [...open.keys()]) close(b, t, 'match end'); }
-  return { step, finish, episodes, time, get maxNow() { return maxNow; }, key: cfg.key, mouthHW };
+  return { step, finish, episodes, time, strand, get maxNow() { return maxNow; }, key: cfg.key, mouthHW };
 }
 
 const f3 = (v) => v.map((u) => u.toFixed(3)).join(',');
@@ -220,7 +224,7 @@ function summarize(ws, label) {
       byRoute[k].n++; byRoute[k].s += e.dur;
     }
     const routes = Object.entries(byRoute).sort((a, b) => b[1].s - a[1].s).map(([k, v]) => `${k} ${v.n} (${v.s.toFixed(1)} s)`).join(', ');
-    console.log(`${label} ${w.key}: ${w.episodes.length} in, ${w.time.auto.toFixed(1)} s AUTO + ${w.time.teleop.toFixed(1)} s TELEOP FUEL-under-frame (most at once ${w.maxNow}; overhung on a BUMP ${w.time.overhang.toFixed(1)} s); ${routes || '-'}`);
+    console.log(`${label} ${w.key}: ${w.episodes.length} in, ${w.time.auto.toFixed(1)} s AUTO + ${w.time.teleop.toFixed(1)} s TELEOP FUEL-under-frame (most at once ${w.maxNow}; overhung on a BUMP ${w.time.overhang.toFixed(1)} s; stranded ${w.strand.t.toFixed(1)} s, longest ${w.strand.max.toFixed(1)}); ${routes || '-'}`);
   }
 }
 
