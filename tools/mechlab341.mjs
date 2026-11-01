@@ -65,9 +65,10 @@ function rig({ deg = DOWN, hood = 0, yaw = 0 } = {}) {
   const pathW = [...w.pivotRow, ...w.arm, ...w.table, ...w.uptake, ...w.omnis];
   const path = new Mechanism({ substeps: 6, shafts: [...new Set(pathW.map((x) => x.shaft)), t.pivot], wheels: pathW, surfaces: Object.values(s) });
   const shooter = new Mechanism({ substeps: 6, sub: 8, shafts: [t.fly, t.stealth, t.feed], wheels: sw });
-  // (the turret's bore and the hood: met at each of the shooter's sub-steps, as in play; the 1in
-  // feed wheel pinches FUEL against the bore, so both sides of the pinch are solved together)
-  if (process.env.HOODSUB !== '0') handOff(path, shooter, [s.turret, s.hood]);
+  // (HOODSUB=1: the turret's bore and the hood met at each of the shooter's sub-steps, as the other
+  // robots' hoods are; the 1in feed wheel pinches FUEL against the bore, so both sides of the pinch
+  // are solved together. In play 341 stays the old way: js/mech/r341.js SIM_SHOTS)
+  if (process.env.HOODSUB === '1') handOff(path, shooter, [s.turret, s.hood]);
   for (const tr of [t.intake, t.serializer, t.feederT, t.shooter]) tr.cmd = null;
   // (the arm held where it is)
   t.pivot.inertia = 1e6;

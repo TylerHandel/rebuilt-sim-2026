@@ -55,12 +55,12 @@ const profile = (p, v, goal, vmax, amax, dt) => {
   const nv = v + clamp(want - v, -amax * dt, amax * dt);
   return [p + nv * dt, nv];
 };
-// FUEL leave at this fraction of the flywheel's surface speed (tools/mechlab341.mjs shooter: 0.66-0.69
-// over the HUB's rows, 1-6 deg steeper than the CAD's geometry gives: the bore and hood met at each of
-// the shooter's sub-steps), up to ~3000 RPM; past that they slip on it, and leave at no more than
-// 10.8 m/s plus 0.13 of its surface speed (10.9 m/s at 3245 RPM, 14.3 at 4640 and 5500, with the foam
-// as played with): exitSpeed. (The shot tables are re-found by shooting: js/mech/r341.js SIM_SHOTS)
-export const EXIT_PER_FLY_SURFACE = 0.67, EXIT_SLIP = [10.8, 0.13];
+// FUEL leave at this fraction of the flywheel's surface speed (tools/mechlab341.mjs shooter: 0.67-0.72
+// over the HUB's rows, a few degrees steeper than the CAD's geometry gives), up to ~3000 RPM;
+// past that they slip on it, and leave at no more than 10.8 m/s plus 0.13 of its surface speed
+// (10.9 m/s at 3245 RPM, 14.3 at 4640 and 5500, with the foam as played with): exitSpeed. (The shot tables are re-found by shooting:
+// js/mech/r341.js SIM_SHOTS)
+export const EXIT_PER_FLY_SURFACE = 0.7, EXIT_SLIP = [10.8, 0.13];
 // the AI's driver letting go of the trigger when nothing comes out (letGo): after (s) without a
 // shot, for (s)
 export const LET_GO = { after: 0.8, for: 0.4 };
@@ -99,7 +99,7 @@ export class Physical341 extends PhysicalRobot {
     const sw = shooterWheels(t);
     super(robot, {
       path: new Mechanism({ body: robot.body, substeps: 6, shafts: [...new Set(pathWheels.map((x) => x.shaft)), t.pivot], wheels: pathWheels, surfaces: Object.values(s) }),
-      shooter: new Mechanism({ body: robot.body, substeps: 6, sub: 8, shafts: [t.fly, t.stealth, t.feed], wheels: sw, surfaces: [s.turret, s.hood] }),
+      shooter: new Mechanism({ body: robot.body, substeps: 6, sub: 8, shafts: [t.fly, t.stealth, t.feed], wheels: sw }),
       preload: PRELOAD,
     });
     Object.assign(this, { t, w, s, sw });
