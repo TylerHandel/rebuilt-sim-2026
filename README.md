@@ -1151,6 +1151,9 @@ js/main.js                  game loop
 serve.py                    local server
 tools/train.mjs             self-play trainer (Node); tools/match.mjs runs one headless match
 tools/headless.mjs          headless match runner; tools/node-env.mjs + resolve-hook.mjs load the game in Node
+tools/batch.mjs             many headless matches at once (--pairs a:b,... or --roundrobin, --seeds, --jobs), averages, --push to the batch-results branch
+tools/runner.mjs            on a machine with spare cores: runs batches queued on the batch-queue branch (tools/queue-job.mjs) and pushes their results;
+                            tools/runner-start.sh keeps it running (Windows: a login task, `wsl.exe -d Ubuntu -- bash -lc ~/rebuilt-sim-2026/tools/runner-start.sh`)
 tools/auto-search.mjs       finds each robot's best AUTO (tools/auto-eval.mjs, auto-worker.mjs)
 tools/bench.mjs, tools/intake-test.mjs   regression checks: AI matches, and a straight-line intake run
 tools/pass-range.mjs        long passes: each robot from 10, 13 and 15 m out (--d), where its FUEL come down
