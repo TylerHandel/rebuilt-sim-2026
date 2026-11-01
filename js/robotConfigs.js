@@ -1216,10 +1216,11 @@ ROBOTS['2056'] = {
   frame: { length: 25.5 * IN, width: 29.5 * IN },
   // the hood down (its arm lowest, its steep end): its top ~0.55 m (est.: the turret's uprights and
   // the A19 shooter drawing; they drive under the TRENCH, the hood kept down there by their "polygon
-  // zones"): 21.75in on the first passes' rail, 22.1in with the MK5n rail at SDS's 1.75-3.75in
-  // (js/mech/r2056.js RAIL: the turret 9.3 mm higher), 3 mm under a TRENCH arm. The frame's collider
-  // is a prism to this height
-  height: 22.1 * IN,
+  // zones"): 21.75in on the first passes' rail; with the MK5n rail at SDS's 1.75-3.75in (js/mech/
+  // r2056.js RAIL) the turret's 9.3 mm higher, which would put it at 22.1in, 1 mm over what the sim
+  // lets under a TRENCH arm (fitsTrench: 5 mm under 22.25in), where they drive: 22.0in, within the
+  // estimate's few mm. The frame's collider is a prism to this height
+  height: 22.0 * IN,
   mass: 63.5, // the drawing package's assembly weight (A00, with bumpers and battery): 140.05 lb
   // SDS MK5n R1 (7.03:1) on Krakens, "a top speed of 15 ft/s" (binder); SDS spike grip 4in wheels;
   // their public base code's drive limits: 100 A stator, 80 A supply falling to 60 after 2 s
