@@ -191,6 +191,7 @@ export const ROBOTS = {
       feedPaced: true,
       hoodMin: 42, hoodMax: 74,
       speedMax: 17,
+      spin: 0.18, // (the backspin its FUEL leave with, R w / v, about: tools/pass-range.mjs; its shot tables carry its Magnus lift)
       spinTau: 0.33,
       shotDrop: 0.002,
       speedSigma: 0.016, angleSigma: 0.8, yawSigma: 0.8,
@@ -262,6 +263,7 @@ export const ROBOTS = {
       bps: 14, // gap-free 12-14 BPS (their tech binder; ~20 in theory from the rotor)
       hoodMin: 44, hoodMax: 82,
       speedMax: 16,
+      spin: 0.38, // (the backspin its FUEL leave with, R w / v, about: tools/pass-range.mjs; its shot tables carry its Magnus lift)
       spinTau: 0.25,
       shotDrop: 0.005,
       speedSigma: 0.013, angleSigma: 0.6, yawSigma: 0.6,
@@ -339,6 +341,7 @@ export const ROBOTS = {
       bps: 5,
       hoodMin: 52, hoodMax: 72, // their rack's 18..38 deg (elevation = 90 - rack)
       speedMax: 11.4, // its shots at 80 rotations/s (SHOT_TABLE, js/mech/r8793.js; their loop's cap is 90)
+      spin: 0.15, // (the backspin its FUEL leave with, R w / v, about: tools/pass-range.mjs; its shot tables carry its Magnus lift)
       spinTau: 0.28,
       shotDrop: 0.007,
       speedSigma: 0.017, angleSigma: 0.9, yawSigma: 0.9,
@@ -476,6 +479,7 @@ export const ROBOTS = {
       bps: 26,
       hoodMin: 38, hoodMax: 76,
       speedMax: 18,
+      spin: 0.4, // (the backspin its FUEL leave with, R w / v, about: tools/pass-range.mjs; its shot tables carry its Magnus lift)
       spinTau: 0.3,
       shotDrop: 0.002,
       speedSigma: 0.015, angleSigma: 0.75, yawSigma: 0.75,
@@ -538,6 +542,7 @@ export const ROBOTS = {
       bps: 13, // counted over a cycle in their reveal thread; its physical ball path sets the rate
       hoodMin: 37, hoodMax: 83,
       speedMax: 10.6,
+      spin: 0.2, // (the backspin its FUEL leave with, R w / v, about: tools/pass-range.mjs; its shot tables carry its Magnus lift)
       spinTau: 0.3, // no added flywheel mass
       shotDrop: 0.006,
       speedSigma: 0.012, angleSigma: 0.55, yawSigma: 0.55,
@@ -717,6 +722,7 @@ export const ROBOTS = {
       bps: 12,
       hoodMin: 40, hoodMax: 80,
       speedMax: 16,
+      spin: 0.33, // (the backspin its FUEL leave with, R w / v, about: tools/pass-range.mjs; its shot tables carry its Magnus lift)
       spinTau: 0.3,
       shotDrop: 0.006,
       speedSigma: 0.014, angleSigma: 0.7, yawSigma: 0.7,
@@ -870,6 +876,7 @@ export const ROBOTS = {
       bps: 12.5, // both turrets together: "about 12-13 bps" (the team, their CAD release thread); its physical ball path sets the rate
       hoodMin: 38, hoodMax: 84,
       speedMax: 9.5, // (its pinch's FUEL slip past ~8.5 m/s; ~9.5 near the X60's free speed: js/mech/phys1706.js EXIT_MAP)
+      spin: 0.1, // (the backspin its FUEL leave with, R w / v, about: tools/pass-range.mjs; its shot tables carry its Magnus lift)
       spinTau: 0.3,
       shotDrop: 0.004,
       speedSigma: 0.013, angleSigma: 0.6, yawSigma: 0.6,
@@ -946,6 +953,7 @@ export const ROBOTS = {
       hoodMin: 43, hoodMax: 76,
       // their table tops out at 2500 RPM (feeding), where FUEL leave at ~8.3 m/s
       speedMax: 10.3, // (their feed table's top, 2500 RPM: js/mech/r581.js FEED_RPM)
+      spin: 0.1, // (the backspin its FUEL leave with, R w / v, about: tools/pass-range.mjs; its shot tables carry its Magnus lift)
       spinTau: 0.25, // four X60s 1:1 on the drum, and a 4in steel inertia wheel geared up 3:1
       shotDrop: 0.002,
       speedSigma: 0.013, angleSigma: 0.65, yawSigma: 0.65,
@@ -1004,6 +1012,7 @@ export const ROBOTS = {
       bps: 26,
       hoodMin: 42, hoodMax: 74, // their code's hood limits (30deg of travel in their CAD)
       speedMax: 11.4, // (its physical flywheel: FUEL leave at no more than ~11.4 m/s, tools/mechlab1114.mjs shooter)
+      spin: 0.1, // (the backspin its FUEL leave with, R w / v, about: tools/pass-range.mjs; its shot tables carry its Magnus lift)
       spinTau: 0.3,
       shotDrop: 0.003,
       speedSigma: 0.012, angleSigma: 0.55, yawSigma: 0.55, // 95-98% after the grip tape (their thread)
@@ -1086,6 +1095,7 @@ export const ROBOTS = {
       // 9.9 m/s (8 m), their roller lookup at 12 (600 rad/s)
       hoodMin: 55, hoodMax: 75,
       speedMax: 12,
+      spin: 0.1, // (the backspin its FUEL leave with, R w / v, about: tools/pass-range.mjs; its shot tables carry its Magnus lift)
       spinTau: 0.3,
       shotDrop: 0.004,
       speedSigma: 0.013, angleSigma: 0.6, yawSigma: 0.6,
@@ -1156,6 +1166,7 @@ export const ROBOTS = {
       // their hood's 10 to 41.2 deg: FUEL leave at 80 to 49 deg (the CAD's geometry, the bench)
       hoodMin: 49, hoodMax: 80,
       speedMax: 12.0, // FUEL slip on the drum past ~13 m/s of its surface, ~12 m/s at most (tools/mechlab6328.mjs)
+      spin: 0.4, // (the backspin its FUEL leave with, R w / v, about: tools/pass-range.mjs; its shot tables carry its Magnus lift)
       spinTau: 0.3,
       shotDrop: 0.002,
       speedSigma: 0.013, angleSigma: 0.6, yawSigma: 0.6,
@@ -1234,6 +1245,7 @@ ROBOTS['2056'] = {
     bps: 15, // not published; its physical ball path sets the rate
     hoodMin: 37, hoodMax: 70,
     speedMax: 9.7, // (the bench's stream: exits stop growing near 9.7 m/s; js/mech/phys2056.js EXIT_MAP)
+    spin: 0.3, // (the backspin its FUEL leave with, R w / v, about: tools/pass-range.mjs; its shot tables carry its Magnus lift)
     spinTau: 0.3,
     shotDrop: 0.006,
     speedSigma: 0.012, angleSigma: 0.55, yawSigma: 0.55,
@@ -1299,6 +1311,7 @@ ROBOTS['7769'] = {
     bps: 20, // not published: its physical ball path sets the rate (tools/mechlab7769.mjs dump)
     hoodMin: 37, hoodMax: 79,
     speedMax: 11.0, // (its FUEL slip on the wheels past ~4000 RPM: ~11 m/s at its last pass row, 5440 RPM)
+    spin: 0.9, // (the backspin its FUEL leave with, R w / v, about: tools/pass-range.mjs; its shot tables carry its Magnus lift)
     spinTau: 0.2,
     shotDrop: 0.003,
     speedSigma: 0.012, angleSigma: 0.55, yawSigma: 0.55,
