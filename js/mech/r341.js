@@ -130,11 +130,20 @@ const interp = (t, x) => {
 // of squeeze: met once a step, the bore pushes back too late and too little (~25 N, against ~100 N
 // sub-stepped), and on the bench (tools/mechlab341.mjs, HOODSUB=1) the FUEL leave 3-8% faster than
 // with the bore at the shooter's sub-steps, which converge (32 sub-steps move them 2%). But carried
-// by its shooter in play, its stream came out slower and uneven, 6.4-7.4 m/s at one RPM (0.83-0.97
-// of what the aim asked, 10-90%), and with the table re-found on the bench for it its HUB shots went
-// 79% -> 65% in (eight AI matches): something in play the bench doesn't have, not found yet.) THEIR_SHOTS=1
-// in the environment: their own RPMs.
-export const SIM_SHOTS = {
+// by its shooter in play (SUB341=1, with SIM_SHOTS re-found on the bench that way), its median FUEL
+// leaves as the bench's does (0.96 of 0.7 of the surface speed) but with a slow tail (10th
+// percentile 0.89, the bench's 0.94): in play ~60% of its shots rub the hood's side plates (5 mm
+// either side of a centred FUEL), 46 N at the median and 115 N at the 90th percentile, the bench's
+// stream 1-2 of 8 at 4-30 N, whatever the turret's angle or turn rate or the hood's swing on the
+// bench (mechlab341 YAW, TURN, HOODOSC, SPLIT; HOODLOG=2); those leave 3% slower. Eight AI matches:
+// 70% in against 84% (79.5% with the bore alone sub-stepped, SUB341=bore). What presses them into
+// the plates in play is still open.) THEIR_SHOTS=1 in the environment: their own RPMs.
+// SUB341=1 (trial): the bore and hood met at the shooter's sub-steps, and the rows re-found that way
+export const SUB_BORE = typeof process !== 'undefined' && !!process.env?.SUB341;
+export const SIM_SHOTS = SUB_BORE ? {
+  rpm: [[1.51, 2550], [2.38, 2315], [3.07, 2235], [3.5, 2275], [4.24, 2300], [5.5, 2520], [14, 3370]],
+  feedRpm: [[4, 1715], [5.5, 2125], [7.5, 2600], [9, 2930], [10.5, 3245], [13.94, 5500], [16, 5500]],
+} : {
   rpm: [[1.51, 2055], [2.38, 2145], [3.07, 2110], [3.5, 2195], [4.24, 2230], [5.5, 2455], [14, 3285]],
   feedRpm: [[4, 1665], [5.5, 2060], [7.5, 2555], [9, 2885], [10.5, 3225], [13.94, 4430], [16, 5500]],
 };
