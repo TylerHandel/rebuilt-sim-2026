@@ -24,7 +24,7 @@
 // THEIR_SHOTS=1: their tables' own RPMs instead of the re-found ones (js/mech/r341.js)
 import { RAPIER } from '../js/physics.js';
 import { FUEL, GROUP, groups, HUB } from '../js/constants.js';
-import { Mechanism } from '../js/mech/mechanism.js';
+import { Mechanism, handOff } from '../js/mech/mechanism.js';
 import { sim2D, backspin } from '../js/ballistics.js';
 import {
   build341, wheels341, shooterWheels, pathSurfaces341, placeIntake, intakeRot, placeShooter, placeTurretSurfaces, hoodElevation,
@@ -65,7 +65,9 @@ function rig({ deg = DOWN, hood = 0, yaw = 0 } = {}) {
   const pathW = [...w.pivotRow, ...w.arm, ...w.table, ...w.uptake, ...w.omnis];
   const path = new Mechanism({ substeps: 6, shafts: [...new Set(pathW.map((x) => x.shaft)), t.pivot], wheels: pathW, surfaces: Object.values(s) });
   const shooter = new Mechanism({ substeps: 6, sub: 8, shafts: [t.fly, t.stealth, t.feed], wheels: sw });
-
+  // (the turret's bore and the hood: met at each of the shooter's sub-steps, as in play; the 1in
+  // feed wheel pinches FUEL against the bore, so both sides of the pinch are solved together)
+  if (process.env.HOODSUB !== '0') handOff(path, shooter, [s.turret, s.hood]);
   for (const tr of [t.intake, t.serializer, t.feederT, t.shooter]) tr.cmd = null;
   // (the arm held where it is)
   t.pivot.inertia = 1e6;
@@ -147,7 +149,7 @@ const tests = {
         watch.check(live, i * DT);
         if (process.env.TRACE && i % 6 === 0 && balls[0]) {
           const b = balls[0], p = b.translation(), v = b.linvel();
-          console.log(`   ${(i * DT).toFixed(2)} s at ${p.x.toFixed(3)},${p.y.toFixed(3)},${p.z.toFixed(3)} v ${v.x.toFixed(2)},${v.y.toFixed(2)},${v.z.toFixed(2)}: ${[...path.contacts, ...shooter.contacts].filter((c) => c.ball === b).map((c) => c.wheel.name + ' ' + c.force.toFixed(0)).join(', ')}`);
+          console.log(`   ${(i * DT).toFixed(2)} s at ${p.x.toFixed(3)},${p.y.toFixed(3)},${p.z.toFixed(3)} v ${v.x.toFixed(2)},${v.y.toFixed(2)},${v.z.toFixed(2)}: ${[...path.contacts, ...shooter.contacts].filter((c) => c.ball === b).map((c) => c.wheel.name + ' ' + c.force.toFixed(0) + (c.n ? ' n' + c.n.map((x) => x.toFixed(2)).join(',') + ' x' + c.x.map((x) => x.toFixed(3)).join(',') : '')).join(', ')}`);
         }
       }
       w.free();
