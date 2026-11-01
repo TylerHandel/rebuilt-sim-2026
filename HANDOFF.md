@@ -29,11 +29,12 @@ For a new Claude Code session. The latest work is on branch `claude/great-hypati
   | 182–187 | DEPOT |
 
   Render pages with `pip install pymupdf`.
+- The field layout drawing FE-2026 (11 sheets, then the element assembly sheets again) is a separate file: https://firstfrc.blob.core.windows.net/frc2026/FieldAssets/2026-field-dimension-dwgs.pdf (30 MB, 31 pages). Sheet 3 has the welded field's reference dimensions in plan, sheet 4 section A-A across the HUB and both TRENCHES, sheets 7-8 the controlled dimensions (with tolerances: the TRENCH opening 50.34 ±2 in, its arm's underside 22.25 ±0.25 in, HUB to TRENCH 73.00 ±1 in), sheet 11 every AprilTag's position.
 
 ## Done: real field CAD
 - `cad/field/field.glb` is the full official field (element f4e47c668796f504844c94a0 in Onshape document 8a691e28680da30504859fce, workspace c6aa636fb23edb3f1e272fb1). The raw export has 2.8M triangles. `tools/slim-glb.mjs` drops FUEL, carpet, tape and hardware, then simplifies and merges the meshes, which leaves 357k triangles in 26 meshes (12 MB).
 - To refresh it, run `tools/onshape-export.sh` (needs `ONSHAPE_ACCESS_KEY` and `ONSHAPE_SECRET_KEY`), then `tools/slim-glb.mjs`. The README's "Real CAD" section has the commands.
-- Alignment: the GLB is in meters, Z-up, with blue at +X. The manifest uses `scale: 1`, `rotationDeg: [-90, 0, 180]` and `position: [0, 0, 0]`. The HUB, BUMP, TRENCH and alliance walls land on the colliders to within about 2 cm.
+- Alignment: the GLB is in meters, Z-up, with blue at +X. The manifest uses `scale: 1`, `rotationDeg: [-90, 0, 180]` and `position: [0, 0, 0]`, which makes world x = -X, y = Z, z = Y (so the scoring table, CAD +Y, is on world +z). The HUB, BUMP, TRENCH and alliance walls land on the colliders to within about 2 cm. The AprilTag IDs named on the CAD's parts are copies on one side (the red OUTPOST's tags are named 29 and 30, the red TOWER, at CAD -X, is the one named 31 and 32): go by position, and by FE-2026 sheet 11 for the IDs.
 - The CAD showed that the TOWER, OUTPOST and DEPOT were misplaced in `js/constants.js`. The TOWER is centered on AprilTag 31, not between 31 and 32, and the OUTPOST on tag 29, not between 29 and 30. Both were 0.22 m off. The DEPOT center is at fy 5.965. All three are fixed.
 - Bleachers, HUMAN PLAYERS, HUB lights and CHUTE DOORS are marked `userData.keepWithCad` and are still drawn on top of the CAD.
 - Browser check: the game makes 264 draw calls with the CAD, against 474 with the drawn field, and 580k triangles in view against 204k. There were no console errors.
