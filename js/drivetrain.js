@@ -166,6 +166,10 @@ export class SwerveDrive {
       // the wrong way waits)
       want.push(sp * Math.max(0, Math.cos(goal - m.angle)));
     }
+    // (what each wheel's velocity loop asks of it, and which are on the floor: a wheel off it spins
+    // at that; its odometry reads it, js/localize.js)
+    this.want = want;
+    this.down = down;
     // the tires: each wheel drives the robot toward its wanted speed along it (as hard as its
     // motor can, either way) and holds it from sliding sideways, all within its friction circle
     const lv = body.linvel(), av = body.angvel(), com = body.worldCom(), p = body.translation();

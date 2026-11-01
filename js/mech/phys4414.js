@@ -209,7 +209,7 @@ export class Physical4414 extends PhysicalRobot {
   // ahead; its heading (aimPsi, which the robot turns the turret to), speed and elevation, and the
   // flywheel speed and hood that make it
   _aim(dt, feed) {
-    const r = this.r, b = r.body, v = b.linvel(), w = b.angvel().y;
+    const r = this.r, b = r.body, v = r.estVel(), w = r.estOmega();
     const k = 1 - Math.pow(0.5, dt / 0.02);
     if (!this.va) this.va = { vx: v.x, vz: v.z, ax: 0, az: 0 };
     this.va.ax += k * ((v.x - this.va.vx) / dt - this.va.ax); this.va.az += k * ((v.z - this.va.vz) / dt - this.va.az);
@@ -236,7 +236,7 @@ export class Physical4414 extends PhysicalRobot {
     }
     this.tiltDh = dh;
     const vtx = v.x + this.va.ax * L + w * oz, vtz = v.z + this.va.az * L - w * ox;
-    const tgt = feed ? (r.shot?.target ?? Field.hubCenter(r.alliance)) : Field.hubCenter(r.alliance);
+    const tgt = feed ? (r.shot?.target ?? r.aimHub()) : r.aimHub();
     const dx = tgt.x - tx, dz = tgt.z - tz, d = Math.hypot(dx, dz);
     let v0, el;
     if (feed) {

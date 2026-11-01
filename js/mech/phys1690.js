@@ -230,7 +230,7 @@ export class Physical1690 extends PhysicalRobot {
   // exit's velocity, AIM=sub: from close in, driving toward the HUB, it asked for elevations past the
   // hood's steep end and pairs off the maps', and it didn't lead for the flight's time)
   _aim(tgt, table) {
-    const r = this.r, b = r.body, v = b.linvel(), w = b.angvel().y, L = LATENCY;
+    const r = this.r, b = r.body, v = r.estVel(), w = r.estOmega(), L = LATENCY;
     const c = b.translation(), yaw = r.yaw + w * L, cy = Math.cos(yaw), sy = Math.sin(yaw);
     const [tx, tz] = TURRET.at;
     const ox = tx * cy + tz * sy, oz = -tx * sy + tz * cy;
@@ -261,7 +261,7 @@ export class Physical1690 extends PhysicalRobot {
     // ---- the shot: aiming and spinning up while the robot has one (r.shot: its target)
     const tgt = r.shot?.target, pass = tgt?.mode === 'pass';
     const table = pass ? r.passTable : r.hubTable;
-    const point = tgt ? (pass ? { x: tgt.x, z: tgt.z } : Field.hubCenter(r.alliance)) : null;
+    const point = tgt ? (pass ? { x: tgt.x, z: tgt.z } : r.aimHub()) : null;
     const sol = on && point && !unjam ? this._aim(point, table) : null;
     this.want = sol;
     // (agitating: from when it has a shot to make (spinning up, aiming, feeding) while not intaking;

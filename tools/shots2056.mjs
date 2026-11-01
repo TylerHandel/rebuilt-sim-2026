@@ -6,6 +6,9 @@
 import { runMatch } from './headless.mjs';
 import { Field } from '../js/field.js';
 import { HUB } from '../js/constants.js';
+// (measuring the shots, as tables are re-fit from them: aimed from the truth; AIMTRUTH=0 for the
+// robots' pose estimates, js/localize.js)
+process.env.AIMTRUTH ??= '1';
 
 const seed = Number(process.argv[2] ?? 1), key = process.env.ROBOT ?? '2056';
 const live = new Map(), done = [];

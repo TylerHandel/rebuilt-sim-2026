@@ -242,7 +242,7 @@ export class Physical1678 extends PhysicalRobot {
     const ferry = pass ? this._ferry() : null;
     let want = null;
     if (shooting) {
-      const tgt = pass ? ferry.target : Field.hubCenter(r.alliance);
+      const tgt = pass ? r.aimPt(ferry.target) : r.aimHub();
       const dist = Math.hypot(tgt.x - r.pos.x, tgt.z - r.pos.z);
       want = shotFor(pass ? ferry.kind : 'hub', dist);
       S.shooter = want.rpm;
@@ -259,7 +259,7 @@ export class Physical1678 extends PhysicalRobot {
     if (!on) { S.intake = S.floor = S.tunnel = S.feeder = S.shooter = null; }
     // the drum's speed (RPM) and how its loop's doing
     const rpm = (T.drum.omega / (2 * Math.PI)) * 60;
-    const v = r.body.linvel(), speed = Math.hypot(v.x, v.z);
+    const v = r.estVel(), speed = Math.hypot(v.x, v.z);
     const aim = Math.abs(r.aimErr ?? Infinity);
     const aimed = aim <= (pass ? TOL.ferryAim : TOL.hubAim);
     // (their 40 ms falling debounce on the shot verifier)

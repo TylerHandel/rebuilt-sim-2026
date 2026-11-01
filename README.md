@@ -371,6 +371,100 @@ Robots ride on their wheels and can pitch and roll: they tilt going up a BUMP, o
 - The hopper walls, floors and tops were checked against each robot's CAD (sliced at several heights with the hopper drawn over it): 2910's walls are 0.69 m apart and the front of its top panel bevels down (`bay.bevel`), 971's hopper is the frame's full width and its roller floor climbs over the front swerve modules (`floor.pts`), 1678's ceiling is the lid itself (0.545 m), and 1706 has its upper back wall. The rest were within 2 cm.
 - **Shooter:** FUEL travels the feed path to the flywheel and leaves from the exit at the same rate (BPS) and with the same shot model as before. 2910's rate isn't set at all (`shooter.feedPaced`): its floor rollers carry FUEL back to the indexer, and each of its four lanes' indexer wheels takes the next FUEL within reach as soon as the last one has cleared them, so the rate comes from the roller speeds (`bay.driveSpeed`, `bay.feed.speed`), tuned so a full hopper dumps at about 24 a second, as the team reports, with a faster first second from the FUEL already at the indexer. The other multi-lane dumpers (1678, 4930) don't fire their lanes in a fixed order: each FUEL goes to a random other lane, after a random gap (half to one and a half times the average), so the stream comes out ragged like a real one at the same average rate. While the shot isn't on (trigger let go, aim, hood or flywheel not there yet), FUEL on its way up the feed path waits at the entry to the wheels, inside the shooter, the ones behind it queued a ball apart; once a FUEL is in the wheels it's launched.
 
+## Aiming: what each robot knows of where it is
+
+Every robot's aim (a turret's or the chassis', `Robot._shooter` and each `js/mech/phys*.js`) works from a **pose estimate**, not the truth (`js/localize.js`). Real robots don't know where they are: they integrate wheel odometry with a gyro, correct it with AprilTag vision at their cameras' rate and latency, blend the two in a filter, and act on that a loop later. The sim does the same from its own hardware:
+
+- **Odometry** reads the four modules' wheel speeds and angles (`js/drivetrain.js`) through forward kinematics, with a wheel radius off by tread wear (0.5%) and module angle offsets (0.3°). A wheel rolling with the carpet reads the carpet; one past its grip reads a tire's slip at peak traction (up to 7% of the speed, plus 0.05 m/s), 0.25 m/s more when the robot is stalled against something (pushing); one off the floor (a BUMP's crest) spins at its setpoint. The wheels don't see the chassis slide sideways when it's pushed or hits something. So odometry drifts most crossing the BUMP, riding over FUEL and in contact: in an 8793 match, 2-3 cm per meter on open carpet, 20-40 cm per meter on the BUMP and over FUEL, and 1-2 m over a whole match with no vision.
+- **Gyro** (a Pigeon 2.0): bias drift 0.1°/min, random walk 0.05°/√min, scale error 0.1% per turn, the start heading off by 0.5° (placed by hand).
+- **Vision**: each camera, at its frame rate, sees the field's AprilTags (WPILib's 2026 welded layout, `APRILTAGS` in `js/constants.js`) inside its field of view (mount, FOV, on a turret turning with it), facing it, big enough in the image (14-16 px) and not hidden by a robot or the other HUB. It measures each tag's bearing and range with pixel noise (0.2-0.4 px, more with motion blur and an LL3's rolling-shutter skew), a mount yaw (0.25°) and lens-scale (0.5%) calibration error per camera, the tags' placement (5 mm) and, on a turret, its angle (0.3°) and timing (3 ms). Then the pose is solved as that team's pipeline does: MegaTag2 (position, with the robot's own heading), multi-tag / single-tag PnP (full pose; one tag's heading from its perspective, poor far off and square on, with the team's ambiguity cut), or 2910's own. It reaches the robot code 28-45 ms later, timestamped (2 ms jitter).
+- **Filter**: the closed-form Kalman blend of WPILib's, CTRE's and AdvantageKit's pose estimators (K = q / (q + √(q r)) per axis), with each team's own odometry std devs, vision std devs (from distance and tag count) and rejections, applied at the frame's timestamp against the odometry buffer. 2910 instead resets its translation to each vision pose, stale, unless latched for a shot (their code, and their TODO says so).
+- **Actuation**: the aim uses the estimate as it was 2 physics steps (17 ms) ago (a 50 Hz loop's estimate, over CAN), with the velocity the wheels measure for shooting on the move.
+
+The aim itself is unchanged code: it's done from the truth with the target moved to where it sits from the true pose as the real target sits from the estimate (`Robot.aimPt`, `aimHub`, `estVel`, `estOmega`). Everything an aim computes is relative to the robot, so that's exact, and each team's aim code stays as it was.
+
+**Truth for tools.** `AIMTRUTH=1` (or `?aimtruth` on the page) turns it off: the aims see the truth, exactly as before (the same numbers, match for match: the runner's 104 matches at 0e68c2e with `AIMTRUTH=1` came out identical to the code before). Benches and tools that fit shot tables (`mechlab*`, `pass-range`, `shot4414`) must run with it, so the tables are fit against truth. **Deterministic**: each robot draws from its own generator seeded from the match's seed (`SIM_SEED`, set by `tools/headless.mjs`), its slot and team, never `Math.random`, so the rest of the match's randomness is the same with it on or off. Your own robot uses its estimate too (its auto-aim is its code); driving isn't affected.
+
+**Each team's localization** (from their code where it's public):
+
+| Robot | Cameras | Pipeline | Filter (odometry / vision std devs) |
+|---|---|---|---|
+| 2910 | one Limelight (13.25 in back, 15.5 in up, 15°), facing the shooter; 1280×960 (their pixel-height table implies f ≈ 1050 px) | the nearest tag's pixel height through their VisionInterpolation table, its tx/1.21 and the gyro | translation reset to it every loop it sees a tag, no latency compensation, frozen while ready to score; heading: the Pigeon alone |
+| 6328 | Northstar: back (1800×1200, 75°, 22.5° up) and both sides (1280, 90°, 70° out) | multi-tag / single-tag PnP | AdvantageKit RobotState 0.003/0.003/0.002; xy 0.01 d²/n², θ 0.03 d²/n² multi-tag only; odometry scaled down as it tilts (1 − tilt/25°) |
+| 341 | "limelight-turret" on the turret, 8.25 in out | MegaTag1, two or more tags only (their code rejects MegaTag2 and single tags) | 0.003/0.003/0.002; xy 0.025 d²/n², θ never |
+| 1678 | a Limelight 4 on the back (20° up) and two 800×600 PhotonVision cameras out the sides | the back one MegaTag2; the sides multi-tag, else trig-solve on one tag with the heading; tags past 5.5 m rejected | CTRE's 0.1; (0.3, 0.3, –) × average tag distance; vision only while level |
+| 8793 | four PhotonVision cameras at the corners (±45°, ±135°, 11°) | multi-tag, else the lowest-ambiguity tag (≤ 0.2); wall tags ignored, past 6 m rejected | CTRE's 0.1; multi (0.5, 0.5, 1.0), single (4, 4, 8), × (1 + d²/30) |
+| 581 | three Limelight 4s: the shooter's (back, 20°) and one each side (15°) | MegaTag2 | CTRE's 0.1; xy 0.01 d^0.8; rejected spinning past 100°/s |
+| 604 | four 1280×800 cameras (left, ±150° back, right; level, 26 in up) | their coprocessor's factor graph (QuixSwerveLocalizer), modeled as multi-tag PnP | a tight blend like 6328's |
+| 4414 | Limelight 4 on the turret looking along the shot (binder renders) | MegaTag2 | CTRE's 0.1; the Limelight docs' (0.7, 0.7, –) |
+| 1690, 2056 | a Limelight on the turret (their models) | MegaTag2 | the same |
+| 1114, 1706, 7769 (not looked up) | two Limelight 4s, one where the shooter looks, one the other way, 20° up | MegaTag2 | the same |
+
+**What it does** (`tools/aim-stats.mjs`: each robot against champs 2910, seeds 1-2; its estimate's error every 0.05 s, and every HUB shot's distance, speed, where its aim put the HUB and whether it went in):
+
+| Robot | pose error (cm), median / 90th: all match | while shooting | where the aim put the HUB, shooting (cm) | heading, 90th (°) |
+|---|---|---|---|---|
+| 6328 | 2.7 / 10.1 | 1.4 / 3.9 | 3.2 / 6.9 | 0.70 |
+| 7769 | 2.2 / 7.8 | 1.8 / 3.1 | 3.2 / 7.0 | 0.31 |
+| 1114 | 2.4 / 7.7 | 1.4 / 4.7 | 3.2 / 8.4 | 1.16 |
+| 604 | 2.1 / 8.6 | 1.7 / 6.6 | 4.1 / 15.4 | 0.85 |
+| 1678 | 3.2 / 18.6 | 1.4 / 12.4 | 2.7 / 15.1 | 0.53 |
+| 2910 | 8.6 / 27.5 | 2.0 / 12.1 | 3.9 / 13.8 | 0.55 |
+| 1706 | 3.3 / 8.8 | 3.1 / 8.3 | 4.6 / 13.7 | 0.64 |
+| 4414 | 4.4 / 10.3 | 4.2 / 10.0 | 5.5 / 14.4 | 1.21 |
+| 581 | 5.8 / 14.3 | 4.8 / 11.5 | 5.3 / 12.9 | 1.49 |
+| 2056 | 5.2 / 12.3 | 4.8 / 11.0 | 5.7 / 15.9 | 0.94 |
+| 1690 | 7.1 / 13.9 | 5.7 / 12.9 | 6.3 / 16.0 | 0.94 |
+| 8793 | 3.9 / 15.8 | 3.6 / 13.9 | 7.1 / 22.2 | 0.57 |
+| 341 | 5.0 / 18.0 | 5.0 / 16.2 | 8.0 / 20.5 | 1.64 |
+
+The aim's HUB error includes the 17 ms it acts late, so it's larger than the pose error for robots that shoot on the move. The whole-match 90th percentiles are the BUMP, FUEL piles and contact, on odometry until vision catches up; 2910's is its stale resets while it drives, cleaned up once it stops to shoot.
+
+HUB accuracy, the same matches with `AIMTRUTH=1` -> with the estimate (in the HUB / HUB shots, %; two seeds, so ±3-5 points per robot: the pooled row is the one to read):
+
+| | all | < 3 m | 3-5 m | ≥ 5 m | standing | moving (> 0.5 m/s) |
+|---|---|---|---|---|---|---|
+| all 13 (9942 shots) | 89 -> 87 | 91 -> 92 | 85 -> 81 | 89 -> 82 | 95 -> 94 | 77 -> 76 |
+| 341 | 83 -> 70 | 90 -> 81 | 78 -> 65 | 91 -> 76 | 87 -> 76 | 80 -> 65 |
+| 8793 | 83 -> 75 | 84 -> 69 | 80 -> 71 | 95 -> 92 | 87 -> 85 | 81 -> 67 |
+| 2056 | 91 -> 86 | 94 -> 89 | 89 -> 84 | 98 -> 90 | 94 -> 88 | 89 -> 84 |
+| 604 | 91 -> 88 | 90 -> 93 | 90 -> 85 | 97 -> 79 | 94 -> 92 | 88 -> 85 |
+| 1706 | 83 -> 81 | 94 -> 92 | 76 -> 73 | 84 -> 80 | 82 -> 85 | 83 -> 78 |
+| 1690 | 88 -> 85 | 89 -> 94 | 88 -> 81 | 84 -> 86 | 90 -> 86 | 86 -> 85 |
+| 4414 | 84 -> 82 | 89 -> 94 | 82 -> 76 | 72 -> 73 | 92 -> 87 | 78 -> 80 |
+| 6328 | 98 -> 96 | 98 -> 96 | 98 -> 99 | – | 99 -> 97 | 96 -> 91 |
+| 2910 | 97 -> 95 | 98 -> 95 | 94 -> 95 | – | 99 -> 99 | (41 shots) |
+| 7769 | 98 -> 97 | 98 -> 98 | 97 -> 87 | – | 99 -> 98 | (11 shots) |
+| 581, 1114, 1678 | 92 -> 91, 83 -> 85, 81 -> 93 | | | | | (seed noise) |
+
+By how far the aim put the HUB (pooled, with the estimate): within 3 cm 95% go in, 3-6 cm 90%, 6-10 cm 79%, 10-20 cm 73%, past 20 cm 46% (moving and long shots land in the far bins more often, and are harder anyway).
+
+Over 8 seeds against champs 2910 on the runner (points; FUEL per HUB shot, which counts the HUMAN PLAYER's FUEL too, so it can pass 100%): `hub-final3` (bcbffee, the code before) -> `aimnoise-v1` (0e68c2e):
+
+| Robot | points | FUEL / HUB shot |
+|---|---|---|
+| 2910 | 435 -> 428 | 98.9 -> 97.9 |
+| 4414 | 497 -> 490 | 88.1 -> 87.6 |
+| 1114 | 409 -> 439 | 84.1 -> 84.6 |
+| 6328 | 413 -> 418 | 101.2 -> 99.9 |
+| 1678 | 382 -> 383 | 91.9 -> 90.5 |
+| 7769 | 372 -> 378 | 100.2 -> 99.0 |
+| 581 | 364 -> 320 | 96.1 -> 94.7 |
+| 2056 | 355 -> 313 | 94.9 -> 88.5 |
+| 604 | 339 -> 316 | 94.2 -> 90.0 |
+| 1690 | 324 -> 322 | 93.1 -> 89.3 |
+| 1706 | 282 -> 268 | 86.6 -> 86.4 |
+| 8793 | 194 -> 163 | 85.4 -> 81.0 |
+| 341 | 183 -> 180 | 84.2 -> 77.1 |
+
+(Seed-to-seed spread of the 8-seed mean is about ±1.5 points of HUB % and ±15-20 points.)
+
+**Per robot.**
+- **341** loses the most (points about the same, as it passes a lot; HUB 84 -> 77 on the runner): its code takes only multi-tag MegaTag1 from its one turret camera, so whenever the turret looks at one tag or none it's on odometry; and its turret aims from the estimate 17 ms late while it shoots on the move (65% moving).
+- **8793** (194 -> 163 points, HUB 85 -> 81): its corner cameras mostly see one tag at a time near the HUB, which its code weighs at 4 m (std dev): it runs on odometry, which the BUMP and FUEL throw off by tens of cm. Its moving shots drop most.
+- **2056, 1690, 604, 581** (each 20-45 points down): turret cameras on MegaTag2 at the Limelight docs' weights, or side cameras; long and moving shots.
+- **6328, 7769, 1114, 1678, 2910, 4414** about as before: good multi-tag vision (6328's three Northstars, 1.4 cm while shooting), or standing shots from close, or (2910) a fresh reset from a tag before every shot.
+
 ## Graphics
 
 Settings → Graphics picks a preset; **Auto** reads your GPU's name and chooses (GeForce RTX: Ultra, RTX 4080/4090 and 50-series: Max, other gaming GPUs: High, integrated graphics: Medium or Low, software rendering: Lowest). Only how the game is drawn changes, never the physics.
@@ -1265,6 +1359,7 @@ js/ballistics.js            drag-aware trajectory model, shot tables, shoot-on-t
 js/robotConfigs.js          the robots' specs
 js/robotModels.js           3D models
 js/robot.js                 swerve drive, intake, storage, turret/chassis aiming, shooter, climber
+js/localize.js              each robot's pose estimate (odometry, gyro, AprilTag vision, its team's filter) its aim works from
 js/hopper.js                FUEL inside a robot: hopper physics, mechanisms, feed paths
 js/match.js                 match timing, HUB shifts, scoring, fouls
 js/humanPlayer.js           OUTPOST human player

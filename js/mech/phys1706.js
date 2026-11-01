@@ -203,7 +203,7 @@ export class Physical1706 extends PhysicalRobot {
   // table's shot less the exit's own velocity, no lead for the flight's time, and from close in
   // driving toward the HUB elevations past the hood's steep end)
   _aim(i, tgt, table) {
-    const r = this.r, b = r.body, v = b.linvel(), w = b.angvel().y, L = 0.05;
+    const r = this.r, b = r.body, v = r.estVel(), w = r.estOmega(), L = 0.05;
     const c = b.translation(), yaw = r.yaw + w * L, cy = Math.cos(yaw), sy = Math.sin(yaw);
     const [tx, tz] = TURRET[i];
     const ox = tx * cy + tz * sy, oz = -tx * sy + tz * cy;
@@ -240,7 +240,7 @@ export class Physical1706 extends PhysicalRobot {
     // ---- the turrets: aiming and spinning up while the robot has a shot (r.shot: its target)
     const tgt = r.shot?.target, pass = tgt?.mode === 'pass';
     const table = pass ? r.passTable : r.hubTable;
-    const point = tgt ? (pass ? { x: tgt.x, z: tgt.z } : Field.hubCenter(r.alliance)) : null;
+    const point = tgt ? (pass ? { x: tgt.x, z: tgt.z } : r.aimHub()) : null;
     let anyReady = false;
     for (let i = 0; i < 2; i++) {
       const sol = on && point && !unjam ? this._aim(i, point, table) : null;

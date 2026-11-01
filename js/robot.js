@@ -10,6 +10,7 @@ import { ShotTable, solveMovingShot, trajectoryPoints, spinFor } from './ballist
 import { Field } from './field.js';
 import { TRENCH_ARMS, underTrench } from './nav.js';
 import { Drivetrain, SwerveDrive } from './drivetrain.js';
+import { Localizer } from './localize.js';
 import { Physical8793 } from './mech/phys8793.js';
 import { Physical2910 } from './mech/phys2910.js';
 import { Physical1678 } from './mech/phys1678.js';
@@ -134,6 +135,8 @@ export class Robot {
     this.drivetrain = new Drivetrain(cfg.drive, cfg.mass, cfg.frame.length, cfg.frame.width, Math.hypot(mx, mz));
     // the four modules that actually drive it (drivetrain.js): steering, motors, tires
     this.swerve = new SwerveDrive(this.drivetrain, modulePoints(cfg));
+    // what its code knows of its pose, which its aim works from (js/localize.js; game.js inits it)
+    this.loc = new Localizer(this);
     const ext = cfg.storage.extLen || 0;
     // retracted: hopper in and any lid (1678's, on the climber) down
     this.intakePush = intakePush(cfg); // N: how hard the intake shoves FUEL into the hopper
@@ -439,6 +442,7 @@ export class Robot {
     this.omega = 0;
     this.aimVel = { x: 0, z: 0 };
     this.swerve.reset();
+    this.loc.reset();
     this._syncVisual(0);
   }
 
@@ -476,6 +480,20 @@ export class Robot {
 
   velocityAt(p) {
     return { x: this.vel.x + this.omega * (p.z - this.pos.z), z: this.vel.z - this.omega * (p.x - this.pos.x) };
+  }
+
+  // What the aims work from (js/localize.js): a world point where the robot's pose estimate puts it
+  // (as seen from its true pose), and the chassis velocity and yaw rate as its wheels and gyro
+  // measure them. With AIMTRUTH=1, the truth.
+  aimPt(p) { return this.loc.aimPt(p); }
+  aimHub() { return this.loc.aimPt(Field.hubCenter(this.alliance)); }
+  estVel() { return this.loc.vel() ?? this.body.linvel(); }
+  estOmega() { return this.loc.omega() ?? this.body.angvel().y; }
+  estVelAt(p) {
+    const v = this.loc.vel();
+    if (!v) return this.velocityAt(p);
+    const w = this.loc.omega();
+    return { x: v.x + w * (p.z - this.pos.z), z: v.z - w * (p.x - this.pos.x) };
   }
 
   // how much FUEL fits right now: what the modeled hopper holds (measured from its geometry),
@@ -735,10 +753,12 @@ export class Robot {
     const lv = this.body.linvel();
     this.vel.set(lv.x, 0, lv.z);
     this.omega = this.body.angvel().y;
-    // (what a moving shot is aimed with: AIM_VEL_TAU)
-    const ka = 1 - Math.exp(-dt / AIM_VEL_TAU);
-    this.aimVel.x += ka * (lv.x - this.aimVel.x);
-    this.aimVel.z += ka * (lv.z - this.aimVel.z);
+    // (its pose estimate: odometry, gyro, vision)
+    this.loc.step(dt, t);
+    // (what a moving shot is aimed with: AIM_VEL_TAU; the velocity its wheels measure)
+    const ka = 1 - Math.exp(-dt / AIM_VEL_TAU), mv = this.loc.vel() ?? lv;
+    this.aimVel.x += ka * (mv.x - this.aimVel.x);
+    this.aimVel.z += ka * (mv.z - this.aimVel.z);
 
     const on = this.enabled && this.climbState === 'none';
     this.lastT = t;
@@ -1118,22 +1138,24 @@ export class Robot {
   _target() {
     const inZone = this.inAllianceZone();
     const passMode = this.cmd.pass || !inZone;
+    // (where its pose estimate puts the target: Robot.aimPt)
     if (!passMode) {
-      const c = Field.hubCenter(this.alliance);
+      const c = this.aimHub();
       return { mode: 'hub', x: c.x, z: c.z, table: this.hubTable, inZone };
     }
     // a physical robot passes where its code does (2910's: FieldConstants' points to pass to)
     const own = this.phys?.passTarget?.();
-    if (own) return { mode: 'pass', x: own.x, z: own.z, table: this.passTable, inZone };
+    if (own) { const a = this.aimPt(own); return { mode: 'pass', x: a.x, z: a.z, table: this.passTable, inZone }; }
     // an AI can pick where its passes land (feeding its own zone); otherwise the nearest
     // corner of our ALLIANCE ZONE (away from the HUB)
-    if (this.passTarget) return { mode: 'pass', x: this.passTarget.x, z: this.passTarget.z, table: this.passTable, inZone };
+    if (this.passTarget) { const a = this.aimPt(this.passTarget); return { mode: 'pass', x: a.x, z: a.z, table: this.passTable, inZone }; }
     const s = this.alliance === BLUE ? 1 : -1;
     // aimed well inside the corner so long lobs that scatter or bounce stay on the FIELD (G405)
     const x = s * (-HALF_L + 1.7);
     const zc = [HALF_W - 1.8, -HALF_W + 1.8];
     const z = Math.abs(this.pos.z - zc[0]) < Math.abs(this.pos.z - zc[1]) ? zc[0] : zc[1];
-    return { mode: 'pass', x, z, table: this.passTable, inZone };
+    const a = this.aimPt({ x, z });
+    return { mode: 'pass', x: a.x, z: a.z, table: this.passTable, inZone };
   }
 
   // where a FUEL launched now would come down is on our half of the FIELD, clear of the walls,
@@ -1223,7 +1245,7 @@ export class Robot {
         const dx = tgt.x - c.x, dz = tgt.z - c.z;
         const dd = Math.hypot(dx, dz) || 1;
         exit = new THREE.Vector3(c.x + (dx / dd) * sh.exitRadius, c.y, c.z + (dz / dd) * sh.exitRadius);
-        lv = this.velocityAt(exit);
+        lv = this.estVelAt(exit);
         // (a physical robot whose FUEL leave carrying a push of its own feed, along the chassis,
         // says how much for the turret's angle on it, as the last aim had it: phys.feedPush, m/s
         // forward. The aim takes it off what the shooter has to give, as the robot's motion)
@@ -1393,7 +1415,7 @@ export class Robot {
         const c = this._exitPoint(0, i);
         const dx = tgt.x - c.x, dz = tgt.z - c.z, dd = Math.hypot(dx, dz) || 1;
         const exit = new THREE.Vector3(c.x + (dx / dd) * sh.exitRadius, c.y, c.z + (dz / dd) * sh.exitRadius);
-        const lv = this.velocityAt(exit);
+        const lv = this.estVelAt(exit);
         const sol = solveMovingShot(tgt.table, exit, lv, tgt);
         if (sol) {
           anySol = true;

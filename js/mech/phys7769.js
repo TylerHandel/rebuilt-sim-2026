@@ -152,7 +152,7 @@ export class Physical7769 extends PhysicalRobot {
     // the shot: the table's, by the distance from the robot's center to the HUB's or the pass point
     let want = null, dist = 0;
     if (setpoint > 0 && r.shot) {
-      const tgt = pass ? this.passTarget() : Field.hubCenter(r.alliance);
+      const tgt = pass ? r.aimPt(this.passTarget()) : r.aimHub();
       dist = Math.hypot(tgt.x - r.pos.x, tgt.z - r.pos.z);
       want = shotFor(pass ? 'pass' : 'hub', dist);
     }
@@ -162,13 +162,13 @@ export class Physical7769 extends PhysicalRobot {
     let rpm = 0;
     if (on) {
       if (want) rpm = want.rpm;
-      else if (has && r.inAllianceZone?.()) { const c = Field.hubCenter(r.alliance); rpm = IDLE.share * shotFor('hub', Math.hypot(c.x - r.pos.x, c.z - r.pos.z)).rpm; }
+      else if (has && r.inAllianceZone?.()) { const c = r.aimHub(); rpm = IDLE.share * shotFor('hub', Math.hypot(c.x - r.pos.x, c.z - r.pos.z)).rpm; }
       else rpm = IDLE.rpm;
     }
     if (rpm > 0) T.shooter.vel = { target: (rpm / 60) * TAU, kV: SHOOTER.kV, kP: SHOOTER.kP, lo: 0, hi: 12, per: 1 / TAU };
     else { T.shooter.vel = null; T.shooter.cmd = null; }
     const now = (T.wheels.omega * 60) / TAU;
-    const v = r.body.linvel(), speed = Math.hypot(v.x, v.z), aim = Math.abs(r.aimErr ?? Infinity);
+    const v = r.estVel(), speed = Math.hypot(v.x, v.z), aim = Math.abs(r.aimErr ?? Infinity);
     const spun = !!want && Math.abs(now - want.rpm) <= TOL.rpm * want.rpm;
     const hoodOk = Math.abs(this.hoodDeg - this.hoodGoal) <= HOOD.tol;
     const ready = !!want && spun && hoodOk && (pass ? aim <= TOL.passAim : aim <= TOL.aim && speed <= TOL.speed);

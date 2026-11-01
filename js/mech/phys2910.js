@@ -147,10 +147,10 @@ export class Physical2910 extends PhysicalRobot {
     const pass = mode === 'pass';
     let want = null, dist = 0;
     if (setpoint > 0 && r.shot) {
-      const tgt = r.shot.target, lv = r.body.linvel();
+      const tgt = r.shot.target, lv = r.estVel();
       dist = Math.hypot(tgt.x - r.pos.x, tgt.z - r.pos.z);
       if (pass) { const tof = passTof(dist); dist = Math.hypot(tgt.x - r.pos.x - lv.x * tof, tgt.z - r.pos.z - lv.z * tof); }
-      if (!pass) { const c = Field.hubCenter(r.alliance); dist = Math.hypot(c.x - r.pos.x, c.z - r.pos.z); }
+      if (!pass) { const c = r.aimHub(); dist = Math.hypot(c.x - r.pos.x, c.z - r.pos.z); }
       want = pass ? passFor(dist) : shotFor(dist);
     }
     // between shots the hood's down (their DEFAULT_STATE: angle 0) and the drum idles below the
@@ -159,14 +159,14 @@ export class Physical2910 extends PhysicalRobot {
     // table's speed for the distance to the HUB, spinning up to the shot's speed once there's a
     // shot to make
     if (want) { this.targetRpm = want.rpm; this.hoodGoal = want.hood; }
-    else { const c = Field.hubCenter(r.alliance); this.targetRpm = IDLE * shotFor(Math.hypot(c.x - r.pos.x, c.z - r.pos.z)).rpm; this.hoodGoal = 0; }
+    else { const c = r.aimHub(); this.targetRpm = IDLE * shotFor(Math.hypot(c.x - r.pos.x, c.z - r.pos.z)).rpm; this.hoodGoal = 0; }
     if (!on) this.targetRpm = 0;
     // their velocity loop (no reverse voltage: it coasts down)
     const rps = T.shooter.omega / (2 * Math.PI), target = this.targetRpm / 60;
     const volts = target > 0 ? SHOOTER.kV * target + SHOOTER.kP * (target - rps) : 0;
     T.shooter.cmd = on ? Math.max(0, Math.min(1, volts / 12)) : 0;
     // ready to feed it: their isReadyToScore / isReadyToPass
-    const v = r.body.linvel(), speed = Math.hypot(v.x, v.z);
+    const v = r.estVel(), speed = Math.hypot(v.x, v.z);
     const hoodOk = Math.abs(this.hoodDeg - (this.hoodGoal ?? 0)) <= TOL.hood;
     const aim = Math.abs(r.aimErr ?? Infinity);
     // (and, since it idles below it between shots, the drum up to the shot's speed: within 5%. Their
