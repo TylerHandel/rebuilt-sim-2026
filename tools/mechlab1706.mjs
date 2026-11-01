@@ -16,7 +16,7 @@
 import { RAPIER } from '../js/physics.js';
 import { FUEL, GROUP, groups, HUB, TRENCH } from '../js/constants.js';
 import { Mechanism } from '../js/mech/mechanism.js';
-import { sim2D, ShotTable } from '../js/ballistics.js';
+import { sim2D, ShotTable, backspin } from '../js/ballistics.js';
 import {
   build1706, wheels1706, shooterWheels, pathSurfaces1706, placeIntake, placeBox, placeSpin, placeTurret, placeShooter, armRot, boxExt, hoodElevation, turretPoint, netY,
   INTAKE, SPIN, TURRET, SHOOTER, PIVOT, HALF_L, HALF_W, BOX, NET, SPIN_DIR, MU as GRIP, TREAD,
@@ -60,6 +60,7 @@ function rig({ deg = INTAKE.out, yaws = [90 * DEG, -90 * DEG], hood = [0, 0] } =
   const pathW = [...wh.intake, ...wh.kicker];
   const path = new Mechanism({ substeps: 6, shafts: [...new Set(pathW.map((x) => x.shaft)), t.pivot, ...t.spin], wheels: pathW, surfaces: [s.body, s.bowl, s.intake, s.hopper, ...s.spin, ...s.turret, ...s.hood, s.bumper, s.net] });
   const shooter = new Mechanism({ substeps: 6, sub: Number(process.env.SUB ?? 8), shafts: sw.flat().map((x) => x.shaft), wheels: sw.flat() });
+  const SHARED = new Set([...s.turret, ...s.hood]); shooter.surfaces.push(...SHARED);
   t.intake.cmd = null;
   for (const k of t.kicker) k.train.cmd = null;
   for (const s2 of t.shooter) s2.train.cmd = null;
@@ -77,8 +78,10 @@ function rig({ deg = INTAKE.out, yaws = [90 * DEG, -90 * DEG], hood = [0, 0] } =
   r.step = (balls, together = balls) => {
     r.pose();
     if (r.servo) r.set = servoArm(t, r.deg, r.set, r.goal, DT); else { t.pivot.cmd = 0; t.pivot._omega = 0; }
-    path.step(DT, balls, together);
-    shooter.step(DT, balls.filter((b) => b.translation().y > 0.36));
+    // (the turret's and hood's surfaces: the shooter's, for its FUEL, at each of its sub-steps)
+    const sb = balls.filter((b) => b.translation().y > 0.36);
+    path.step(DT, balls, together, { surfaces: SHARED, balls: new Set(sb) });
+    shooter.step(DT, sb);
     if (r.servo) r.deg = turnArm(t, r.deg, DT);
     for (let i = 0; i < 2; i++) r.phi[i] = (r.phi[i] + t.spin[i].omega * DT) % TAU;
   };
@@ -100,13 +103,14 @@ function shotWatch(r) {
     check(balls, t) {
       for (const b of balls) {
         const c = r.shooter.contacts.find((q) => q.ball === b);
-        if (c) touched.set(b, r.sw.findIndex((ws) => ws.includes(c.wheel)));
+        // (which turret: its wheels', or its turret's or hood's surfaces, which the shooter carries)
+        if (c) { const i = r.sw.findIndex((ws) => ws.includes(c.wheel)); touched.set(b, i >= 0 ? i : [0, 1].find((k) => c.wheel === r.s.turret[k] || c.wheel === r.s.hood[k]) ?? touched.get(b) ?? 0); }
         else if (touched.has(b)) {
           const i = touched.get(b); touched.delete(b);
           const v = b.linvel(), p = b.translation();
           if (v.y > 1 && Math.hypot(v.x, v.y, v.z) > 3) {
             const yaw = r.yaws[i], fx = Math.cos(yaw), fz = -Math.sin(yaw), [tx, tz] = TURRET[i];
-            shots.push({ t, i, v: Math.hypot(v.x, v.y, v.z), el: (Math.atan2(v.y, Math.hypot(v.x, v.z)) * 180) / Math.PI, side: (Math.atan2(v.x * -fz + v.z * fx, v.x * fx + v.z * fz) * 180) / Math.PI, x: (p.x - tx) * fx + (p.z - tz) * fz, y: p.y, b });
+            shots.push({ t, i, v: Math.hypot(v.x, v.y, v.z), s: backspin(v, b.angvel()), el: (Math.atan2(v.y, Math.hypot(v.x, v.z)) * 180) / Math.PI, side: (Math.atan2(v.x * -fz + v.z * fx, v.x * fx + v.z * fz) * 180) / Math.PI, x: (p.x - tx) * fx + (p.z - tz) * fz, y: p.y, b });
             b.setTranslation({ x: 50 + shots.length, y: 5, z: 0 }, true); b.setGravityScale(0, true); b.setLinvel({ x: 0, y: 0, z: 0 }, true);
           }
         }
@@ -115,7 +119,7 @@ function shotWatch(r) {
   };
 }
 // where a shot comes down through the HUB's rim height, out from the turret's axis along the shot
-function landing(o) { const hit = sim2D(o.y, o.v, (o.el * Math.PI) / 180, HUB.rimFront); return hit ? hit.d + o.x : NaN; }
+function landing(o) { const hit = sim2D(o.y, o.v, (o.el * Math.PI) / 180, HUB.rimFront, 0, o.s ?? 0); return hit ? hit.d + o.x : NaN; }
 // the sim's shot tables for 1706 (js/robot.js builds the same from its config's shooter)
 function tables() {
   const sh = ROBOTS['1706'].shooter;

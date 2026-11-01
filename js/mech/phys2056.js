@@ -48,7 +48,7 @@
 //     passing and starts accumulating" (PASS_MIN, est.; only while it's intaking as it passes).
 //   - "Polygon zone localization ... reduces trench-hood collisions": as 1690's TRENCH handling.
 import { Mechanism } from './mechanism.js';
-import { PhysicalRobot } from './physical.js';
+import { PhysicalRobot, FlatOut } from './physical.js';
 import {
   build2056, wheels2056, shooterWheel, kickerWheel, pathSurfaces2056, placeIntake, placeTurret, turretPoint, intakeFront, kickAt, kickLoad, floorRoll,
   HALF_L, HALF_W, INTAKE, FLOOR, TOP, BELT, VKICK, FEED, SHOOTER, TURRET, NET, WALL, PRELOAD, SLIDE, PLATE, GUARD, bowShape,
@@ -87,26 +87,22 @@ const HOLD = 0.3;
 // 1.4 cm higher than the first pass's estimate, the bore and quarter pipe's top lower, the Stealth
 // wheels where A10/A14 put them: the FUEL ride 6 cm unguided by the feed wheels up into the 4in
 // wheel, where they rode 2 cm, and they leave steeper at the low release angles, flatter at the
-// steep end, and no faster than ~8.2 m/s on the bench, 8.8 before): where the FUEL leave (the
-// turret's frame: s along the shot from its axis, y up; moved as the bench's median moved, 0.023 m
-// and 0.055 m); the elevation each arm angle gives (EL_MAP; ELEV_GEOM=1 commands the geometric angle,
-// as their binder states the range); the wheel's surface speed for an exit speed. Their code maps exit
-// speed to wheel speed with "a manually tuned coefficient" (EXIT_K: the bench's best single one, 0.632,
-// less the 3% a match's stream left slower than the bench's on the first pass's geometry); one
-// coefficient puts the long shots short (the exit stops growing near 8.2 m/s: the foam's grip on the
-// wheel over the hood's wrap), so EXIT_MAP is that coefficient tuned at each speed, the bench's
-// stream-fed, 3% slower up to 14 m/s (an AI match's HUB shots on it came down 0.1-0.2 m short from
-// 1.5-4.5 m: a match's stream leaves slower there; the first pass's was finished on ~3400 AI matches' shots, 0.94-0.98 of the bench from 10
-// m/s up; scaled so on this geometry, the table capped at 7.75 m/s, it scored half the points: the AI
-// shot from closer, less often). PASS_MAP: the bench at the lowest release angle, where passes go
-// (ONE_K=1: their single coefficient).
-export const EXIT = { s: 0.071, y: 0.686 };
-export const EL_MAP = [[129.5, 36.2], [135, 41.8], [141, 47.7], [147, 53.2], [153, 58.8], [158, 63.1], [163.5, 68.3]];
-export const EXIT_K = 0.61;
-// (the wheel's motor through each FUEL's contact, mechanism.js: the bench's stream leaves 7% faster
-// at 6 m/s of wheel, 3% at 8-10, 1% at 12-14, the same from 17 up; each point moved as much)
-export const EXIT_MAP = [[0, 0], [4.78, 6], [5.85, 8], [6.96, 10], [7.41, 12], [7.81, 14], [8.16, 17], [8.19, 20], [8.23, 24]];
-export const PASS_MAP = [[0, 0], [5.93, 8], [7.04, 10], [7.71, 12], [7.99, 14], [8.16, 16], [8.17, 18], [8.18, 20]];
+// steep end): where the FUEL leave (the
+// turret's frame: s along the shot from its axis, y up; the bench's median); the elevation each arm
+// angle gives (EL_MAP; ELEV_GEOM=1 commands the geometric angle, as their binder states the range);
+// the wheel's surface speed for an exit speed. Their code maps exit speed to wheel speed with "a
+// manually tuned coefficient" (EXIT_K: the bench's best single one, 0.697, less the 3% a match's
+// stream used to leave slower than the bench's); one coefficient puts the long shots short (the
+// exit stops growing near 9.7 m/s: the FUEL are pulled off the wheel toward the hood's guides as
+// they go round it, the guides' ~6 mm squeeze, est., unable to hold them to it), so EXIT_MAP is
+// that coefficient tuned at each speed, the bench's stream-fed (tools/mechlab2056.mjs calibrate).
+// PASS_MAP: the bench at the lowest release angle, where passes go (ONE_K=1: their single
+// coefficient). (Re-measured with the foam as played with, constants.js: it topped out at 8.2 m/s)
+export const EXIT = { s: 0.098, y: 0.661 };
+export const EL_MAP = [[129.5, 36.8], [135, 42.3], [141, 48.2], [147, 53.9], [153, 59.9], [158, 64.6], [163.5, 70.5]];
+export const EXIT_K = 0.676;
+export const EXIT_MAP = [[0, 0], [4.89, 6], [6.06, 8], [7.24, 10], [8.36, 12], [9.02, 14], [9.36, 17], [9.71, 20], [9.74, 24]];
+export const PASS_MAP = [[0, 0], [6.11, 8], [7.29, 10], [8.39, 12], [9.13, 14], [9.43, 16], [9.64, 18], [9.73, 20], [9.78, 24]];
 const GEOM = typeof process !== 'undefined' && process.env?.ELEV_GEOM === '1';
 const ONE_K = typeof process !== 'undefined' && process.env?.ONE_K === '1';
 const interp = (t, x, a = 0, b = 1) => {
@@ -195,7 +191,7 @@ export class Physical2056 extends PhysicalRobot {
     // passes at the hood's lowest release angle, the wheel's speed varied (their thread): a pass table
     // of that one angle (ballistics.js), in place of the robot's, as fast as PASS_MAP reaches
     const sh = robot.cfg.shooter, el = PASS_EL();
-    robot.passTable = new ShotTable({ h0: sh.exitY, Ht: FUEL.radius + 0.02, hoodMin: el, hoodMax: el, speedMax: PASS_MAP[PASS_MAP.length - 1][0] - 0.03, mode: 'pass', passTheta: el, dMax: 22 });
+    robot.passTable = new ShotTable({ h0: sh.exitY, Ht: FUEL.radius + 0.02, hoodMin: el, hoodMax: el, speedMax: PASS_MAP[PASS_MAP.length - 1][0] - 0.03, mode: 'pass', passTheta: el, dMax: 22, spin: sh.spin ?? 0 });
     this.reset();
   }
 
@@ -302,7 +298,11 @@ export class Physical2056 extends PhysicalRobot {
       speedLoop(T.kicker, (KICK_RATIO * surf) / S.r, S.kP);
     } else { this.hoodGoal = HOOD_STOW; speedLoop(T.shooter, null); speedLoop(T.kicker, null); }
     const wheelSurf = Math.abs(T.wheel.omega) * S.r;
-    const atV = !!sol && Math.abs(wheelSurf - surf) < S.tolV * surf;
+    // (a pass that asks more of the wheel than its motors give, its longest throw: it goes once the
+    // wheel's as fast as it gets, as 2910's and 604's: FlatOut)
+    this.flat ||= new FlatOut();
+    const flat = this.flat.step(dt, wheelSurf, pass ? surf : 0);
+    const atV = !!sol && (Math.abs(wheelSurf - surf) < S.tolV * surf || flat);
     const atHood = Math.abs(this.hood - this.hoodGoal) < S.tolHood;
     const tol = pass ? 4 * DEG : Math.max(0.8 * DEG, Math.atan2(0.14, sol?.d || 1));
     const atYaw = Math.abs(r.aimErr ?? Infinity) < tol;

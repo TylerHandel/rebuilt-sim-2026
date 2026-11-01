@@ -1,25 +1,53 @@
-// FUEL ballistics with quadratic air drag. The same model is applied to every airborne
-// FUEL in the physics world (see fuel.js), so shot tables computed here match what the
-// simulated balls actually do.
+// FUEL ballistics with quadratic air drag and the Magnus lift of its spin. The same model is
+// applied to every airborne FUEL in the physics world (see fuel.js), so shot tables computed here
+// match what the simulated balls actually do.
 import { FUEL, GRAVITY } from './constants.js';
 import { DEG } from './util.js';
 
-const K = FUEL.dragK;
+const K = FUEL.dragK, KL = FUEL.liftK, RB = FUEL.radius;
 const SIM_DT = 1 / 240;
+
+// the lift coefficient at spin ratio S = R w / v (constants.js liftK)
+export const liftCoef = (S) => (S > 0 ? S / (1 + 2 * S) : 0);
+// the Magnus acceleration on a FUEL moving at v with spin w (world vectors {x,y,z}): liftK C_L |v|
+// along (w-hat x v)
+export function magnus(v, w, out = { x: 0, y: 0, z: 0 }) {
+  const wl = Math.hypot(w.x, w.y, w.z), sp = Math.hypot(v.x, v.y, v.z);
+  if (wl < 1e-6 || sp < 0.3) { out.x = 0; out.y = 0; out.z = 0; return out; }
+  const f = (KL * liftCoef((RB * wl) / sp) * sp) / wl;
+  out.x = f * (w.y * v.z - w.z * v.y); out.y = f * (w.z * v.x - w.x * v.z); out.z = f * (w.x * v.y - w.y * v.x);
+  return out;
+}
+// a shot's backspin (rad/s; + lifts it): its spin about the level axis square to its course,
+// (course x up), as a planar shot's spin (sim2D's s)
+export function backspin(v, w) {
+  const h = Math.hypot(v.x, v.z);
+  return h < 1e-9 ? 0 : (w.z * v.x - w.x * v.z) / h;
+}
+// the spin (world) of a shot along v with backspin s
+export function spinFor(v, s) {
+  const h = Math.hypot(v.x, v.z);
+  return h < 1e-9 || !s ? { x: 0, y: 0, z: 0 } : { x: (-s * v.z) / h, y: 0, z: (s * v.x) / h };
+}
 
 const XS = new Float32Array(1802), YS = new Float32Array(1802);
 
-// Planar shot from height h0 at speed v and elevation th. Returns the point where the
-// ball DESCENDS through height Ht, or null if it never gets there. `clearY` is the ball's
-// height `clearDist` before that point (used to make sure shots clear the HUB's front edge).
-export function sim2D(h0, v, th, Ht, clearDist = 0) {
+// Planar shot from height h0 at speed v and elevation th, with backspin s (rad/s; + lifts it).
+// Returns the point where the ball DESCENDS through height Ht, or null if it never gets there.
+// `clearY` is the ball's height `clearDist` before that point (used to make sure shots clear the
+// HUB's front edge).
+export function sim2D(h0, v, th, Ht, clearDist = 0, s = 0) {
   let x = 0, y = h0, vx = v * Math.cos(th), vy = v * Math.sin(th), t = 0, apex = h0;
+  const as = Math.abs(s), sg = Math.sign(s);
   for (let i = 0; i < 1800; i++) {
     XS[i] = x;
     YS[i] = y;
     const sp = Math.hypot(vx, vy);
-    vx += -K * sp * vx * SIM_DT;
-    vy += (-GRAVITY - K * sp * vy) * SIM_DT;
+    // (lift: liftK C_L |v| along (spin x v), the spin out of the plane: sg (-vy, vx))
+    const L = as > 0 && sp > 0.3 ? KL * liftCoef((RB * as) / sp) * sp * sg : 0;
+    const ax = -K * sp * vx - L * vy, ay = -GRAVITY - K * sp * vy + L * vx;
+    vx += ax * SIM_DT;
+    vy += ay * SIM_DT;
     const nx = x + vx * SIM_DT, ny = y + vy * SIM_DT;
     t += SIM_DT;
     if (ny > apex) apex = ny;
@@ -48,15 +76,17 @@ export function sim2D(h0, v, th, Ht, clearDist = 0) {
   return null;
 }
 
-// Full 3D flight including the launcher's own velocity. Returns where the ball descends
-// through Ht (x, z, tof) or null.
-export function sim3D(p, v, Ht) {
+// Full 3D flight including the launcher's own velocity, spinning at w (world; none if left out).
+// Returns where the ball descends through Ht (x, z, tof) or null.
+export function sim3D(p, v, Ht, w = null) {
   let x = p.x, y = p.y, z = p.z, vx = v.x, vy = v.y, vz = v.z, t = 0;
+  const V = { x: 0, y: 0, z: 0 }, A = { x: 0, y: 0, z: 0 };
   for (let i = 0; i < 1800; i++) {
     const sp = Math.hypot(vx, vy, vz);
-    vx += -K * sp * vx * SIM_DT;
-    vy += (-GRAVITY - K * sp * vy) * SIM_DT;
-    vz += -K * sp * vz * SIM_DT;
+    if (w) { V.x = vx; V.y = vy; V.z = vz; magnus(V, w, A); } else { A.x = 0; A.y = 0; A.z = 0; }
+    vx += (-K * sp * vx + A.x) * SIM_DT;
+    vy += (-GRAVITY - K * sp * vy + A.y) * SIM_DT;
+    vz += (-K * sp * vz + A.z) * SIM_DT;
     const nx = x + vx * SIM_DT, ny = y + vy * SIM_DT, nz = z + vz * SIM_DT;
     t += SIM_DT;
     if (vy < 0 && ny <= Ht) {
@@ -72,18 +102,19 @@ export function sim3D(p, v, Ht) {
 }
 
 // Sample points of a trajectory (for the aim preview line)
-export function trajectoryPoints(p, v, maxT = 3, floorY = 0.05) {
+export function trajectoryPoints(p, v, maxT = 3, floorY = 0.05, w = null) {
   const pts = [];
   let x = p.x, y = p.y, z = p.z, vx = v.x, vy = v.y, vz = v.z;
-  const dt = 1 / 60;
+  const dt = 1 / 60, V = { x: 0, y: 0, z: 0 }, A = { x: 0, y: 0, z: 0 };
   for (let t = 0; t < maxT; t += dt) {
     pts.push(x, y, z);
     for (let k = 0; k < 4; k++) {
       const sp = Math.hypot(vx, vy, vz);
       const h = dt / 4;
-      vx += -K * sp * vx * h;
-      vy += (-GRAVITY - K * sp * vy) * h;
-      vz += -K * sp * vz * h;
+      if (w) { V.x = vx; V.y = vy; V.z = vz; magnus(V, w, A); }
+      vx += (-K * sp * vx + A.x) * h;
+      vy += (-GRAVITY - K * sp * vy + A.y) * h;
+      vz += (-K * sp * vz + A.z) * h;
       x += vx * h; y += vy * h; z += vz * h;
     }
     if (y < floorY) break;
@@ -98,9 +129,12 @@ export function trajectoryPoints(p, v, maxT = 3, floorY = 0.05) {
 // farthest in the drag model, at speedMax, flagged reach: false): a pass from out of reach still
 // goes, as far as the shooter throws, and comes down short.
 export class ShotTable {
-  constructor({ h0, Ht, hoodMin, hoodMax, speedMin = 2.5, speedMax, dMin = 0.4, dMax = 16, step = 0.05, mode = 'hub', passTheta = 55, clearDist = 0, clearHeight = 0 }) {
+  // spin: the backspin FUEL leave with, as the spin ratio R w / v (a physical robot's shooter
+  // spins them; a generic robot's FUEL leave without)
+  constructor({ h0, Ht, hoodMin, hoodMax, speedMin = 2.5, speedMax, dMin = 0.4, dMax = 16, step = 0.05, mode = 'hub', passTheta = 55, clearDist = 0, clearHeight = 0, spin = 0 }) {
     this.h0 = h0;
     this.Ht = Ht;
+    this.spin = spin;
     this.dMin = dMin;
     this.step = step;
     const thetas = [];
@@ -117,12 +151,12 @@ export class ShotTable {
       const h = typeof h0 === 'function' ? h0(tdeg) : h0;
       const pts = [];
       for (let v = mode === 'pass' && k > 0 ? Math.max(speedMin, 0.5 * speedMax) : speedMin; v <= speedMax + 1e-6; v += 0.1) {
-        const r = sim2D(h, v, th, Ht, clearDist);
+        const r = sim2D(h, v, th, Ht, clearDist, (spin * v) / RB);
         if (r) pts.push({ v, ...r });
       }
       // (a pass's longest throw at exactly speedMax, where the 0.1 m/s steps stop short of it)
       const last = pts[pts.length - 1];
-      if (mode === 'pass' && last && last.v < speedMax - 1e-6) { const r = sim2D(h, speedMax, th, Ht, clearDist); if (r) pts.push({ v: speedMax, ...r }); }
+      if (mode === 'pass' && last && last.v < speedMax - 1e-6) { const r = sim2D(h, speedMax, th, Ht, clearDist, (spin * speedMax) / RB); if (r) pts.push({ v: speedMax, ...r }); }
       return { th, pts };
     });
 
@@ -231,7 +265,10 @@ export function solveMovingShot(table, exit, vel, target) {
     if (sol.reach === false) return straight();
     const ch = Math.cos(sol.theta) * sol.v / d;
     const v3 = { x: dx * ch + vel.x, y: Math.sin(sol.theta) * sol.v, z: dz * ch + vel.z };
-    const hit = sim3D(exit, v3, table.Ht);
+    // (its spin: the table's backspin about the level axis square to the shot as the shooter throws
+    // it, before the launcher's motion is added)
+    const ws = table.spin ? spinFor({ x: dx * ch, z: dz * ch }, (table.spin * sol.v) / RB) : null;
+    const hit = sim3D(exit, v3, table.Ht, ws);
     if (!hit) break;
     const ex = hit.x - target.x, ez = hit.z - target.z;
     ax -= ex;

@@ -6,7 +6,7 @@ import {
 import { BUMPER_T, BUMPER_Y0, BUMPER_Y1, fitsTrench, fixedExit, foldTop, frameShape, offsetShape, modulePoints } from './robotConfigs.js';
 import { buildRobotModel, addClimberVisual, BUMP_Y1 } from './robotModels.js';
 import { Hopper, measureCapacity, intakePush, fuelForce } from './hopper.js';
-import { ShotTable, solveMovingShot, trajectoryPoints } from './ballistics.js';
+import { ShotTable, solveMovingShot, trajectoryPoints, spinFor } from './ballistics.js';
 import { Field } from './field.js';
 import { TRENCH_ARMS, underTrench } from './nav.js';
 import { Drivetrain, SwerveDrive } from './drivetrain.js';
@@ -109,13 +109,16 @@ export class Robot {
     // a fixed shooter fires along the robot's heading, or straight out the back (2910)
     this.aimOffset = sh.type === 'fixed' && sh.facing === 'back' ? Math.PI : 0;
     const h0 = sh.type === 'fixed' ? (sh.hood ? (deg) => fixedExit(sh, deg).y : sh.exit.y) : sh.exitY;
+    // (spin: the backspin its FUEL leave with, R w / v, where its shooter is simulated and spins
+    // them: the Magnus lift is in their flight; a generic robot's leave without)
+    const spin = sh.spin ?? 0;
     this.hubTable = new ShotTable({
       h0, Ht: HUB.targetHeight, hoodMin: sh.hoodMin, hoodMax: sh.hoodMax, speedMax: sh.speedMax, mode: 'hub',
-      clearDist: HUB.size / 2 + FUEL.radius + 0.02, clearHeight: HUB.rimFront + FUEL.radius + 0.04,
+      clearDist: HUB.size / 2 + FUEL.radius + 0.02, clearHeight: HUB.rimFront + FUEL.radius + 0.04, spin,
     });
     // (passes: a 55 deg lob where that reaches, flatter past it; out to the FIELD's diagonal and past,
     // where beyond its reach its longest throw goes anyway and falls short: ballistics.js ShotTable)
-    this.passTable = new ShotTable({ h0, Ht: FUEL.radius + 0.02, hoodMin: sh.hoodMin, hoodMax: sh.hoodMax, speedMax: sh.speedMax, mode: 'pass', passTheta: 55, dMax: 22 });
+    this.passTable = new ShotTable({ h0, Ht: FUEL.radius + 0.02, hoodMin: sh.hoodMin, hoodMax: sh.hoodMax, speedMax: sh.speedMax, mode: 'pass', passTheta: 55, dMax: 22, spin });
 
     // turret shooters: one or more turrets (971 has two), each aiming itself
     this.turrets = sh.type === 'turret' ? (sh.turrets || [sh.turretPos]) : [];
@@ -1138,7 +1141,8 @@ export class Robot {
     const lv = this.velocityAt(exit);
     const w = this.tws[ti];
     const th = (w ? w.hood : this.hoodDeg) * DEG, v = w ? w.fly : this.flywheel;
-    const pts = trajectoryPoints(exit, { x: Math.cos(psi) * Math.cos(th) * v + lv.x, y: Math.sin(th) * v, z: -Math.sin(psi) * Math.cos(th) * v + lv.z });
+    const sv = { x: Math.cos(psi) * Math.cos(th) * v, z: -Math.sin(psi) * Math.cos(th) * v };
+    const pts = trajectoryPoints(exit, { x: sv.x + lv.x, y: Math.sin(th) * v, z: sv.z + lv.z }, 3, 0.05, spinFor(sv, ((sh.spin ?? 0) * v) / FUEL.radius));
     const x = pts[pts.length - 3], z = pts[pts.length - 1], s = this.alliance === BLUE ? 1 : -1;
     const short = (w ? w.sol : this.shot)?.reach === false;
     if (!anywhere && !(Math.abs(x) < HALF_L - 1.2 && Math.abs(z) < HALF_W - 1.2 && (short || s * x < -0.5))) return false;
@@ -1700,10 +1704,7 @@ export class Robot {
     const psi = this.cfg.shooter.type === 'fixed' ? this.yaw + this.aimOffset : this.yaw + this.turretYaw;
     const v = this.flywheel > 0.5 ? Math.max(this.flywheel, 0) : sol.v;
     const th = this.hoodDeg * DEG;
-    return trajectoryPoints(exit, {
-      x: Math.cos(psi) * Math.cos(th) * v + lv.x,
-      y: Math.sin(th) * v,
-      z: -Math.sin(psi) * Math.cos(th) * v + lv.z,
-    });
+    const sv = { x: Math.cos(psi) * Math.cos(th) * v, z: -Math.sin(psi) * Math.cos(th) * v };
+    return trajectoryPoints(exit, { x: sv.x + lv.x, y: Math.sin(th) * v, z: sv.z + lv.z }, 3, 0.05, spinFor(sv, ((this.cfg.shooter.spin ?? 0) * v) / FUEL.radius));
   }
 }

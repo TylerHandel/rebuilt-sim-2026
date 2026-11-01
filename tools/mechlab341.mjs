@@ -25,7 +25,7 @@
 import { RAPIER } from '../js/physics.js';
 import { FUEL, GROUP, groups, HUB } from '../js/constants.js';
 import { Mechanism } from '../js/mech/mechanism.js';
-import { sim2D } from '../js/ballistics.js';
+import { sim2D, backspin } from '../js/ballistics.js';
 import {
   build341, wheels341, shooterWheels, pathSurfaces341, placeIntake, intakeRot, placeShooter, placeTurretSurfaces, hoodElevation,
   shotFor, REGRESSIONS, INTAKE, SHOOTER, OMNI, PIVOT, TURRET, HALF, PRELOAD,
@@ -65,6 +65,7 @@ function rig({ deg = DOWN, hood = 0, yaw = 0 } = {}) {
   const pathW = [...w.pivotRow, ...w.arm, ...w.table, ...w.uptake, ...w.omnis];
   const path = new Mechanism({ substeps: 6, shafts: [...new Set(pathW.map((x) => x.shaft)), t.pivot], wheels: pathW, surfaces: Object.values(s) });
   const shooter = new Mechanism({ substeps: 6, sub: 8, shafts: [t.fly, t.stealth, t.feed], wheels: sw });
+
   for (const tr of [t.intake, t.serializer, t.feederT, t.shooter]) tr.cmd = null;
   // (the arm held where it is)
   t.pivot.inertia = 1e6;
@@ -77,7 +78,7 @@ function fly(t, rpm) {
 }
 // a FUEL leaving the flywheel: where it comes down through the HUB's rim height, ahead of the exit
 function landing(o) {
-  const hit = sim2D(o.y, o.v, (o.el * Math.PI) / 180, HUB.rimFront);
+  const hit = sim2D(o.y, o.v, (o.el * Math.PI) / 180, HUB.rimFront, 0, o.s ?? 0);
   return hit ? hit.d : NaN;
 }
 // a FUEL that touched the shooter's wheels and has left them going up: shot
@@ -91,7 +92,7 @@ function shotWatch(shooter) {
         else if (touched.has(b)) {
           touched.delete(b);
           const v = b.linvel(), p = b.translation();
-          if (v.y > 1) { shots.push({ t, v: Math.hypot(v.x, v.y, v.z), el: (Math.atan2(v.y, Math.hypot(v.x, v.z)) * 180) / Math.PI, x: p.x, y: p.y, b }); b.setTranslation({ x: 50 + shots.length, y: 5, z: 0 }, true); }
+          if (v.y > 1) { shots.push({ t, v: Math.hypot(v.x, v.y, v.z), s: backspin(v, b.angvel()), el: (Math.atan2(v.y, Math.hypot(v.x, v.z)) * 180) / Math.PI, x: p.x, y: p.y, b }); b.setTranslation({ x: 50 + shots.length, y: 5, z: 0 }, true); }
         }
       }
     },
@@ -157,7 +158,7 @@ const tests = {
       ratios.push(o.v / surf);
       const land = landing(o) + (o.x - TURRET[0]);
       console.log(`  ${kind} ${d} m (${want.rpm.toFixed(0)} RPM, hood ${want.hood.toFixed(1)}): ${outs.length}/3 out at ${o.v.toFixed(2)} m/s (${(o.v / surf).toFixed(2)} of the flywheel's ${surf.toFixed(1)}; the estimate ${EXIT_PER_FLY_SURFACE}), ${o.el.toFixed(1)} deg (${hoodElevation(want.hood).toFixed(1)} by the CAD's geometry), ` +
-        (kind === 'hub' ? `comes down at the rim ${land.toFixed(2)} m out (the HUB's center ${d} m: ${land - d > 0 ? '+' : ''}${(land - d).toFixed(2)})` : `comes down to the carpet ~${(sim2D(o.y, o.v, (o.el * Math.PI) / 180, 0.1)?.d + o.x - TURRET[0]).toFixed(1)} m out`));
+        (kind === 'hub' ? `comes down at the rim ${land.toFixed(2)} m out (the HUB's center ${d} m: ${land - d > 0 ? '+' : ''}${(land - d).toFixed(2)})` : `comes down to the carpet ~${(sim2D(o.y, o.v, (o.el * Math.PI) / 180, 0.1, 0, o.s ?? 0)?.d + o.x - TURRET[0]).toFixed(1)} m out`));
     }
     if (ratios.length) console.log(`  exit speed / flywheel surface speed: median ${med(ratios).toFixed(3)}`);
   },
@@ -194,7 +195,7 @@ const tests = {
       }
       w.free();
       const H = kind === 'hub' ? HUB.rimFront : R;
-      const L = watch.shots.map((o) => { const h = sim2D(o.y, o.v, (o.el * Math.PI) / 180, H); return h ? h.d + o.x - TURRET[0] : NaN; }).filter(Number.isFinite);
+      const L = watch.shots.map((o) => { const h = sim2D(o.y, o.v, (o.el * Math.PI) / 180, H, 0, o.s ?? 0); return h ? h.d + o.x - TURRET[0] : NaN; }).filter(Number.isFinite);
       if (process.env.TUNELOG) console.log(`      ${rpm.toFixed(0)}: ${watch.shots.map((o, k) => `${o.t.toFixed(2)}s ${o.v.toFixed(2)}@${o.el.toFixed(0)} ${(L[k] ?? NaN).toFixed(2)}`).join(' | ')}`);
       return { land: L.length ? L.reduce((a, b) => a + b, 0) / L.length : NaN, n: L.length, spread: L.length ? Math.max(...L) - Math.min(...L) : NaN };
     };

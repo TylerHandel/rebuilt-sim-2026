@@ -383,8 +383,9 @@ export function placeShooter([lw, sw], e, yaw = 0, turretX = -0.127) {
 }
 // What leaves the shooter for a motor speed (rotations/s -> m/s; tools/mechlab.mjs shooter, the
 // average over its elevations), a FUEL fed in slowly (1.5 m/s): the grip runs out past ~80
-// rotations/s
-export const EXIT_TABLE = [[0, 0], [15, 2.7], [20, 3.51], [30, 4.99], [40, 6.23], [50, 7.31], [60, 8.45], [70, 9.34], [80, 9.74], [90, 9.87]];
+// rotations/s (with the foam as played with, constants.js: from 70 rotations/s up the elevation 60's,
+// SHOTS=60:70:3,...; the fresh foam's grip ran out past ~80, 9.87 m/s at 90)
+export const EXIT_TABLE = [[0, 0], [15, 2.7], [20, 3.51], [30, 4.99], [40, 6.23], [50, 7.31], [60, 8.45], [70, 9.74], [80, 10.99], [90, 11.6]];
 const interp = (t, x, i, j) => {
   for (let k = 1; k < t.length; k++) if (x <= t[k][i]) return t[k - 1][j] + ((t[k][j] - t[k - 1][j]) * (x - t[k - 1][i])) / (t[k][i] - t[k - 1][i]);
   return t[t.length - 1][j];
@@ -397,8 +398,11 @@ const interp = (t, x, i, j) => {
 // 48 rotations/s with the hood steep, left 4-5% under the rows that were here, 5.11 and 6.52 at 30
 // and 40, and came down short. Measured again with the turret indexer sub-stepped, PATH_FAST: the FUEL
 // come up to the shooter faster and steadier and leave 2.2-2.7% faster than these rows were at every
-// speed from 43 to 65 rotations/s, four AI matches' 811 HUB shots; the rows from 30 up x 1.024.)
-export const SHOT_TABLE = [[0, 0], [15, 2.7], [20, 3.51], [30, 4.97], [40, 6.33], [50, 7.68], [60, 8.77], [70, 9.90], [80, 10.95]];
+// speed from 43 to 65 rotations/s, four AI matches' 811 HUB shots; the rows from 30 up x 1.024. With
+// the foam as played with, constants.js, the bench's FUEL leave as before up to 60 rotations/s and
+// faster from 70 up (9.74, 10.99 and 11.6 m/s at 70, 80 and 90, where they slipped to 9.34, 9.74
+// and 9.87): those rows are the bench's times the 60 row's 1.04 of it in play.)
+export const SHOT_TABLE = [[0, 0], [15, 2.7], [20, 3.51], [30, 4.97], [40, 6.33], [50, 7.68], [60, 8.77], [70, 10.13], [80, 11.43], [90, 12.06]];
 export const exitSpeed = (rps) => interp(SHOT_TABLE, Math.max(0, rps), 0, 1);
 export const rpsFor = (v) => interp(SHOT_TABLE, Math.max(0, v), 1, 0);
 // their velocity loop (VelocityVoltage: kV x target + kP x error, in volts) toward targetRps,

@@ -151,18 +151,20 @@ export const PASS_MAP = {
 };
 // their limits (LaunchCalculator): HUB shots from 0.6 to 6 m, passes from 3 to 17.16 m
 export const RANGE = { hub: [0.6, 6.0], pass: [3.0, 17.16] };
-// Their maps' speeds put the sim's FUEL short (tools/mechlab6328.mjs shooter: 0.3 to 1.3 m short of
-// the HUB's center at the rim's height, 1.7 to 10 m short passing). FUEL leave at 0.73-0.75 of the
-// drum's surface speed and at the hood's angle within 1.5 deg, and fly drag-only, with no Magnus
-// lift for the backspin the hood's half-speed roller puts on them, so they need 8-28% more (the
-// close rows most: those are steep); and past ~300 rad/s (15 m/s at the drum's surface) they slip
-// on it and leave at no more than ~8.6 m/s however fast it turns, no more than ~6.7 m to the
-// carpet at their 38 deg passing hood. SIM_FLY re-finds each row's flywheel speed (tools/mechlab6328
-// .mjs tune: six fed up the kickers as in play, the flywheel settled at the row's speed, bang-bang
-// past 3.25 m): the speed whose FUEL come down through the rim's height (the carpet, passing) at the
-// row's distance from the launcher, as 1678's SIM_PASS. Their 7.8 and 17.16 m pass rows are out of
-// reach (flat out, 450 and 500: what's asked, ~6.7 m). THEIR_FLY=1 for their own.
-export const SIM_FLY = { hub: [177, 156, 168, 182, 211, 222, 241, 239, 245, 249], pass: [216, 407, 450, 500] };
+// Their maps' speeds put the sim's FUEL short (tools/mechlab6328.mjs shooter: 0.3 to 1.2 m short of
+// the HUB's center at the rim's height, 0.5 to 2.8 m short passing). FUEL leave at 0.70-0.74 of the
+// drum's surface speed (the drum's and the hood roller's half of it, averaged: 0.75 if neither
+// slipped), 2-4 deg steeper than the CAD's square to the hood's end, with backspin (R w / v ~0.5-0.6:
+// the drum's side faster than the hood roller's), and fly with its Magnus lift, so they need 8-30%
+// more (the steepest row most: at 83 deg, 1.12 m out takes a lot more speed for a little less
+// climb); and past ~400 rad/s (20 m/s at the drum's surface) they're pulled off it toward the hood
+// as they go round (the foam's squeeze can't hold them to it) and leave at no more than ~12 m/s,
+// ~10.7 m to the carpet at their 38 deg passing hood. SIM_FLY re-finds each row's flywheel speed
+// (tools/mechlab6328.mjs tune: six fed up the kickers as in play, the flywheel settled at the
+// row's speed, bang-bang past 3.25 m): the speed whose FUEL come down through the rim's height (the
+// carpet, passing) at the row's distance from the launcher, as 1678's SIM_PASS. Their 17.16 m pass
+// row is out of reach (flat out, 500: ~10.7 m). THEIR_FLY=1 for their own.
+export const SIM_FLY = { hub: [256, 165, 175, 189, 199, 205, 214, 220, 224, 228], pass: [205, 243, 279, 500] };
 const THEIR = typeof process !== 'undefined' && !!process.env?.THEIR_FLY;
 export function shotFor(kind, d, { theirs = THEIR } = {}) {
   const m = kind === 'pass' ? PASS_MAP : HUB_MAP, sim = !theirs && SIM_FLY[kind];

@@ -47,6 +47,7 @@ export class FullWatch {
 // for 0.25 s; 2910's drum and brass flywheel on their 35 A supply limits creep the last few hundred
 // RPM up over many seconds, toward ~5650 RPM). Its FUEL then come down as short as physics has them.
 // step() each step with the flywheel's speed and the target (any one unit); true: flat out.
+const HOODSUB_OFF = globalThis.process?.env?.HOODSUB === '0';
 export class FlatOut {
   constructor() { this.t = 0; this.rate = 0; this.last = null; }
   step(dt, speed, target) {
@@ -191,8 +192,17 @@ export class PhysicalRobot {
     this.near = near;
     this.held = held;
     // (FUEL it holds pressing on each other: foam on foam, worked out with its wheels)
-    this.path.step(dt, near.map((b) => b.body), [...owned].map((b) => b.body));
-    if (this.shooter) this.shooter.step(dt, this.shooterBalls(near).map((b) => b.body));
+    // (the shooter's FUEL: the surfaces it carries that the ball path has too, its hood, are its
+    // alone for them, met at each of its sub-steps: Mechanism.step's skip)
+    const sb = this.shooter ? this.shooterBalls(near).map((b) => b.body) : [];
+    // (HOODSUB=0: as it was, those surfaces the ball path's alone, met once a step)
+    if (!this._shared) {
+      this._shared = new Set(this.shooter ? this.shooter.surfaces.filter((sf) => this.path.surfaces.includes(sf)) : []);
+      if (HOODSUB_OFF && this._shared.size) { this.shooter.surfaces = this.shooter.surfaces.filter((sf) => !this._shared.has(sf)); this._shared.clear(); }
+    }
+    const skip = this._shared.size && sb.length ? { surfaces: this._shared, balls: new Set(sb) } : null;
+    this.path.step(dt, near.map((b) => b.body), [...owned].map((b) => b.body), skip);
+    if (this.shooter) this.shooter.step(dt, sb);
     this._squash(near);
   }
 

@@ -82,17 +82,16 @@ export const THEIR_PASS_TABLE = [[2.0, 2000], [6.0, 3500], [10.0, 6000]];
 // on the carpet at the row's distance from the robot's center (the drum from its idle, fed once
 // it's within 5% and while it stays there, as here). Their own RPMs, through the same
 // drum, hood and exit (0.85 of the drum's surface speed) that put their HUB table in the HUB,
-// carry 2.0 m past at 2 m, 3.3 m past at 6 m and (flat out) 1.6 m past at 10 m: it takes 0.62,
-// 0.76 and 0.62 of them, not one factor, so it isn't a gearing or a unit (both tables are the
+// carry 2.0 m past at 2 m, 3.5 m past at 6 m and (flat out) 4.7 m past at 10 m: it takes 0.62,
+// 0.75 and 0.60 of them, not one factor, so it isn't a gearing or a unit (both tables are the
 // motors' RPM, FLYWHEEL_GEAR_RATIO 1.0, set the same way). Their code feeds a pass as soon as the
 // drum is within 3000 RPM of it (FLYWHEEL_RPM_TOLERANCE), so their FUEL likely leave while it's
 // still spinning up from the HUB shot's speed it idles at, slower than their table's speeds (a
 // guess: nothing in their code says how far their passes go); here a pass waits for them (within
-// 5%, or as fast as it gets: FlatOut). Past ~4000 RPM the FUEL slip on the drum and carry little
-// farther (flat out, 5600 RPM, 11.6 m). Past 10 m it asks the 10 m row's speed, as their table
-// does its last row's (theirs is flat out; here that's 4-7 s from idle for 1.6 m more).
+// 5%, or as fast as it gets: FlatOut). Flat out (5600 RPM) its FUEL carry 14.7 m. Past 10 m it
+// asks the 10 m row's speed, as their table does its last row's (theirs is flat out).
 // THEIR_PASS=1 in the environment: their own RPMs.
-export const SIM_PASS_TABLE = [[2.0, 1240], [6.0, 2655], [10.0, 3700]];
+export const SIM_PASS_TABLE = [[2.0, 1230], [6.0, 2640], [10.0, 3625]];
 const THEIR_PASS = typeof process !== 'undefined' && !!process.env?.THEIR_PASS;
 export const PASS_TABLE = THEIR_PASS ? THEIR_PASS_TABLE : SIM_PASS_TABLE;
 const interp = (t, x, j) => {

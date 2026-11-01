@@ -11,8 +11,8 @@
 // your own), NOCOMPACT=1 (the dump without the intake coming in)
 import { RAPIER } from '../js/physics.js';
 import { FUEL, GROUP, groups, HUB, IN, TRENCH } from '../js/constants.js';
-import { Mechanism } from '../js/mech/mechanism.js';
-import { sim2D } from '../js/ballistics.js';
+import { Mechanism, handOff } from '../js/mech/mechanism.js';
+import { sim2D, backspin } from '../js/ballistics.js';
 import {
   build581, wheels581, pathSurfaces581, placeIntake, placeFloor, placeFloorSurface, placeHood, placeNet, slideOffset, floorRot, hoodRot, hoodElevation, shotFor,
   SCORE_RPM, FEED_RPM, SLIDE, FLOOR, TOWER, INTAKE, SHOOTER, DEPLOY, DRUM, NET,
@@ -51,6 +51,7 @@ function rig({ ext = OUT, hood = SHOOTER.hoodMin } = {}) {
   const pathW = [...wh.floor, ...wh.tower, ...wh.intake];
   const path = new Mechanism({ substeps: 6, shafts: [...new Set(pathW.map((x) => x.shaft)), t.deploy], wheels: pathW, surfaces: Object.values(s) });
   const shooter = new Mechanism({ substeps: 6, sub: 8, shafts: [t.drum, t.hood], wheels: [wh.drum, ...wh.hood] });
+  handOff(path, shooter, [s.hood]); // (the hood: met at each of the shooter's sub-steps)
   for (const tr of [t.intake, t.floor, t.feederT, t.shooter]) tr.cmd = null;
   const r = { t, wh, s, path, shooter, ext, hood };
   r.pose = () => {
@@ -93,7 +94,7 @@ function moveDeploy(r) {
 }
 // a FUEL leaving the drum: where it comes down through the HUB's rim height, back from the exit
 function landing(o) {
-  const hit = sim2D(o.y, o.v, (o.el * Math.PI) / 180, HUB.rimFront);
+  const hit = sim2D(o.y, o.v, (o.el * Math.PI) / 180, HUB.rimFront, 0, o.s ?? 0);
   return hit ? hit.d : NaN;
 }
 // a FUEL that touched the drum and has left it going up: shot
@@ -107,7 +108,7 @@ function shotWatch(shooter) {
         else if (touched.has(b)) {
           touched.delete(b);
           const v = b.linvel(), p = b.translation();
-          if (v.y > 2) { shots.push({ t, v: Math.hypot(v.x, v.y, v.z), el: (Math.atan2(v.y, -v.x) * 180) / Math.PI, x: p.x, y: p.y, b }); b.setTranslation({ x: 50 + shots.length, y: 5, z: 0 }, true); }
+          if (v.y > 2) { shots.push({ t, v: Math.hypot(v.x, v.y, v.z), s: backspin(v, b.angvel()), el: (Math.atan2(v.y, -v.x) * 180) / Math.PI, x: p.x, y: p.y, b }); b.setTranslation({ x: 50 + shots.length, y: 5, z: 0 }, true); }
         }
       }
     },
@@ -239,7 +240,7 @@ const tests = {
       const surf = t.drum.omega * SHOOTER.drum.r;
       const land = landing(o) - o.x;
       console.log(`  ${kind} ${d} m (${want.rpm.toFixed(0)} RPM, hood ${want.hood.toFixed(1)}): ${outs.length}/4 out at ${o.v.toFixed(2)} m/s (${(o.v / surf).toFixed(2)} of the drum's ${surf.toFixed(1)}; the estimate ${EXIT_PER_DRUM_SURFACE}), ${o.el.toFixed(1)} deg (${hoodElevation(want.hood).toFixed(1)} by the CAD's geometry) from ${o.x.toFixed(2)},${o.y.toFixed(2)}, ` +
-        (kind !== 'feed' ? `comes down at the rim ${land.toFixed(2)} m back (HUB's center ${d} m: ${land - d > 0 ? '+' : ''}${(land - d).toFixed(2)})` : `comes down to the carpet ~${(sim2D(o.y, o.v, (o.el * Math.PI) / 180, 0.1)?.d - o.x).toFixed(1)} m back`));
+        (kind !== 'feed' ? `comes down at the rim ${land.toFixed(2)} m back (HUB's center ${d} m: ${land - d > 0 ? '+' : ''}${(land - d).toFixed(2)})` : `comes down to the carpet ~${(sim2D(o.y, o.v, (o.el * Math.PI) / 180, 0.1, 0, o.s ?? 0)?.d - o.x).toFixed(1)} m back`));
     }
   },
   // carpet to shot: FUEL in front, the robot driving into them; intaking and shooting at 2.8 m

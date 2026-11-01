@@ -13,8 +13,8 @@
 // NET_BULGE
 import { RAPIER } from '../js/physics.js';
 import { FUEL, GROUP, groups, HUB } from '../js/constants.js';
-import { Mechanism } from '../js/mech/mechanism.js';
-import { sim2D } from '../js/ballistics.js';
+import { Mechanism, handOff } from '../js/mech/mechanism.js';
+import { sim2D, backspin } from '../js/ballistics.js';
 import {
   build6328, wheels6328, pathSurfaces6328, placeIntake, placeHood, placeNet, intakeRot, hoodRot, hoodElevation, slideExt, slideRate, shotFor,
   INTAKE, SHOOTER, KICK, BACK_R, FLOOR_R, PIVOT, DRUM, HUB_MAP, PASS_MAP, SLIDE_MASS, NET, LAUNCHER_X,
@@ -66,6 +66,7 @@ function rig({ deg = Number(process.env.ARM ?? INTAKE.down), hood = SHOOTER.hood
   const pathStep = r.path.step.bind(r.path);
   r.path.step = (dt, ...a) => { s.net.flex(r.path.contacts, dt); pathStep(dt, ...a); r.netMax = Math.max(r.netMax ?? 0, s.net.B); };
   r.shooter = new Mechanism({ substeps: 6, sub: 8, shafts: [t.drum, t.hood], wheels: [wh.drum, ...wh.hood] });
+  handOff(r.path, r.shooter, [s.hood]); // (the hood: met at each of the shooter's sub-steps)
   for (const tr of [t.intake, t.floor, t.backT, t.frontT, t.flywheel]) tr.cmd = 0;
   r.fly = { sp: 0, acc: 0, init: false };
   // their flywheel loop toward goal (rad/s; bang-bang past 3.25 m at the HUB)
@@ -83,14 +84,14 @@ function shotWatch(shooter) {
         else if (touched.has(b)) {
           touched.delete(b);
           const v = b.linvel(), p = b.translation();
-          if (v.y > 2 && v.x < 0) { shots.push({ t, v: Math.hypot(v.x, v.y, v.z), el: (Math.atan2(v.y, -v.x) * 180) / Math.PI, x: p.x, y: p.y, z: p.z, b }); b.setTranslation({ x: 50 + shots.length, y: 5, z: 0 }, true); }
+          if (v.y > 2 && v.x < 0) { shots.push({ t, v: Math.hypot(v.x, v.y, v.z), s: backspin(v, b.angvel()), el: (Math.atan2(v.y, -v.x) * 180) / Math.PI, x: p.x, y: p.y, z: p.z, b }); b.setTranslation({ x: 50 + shots.length, y: 5, z: 0 }, true); }
         }
       }
     },
   };
 }
 // where a shot comes down through height h, back from the robot's center
-const landAt = (o, h) => { const k = sim2D(o.y, o.v, (o.el * Math.PI) / 180, h); return k ? k.d - o.x : NaN; };
+const landAt = (o, h) => { const k = sim2D(o.y, o.v, (o.el * Math.PI) / 180, h, 0, o.s ?? 0); return k ? k.d - o.x : NaN; };
 const inHopper = (b) => { const p = b.translation(); return p.x > -0.36 && p.x < 0.72 && Math.abs(p.z) < 0.36 && p.y > 0.12 && p.y < 0.8; };
 function fill(w, balls, step, layers = 8, y = 0.6, x1 = 0.62) {
   let sd = Number(process.env.FILLSEED ?? 0);
