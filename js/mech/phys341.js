@@ -60,7 +60,7 @@ const profile = (p, v, goal, vmax, amax, dt) => {
 // past that they slip on it, and leave at no more than 10.8 m/s plus 0.13 of its surface speed
 // (10.9 m/s at 3245 RPM, 14.3 at 4640 and 5500, with the foam as played with): exitSpeed. (The shot tables are re-found by shooting:
 // js/mech/r341.js SIM_SHOTS)
-export const EXIT_PER_FLY_SURFACE = 0.7, EXIT_SLIP = [10.8, 0.13];
+export const EXIT_PER_FLY_SURFACE = globalThis.process?.env?.SUB341 ? 0.67 : 0.7, EXIT_SLIP = [10.8, 0.13];
 // the AI's driver letting go of the trigger when nothing comes out (letGo): after (s) without a
 // shot, for (s)
 export const LET_GO = { after: 0.8, for: 0.4 };
@@ -99,7 +99,7 @@ export class Physical341 extends PhysicalRobot {
     const sw = shooterWheels(t);
     super(robot, {
       path: new Mechanism({ body: robot.body, substeps: 6, shafts: [...new Set(pathWheels.map((x) => x.shaft)), t.pivot], wheels: pathWheels, surfaces: Object.values(s) }),
-      shooter: new Mechanism({ body: robot.body, substeps: 6, sub: 8, shafts: [t.fly, t.stealth, t.feed], wheels: sw }),
+      shooter: new Mechanism({ body: robot.body, substeps: 6, sub: 8, shafts: [t.fly, t.stealth, t.feed], wheels: sw, surfaces: globalThis.process?.env?.SUB341 ? [s.turret, s.hood] : [] }),
       preload: PRELOAD,
     });
     Object.assign(this, { t, w, s, sw });

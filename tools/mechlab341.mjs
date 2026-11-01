@@ -31,7 +31,7 @@ import {
   shotFor, REGRESSIONS, INTAKE, SHOOTER, OMNI, PIVOT, TURRET, HALF, PRELOAD,
 } from '../js/mech/r341.js';
 import PATH from '../js/mech/path341.js';
-import { EXIT_PER_FLY_SURFACE, LET_GO, FEEDER_V, FEED_BACKOFF } from '../js/mech/phys341.js';
+import { EXIT_PER_FLY_SURFACE, EXIT_SLIP, LET_GO, FEEDER_V, FEED_BACKOFF } from '../js/mech/phys341.js';
 
 await RAPIER.init();
 const R = FUEL.radius, DT = 1 / 120, SEEDS = Number(process.env.SEEDS ?? 6), SPEED = Number(process.env.SPEED ?? 1);
@@ -72,7 +72,16 @@ function rig({ deg = DOWN, hood = 0, yaw = 0 } = {}) {
   for (const tr of [t.intake, t.serializer, t.feederT, t.shooter]) tr.cmd = null;
   // (the arm held where it is)
   t.pivot.inertia = 1e6;
+  path.shared = new Set([s.turret, s.hood]);
   return { t, w, s, sw, path, shooter };
+}
+// one step of both: every FUEL to the shooter, or (SPLIT=y) only those above y, as play gives it
+// its FUEL (Physical341.shooterBalls), the ball path meeting the shared surfaces for the rest
+function stepBoth(path, shooter, live) {
+  if (!process.env.SPLIT) { path.step(DT, live, live); shooter.step(DT, live); return; }
+  const sb = live.filter((b) => b.translation().y > +process.env.SPLIT);
+  path.step(DT, live, live, process.env.HOODSUB === '1' ? { surfaces: path.shared, balls: new Set(sb) } : null);
+  shooter.step(DT, sb);
 }
 // their flywheel velocity loop toward rpm (motor RPM, direct to the flywheel), no reverse volts
 function fly(t, rpm) {
@@ -146,7 +155,7 @@ const tests = {
         if (i % Math.round(0.6 / DT) === 0 && balls.length < 3) balls.push(ball(w, -0.10, 0.36, TURRET[1], [0, 1.5, 0]));
         const live = balls.filter((b) => b.translation().y < 3);
         fly(t, want.rpm);
-        path.step(DT, live, live); shooter.step(DT, live); w.step();
+        stepBoth(path, shooter, live); w.step();
         watch.check(live, i * DT);
         if (process.env.TRACE && i % 6 === 0 && balls[0]) {
           const b = balls[0], p = b.translation(), v = b.linvel();
@@ -176,13 +185,14 @@ const tests = {
   tune() {
     const MAX = Number(process.env.MAXRPM ?? 5500), SETTLED = !!process.env.SETTLED;
     const shoot = (kind, rpm, hood) => {
-      const { t, path, shooter } = rig({ hood });
+      const yaw0 = (Number(process.env.YAW ?? 0) * Math.PI) / 180;
+      const { t, path, shooter, s: S_, sw: SW_ } = rig({ hood, yaw: yaw0 });
       const w = world();
       const now = () => RPM(t.shooter.omega), within = () => Math.abs(now() - rpm) <= SHOOTER.tol;
       if (SETTLED) for (let i = 0; i < 3 / DT; i++) { fly(t, rpm); shooter.step(DT, []); }
       else for (let i = 0; i < 6 / DT && !within(); i++) { fly(t, rpm); shooter.step(DT, []); }
       const balls = PRELOAD.map(([x, y, z]) => ball(w, x, y, z));
-      const watch = shotWatch(shooter);
+      const watch = shotWatch(shooter), hoodHits = new Set();
       let atSpeedT = 0.1;
       // (until all eight are out, or nothing's come out for a second: the zipper locked, as it can
       // in play, where the AI's driver lets go and presses again; the ones shot count)
@@ -193,15 +203,27 @@ const tests = {
         atSpeedT = within() ? 0.1 : Math.max(0, atSpeedT - DT);
         const on = atSpeedT > 0;
         t.intake.cmd = on ? 1 : 0; t.serializer.cmd = on ? 1 : 0; t.feederT.cmd = on ? 3 / 12 : 0;
-        path.step(DT, live, live); shooter.step(DT, live); w.step();
+        // (TURN=rad/s: the turret turning; HOODOSC=deg/s: the hood swinging +-3 deg about its angle,
+        // as they do in play, posed each step as play poses them)
+        if (process.env.TURN || process.env.HOODOSC) {
+          const yy = yaw0 + Number(process.env.TURN ?? 0) * i * DT, ho = Number(process.env.HOODOSC ?? 0), ph = (ho * i * DT) % 12;
+          const hh = Math.max(0, hood + (ph < 6 ? ph - 3 : 9 - ph));
+          placeTurretSurfaces(S_, yy, hh); placeShooter(SW_, yy, hh);
+        }
+        stepBoth(path, shooter, live); w.step();
         watch.check(live, i * DT);
+        for (const o of watch.shots) o.est ??= Math.min(EXIT_PER_FLY_SURFACE * (Math.abs(t.fly.omega) * SHOOTER.fly.d) / 2, EXIT_SLIP[0] + (EXIT_SLIP[1] * Math.abs(t.fly.omega) * SHOOTER.fly.d) / 2);
+        if (process.env.HOODLOG) for (const c of shooter.contacts) if (c.wheel.name.startsWith('hood (CAD)')) hoodHits.add(c.ball);
       }
       w.free();
       const H = kind === 'hub' ? HUB.rimFront : R;
       const L = watch.shots.map((o) => { const h = sim2D(o.y, o.v, (o.el * Math.PI) / 180, H, 0, o.s ?? 0); return h ? h.d + o.x - TURRET[0] : NaN; }).filter(Number.isFinite);
-      if (process.env.TUNELOG) console.log(`      ${rpm.toFixed(0)}: ${watch.shots.map((o, k) => `${o.t.toFixed(2)}s ${o.v.toFixed(2)}@${o.el.toFixed(0)} ${(L[k] ?? NaN).toFixed(2)}`).join(' | ')}`);
+      if (process.env.HOODLOG) console.log(`      the hood's CAD touched ${hoodHits.size} of ${balls.length}`);
+      if (process.env.TUNELOG) console.log(`      ${rpm.toFixed(0)}: ${watch.shots.map((o, k) => `${o.t.toFixed(2)}s ${o.v.toFixed(2)}@${o.el.toFixed(0)} ${(o.v / o.est).toFixed(3)} ${(L[k] ?? NaN).toFixed(2)}`).join(' | ')}`);
       return { land: L.length ? L.reduce((a, b) => a + b, 0) / L.length : NaN, n: L.length, spread: L.length ? Math.max(...L) - Math.min(...L) : NaN };
     };
+    // (STREAM=rpm,hood: only that, each shot printed)
+    if (process.env.STREAM) { const [rpm, hood] = process.env.STREAM.split(',').map(Number); process.env.TUNELOG = 1; const o = shoot('hub', rpm, hood); console.log(`  ${o.n} land ${o.land.toFixed(2)} spread ${o.spread.toFixed(2)}`); return; }
     const lerp = (t, x) => { if (x <= t[0][0]) return t[0][1]; for (let k = 1; k < t.length; k++) if (x <= t[k][0]) return t[k - 1][1] + ((t[k][1] - t[k - 1][1]) * (x - t[k - 1][0])) / (t[k][0] - t[k - 1][0]); return t[t.length - 1][1]; };
     // (and two rows of the sim's own for ferrying: at 4 m, short of their first (5.5 m), where the
     // sim's pass targets can be; at 9 m, where the FUEL's slip on the flywheel bends the curve
@@ -346,7 +368,7 @@ function pathRun(seed, { shoot = true, n = 18, sec = 7, drain = false, abreast =
       t.feederT.cmd = now < backUntil ? -FEEDV / 12 : FEEDV / 12;
     }
     rollResist(live, SPEED);
-    path.step(DT, live, live); shooter.step(DT, live); w.step();
+    stepBoth(path, shooter, live); w.step();
     minIntake = Math.min(minIntake, Math.abs(t.intake.omega) / free.intake);
     minSer = Math.min(minSer, Math.abs(t.serializer.omega) / free.ser);
     watch.check(live, k * DT);

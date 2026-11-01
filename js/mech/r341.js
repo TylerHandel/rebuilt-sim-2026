@@ -134,7 +134,12 @@ const interp = (t, x) => {
 // of what the aim asked, 10-90%), and with the table re-found on the bench for it its HUB shots went
 // 79% -> 65% in (eight AI matches): something in play the bench doesn't have, not found yet.) THEIR_SHOTS=1
 // in the environment: their own RPMs.
-export const SIM_SHOTS = {
+// SUB341=1 (trial): the bore and hood met at the shooter's sub-steps, and the rows re-found that way
+export const SUB_BORE = typeof process !== 'undefined' && !!process.env?.SUB341;
+export const SIM_SHOTS = SUB_BORE ? {
+  rpm: [[1.51, 2550], [2.38, 2315], [3.07, 2235], [3.5, 2275], [4.24, 2300], [5.5, 2520], [14, 3370]],
+  feedRpm: [[4, 1715], [5.5, 2125], [7.5, 2600], [9, 2930], [10.5, 3245], [13.94, 5500], [16, 5500]],
+} : {
   rpm: [[1.51, 2055], [2.38, 2145], [3.07, 2110], [3.5, 2195], [4.24, 2230], [5.5, 2455], [14, 3285]],
   feedRpm: [[4, 1665], [5.5, 2060], [7.5, 2555], [9, 2885], [10.5, 3225], [13.94, 4430], [16, 5500]],
 };
