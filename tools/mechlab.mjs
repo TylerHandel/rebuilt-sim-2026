@@ -15,7 +15,7 @@
 import { RAPIER } from '../js/physics.js';
 import { FUEL, IN, GROUP, groups } from '../js/constants.js';
 import { Mechanism, Shaft, Wheel, Motor, foam } from '../js/mech/mechanism.js';
-import { MU, COMPLIANT_TREAD, NECK, CONVEYOR, HORIZONTAL, build8793, intake8793, conveyorWheels, armWheels, shooterWheels, shooterSmallAt, flywheelDuty, codeExitSpeed, SHOOTER, INDEXER, DUTY_INDEXER, indexerWheels, pathSurfaces, placeArm, armState, servoArm, turnArm, ARM } from '../js/mech/r8793.js';
+import { MU, COMPLIANT_TREAD, NECK, CONVEYOR, HORIZONTAL, build8793, intake8793, conveyorWheels, armWheels, shooterWheels, shooterSmallAt, flywheelLoop, PATH_FAST, codeExitSpeed, SHOOTER, INDEXER, DUTY_INDEXER, indexerWheels, pathSurfaces, placeArm, armState, servoArm, turnArm, ARM } from '../js/mech/r8793.js';
 if (process.env.IDX_RATIO) INDEXER.ratio = Number(process.env.IDX_RATIO); // (to try other indexer gearing)
 if (process.env.C1PUSH) CONVEYOR.c1Push = Number(process.env.C1PUSH);
 import PATH_MESH from '../js/mech/path8793.js';
@@ -70,12 +70,12 @@ const tests = {
         const w = world();
         const t = build8793();
         const mech = new Mechanism({ substeps: 6, sub: SUB, shafts: [t.large, t.small], wheels: shooterWheels(t, e, { mu: { roller: mu, stealth: mu } }) });
-        for (let i = 0; i < 3 / DT; i++) { t.shooter.cmd = flywheelDuty(t, target); mech.step(DT, []); }
+        for (let i = 0; i < 3 / DT; i++) { flywheelLoop(t, target); mech.step(DT, []); }
         const [sx, sy] = shooterSmallAt(e);
         const b = ball(w, -0.127, sy - Math.sqrt((SHOOTER.small.r + R) ** 2 - sx * sx) - 0.01, 0, [0, 1, 0]);
         let touched = false, v = null;
         for (let i = 0; i < 1 / DT && !v; i++) {
-          t.shooter.cmd = flywheelDuty(t, target); mech.step(DT, [b]); w.step();
+          flywheelLoop(t, target); mech.step(DT, [b]); w.step();
           if (mech.contacts.some((x) => x.ball === b)) touched = true; else if (touched) v = b.linvel();
         }
         const sp = v ? Math.hypot(v.x, v.y, v.z) : 0;
@@ -133,7 +133,7 @@ const tests = {
       const mech = new Mechanism({ substeps: 6, sub: SUB, shafts: [t.large, t.small], wheels });
       const rps = () => t.shooter.omega / (2 * Math.PI);
       let T = 0, upAt = null;
-      const control = () => { t.shooter.cmd = flywheelDuty(t, target); };
+      const control = () => { flywheelLoop(t, target); };
       for (; T < 3; T += DT) { control(); mech.step(DT, []); if (upAt === null && Math.abs(rps() - target) < 1) upAt = T; }
       const [sx, sy] = shooterSmallAt(e), x0 = -0.127;
       const yIn = sy - Math.sqrt((SHOOTER.small.r + R) ** 2 - (sx) ** 2) - 0.01;
@@ -301,7 +301,7 @@ function pathRun(seed, { x44 = true, turret = false, e = 60, target = 60, nBalls
   const sf = pathSurfaces(PATH_MESH, { yaw });
   sf.arm.onShaft(trains.pivot, [ARM.pivot[0], ARM.pivot[1], 0]);
   const surfaces = Object.values(sf);
-  const mech = new Mechanism({ substeps: 6, sub: Number(process.env.PATHSUB ?? 1), shafts: [...new Set(wheels.map((x) => x.shaft)), trains.pivot], wheels, surfaces });
+  const mech = new Mechanism({ substeps: 6, sub: Number(process.env.PATHSUB ?? 1), fast: PATH_FAST, shafts: [...new Set(wheels.map((x) => x.shaft)), trains.pivot], wheels, surfaces });
   // the arm down on its pivot, under their position loop (as js/mech/phys8793.js runs it): the
   // FUEL under its rollers lift it. ARM=fixed holds it rigid on its stop instead.
   const armSt = armState((ROBOTS['8793'].intake.fold.stowDeg * Math.PI) / 180, 0), rigid = process.env.ARM === 'fixed';
@@ -324,7 +324,7 @@ function pathRun(seed, { x44 = true, turret = false, e = 60, target = 60, nBalls
       if (jamT > JAM.debounce) { unjamT = JAM.reverse; jamT = 0; unjams++; if (process.env.JAMLOG && jamBalls) jamLog.push(jamBalls().map((q) => { const p = q.translation(); const cs = mechs.flatMap((m) => m.contacts).filter((c) => c.ball === q && c.force > 20); return `${p.x.toFixed(2)},${p.y.toFixed(2)},${p.z.toFixed(2)}[${cs.map((c) => c.wheel.name.replace(/ \(.*\)/, '') + ' ' + c.force.toFixed(0)).join('; ')}]`; }).filter((x) => !x.endsWith('[]')).join(' | ')); }
     }
     intake8793(trains, true, { x44, dir: unjamT > 0 ? -1 : 1 });
-    if (turret) { trains.indexer.cmd = hold ? 0 : unjamT > 0 ? -DUTY_INDEXER : DUTY_INDEXER; trains.shooter.cmd = hold ? 0 : flywheelDuty(trains, target); }
+    if (turret) { trains.indexer.cmd = hold ? 0 : unjamT > 0 ? -DUTY_INDEXER : DUTY_INDEXER; flywheelLoop(trains, hold ? 0 : target); }
   };
   const step = (balls) => {
     control();

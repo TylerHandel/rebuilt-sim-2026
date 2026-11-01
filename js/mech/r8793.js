@@ -315,6 +315,16 @@ export function indexerWheels({ ishafts }) {
   return wheels;
 }
 
+// The ball path sub-stepped 4 times (mechanism.js fast) while any of its FUEL moves faster than 4 m/s
+// over the robot: the turret indexer's flex wheels (13 m/s at their face) throw each FUEL up the rails'
+// ramp at 4-6 m/s, 3-5 cm a 120 Hz step, too far to follow its rails and wheels in one contact step:
+// FUEL came up to the shooter at 2-4.3 m/s by the step's phase against them, and the slow ones rode
+// the shooter's 4in wheel before its 2in wheels caught them (tools/mechlab.mjs carpet to shot, 12
+// runs: the exit 0.906-1.087 of SHOT_TABLE's at 60 rps, 10-90%; sub-stepped, 0.982-1.079, as with the
+// whole path sub-stepped 4 or 8 times; a 5 m/s threshold misses them). PATHFAST=speed,sub (0: none)
+const _pf = globalThis.process?.env?.PATHFAST ?? '4,4';
+export const PATH_FAST = _pf === '0' ? null : { speed: Number(_pf.split(',')[0]), sub: Number(_pf.split(',')[1]) };
+
 // ------------------------------------------------------------------ the shooter
 // On the turret (their CAD, Shooter assembly; turret frame: x along the shot, from the turret's
 // axis): a 4in 45A solid roller wheel on a shaft 0.127 m out from the axis and 0.411 m up, with a
@@ -385,8 +395,10 @@ const interp = (t, x, i, j) => {
 // FlywheelDroopCompensator learns it). Past 80 rotations/s, unmeasured: it stops there. (Measured
 // again with the aim taking the feed's push off, js/mech/phys8793.js FEED_PUSH: the close shots, under
 // 48 rotations/s with the hood steep, left 4-5% under the rows that were here, 5.11 and 6.52 at 30
-// and 40, and came down short.)
-export const SHOT_TABLE = [[0, 0], [15, 2.7], [20, 3.51], [30, 4.85], [40, 6.18], [50, 7.50], [60, 8.56], [70, 9.67], [80, 10.69]];
+// and 40, and came down short. Measured again with the turret indexer sub-stepped, PATH_FAST: the FUEL
+// come up to the shooter faster and steadier and leave 2.2-2.7% faster than these rows were at every
+// speed from 43 to 65 rotations/s, four AI matches' 811 HUB shots; the rows from 30 up x 1.024.)
+export const SHOT_TABLE = [[0, 0], [15, 2.7], [20, 3.51], [30, 4.97], [40, 6.33], [50, 7.68], [60, 8.77], [70, 9.90], [80, 10.95]];
 export const exitSpeed = (rps) => interp(SHOT_TABLE, Math.max(0, rps), 0, 1);
 export const rpsFor = (v) => interp(SHOT_TABLE, Math.max(0, v), 1, 0);
 // their velocity loop (VelocityVoltage: kV x target + kP x error, in volts) toward targetRps,
@@ -395,6 +407,15 @@ export function flywheelDuty({ shooter }, targetRps, V = 12) {
   const rps = shooter.omega / (2 * Math.PI);
   const volts = SHOOTER.kV * targetRps + SHOOTER.kP * (targetRps - rps);
   return Math.max(-1, Math.min(1, volts / V));
+}
+// ...closed on the Talon at its own 1 kHz, as VelocityVoltage is (Train.vel: the loop runs through
+// the step, its sub-steps' FUEL dragging the flywheel down as it goes), toward targetRps (0: 0 V).
+// FLYLOOP=step closes it once a 120 Hz step instead, as it was
+const FLY_STEP = globalThis.process?.env?.FLYLOOP === 'step';
+export function flywheelLoop(t, targetRps) {
+  const { shooter } = t;
+  if (FLY_STEP || !(targetRps > 0)) { shooter.vel = null; shooter.cmd = targetRps > 0 ? flywheelDuty(t, targetRps) : 0; return; }
+  shooter.vel = { target: targetRps * 2 * Math.PI, kV: SHOOTER.kV, kP: SHOOTER.kP, lo: -12, hi: 12, per: 1 / (2 * Math.PI) };
 }
 // the exit speed their aim solver assumes for a motor speed (m/s): the two wheels' surface
 // speeds averaged (FLYWHEEL_EFFECTIVE_DIAMETER_METERS)

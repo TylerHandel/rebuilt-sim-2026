@@ -11,7 +11,7 @@ import { Mechanism } from './mechanism.js';
 import { PhysicalRobot } from './physical.js';
 import {
   build8793, intake8793, conveyorWheels, armWheels, placeArm, indexerWheels, shooterWheels, placeShooter,
-  flywheelDuty, exitSpeed, rpsFor, pathSurfaces, armState, servoArm, turnArm, ARM, DUTY, DUTY_INDEXER, PRELOAD, PIVOT, SHOOTER,
+  flywheelLoop, PATH_FAST, exitSpeed, rpsFor, pathSurfaces, armState, servoArm, turnArm, ARM, DUTY, DUTY_INDEXER, PRELOAD, PIVOT, SHOOTER,
 } from './r8793.js';
 import PATH from './path8793.js';
 import * as THREE from 'three';
@@ -36,23 +36,29 @@ const HOLD_FULL = Number(globalThis.process?.env?.HOLDFULL ?? 0.5);
 // In play FUEL leave ~5% faster than SHOT_TABLE gives for the flywheel's speed as the aim reads it
 // (a match's every shot, its exit against what was expected: median 1.05); scaled so the aim expects
 // what they do (EXITK=1 for the table as it is)
-const EXIT_K = Number(globalThis.process?.env?.EXITK ?? 1.05);
+// (re-measured with the shooter's frame carried and its indexer sub-stepped: what leaves is 0.986 of
+// what 1.05 had the aim read, so 1.035)
+const EXIT_K = Number(globalThis.process?.env?.EXITK ?? 1.035);
 // The feed's push, as their AimSolver takes it off the shot (TurretConstants FEEDER_FORWARD_PUSH_MPS,
 // FEEDER_BACKWARD_PUSH_AT_90_MPS; feederPushForwardMps): the indexer throws each FUEL rearward up
 // the turret's bore, and it leaves carrying some of that, along the chassis: fwd cos^2 - back sin^2
 // of the turret's angle on it (m/s forward). Theirs, 0.45 and 0.35, are untuned ("TODO: tune
 // empirically from test shots"); these are the sim's FUEL in its matches (every HUB shot's heading
 // off the aim against the turret's angle: 2-3 deg toward the rear with it out to the side, the
-// elevation a degree flatter with it facing back, steeper facing forward). FEEDPUSH=fwd,back
-const FEED_PUSH = (globalThis.process?.env?.FEEDPUSH ?? '-0.15,0.2').split(',').map(Number);
+// elevation a degree flatter with it facing back, steeper facing forward; re-fit with the shooter's
+// frame carried with the robot and its turret indexer sub-stepped: -0.15, 0.2 before, the heading's
+// rms 3.06 -> 2.17 deg over four matches' 811 HUB shots). FEEDPUSH=fwd,back
+const FEED_PUSH = (globalThis.process?.env?.FEEDPUSH ?? '-0.35,0.25').split(',').map(Number);
 // Its HUB shots crossed the rim's height 0.15-0.2 m long (median) from 3 m out, where the aim's
 // flight model has them 0.09 m long (its aim point is the opening's middle, 1.95 m up, over the
 // rim): they leave a few cm higher than it solves from and a few tenths of a degree flatter, and
 // the ones the shooter flings faster go farther than the slower ones fall short. Their AimSolver
 // has the same trim (speedScalar: "empirical speed calibration"); here the flywheel's target for a
 // HUB shot is the speed the aim asks times SHOT_SCALE (2% slower: 0.18 m shorter at 4.5 m, range
-// going as speed squared). SHOTSCALE=1 for none
-const SHOT_SCALE = Number(globalThis.process?.env?.SHOTSCALE ?? 0.98);
+// going as speed squared). With the shooter's frame carried and its turret indexer sub-stepped
+// (mechanism.js) that trim put them 0.13-0.27 m short (median) at every distance from 2 m out, what
+// leaves now within 1% of SHOT_TABLE's: it's 1 (no trim) now. SHOTSCALE=0.98 for the old one
+const SHOT_SCALE = Number(globalThis.process?.env?.SHOTSCALE ?? 1);
 const HOLD_SPEED = Number(globalThis.process?.env?.HOLDSPEED ?? 0);
 const _su = globalThis.process?.env?.STOPUNJAM ?? 'all', STOP_UNJAM = _su === '0' ? '' : _su;
 
@@ -79,7 +85,7 @@ export class Physical8793 extends PhysicalRobot {
     const wheels = [...conveyorWheels(t), ...indexerWheels(t), ...arm];
     const sw = shooterWheels(t, 60);
     super(robot, {
-      path: new Mechanism({ body: robot.body, substeps: 6, shafts: [...new Set(wheels.map((w) => w.shaft)), t.pivot], wheels, surfaces: Object.values(s) }),
+      path: new Mechanism({ body: robot.body, substeps: 6, fast: PATH_FAST, shafts: [...new Set(wheels.map((w) => w.shaft)), t.pivot], wheels, surfaces: Object.values(s) }),
       shooter: new Mechanism({ body: robot.body, substeps: 6, sub: 8, shafts: [t.large, t.small], wheels: sw }),
       preload: PRELOAD,
     });
@@ -94,7 +100,7 @@ export class Physical8793 extends PhysicalRobot {
     this.jamT = 0; this.unjamT = 0; this.fullT = 0; this.ixBackT = 0;
     this.targetRps = 0;
     this.feed = false;
-    for (const tr of [this.t.horizontal, this.t.indexer, this.t.shooter]) { tr.omega = 0; tr.cmd = 0; }
+    for (const tr of [this.t.horizontal, this.t.indexer, this.t.shooter]) { tr.omega = 0; tr.cmd = 0; tr.vel = null; }
     // stowed, on its upper stop (the robot starts so)
     this.armSt = armState(this.r.cfg.intake.fold.stowDeg * DEG);
     this.t.pivot._omega = 0; this.t.pivot.cmd = 0;
@@ -329,7 +335,7 @@ export class Physical8793 extends PhysicalRobot {
     // (a HUB shot SHOT_SCALE slower than the aim asks)
     if (setpoint > 0) { this.targetRps = Math.min(SHOOTER.maxRps, rpsFor(r.shot?.mode === 'hub' ? setpoint * SHOT_SCALE : setpoint)); this.holdT = t; }
     else if (!(on && this.targetRps && t - (this.holdT ?? -9) < 1.5)) this.targetRps = 0;
-    this.t.shooter.cmd = on && this.targetRps > 0 ? flywheelDuty(this.t, this.targetRps) : 0;
+    flywheelLoop(this.t, on ? this.targetRps : 0);
     // what the robot's aiming sees: the exit speed its flywheel gives right now (in the aim's terms:
     // at a HUB shot's trimmed target it's the speed the aim asked for)
     r.flywheel = EXIT_K * exitSpeed(Math.abs(this.t.shooter.omega) / (2 * Math.PI)) / (r.shot?.mode === 'hub' ? SHOT_SCALE : 1);

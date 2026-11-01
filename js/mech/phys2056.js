@@ -103,7 +103,9 @@ const HOLD = 0.3;
 export const EXIT = { s: 0.071, y: 0.686 };
 export const EL_MAP = [[129.5, 36.2], [135, 41.8], [141, 47.7], [147, 53.2], [153, 58.8], [158, 63.1], [163.5, 68.3]];
 export const EXIT_K = 0.61;
-export const EXIT_MAP = [[0, 0], [4.48, 6], [5.67, 8], [6.76, 10], [7.35, 12], [7.75, 14], [8.16, 17], [8.19, 20], [8.23, 24]];
+// (the wheel's motor through each FUEL's contact, mechanism.js: the bench's stream leaves 7% faster
+// at 6 m/s of wheel, 3% at 8-10, 1% at 12-14, the same from 17 up; each point moved as much)
+export const EXIT_MAP = [[0, 0], [4.78, 6], [5.85, 8], [6.96, 10], [7.41, 12], [7.81, 14], [8.16, 17], [8.19, 20], [8.23, 24]];
 export const PASS_MAP = [[0, 0], [5.93, 8], [7.04, 10], [7.71, 12], [7.99, 14], [8.16, 16], [8.17, 18], [8.18, 20]];
 const GEOM = typeof process !== 'undefined' && process.env?.ELEV_GEOM === '1';
 const ONE_K = typeof process !== 'undefined' && process.env?.ONE_K === '1';
@@ -184,7 +186,7 @@ export class Physical2056 extends PhysicalRobot {
       // (the turret's side plates with the wheel and the backspin kicker: a FUEL leaves at up to ~15
       // m/s, too far in a step to follow without sub-steps; carried through them with the robot's
       // motion, or a FUEL in it creeps against them driving: 4% faster at 1.5 m/s along the shot)
-      shooter: new Mechanism({ body: robot.body, substeps: 6, sub: 8, carried: true, shafts: [t.wheel, t.kicker], wheels: [sw.wheel, sw.kicker], surfaces: [s.turret, s.hood] }),
+      shooter: new Mechanism({ body: robot.body, substeps: 6, sub: 8, shafts: [t.wheel, t.kicker], wheels: [sw.wheel, sw.kicker], surfaces: [s.turret, s.hood] }),
       preload: PRELOAD,
     });
     Object.assign(this, { t, w, s, sw });
