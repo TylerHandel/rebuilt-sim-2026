@@ -15,7 +15,7 @@
 //   idleBy    idle seconds by what its AI said it was doing (its label)
 //   coll/took TELEOP seconds collecting (its AI's collect or feed) and FUEL taken in, by where it was:
 //             own (its ALLIANCE ZONE), mid (the NEUTRAL ZONE), opp (the other ALLIANCE's ZONE)
-//   labels    TELEOP seconds by label; cycles (trips to score), firstScore (TELEOP s to its first FUEL)
+//   labels    TELEOP seconds by label (early: the first 35 s of it); cycles (trips to score), firstScore (TELEOP s to its first FUEL)
 //   stuckEp   the longest stuck stretches: { t, s, by, x, z, label }
 import { PHYSICS_DT, HALF_L, HALF_W, HUB, TIMING, BUMP, DEPOT } from '../js/constants.js';
 import { Field } from '../js/field.js';
@@ -59,7 +59,7 @@ export function makeAudit() {
         sec: { teleop: 0, idle: 0, staged: 0, stuck: 0, holdIdle: 0, carryOut: 0, inZoneOff: 0, emptyActive: 0 },
         // TELEOP seconds collecting, and FUEL taken in, in its own ALLIANCE ZONE / the NEUTRAL ZONE / the other's
         coll: { own: 0, mid: 0, opp: 0 }, took: { own: 0, mid: 0, opp: 0 },
-        stuckBy: {}, idleBy: {}, labels: {}, stuckEp: [], cycles: 0, unsticks: 0, firstScore: null,
+        stuckBy: {}, idleBy: {}, labels: {}, early: {}, stuckEp: [], cycles: 0, unsticks: 0, firstScore: null,
         last: { t: 0, intaked: r.stats.intaked, shots: r.stats.shots, prog: 0, state: null, label: null, stuck: null, outT: 0 },
       });
     }
@@ -103,6 +103,8 @@ export function makeAudit() {
       s.teleop += DT;
       const label = key(ai?.label), cmd = r.cmd || {};
       x.labels[label] = (x.labels[label] || 0) + DT;
+      // (the first 35 s of TELEOP, TRANSITION and SHIFT 1, apart: one ALLIANCE's HUB is on throughout)
+      if (T < 35) x.early[label] = (x.early[label] || 0) + DT;
       const where = Field.inAllianceZone(r.alliance, r.pos.x) ? 'own' : Field.inAllianceZone(r.alliance === 'blue' ? 'red' : 'blue', r.pos.x) ? 'opp' : 'mid';
       if (ai && (ai.state === 'collect' || ai.state === 'feed')) x.coll[where] += DT;
       x.took[where] += r.stats.intaked - L.intaked;
@@ -142,7 +144,7 @@ export function makeAudit() {
         robot: x.robot, alliance: x.alliance, station: x.station, driver: x.driver,
         pts: x.pts, launched: r.stats.shots, passes: r.stats.passes, intaked: r.stats.intaked, unjams: r.stats.unjams || 0,
         unsticks: x.unsticks, cycles: x.cycles, firstScore: x.firstScore, fouls: m.score[x.alliance].fouls.length,
-        coll: r1(x.coll), took: x.took, sec: r1(x.sec), stuckBy: r1(x.stuckBy), idleBy: r1(x.idleBy), labels: r1(x.labels),
+        coll: r1(x.coll), took: x.took, sec: r1(x.sec), stuckBy: r1(x.stuckBy), idleBy: r1(x.idleBy), labels: r1(x.labels), early: r1(x.early),
         stuckEp: x.stuckEp.sort((a, b) => b.s - a.s).slice(0, 4).map((e) => ({ ...e, s: +e.s.toFixed(1) })),
       });
     }

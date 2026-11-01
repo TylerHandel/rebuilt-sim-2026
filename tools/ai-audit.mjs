@@ -1,5 +1,5 @@
 // Where each robot's match goes: sums the AUDIT rows (tools/audit.mjs) of match batches per robot.
-//   node tools/ai-audit.mjs <batch.json | runner job id> [...]  [--robot 1690] [--episodes] [--vs <base>]
+//   node tools/ai-audit.mjs <batch.json | runner job id> [...]  [--robot 1690] [--episodes] [--labels] [--vs <base>]
 //   node tools/ai-audit.mjs --run -- <tools/batch.mjs options>   (runs the batch here first)
 // A job id (2026-11-01T18-55-37-x) is read from the `batch-results` branch (git fetch it first).
 // Per robot, means per match: FUEL it scored itself by period (AUTO, TRANSITION, its first and
@@ -91,6 +91,15 @@ console.log('\nstuck against (s a match) / idle while (s a match) / first FUEL i
 for (const k of robots) {
   const s = stats(per[k]);
   console.log(`${k.padEnd(6)} stuck: ${fmtTop(s.stuckBy) || '-'} | idle: ${fmtTop(s.idleBy) || '-'} | first ${s.first.toFixed(1)} | unjams ${s.unjams.toFixed(1)}`);
+}
+if (own.includes('--labels')) {
+  console.log('\nseconds a match by what its AI said it was doing: all TELEOP | its first 35 s');
+  for (const k of robots) {
+    const s = stats(per[k]), rows = per[k].filter((x) => x.early);
+    const early = {};
+    for (const x of rows) for (const [a, v] of Object.entries(x.early)) early[a] = (early[a] || 0) + v / rows.length;
+    console.log(`${k.padEnd(6)} ${fmtTop(s.labels, 6)} | ${fmtTop(early, 5)}`);
+  }
 }
 if (own.includes('--episodes')) {
   console.log('\nlongest stuck stretches');

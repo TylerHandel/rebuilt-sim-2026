@@ -192,12 +192,13 @@ export function mirrorPlan(plan) {
   };
 }
 
-// 2056: set by reasoning, not searched: 1690's plan (the robot 2056's follows, its turret likewise at
-// the back): a short slow sweep near the wall out through the TRENCH, then a fast pass across out over
-// the BUMP and home through the TRENCH. (Kept out of the BEST_AUTOS literal so it merges on its own.)
+// 2056: searched (tools/auto-search.mjs --robots 2056 --opps 2910,4414 --n 24 --refine 16): 74.5 AUTO
+// FUEL against those two, where the plan it had (1690's, set by reasoning) scored 54.3; the team's
+// real AUTO scores 84 (Statbotics). Two sweeps out over the BUMP, the first home under the TRENCH.
+// (Kept out of the BEST_AUTOS literal so it merges on its own.)
 BEST_AUTOS[2056] = { start: 'rightTrench', preload: 'move', trips: [
-  { out: 'trench', fx: 8.42, a: 1.35, b: 2.57, speed: 0.32, home: 'bump', shootAt: [2.77, 2.44] },
-  { out: 'bump', fx: 7.54, a: 1.51, b: 5.27, speed: 0.87, home: 'trench', shootAt: [2.96, 5.6] },
+  { out: 'bump', fx: 7.89, a: 1.71, b: 3.34, speed: 0.6, home: 'trench', shootAt: [3.39, 1.82] },
+  { out: 'bump', fx: 7.73, a: 1.58, b: 4.85, speed: 0.61, home: 'bump', shootAt: [2.69, 5.55] },
 ] };
 
 // 7769: set by reasoning and a few tries, not searched: CHUNK holds ~60, intakes ~30 FUEL/s along the
