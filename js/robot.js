@@ -1124,7 +1124,7 @@ export class Robot {
       const p = this.localToWorld(e.p.x, e.p.y, e.p.z);
       const f = this.forward();
       const v = this.velocityAt(p);
-      this.fuel.launch(e.b, p, { x: v.x + f.x * 2.8, y: 0.6, z: v.z + f.z * 2.8 }, { by: 'robot', alliance: this.alliance, legal: this.inAllianceZone(), t: this.lastT, ignoreRobot: 0.3 });
+      this.fuel.launch(e.b, p, { x: v.x + f.x * 2.8, y: 0.6, z: v.z + f.z * 2.8 }, { by: 'robot', rid: this.uid, alliance: this.alliance, legal: this.inAllianceZone(), t: this.lastT, ignoreRobot: 0.3 });
     });
     return true;
   }
@@ -1553,7 +1553,7 @@ export class Robot {
       y: Math.sin(th) * v,
       z: -Math.sin(psi) * Math.cos(th) * v + lv.z,
     };
-    this.fuel.launch(b, exit, vel, { by: 'robot', alliance: this.alliance, legal: this.lastInZone, t: this.lastT, ignoreRobot: 0.35, spin: true });
+    this.fuel.launch(b, exit, vel, { by: 'robot', rid: this.uid, alliance: this.alliance, legal: this.lastInZone, t: this.lastT, ignoreRobot: 0.35, spin: true });
     if (w) w.fly *= 1 - sh.shotDrop; else this.flywheel *= 1 - sh.shotDrop;
     this.stats.shots++;
     if (mode === 'pass') this.stats.passes++;

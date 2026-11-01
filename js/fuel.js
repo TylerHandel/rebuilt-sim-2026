@@ -147,7 +147,7 @@ export class FuelManager {
     b.hubFresh = !!info.hubFresh;
     b.inCorral = null;
     if (b.inHub) { b.inHub = null; b.col.setFriction(FUEL.friction); }
-    b.launch = info.by ? { by: info.by, alliance: info.alliance, legal: info.legal, t: info.t } : null;
+    b.launch = info.by ? { by: info.by, rid: info.rid, alliance: info.alliance, legal: info.legal, t: info.t } : null;
     // thrown in from the OUTPOST AREA (behind the ALLIANCE WALL): not "out" until it has entered
     b.fromOutside = info.fromOutside ? (info.t ?? 0) : null;
     if (info.ignoreRobot) {
@@ -191,7 +191,7 @@ export class FuelManager {
     const v = b.body.linvel();
     b.prevVel = { x: v.x, y: v.y, z: v.z };
     b.inFlight = true;
-    b.launch = { by: info.by, alliance: info.alliance, legal: info.legal, t: info.t };
+    b.launch = { by: info.by, rid: info.rid, alliance: info.alliance, legal: info.legal, t: info.t };
     b.ignoreUntil = (info.t ?? 0) + (info.ignoreRobot ?? 0.35);
   }
 

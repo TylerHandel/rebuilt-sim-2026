@@ -4,7 +4,8 @@
 //   node tools/batch.mjs --pairs 6328:2910,2056:2910 --seeds 1-6 [--jobs 12] [--push]
 //   node tools/batch.mjs --roundrobin [--robots 2910,4414,...] --seeds 1-2 --push
 //   node tools/batch.mjs --pairs 2910:4414 --seeds 1-3 --skill champs --strategy scorer --name try1
-// --pairs a:b,... plays robot a (BLUE) against robot b; --roundrobin plays every pair of --robots
+// --pairs a:b,... plays robot a (BLUE) against robot b (a side of robots joined by +, 2910+4414+1690,
+// plays a 3 v 3); --roundrobin plays every pair of --robots
 // (default: every physical robot) once each way. Results: results/batch/<name>.json (every match)
 // and a table of averages. --push commits only that file to `batch-results` (without touching
 // the checkout or its branch) and pushes it.
@@ -39,7 +40,7 @@ const queue = pairs.flatMap(([a, b]) => seeds.map((seed) => ({ a, b, seed })));
 console.log(`${queue.length} matches (${pairs.length} pairings x ${seeds.length} seeds), ${jobs} at a time on ${cpus().length} threads`);
 
 // A scorer/champs/6328: 283 pts (FUEL 283, launched 291 incl. 0 passes, fouls none)
-const LINE = /^([AB]) (\w+)\/(\w+)\/(\w+): (-?\d+) pts \(FUEL (\d+), launched (\d+) incl\. (\d+) passes, fouls (.*)\)$/;
+const LINE = /^([AB]) (\w+)\/(\w+)\/([\w+]+): (-?\d+) pts \(FUEL (\d+), launched (\d+) incl\. (\d+) passes, fouls (.*)\)$/;
 function runOne(m) {
   return new Promise((res) => {
     const t0 = Date.now();
@@ -48,12 +49,14 @@ function runOne(m) {
     p.stdout.on('data', (d) => { out += d; });
     p.stderr.on('data', (d) => { err += d; });
     p.on('close', (code) => {
-      const side = {};
+      const side = {}, audit = [];
       for (const l of out.split('\n')) {
+        // (each robot's AUDIT line: tools/audit.mjs)
+        if (l.startsWith('AUDIT ')) { try { audit.push(JSON.parse(l.slice(6))); } catch {} continue; }
         const x = LINE.exec(l.trim());
         if (x) side[x[1]] = { robot: x[4], pts: +x[5], fuel: +x[6], launched: +x[7], passes: +x[8], fouls: x[9] === 'none' ? [] : x[9].split(' ') };
       }
-      res({ ...m, ok: code === 0 && side.A && side.B, A: side.A, B: side.B, s: (Date.now() - t0) / 1000, err: code === 0 ? undefined : err.slice(-2000) });
+      res({ ...m, ok: code === 0 && side.A && side.B, A: side.A, B: side.B, audit: audit.length ? audit : undefined, s: (Date.now() - t0) / 1000, err: code === 0 ? undefined : err.slice(-2000) });
     });
   });
 }
@@ -75,15 +78,17 @@ await Promise.all(Array.from({ length: Math.min(jobs, queue.length) }, worker));
 
 // averages per robot (points, FUEL, launched, wins) and per pairing
 const per = {};
-const add = (k, me, them) => {
-  const p = (per[k] ??= { n: 0, pts: 0, fuel: 0, launched: 0, passes: 0, fouls: 0, w: 0, l: 0, t: 0 });
-  p.n++; p.pts += me.pts; p.fuel += me.fuel; p.launched += me.launched; p.passes += me.passes; p.fouls += me.fouls.length;
+// (AUTO: the FUEL its own robots scored in AUTO, from their AUDIT lines: A is BLUE)
+const autoOf = (r, al) => (r.audit || []).filter((x) => x.alliance === al).reduce((n, x) => n + x.pts.auto, 0);
+const add = (k, me, them, auto) => {
+  const p = (per[k] ??= { n: 0, pts: 0, fuel: 0, auto: 0, launched: 0, passes: 0, fouls: 0, w: 0, l: 0, t: 0 });
+  p.n++; p.pts += me.pts; p.fuel += me.fuel; p.auto += auto; p.launched += me.launched; p.passes += me.passes; p.fouls += me.fouls.length;
   if (me.pts > them.pts) p.w++; else if (me.pts < them.pts) p.l++; else p.t++;
 };
-for (const r of results.filter((x) => x.ok)) { add(r.a, r.A, r.B); add(r.b, r.B, r.A); }
+for (const r of results.filter((x) => x.ok)) { add(r.a, r.A, r.B, autoOf(r, 'blue')); add(r.b, r.B, r.A, autoOf(r, 'red')); }
 const rows = Object.entries(per).sort((x, y) => y[1].pts / y[1].n - x[1].pts / x[1].n);
-const table = ['robot  matches  avg pts  avg FUEL  avg launched  avg passes  fouls  W-L-T',
-  ...rows.map(([k, p]) => `${k.padEnd(6)} ${String(p.n).padStart(7)} ${(p.pts / p.n).toFixed(1).padStart(8)} ${(p.fuel / p.n).toFixed(1).padStart(9)} ${(p.launched / p.n).toFixed(1).padStart(13)} ${(p.passes / p.n).toFixed(1).padStart(11)} ${String(p.fouls).padStart(6)}  ${p.w}-${p.l}-${p.t}`)].join('\n');
+const table = ['robot  matches  avg pts  avg FUEL  avg AUTO  avg launched  avg passes  fouls  W-L-T',
+  ...rows.map(([k, p]) => `${k.padEnd(6)} ${String(p.n).padStart(7)} ${(p.pts / p.n).toFixed(1).padStart(8)} ${(p.fuel / p.n).toFixed(1).padStart(9)} ${(p.auto / p.n).toFixed(1).padStart(9)} ${(p.launched / p.n).toFixed(1).padStart(13)} ${(p.passes / p.n).toFixed(1).padStart(11)} ${String(p.fouls).padStart(6)}  ${p.w}-${p.l}-${p.t}`)].join('\n');
 const failed = results.filter((x) => !x.ok);
 console.log(`\n${table}\n${failed.length ? `${failed.length} failed: ${failed.map((f) => `${f.a}v${f.b}#${f.seed}`).join(' ')}\n` : ''}${((Date.now() - t0) / 60000).toFixed(1)} min`);
 

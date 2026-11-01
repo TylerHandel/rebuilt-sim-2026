@@ -291,7 +291,7 @@ export class PhysicalRobot {
       this.counted.delete(b);
       this.owned.delete(b);
       this.shot.set(b, t);
-      r.fuel.release(b, { by: 'robot', alliance: r.alliance, legal: r.lastInZone, t, ignoreRobot: 0.35 });
+      r.fuel.release(b, { by: 'robot', rid: r.uid, alliance: r.alliance, legal: r.lastInZone, t, ignoreRobot: 0.35 });
       r.stats.shots++;
       if (mode === 'pass') r.stats.passes++;
     }
