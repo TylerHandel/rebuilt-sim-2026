@@ -130,10 +130,14 @@ const interp = (t, x) => {
 // of squeeze: met once a step, the bore pushes back too late and too little (~25 N, against ~100 N
 // sub-stepped), and on the bench (tools/mechlab341.mjs, HOODSUB=1) the FUEL leave 3-8% faster than
 // with the bore at the shooter's sub-steps, which converge (32 sub-steps move them 2%). But carried
-// by its shooter in play, its stream came out slower and uneven, 6.4-7.4 m/s at one RPM (0.83-0.97
-// of what the aim asked, 10-90%), and with the table re-found on the bench for it its HUB shots went
-// 79% -> 65% in (eight AI matches): something in play the bench doesn't have, not found yet.) THEIR_SHOTS=1
-// in the environment: their own RPMs.
+// by its shooter in play (SUB341=1, with SIM_SHOTS re-found on the bench that way), its median FUEL
+// leaves as the bench's does (0.96 of 0.7 of the surface speed) but with a slow tail (10th
+// percentile 0.89, the bench's 0.94): in play ~60% of its shots rub the hood's side plates (5 mm
+// either side of a centred FUEL), 46 N at the median and 115 N at the 90th percentile, the bench's
+// stream 1-2 of 8 at 4-30 N, whatever the turret's angle or turn rate or the hood's swing on the
+// bench (mechlab341 YAW, TURN, HOODOSC, SPLIT; HOODLOG=2); those leave 3% slower. Eight AI matches:
+// 70% in against 84% (79.5% with the bore alone sub-stepped, SUB341=bore). What presses them into
+// the plates in play is still open.) THEIR_SHOTS=1 in the environment: their own RPMs.
 // SUB341=1 (trial): the bore and hood met at the shooter's sub-steps, and the rows re-found that way
 export const SUB_BORE = typeof process !== 'undefined' && !!process.env?.SUB341;
 export const SIM_SHOTS = SUB_BORE ? {
