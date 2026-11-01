@@ -6,7 +6,8 @@
 //   node tools/batch.mjs --pairs 2910:4414 --seeds 1-3 --skill champs --strategy scorer --name try1
 // --pairs a:b,... plays robot a (BLUE) against robot b (a side of robots joined by +, 2910+4414+1690,
 // plays a 3 v 3); --roundrobin plays every pair of --robots
-// (default: every physical robot) once each way. Results: results/batch/<name>.json (every match)
+// (default: every physical robot) once each way; SCHED3V3=n (env) plays n 3 v 3 lineups dealt from
+// --robots. Results: results/batch/<name>.json (every match)
 // and a table of averages. --push commits only that file to `batch-results` (without touching
 // the checkout or its branch) and pushes it.
 import { spawn, execFileSync } from 'child_process';
@@ -31,6 +32,25 @@ let pairs;
 if (flag('roundrobin')) {
   const rs = arg('robots') ? arg('robots').split(',') : PHYSICAL;
   pairs = rs.flatMap((a) => rs.filter((b) => b !== a).map((b) => [a, b]));
+} else if (process.env.SCHED3V3) {
+  // SCHED3V3=n: n 3 v 3 lineups drawn from --robots (default every physical robot), each robot in
+  // as many as the others give or take one (shuffled decks dealt six at a time, the same every run:
+  // SCHEDSEED picks another draw), for a per-robot rating like the real season's
+  const rs = arg('robots') ? arg('robots').split(',') : PHYSICAL;
+  let x = +(process.env.SCHEDSEED || 1) >>> 0;
+  const rnd = () => { x = (Math.imul(x, 1664525) + 1013904223) >>> 0; return x / 4294967296; };
+  const deck = [];
+  pairs = [];
+  while (pairs.length < +process.env.SCHED3V3) {
+    if (deck.length < 6) {
+      const d = [...rs];
+      for (let i = d.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [d[i], d[j]] = [d[j], d[i]]; }
+      deck.push(...d);
+    }
+    const six = [];
+    for (let i = 0; i < deck.length && six.length < 6; i++) if (!six.includes(deck[i])) six.push(deck.splice(i--, 1)[0]);
+    pairs.push([six.slice(0, 3).join('+'), six.slice(3).join('+')]);
+  }
 } else pairs = (arg('pairs') || '').split(',').filter(Boolean).map((p) => p.split(':'));
 if (!pairs.length) { console.error('nothing to run: give --pairs a:b,... or --roundrobin'); process.exit(1); }
 

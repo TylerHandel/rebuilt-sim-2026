@@ -105,16 +105,25 @@ export const underTrench = (x, z, margin = 0) => TRENCH_OPENINGS.some((o) => Mat
 
 export class NavGrid {
   // trench: false for a robot that doesn't fit under the TRENCH (it has to use the BUMPS)
-  constructor(radius, { trench = true } = {}) {
+  // margin: how much further than radius its corners and intake reach (a robot isn't round: turned,
+  // its corners and its intake sweep wider than the circle it plans with). Cells within radius +
+  // margin of an obstacle are 'near': free, but a path pays extra to go through them and isn't
+  // straightened across them, so it keeps clear of a TRENCH skirt's corner or a TOWER upright
+  // where it can, and still goes through the TRENCH or up to a wall where it must.
+  constructor(radius, { trench = true, margin = 0 } = {}) {
     this.r = radius;
     this.blocked = new Uint8Array(NX * NZ);
+    this.near = new Uint8Array(NX * NZ);
+    const arm = (x, z, pad) => !trench && TRENCH_OPENINGS.some((o) => Math.abs(x - o.x) < o.hx + pad && Math.abs(z - o.z) < o.hz + pad);
     for (let i = 0; i < NX; i++) {
       for (let j = 0; j < NZ; j++) {
         const x = -HALF_L + (i + 0.5) * CELL, z = -HALF_W + (j + 0.5) * CELL;
-        const underArm = !trench && TRENCH_OPENINGS.some((o) => Math.abs(x - o.x) < o.hx + radius && Math.abs(z - o.z) < o.hz + radius);
-        this.blocked[i * NZ + j] = underArm || obstacleAt(x, z, radius) ? 1 : 0;
+        this.blocked[i * NZ + j] = arm(x, z, radius) || obstacleAt(x, z, radius) ? 1 : 0;
+        if (margin > 0 && !this.blocked[i * NZ + j]) this.near[i * NZ + j] = arm(x, z, radius + margin) || obstacleAt(x, z, radius + margin) ? 1 : 0;
       }
     }
+    this.nearCost = 3;
+    this.allow = null; // (cells a 'near' stretch of the path may be straightened through)
     this.g = new Float32Array(NX * NZ);
     this.from = new Int32Array(NX * NZ);
     this.stamp = new Uint32Array(NX * NZ);
@@ -177,15 +186,27 @@ export class NavGrid {
     return c;
   }
 
-  // straight line between two points stays in free cells
-  los(x0, z0, x1, z1) {
+  // straight line between two points stays in free cells (strict: and out of 'near' cells, except
+  // those in this.allow)
+  los(x0, z0, x1, z1, strict = false) {
     const d = Math.hypot(x1 - x0, z1 - z0);
     const n = Math.ceil(d / (CELL * 0.5));
     for (let k = 0; k <= n; k++) {
       const t = n ? k / n : 0;
-      if (this._blocked(this.cell(x0 + (x1 - x0) * t, z0 + (z1 - z0) * t))) return false;
+      const c = this.cell(x0 + (x1 - x0) * t, z0 + (z1 - z0) * t);
+      if (this._blocked(c)) return false;
+      if (strict && this.near[c] && !(this.allow && this.allow.has(c))) return false;
     }
     return true;
+  }
+
+  // the cells round (x, z) (radius in cells)
+  _around(set, x, z, rad = 1) {
+    const c = this.cell(x, z), i0 = Math.floor(c / NZ), j0 = c % NZ;
+    for (let di = -rad; di <= rad; di++) for (let dj = -rad; dj <= rad; dj++) {
+      const i = i0 + di, j = j0 + dj;
+      if (i >= 0 && j >= 0 && i < NX && j < NZ) set.add(i * NZ + j);
+    }
   }
 
   // Path from (x0,z0) to (x1,z1) as a list of waypoints (excluding the start). If the goal is
@@ -201,7 +222,10 @@ export class NavGrid {
   }
 
   _plan(x0, z0, x1, z1) {
-    if (this.los(x0, z0, x1, z1)) return [{ x: x1, z: z1 }];
+    // (a straight line: only through 'near' cells right by where it starts or ends)
+    this.allow = new Set();
+    this._around(this.allow, x0, z0); this._around(this.allow, x1, z1);
+    if (this.los(x0, z0, x1, z1, true)) return [{ x: x1, z: z1 }];
     const s = this.nearestFree(this.cell(x0, z0));
     const gCell = this.cell(x1, z1);
     const goalBlocked = this._blocked(gCell);
@@ -234,7 +258,7 @@ export class NavGrid {
           if (this._blocked(n) || closed[n] === run) continue;
           // no corner cutting
           if (di && dj && (this._blocked(ci * NZ + j) || this._blocked(i * NZ + cj))) continue;
-          const ng = g[c] + (di && dj ? SQ2 : 1);
+          const ng = g[c] + (di && dj ? SQ2 : 1) * (this.near[n] ? this.nearCost : 1);
           if (stamp[n] !== run || ng < g[n]) {
             stamp[n] = run; g[n] = ng; from[n] = c;
             open.push(n, ng + h(n));
@@ -246,6 +270,7 @@ export class NavGrid {
     const cells = [];
     for (let c = t; c !== -1; c = from[c]) cells.push(c);
     cells.reverse();
+    for (const c of cells) this.allow.add(c);
     const pts = cells.map((c) => this.center(c));
     if (!goalBlocked) pts[pts.length - 1] = { x: x1, z: z1 };
     // string pulling
@@ -254,7 +279,7 @@ export class NavGrid {
     while (k < pts.length) {
       let far = k;
       for (let m = pts.length - 1; m > k; m--) {
-        if (this.los(ax, az, pts[m].x, pts[m].z)) { far = m; break; }
+        if (this.los(ax, az, pts[m].x, pts[m].z, true)) { far = m; break; }
       }
       out.push(pts[far]);
       ax = pts[far].x; az = pts[far].z;

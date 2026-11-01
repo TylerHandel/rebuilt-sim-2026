@@ -1,0 +1,175 @@
+{
+ "source": "Statbotics API v3 team_year/<team>/2026, epa.breakdown (fetched 2026-11-01): end-of-season EPA in points; FUEL by period (auto, transition, the alliance first and second active SHIFT, END GAME); rank among 3724 teams",
+ "teams": {
+  "1706": {
+   "total": 256.0,
+   "auto": 46.3,
+   "trans": 15.7,
+   "a1": 75.8,
+   "a2": 59.8,
+   "end": 56.8,
+   "tower": 1.7,
+   "rank": 27
+  },
+  "1690": {
+   "total": 302.6,
+   "auto": 71.7,
+   "trans": 26.4,
+   "a1": 74.9,
+   "a2": 63.3,
+   "end": 65.3,
+   "tower": 0.9,
+   "rank": 5
+  },
+  "4930": {
+   "total": 36.1,
+   "auto": 12.0,
+   "trans": 3.2,
+   "a1": 7.6,
+   "a2": 5.9,
+   "end": 6.3,
+   "tower": 1.1,
+   "rank": 1914
+  },
+  "1114": {
+   "total": 287.6,
+   "auto": 73.9,
+   "trans": 19.1,
+   "a1": 70.7,
+   "a2": 50.7,
+   "end": 73.5,
+   "tower": -0.4,
+   "rank": 9
+  },
+  "8793": {
+   "total": 70.2,
+   "auto": 24.9,
+   "trans": 4.5,
+   "a1": 9.8,
+   "a2": 13.5,
+   "end": 17.5,
+   "tower": -0.1,
+   "rank": 954
+  },
+  "971": {
+   "total": 195.6,
+   "auto": 30.1,
+   "trans": 8.3,
+   "a1": 53.9,
+   "a2": 51.8,
+   "end": 51.5,
+   "tower": -0.0,
+   "rank": 98
+  },
+  "2910": {
+   "total": 281.7,
+   "auto": 49.4,
+   "trans": 19.6,
+   "a1": 59.9,
+   "a2": 73.1,
+   "end": 80.1,
+   "tower": -0.3,
+   "rank": 12
+  },
+  "2056": {
+   "total": 302.2,
+   "auto": 83.6,
+   "trans": 33.2,
+   "a1": 75.9,
+   "a2": 59.8,
+   "end": 49.6,
+   "tower": -0.0,
+   "rank": 6
+  },
+  "3928": {
+   "total": 147.3,
+   "auto": 31.8,
+   "trans": 6.0,
+   "a1": 38.5,
+   "a2": 34.7,
+   "end": 36.3,
+   "tower": 0.0,
+   "rank": 263
+  },
+  "4414": {
+   "total": 356.9,
+   "auto": 75.0,
+   "trans": 36.4,
+   "a1": 82.1,
+   "a2": 77.4,
+   "end": 87.6,
+   "tower": -1.6,
+   "rank": 1
+  },
+  "7769": {
+   "total": 309.3,
+   "auto": 66.8,
+   "trans": 27.2,
+   "a1": 88.5,
+   "a2": 59.3,
+   "end": 67.4,
+   "tower": 0.1,
+   "rank": 4
+  },
+  "581": {
+   "total": 251.3,
+   "auto": 56.9,
+   "trans": 19.9,
+   "a1": 51.1,
+   "a2": 55.5,
+   "end": 68.5,
+   "tower": -0.7,
+   "rank": 30
+  },
+  "1678": {
+   "total": 279.7,
+   "auto": 59.8,
+   "trans": 17.8,
+   "a1": 64.0,
+   "a2": 66.5,
+   "end": 71.1,
+   "tower": 0.5,
+   "rank": 13
+  },
+  "604": {
+   "total": 222.5,
+   "auto": 42.6,
+   "trans": 5.4,
+   "a1": 63.6,
+   "a2": 54.6,
+   "end": 55.4,
+   "tower": 0.9,
+   "rank": 46
+  },
+  "6328": {
+   "total": 203.8,
+   "auto": 59.3,
+   "trans": 21.8,
+   "a1": 51.6,
+   "a2": 34.0,
+   "end": 37.4,
+   "tower": -0.2,
+   "rank": 76
+  },
+  "4946": {
+   "total": 214.7,
+   "auto": 56.2,
+   "trans": 21.0,
+   "a1": 49.0,
+   "a2": 43.9,
+   "end": 44.0,
+   "tower": 0.8,
+   "rank": 54
+  },
+  "341": {
+   "total": 196.1,
+   "auto": 35.8,
+   "trans": 4.6,
+   "a1": 58.5,
+   "a2": 56.0,
+   "end": 40.6,
+   "tower": 0.6,
+   "rank": 95
+  }
+ }
+}

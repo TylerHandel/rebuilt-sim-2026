@@ -16,6 +16,14 @@ import { clamp, wrapAngle, rand } from './util.js';
 import { TRAINED_BRAIN } from './trainedBrain.js';
 import { fitsTrench } from './robotConfigs.js';
 
+// (AI knobs for A/B runs: NAVMARGIN=0 plans as before, without the corner margin)
+const knob = (v, d) => (v == null || v === '' ? d : +v);
+const NAVMARGIN = knob(globalThis.process?.env?.NAVMARGIN, 1);
+// UNSTICK=0: backs out of being stuck straight back, give or take a radian, as before
+const UNSTICK = knob(globalThis.process?.env?.UNSTICK, 1);
+// WALLFUEL: how many meters further FUEL against a wall counts as (0: as before)
+const WALLFUEL = knob(globalThis.process?.env?.WALLFUEL, 2);
+
 export const OPP_STRATEGIES = {
   off: { name: 'Off (solo)', desc: 'No opponent: just you, the FUEL and the clock.' },
   scorer: { name: 'Scorer', desc: 'Runs its own cycles: collects FUEL, stages when its HUB is inactive and shoots on the move when it is active.' },
@@ -103,9 +111,12 @@ export class OpponentAI {
     this.brain = brainFor(skill, brain);
     // routes with the TRENCH open, and without it for when a load bulging the net (or a raised
     // lid) makes the robot too tall to get under the arm
+    // (it plans as a circle that fits inside it; its corners, turned, and its intake out reach
+    // further: paths keep that much more clear of things where they can, NavGrid margin)
     const navR = Math.min(robot.halfL, robot.halfW) + 0.07;
-    this.navFit = new NavGrid(navR, { trench: fitsTrench(robot.cfg) });
-    this.navTall = fitsTrench(robot.cfg) ? new NavGrid(navR, { trench: false }) : this.navFit;
+    const margin = NAVMARGIN ? clamp(Math.hypot(robot.halfL + (robot.cfg.intake.reach || 0), robot.halfW) - navR, 0.1, 0.35) : 0;
+    this.navFit = new NavGrid(navR, { trench: fitsTrench(robot.cfg), margin });
+    this.navTall = fitsTrench(robot.cfg) ? new NavGrid(navR, { trench: false, margin }) : this.navFit;
     this.nav = this.navFit;
     this.state = 'collect';
     this.mode = 'score';
@@ -219,11 +230,36 @@ export class OpponentAI {
       this.stuckT = 0;
       this.unstick = 0.7;
       const a = Math.atan2(-cmd.vz, -cmd.vx) + rand(-1, 1);
-      this.unstickDir = { x: Math.cos(a), z: Math.sin(a) };
+      this.unstickDir = UNSTICK ? this._unstickDir(cmd) : { x: Math.cos(a), z: Math.sin(a) };
       if (this.ball) this.blacklist.set(this.ball, this.t + 8);
+      // (and the FUEL round it: what wedged it going for that one would wedge it going for those)
+      if (UNSTICK && this.ball) {
+        const p = this.ball.pos;
+        for (const b of this.fuel.balls) if (b.state === 'field' && Math.hypot(b.pos.x - p.x, b.pos.z - p.z) < 0.6) this.blacklist.set(b, this.t + 8);
+      }
       this.ball = null;
       this.path = null;
     }
+  }
+
+  // Which way to back out when stuck: the way with the most room (the nav grid's free cells, and
+  // the other robots) within a meter, leaning away from where it was trying to go
+  _unstickDir(cmd) {
+    const r = this.robot, back = Math.atan2(-cmd.vz, -cmd.vx);
+    let best = null, bs = -Infinity;
+    for (let k = 0; k < 16; k++) {
+      const a = back + (k * Math.PI) / 8;
+      const dx = Math.cos(a), dz = Math.sin(a);
+      let room = 0;
+      for (let d = 0.2; d <= 1.0 + 1e-9; d += 0.2) {
+        const x = r.pos.x + dx * d, z = r.pos.z + dz * d;
+        if (!this.nav.free(x, z) || this.others.some((o) => Math.hypot(o.pos.x - x, o.pos.z - z) < o.halfL + r.halfW)) break;
+        room = d;
+      }
+      const sc = room + 0.4 * Math.cos(a - back) + rand(0, 0.15);
+      if (sc > bs) { bs = sc; best = { x: dx, z: dz }; }
+    }
+    return best;
   }
 
   // END GAME: a robot with a climber (971, 1678) heads for its TOWER just in time to get up to
@@ -703,6 +739,11 @@ export class OpponentAI {
       if (Field.inAllianceZone(oppZone, p.x)) gain *= 1 + 0.3 * B.steal;
       // turning round to go back for it
       let dist = d + (d > 0.3 ? 0.5 * (1 - ((p.x - r.pos.x) * f.x + (p.z - r.pos.z) * f.z) / d) : 0);
+      // FUEL against a wall: its intake meets the wall before it has it, and it's often wedged there
+      if (WALLFUEL) {
+        const wd = Math.min(HALF_L - Math.abs(p.x), HALF_W - Math.abs(p.z));
+        if (wd < 0.45) dist += WALLFUEL * Math.min(1, (0.45 - wd) / 0.2);
+      }
       if (feed) {
         // feeding: stay on our half, and out of the HUB's shadow so the passes are clear
         const fromLine = this.own === BLUE ? p.x - lineX : lineX - p.x;

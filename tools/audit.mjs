@@ -9,13 +9,13 @@
 //   sec       TELEOP seconds: idle (nothing taken in or launched for 2 s+, while not staged or climbing,
 //             counted from the 2nd s), staged (waiting at home for its HUB), stuck (asked to move over
 //             1 m/s, moving under 0.2) and what it's against (stuckBy: trench, tower, hub, skirt, bump,
-//             wall, robot, open), holdIdle (HUB active, holding FUEL, trying to score, nothing out for
+//             depot, wall, robot, open), holdIdle (HUB active, holding FUEL, trying to score, nothing out for
 //             3 s+), carryOut (HUB active, holding 5+, out of its zone), inZoneOff (its HUB off, in its
 //             zone, not staged), emptyActive (HUB active, empty, in its zone)
 //   idleBy    idle seconds by what its AI said it was doing (its label)
 //   labels    TELEOP seconds by label; cycles (trips to score), firstScore (TELEOP s to its first FUEL)
 //   stuckEp   the longest stuck stretches: { t, s, by, x, z, label }
-import { PHYSICS_DT, HALF_L, HALF_W, HUB, TIMING, BUMP } from '../js/constants.js';
+import { PHYSICS_DT, HALF_L, HALF_W, HUB, TIMING, BUMP, DEPOT } from '../js/constants.js';
 import { Field } from '../js/field.js';
 import { OBSTACLES, underTrench } from '../js/nav.js';
 
@@ -32,6 +32,9 @@ function against(r, others) {
   for (const o of OBSTACLES) {
     if (Math.abs(x - o.x) < o.hx + R && Math.abs(z - o.z) < o.hz + R) return o.kind === 'trench' ? 'skirt' : o.kind;
   }
+  // the DEPOT, its barriers along its ALLIANCE WALL
+  const dz = HALF_W - DEPOT.fy, dx = HALF_L - DEPOT.depth;
+  if (Math.abs(x) > dx - R && Math.abs(z - (x < 0 ? dz : -dz)) < DEPOT.width / 2 + R) return 'depot';
   if (Math.abs(x) > HALF_L - R || Math.abs(z) > HALF_W - R) return 'wall';
   // a BUMP: beside each HUB, between it and the TRENCH skirts
   const hx = Field.hubCenter('blue').x;
