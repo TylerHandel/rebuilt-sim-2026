@@ -66,7 +66,7 @@ function rig({ deg = Number(process.env.ARM ?? INTAKE.down), hood = SHOOTER.hood
   const pathStep = r.path.step.bind(r.path);
   r.path.step = (dt, ...a) => { s.net.flex(r.path.contacts, dt); pathStep(dt, ...a); r.netMax = Math.max(r.netMax ?? 0, s.net.B); };
   r.shooter = new Mechanism({ substeps: 6, sub: 8, shafts: [t.drum, t.hood], wheels: [wh.drum, ...wh.hood] });
-  handOff(r.path, r.shooter, [s.hood]); // (the hood: met at each of the shooter's sub-steps)
+  if (process.env.HOODSUB !== '0') handOff(r.path, r.shooter, [s.hood]); // (the hood: met at each of the shooter's sub-steps)
   for (const tr of [t.intake, t.floor, t.backT, t.frontT, t.flywheel]) tr.cmd = 0;
   r.fly = { sp: 0, acc: 0, init: false };
   // their flywheel loop toward goal (rad/s; bang-bang past 3.25 m at the HUB)

@@ -8,10 +8,11 @@
 // generic robot, 971's, 4946's or 4930's, that otherwise reaches anywhere on the FIELD)
 // (PASSLOG=1 in the environment: every shot, its speed and climb, and where each FUEL came down)
 // (--mode hub: shoot at the HUB instead, from inside the ALLIANCE ZONE: --d 2,3; the target's then the
-// HUB's center, and 'lands at' is where the FUEL first touch something, the HUB's funnel mostly)
+// HUB's center, and 'lands at' is where the FUEL first touch something, the HUB's funnel mostly; and
+// where they come down through the rim's height, along the line from the exit past the HUB's center)
 import { createWorld, mulberry32 } from './headless.mjs';
 import { createGame, stepGame, frameGame } from '../js/game.js';
-import { PHYSICS_DT, BLUE, HALF_L, FUEL } from '../js/constants.js';
+import { PHYSICS_DT, BLUE, HALF_L, FUEL, HUB } from '../js/constants.js';
 import { DEG } from '../js/util.js';
 import { backspin } from '../js/ballistics.js';
 import { ROBOTS } from '../js/robotConfigs.js';
@@ -64,7 +65,7 @@ async function run(id, d) {
       if (i % 2) frameGame(game, 2 * PHYSICS_DT);
     }
     const start = r.stored.length, shots0 = r.stats.shots;
-    const seen = new Map(), lands = [], fires = [];
+    const seen = new Map(), lands = [], fires = [], rims = [];
     let tgt = null, status = new Map(), tFirst = null, ex = null;
     const steps = Math.round((T + 2.5) / PHYSICS_DT); // (and 2.5 s for the last to land)
     for (let i = 0; i < steps; i++) {
@@ -78,7 +79,7 @@ async function run(id, d) {
         let s = seen.get(b);
         if (!s && b.body.linvel().y < 1) continue; // (spilled or dropped, not shot)
         if (!s) {
-          s = { top: b.pos.y, done: false };
+          s = { top: b.pos.y, done: false, y: b.pos.y };
           seen.set(b, s);
           // (the FUEL's own speed and climb as it leaves, and what the robot thinks its exit speed is)
           const lv = b.body.linvel(), h = Math.hypot(lv.x, lv.z), bv = Math.hypot(h, lv.y);
@@ -88,6 +89,9 @@ async function run(id, d) {
           ex ??= { x: b.pos.x, z: b.pos.z };
         }
         s.top = Math.max(s.top, b.pos.y);
+        // (--mode hub: where it comes down through the rim's height, once it's been over it)
+        if (hub && !s.rim && s.top > HUB.rimFront && b.pos.y < HUB.rimFront && s.y >= HUB.rimFront) { s.rim = { x: b.pos.x, z: b.pos.z }; rims.push(s.rim); }
+        s.y = b.pos.y;
         // (its first touch of anything once it's well up: the carpet, mostly)
         if (!s.done && s.top > 0.4 && (!b.inFlight || b.pos.y < R + 0.03)) { s.done = true; lands.push({ x: b.pos.x, z: b.pos.z, y: b.pos.y }); }
       }
@@ -95,7 +99,12 @@ async function run(id, d) {
     const fired = r.stats.shots - shots0;
     if (process.env.PASSLOG) for (const [k, f] of fires.entries()) console.log(`  ${id} ${d} m: shot ${k} at ${f.t.toFixed(2)} s, ${f.bv.toFixed(1)} m/s @${f.bel.toFixed(0)} spin ${f.S.toFixed(2)} (robot: ${f.v.toFixed(1)} @${f.hood.toFixed(0)}), lands ${lands[k] ? (lands[k].x + HALF_L).toFixed(1) + ", " + lands[k].z.toFixed(1) + " (y " + lands[k].y.toFixed(2) + ")" : "-"}`);
     ex ??= r.pos;
-    let short = NaN, lat = NaN, landD = NaN, tD = NaN;
+    let short = NaN, lat = NaN, landD = NaN, tD = NaN, rimL = NaN, rimS = NaN;
+    if (tgt && rims.length) {
+      const ux = tgt.x - ex.x, uz = tgt.z - ex.z, L = Math.hypot(ux, uz);
+      rimL = med(rims.map((p) => ((p.x - tgt.x) * ux + (p.z - tgt.z) * uz) / L));
+      rimS = med(rims.map((p) => ((p.x - tgt.x) * -uz + (p.z - tgt.z) * ux) / L));
+    }
     if (tgt && lands.length) {
       const ux = tgt.x - ex.x, uz = tgt.z - ex.z, L = Math.hypot(ux, uz);
       tD = L;
@@ -106,7 +115,7 @@ async function run(id, d) {
     const topStatus = [...status].sort((a, b) => b[1] - a[1]).slice(0, 2).map(([s, n]) => `${s} ${(n * PHYSICS_DT).toFixed(1)}s`).join(', ');
     return {
       id, d, fired, of: start, left: r.stored.length, v: med(fires.map((f) => f.v)), hood: med(fires.map((f) => f.hood)), bv: med(fires.map((f) => f.bv)), bel: med(fires.map((f) => f.bel)), S: med(fires.map((f) => f.S)), first: tFirst,
-      tD, landD, short, lat, landX: med(lands.map((p) => p.x + HALF_L)), tgtX: tgt ? tgt.x + HALF_L : NaN, topStatus,
+      tD, landD, short, lat, rimL, rimS, rims: rims.length, landX: med(lands.map((p) => p.x + HALF_L)), tgtX: tgt ? tgt.x + HALF_L : NaN, topStatus,
     };
   } finally {
     Math.random = realRandom;
@@ -119,6 +128,6 @@ console.log('robot  from wall  shots (held, left)  exit m/s  hood  FUEL m/s @deg
 for (const id of robots) {
   for (const d of dists) {
     const o = await run(id, d);
-    console.log(`${id.padEnd(6)} ${String(d).padStart(5)} m   ${String(o.fired).padStart(2)} (${o.of}, ${o.left})   ${f(o.v).padStart(6)}   ${f(o.hood, 0).padStart(4)}   ${f(o.bv).padStart(5)} @${f(o.bel, 0).padStart(2)}  ${f(o.S, 2).padStart(5)}  ${f(o.tD).padStart(8)} m  ${f(o.landD).padStart(6)} m  ${f(o.short).padStart(6)} m  ${f(o.lat).padStart(5)} m   x ${f(o.tgtX)} / lands x ${f(o.landX)}   ${o.topStatus}`);
+    console.log(`${id.padEnd(6)} ${String(d).padStart(5)} m   ${String(o.fired).padStart(2)} (${o.of}, ${o.left})   ${f(o.v).padStart(6)}   ${f(o.hood, 0).padStart(4)}   ${f(o.bv).padStart(5)} @${f(o.bel, 0).padStart(2)}  ${f(o.S, 2).padStart(5)}  ${f(o.tD).padStart(8)} m  ${f(o.landD).padStart(6)} m  ${f(o.short).padStart(6)} m  ${f(o.lat).padStart(5)} m   x ${f(o.tgtX)} / lands x ${f(o.landX)}   ${o.topStatus}` + (hub ? `   at the rim's height ${f(o.rimL, 2)} m past the HUB's center, ${f(o.rimS, 2)} aside (${o.rims} came down through it)` : ''));
   }
 }
