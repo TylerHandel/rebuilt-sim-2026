@@ -1,0 +1,17 @@
+{
+ "at": "2026-11-01T22:45:36.272Z",
+ "commit": "aa2862f88ddeb06d201121562eb64b0e914a75cd",
+ "threads": 16,
+ "args": [
+  "--seeds",
+  "1-2",
+  "--jobs",
+  "12"
+ ],
+ "env": {
+  "SCHED3V3": "26",
+  "NAVMARGIN": "0",
+  "UNSTICK": "0",
+  "WALLFUEL": "0"
+ }
+}
