@@ -51,7 +51,7 @@ function rig({ arm = INTAKE.deploy, yaw = 0, hood = SHOOTER.hoodMin } = {}) {
   const pathW = [...wh.intake, ...wh.rotor];
   const path = new Mechanism({ substeps: 6, shafts: [...new Set(pathW.map((x) => x.shaft)), t.pivot, t.rotor], wheels: pathW, surfaces: Object.values(s) });
   const shooter = new Mechanism({ substeps: 6, sub: Number(process.env.SUB ?? 8), shafts: [t.main, t.hoodRoller], wheels: sw });
-  const SHARED = new Set([s.turret, s.hood]); shooter.surfaces.push(...SHARED);
+  const SHARED = new Set(process.env.HOODSUB === '0' ? [] : [s.turret, s.hood]); shooter.surfaces.push(...SHARED);
   for (const tr of [t.intake, t.roller, t.launcher]) tr.cmd = null;
   t.rotor.cmd = null;
   const r = { t, wh, s, sw, path, shooter, arm, yaw, hood, phi: 0, buf: [] };
