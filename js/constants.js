@@ -1,5 +1,7 @@
-// All dimensions are from the 2026 FRC Game Manual (REBUILT, Section 5 "ARENA")
-// and the official 2026 welded-field AprilTag layout. Units: meters, seconds, kg.
+// The field's dimensions are from FIRST's official field CAD (Onshape "FE-2026: REBUILT Playing
+// Field", the welded perimeter) and its drawings (2026-field-dimension-dwgs.pdf, the FE-2026 sheets;
+// 2026-field-dwg-game-specific.pdf, the GE-26xxx element drawings), as cited at each element, and the
+// 2026 FRC Game Manual (REBUILT, Section 5 "ARENA"). Units: meters, seconds, kg.
 //
 // Coordinate systems
 //   Field frame (WPILib): origin at the right corner of the BLUE alliance wall (from the
@@ -8,7 +10,8 @@
 //     X = fx - L/2          (blue wall at -X, red wall at +X)
 //     Z = W/2 - fy          (blue drivers' right is +Z)
 //   The red half of the field is the blue half rotated 180 degrees about the Y axis,
-//   i.e. world (x, z) -> (-x, -z).
+//   i.e. world (x, z) -> (-x, -z), except the TRENCHES: both FIXED ones are on the scoring-table
+//   side (world +z), both HINGED ones on the other (TRENCH.fixedZ).
 
 export const IN = 0.0254;
 export const LB = 0.45359237;
@@ -114,51 +117,93 @@ export const BUMP = {
 };
 
 // ---------------------------------------------------------------- TRENCH
-// Measured off the official field CAD (FE-2026: the GE-262xx TRENCH parts): on the BUMP side, a
-// skirt that ramps up at 30 degrees from both ends (8.5in tall there) to 18.86in near the
-// middle; an arm across it and the opening, 6in thick, 22.25in-26.25in up; and on the arm's
-// middle, over the opening, an AprilTag mount 11.5in wide reaching 40.25in.
+// From the official field CAD (FE-2026, GE-26200 TRENCH) and its drawings (FE-2026 sheets 4 and 8,
+// sections A-A and C-C; GE-26201 hinged and GE-26202 fixed assemblies). Each ALLIANCE has two, not
+// alike: the FIXED one on the scoring-table side (fy small: world +z for both ALLIANCES, as the field
+// is mirrored about the CENTER LINE there, not turned) and the HINGED one on the far side, whose arm
+// swings up for field reset and is pinned down in a match ("hinged TRENCHES to be measured in the
+// closed and locked state"). Both stand on the same skirt on the BUMP side: 47in x 12in, its side
+// plates (GE-26211/26212) under covers (GE-26213) that ramp up at 30 degrees from 8.0in at the ends to
+// 18.85in, 4.7in either side of the middle; a riser in its middle (6in along fx); and the arm across
+// the opening, a square-edged aluminum tube whose underside is 22.25in (+-0.25in, controlled: FE-2026
+// sheet 8) off the carpet, flat all the way across, and its top 26.25in. The FIXED arm (GE-26224) is
+// 6in wide (along fx) and runs from the skirt's BUMP side to 8.66in past the guardrail, where a
+// leveling mount sits on the guardrail's top rail. The HINGED arm (GE-26214) is a 4in tube from 3.25in
+// past the guardrail to 43.07in in from it, then an 8in cross tube (43.07in-47.07in) and a fork of two
+// 3in tubes 4in-7in either side of the middle, from 43.07in back over the skirt to its pivot on a riser
+// that stands 29.25in. On each arm, 25.37in in from the guardrail (133.47in off the center line), an
+// AprilTag mount (GE-26203) 11.5in wide reaching 40.25in, its tags centered 35in up. The opening is
+// 50.34in (+-2, controlled: the guardrail to the skirt). FE-2026 sheet 4 gives 50.67in for the fixed
+// side's: measured at its section A-A, where the guardrail is a field gate; at the TRENCH the guardrail's
+// plastic is 158.84in off the center line on both sides and the skirt's face 108.50in.
 export const TRENCH = {
-  width: 62.28 * IN,      // FIELD edge to the BUMP side of the skirt
-  depth: 47.0 * IN,
-  height: 40.25 * IN,     // top of the AprilTag mount
-  clearWidth: 50.34 * IN, // the opening, FIELD edge to the skirt
-  clearHeight: 22.25 * IN,
-  armThick: 6.0 * IN,
+  width: 62.34 * IN,       // the guardrail to the BUMP side of the skirt (158.84in - 96.50in)
+  depth: 47.0 * IN,        // along fx, centered on the HUB
+  height: 40.25 * IN,      // top of the AprilTag mount
+  clearWidth: 50.34 * IN,  // the opening, the guardrail to the skirt
+  clearHeight: 22.25 * IN, // the arms' underside
   armTop: 26.25 * IN,
-  skirtEndH: 8.5 * IN,
-  skirtTopH: 18.86 * IN,
+  skirtEndH: 8.0 * IN,
+  skirtTopH: 18.85 * IN,
   skirtSlopeDeg: 30,
+  riserW: 6.0 * IN,        // both risers, along fx
+  hingedRiserTop: 29.25 * IN,
   tagWidth: 11.5 * IN,
-  tagThick: 3.0 * IN,
+  tagThick: 2.94 * IN,     // the mount (2.84in) and a tag on each face
+  tagIn: 25.37 * IN,       // the mount's middle, in from the guardrail
+  tagY: 35.0 * IN,         // the tags' centers
+  fixedZ: 1,               // the FIXED TRENCHES are on world +z (fy < FIELD_W / 2), the HINGED ones on -z
 };
+// The parts of a TRENCH's arm, all at clearHeight..armTop: u0..u1 across it (along fx, from its
+// middle), g0..g1 in from the guardrail's face (negative: past it, over the guardrail's top rail)
+export function trenchArmParts(fixed) {
+  const skirtIn = TRENCH.width - 0.19 * IN; // (the skirt's inner side plate)
+  if (fixed) return [{ u0: -3 * IN, u1: 3 * IN, g0: -8.66 * IN, g1: skirtIn }];
+  return [
+    { u0: -2 * IN, u1: 2 * IN, g0: -3.25 * IN, g1: 43.07 * IN },  // main tube
+    { u0: -4 * IN, u1: 4 * IN, g0: 43.07 * IN, g1: 47.07 * IN },  // cross tube
+    { u0: -7 * IN, u1: -4 * IN, g0: 43.07 * IN, g1: 61.37 * IN }, // the fork, back to the pivot
+    { u0: 4 * IN, u1: 7 * IN, g0: 43.07 * IN, g1: 61.37 * IN },
+  ];
+}
 
 // ---------------------------------------------------------------- TOWER
+// From the field CAD (GE-26500 TOWER) and drawing GE-26500 sheet 2
 export const TOWER = {
   fy: 3.7457126, // centered on TOWER WALL AprilTag 31 (official field CAD, FE-2026)
-  width: 49.25 * IN,
+  width: 49.25 * IN,               // the TOWER WALL's plastic (GE-26505/26506)
   depth: 45.0 * IN,
-  height: 78.25 * IN,
-  baseWidth: 39.0 * IN,
-  baseDepth: 45.18 * IN,
-  baseThick: 0.25 * IN,
-  uprightHeight: 72.1 * IN,
-  uprightThick: 1.5 * IN,           // along the rung direction
-  uprightDeep: 3.5 * IN,
+  height: 78.25 * IN,              // its top rail
+  baseWidth: 39.0 * IN,            // base plate GE-26501-01
+  baseDepth: 45.06 * IN,           // from the ALLIANCE WALL
+  baseThick: 0.28 * IN,            // its top off the carpet (a 0.16in plate on hook tape)
+  uprightHeight: 72.125 * IN,
+  uprightThick: 1.5 * IN,          // along the rung direction
+  uprightDeep: 3.51 * IN,
   uprightGap: 32.25 * IN,
   rungR: (1.66 * IN) / 2,
   rungExt: 5.875 * IN,
-  rungs: [27.0 * IN, 45.0 * IN, 63.0 * IN], // LOW, MID, HIGH centers
-  // the 2 in tube from each upright back to the TOWER WALL, 35 to 37 in up (field CAD), and the
-  // gusset under its end at the wall, down to 30.6 in within 4 in of the wall
+  rungs: [27.0 * IN, 45.0 * IN, 63.0 * IN], // LOW, MID, HIGH centers (+-0.25in)
+  // the 1.75in tube (GE-26510) from each upright back to the TOWER WALL, 35.125in to 36.875in up; the
+  // gussets at its wall end (GE-26509), their lower edge rising from 28.37in at the wall to the tube
+  // 8.05in out; a gusset on each upright over the tube (GE-26508, 6.5in, up to 43.375in); and two 2in
+  // braces (GE-26507, 35in-37in up) from the wall beside the TOWER's middle out to the tubes
   supportY: 36.0 * IN,
-  supportTube: 2.0 * IN,
-  gussetLow: 30.6 * IN,
-  gussetDeep: 4.0 * IN,
+  supportTube: 1.75 * IN,
+  gussetLow: 28.37 * IN,
+  gussetDeep: 8.05 * IN,
+  uprightGusset: 6.5 * IN,
+  braceY: 36.0 * IN,
+  braceTube: 2.0 * IN,
+  braceIn: 1.15 * IN,              // a brace's centerline: from the wall 1.15in off the middle
+  braceOut: 14.5 * IN,             // to 14.5in out, 16in off the middle (on the support tube)
+  braceSide: 16.0 * IN,
+  tagStep: 17.0 * IN,              // AprilTag 32 is 17in from 31 (on the middle) toward fy+
 };
-TOWER.uprightFx = 41.6 * IN; // the uprights' centers from the TOWER WALL (field CAD)
+TOWER.uprightFx = 40.0 * IN + TOWER.uprightDeep / 2; // the uprights' centers: 40in from the TOWER WALL to their faces (GE-26500)
 
 // ---------------------------------------------------------------- DEPOT
+// Field CAD GE-26600: a weldment of 3in x 1in tubes on hook tape (top 1.12in), 42in x 27in outside
 export const DEPOT = {
   fy: 5.965, // center, from the official field CAD (FE-2026)
   width: 42.0 * IN,
@@ -168,34 +213,52 @@ export const DEPOT = {
 };
 
 // ---------------------------------------------------------------- OUTPOST
+// Field CAD GE-26000 OUTPOST: a 49.25in wide stretch of the ALLIANCE WALL (lower panel GE-26002, upper
+// GE-26003, on frame GE-26001, 1.94in deep) from the guardrail's corner to DRIVER STATION 3, with two
+// 32in openings on its middle: the base opening 1.87in-8.87in up (a 1.66in round tube up its middle)
+// and the CHUTE's 28.12in-35.12in. The CHUTE (GE-26005) rises away from the FIELD at 15 degrees, 31.67in
+// wide inside and 32in long. Behind the base opening, the CORRAL's border (GE-26010, 8in tall) is
+// 35.75in wide inside, its back 37.58in behind the wall's face, with a ramp (GE-26009) down from the
+// opening's lip (1.87in) to the floor 27.95in back.
 export const OUTPOST = {
   fy: 0.6659626, // centered on OUTPOST AprilTag 29 (official field CAD, FE-2026)
-  upperW: 31.8 * IN,
+  upperW: 31.67 * IN,
   upperH: 7.0 * IN,
-  upperY: 28.1 * IN,
+  upperY: 28.12 * IN,
   baseW: 32.0 * IN,
   baseH: 7.0 * IN,
-  baseY: 1.88 * IN,
-  corralW: 35.8 * IN,
-  corralD: 37.6 * IN,
-  corralWallH: 8.13 * IN,
+  baseY: 1.87 * IN,
+  corralW: 35.75 * IN,
+  corralD: 37.58 * IN,     // the ALLIANCE WALL's face to the CORRAL's back
+  corralWallH: 8.12 * IN,
+  rampFrom: 1.94 * IN,     // the ramp starts at the frame's back, behind the wall's face
+  rampLen: 27.95 * IN,
   chuteCapacity: 25,
   chuteSlopeDeg: 15,
-  structW: 1.35,
+  chuteLen: 32.0 * IN,
+  structW: 49.25 * IN,
+  tagStep: 17.0 * IN,      // AprilTag 30 is 17in from 29 (on the middle) toward fy+
 };
 
 // ---------------------------------------------------------------- WALLS
-export const GUARDRAIL_H = 20.0 * IN;
-export const DS_BASE_H = 36.8 * IN;
-export const DS_GLASS_H = 42.0 * IN;
-export const ALLIANCE_WALL_H = DS_BASE_H + DS_GLASS_H;
+// Guardrail (FE-2026-02): polycarbonate 0-19in on its inside face (158.84in off the center line), the
+// rail just behind it topped at 20.10in
+export const GUARDRAIL_H = 20.1 * IN;
+// DRIVER STATION end panel (FE-00043): diamond plate to 36.12in under a cap at 36.87in, acrylic above
+// it, the top rail (FE-00007) at 76.25in-78.25in
+export const DS_BASE_H = 36.87 * IN;
+export const ALLIANCE_WALL_H = 78.25 * IN;
+export const DS_GLASS_H = ALLIANCE_WALL_H - DS_BASE_H;
 
-// Driver station centers along the alliance wall (blue fy), left/center/right from the drivers' view
+// Driver station centers along the alliance wall (blue fy), left/center/right from the drivers' view.
+// Each is 72in wide (field CAD): DS 3 from the OUTPOST (50.84in) to the TOWER WALL (122.84in), DS 2
+// from the TOWER WALL (172.09in) to 244.09in, DS 1 from there to 316.09in.
 export const DRIVER_STATIONS = [
-  { name: 'Left (DS1)', fy: 7.2 },
-  { name: 'Center (DS2)', fy: 5.45 },
-  { name: 'Right (DS3)', fy: 2.35 },
+  { name: 'Left (DS1)', fy: 280.09 * IN },
+  { name: 'Center (DS2)', fy: 208.09 * IN },
+  { name: 'Right (DS3)', fy: 86.84 * IN },
 ];
+export const DS_SPLIT_FY = 244.09 * IN; // where DS 1 meets DS 2
 
 // ---------------------------------------------------------------- MATCH TIMING
 export const TIMING = {

@@ -1,7 +1,7 @@
 // Grid A* navigation for the AI opponent. The only things a ROBOT can't drive over or under are
 // the HUBS, the bump-side TRENCH skirts, the TOWERS and the field perimeter; BUMPS and the
 // TRENCH openings are free space (except for a robot too tall for the TRENCH).
-import { HALF_L, HALF_W, HUB, TRENCH, TOWER, BLUE, RED } from './constants.js';
+import { HALF_L, HALF_W, HUB, TRENCH, TOWER, BLUE, RED, trenchArmParts } from './constants.js';
 import { Field } from './field.js';
 
 const CELL = 0.2;
@@ -81,12 +81,24 @@ export const TRENCH_OPENINGS = (() => {
   return out;
 })();
 
-// the TRENCH arms over the openings, as boxes (world, center and half sizes), for the FUEL held
-// in robots (Robot._armsNear)
-export const TRENCH_ARMS = TRENCH_OPENINGS.map((o) => {
+// the TRENCH arms' parts, as boxes (world, center and half sizes), for the FUEL held in robots
+// (Robot._armsNear) and 8793's arm: the FIXED arm (world +z) one 6in tube, the HINGED one (-z) its
+// 4in tube, cross tube and fork (trenchArmParts, the same boxes as the colliders in field.js); each
+// ALLIANCE's main tubes first, the one over the middle of the opening
+export const TRENCH_ARMS = (() => {
+  const out = [];
   const armH = TRENCH.armTop - TRENCH.clearHeight;
-  return { x: o.x, y: TRENCH.clearHeight + armH / 2, z: o.z, hx: TRENCH.armThick / 2, hy: armH / 2, hz: TRENCH.clearWidth / 2 };
-});
+  for (const a of [BLUE, RED]) {
+    const hx = Field.hubCenter(a).x;
+    for (const sw of [1, -1]) {
+      for (const p of trenchArmParts(sw === TRENCH.fixedZ)) {
+        const g = (p.g0 + p.g1) / 2;
+        out.push({ x: hx + (a === BLUE ? 1 : -1) * (p.u0 + p.u1) / 2, y: TRENCH.clearHeight + armH / 2, z: sw * (HALF_W - g), hx: (p.u1 - p.u0) / 2, hy: armH / 2, hz: (p.g1 - p.g0) / 2, fixed: sw === TRENCH.fixedZ });
+      }
+    }
+  }
+  return out;
+})();
 
 // whether (x, z) is under a TRENCH arm's opening (margin: how far round it counts)
 export const underTrench = (x, z, margin = 0) => TRENCH_OPENINGS.some((o) => Math.abs(x - o.x) < o.hx + margin && Math.abs(z - o.z) < o.hz + margin);
