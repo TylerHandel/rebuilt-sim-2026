@@ -252,4 +252,4 @@ For a new Claude Code session. The latest work is on branch `claude/great-hypati
 ## Gotchas
 - If you use `pkill`, use a bracket pattern such as `pkill -f "trai[n].mjs"` so the command doesn't match and kill its own shell.
 - Headless determinism: seed `Math.random` after the world is built. `tools/headless.mjs` already does this.
-- The PC runner (as of 2026-11-01) failed jobs queued with `--ref wip/x` as "bad ref" (it runs an older `tools/runner.mjs`); queuing with the full commit sha (pushed to a `wip/` branch first) works.
+- The PC runner (tools/runner.mjs) takes `--ref wip/x` branch refs since e04dcd8 (an older copy rejected them as "bad ref"); under tools/runner-start.sh it updates itself between jobs. Its `status/runner-<host>.alive` marker is only written at start: check recent `.started` markers to see that it's working.
