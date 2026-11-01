@@ -64,15 +64,22 @@ export const TREAD = { silicone: 20000, stealth: 12000, urethane: 30000, belt: 2
 
 // ------------------------------------------------------------------ the layout (robot frame, m)
 export const HALF_L = 12.75 * IN, HALF_W = 14.75 * IN; // 25.5 x 29.5in (the binder)
+// the frame rail (2x1 on edge) on SDS MK5n modules (A01: "SWERVE MODULE A/B", 5.937 lb each, SDS's
+// ready-to-run MK5n's 5.9; the binder: MK5n R1), the main plate on top of the rail as SDS's layout
+// drawing (MK5n Layout Drawing REV1): floor to the module's main plate 3.75in, 2.00in under it for the
+// rail: 1.75 to 3.75in. Its two rows of 10-32 holes (P002) are 0.5in either side of its centerline, 2.75in
+// up, and every frame-mounted plate's tabs (P450, P513) bolt to them. (The first passes had the rail
+// at 0.035-0.086 m from 1690's and 7769's CAD: everything rail-referenced is 9.3 mm higher now.)
+export const RAIL = { y: [1.75 * IN, 3.75 * IN], c: 2.75 * IN };
 // the hopper: its sides' inside faces (the intake's 27.25in hopper front, P581, and 26.5in rollers:
 // 0.346 m each side), the side panels' top (P586-R2 in A41's side view: 0.544 m)
-export const WALL = { left: -0.346, right: 0.346, top: 0.544 };
+export const WALL = { left: -0.346, right: 0.346, top: 0.533 };
 // the roller floor: [x, y] of each roller's axle, front to back (P450's holes on the side rail: see
 // above), z from each one's left end to its right (long: 25.5in of sleeve on the 24.75in tube; short:
 // 17.6in on the 16.875in tube); every roller 1:1 with the drive roller (25T pulleys round)
 export const FLOOR = {
   r: (1.625 / 2) * IN,
-  at: [[0.2952, 0.1738], [0.2426, 0.1738], [0.1900, 0.1737], [0.1403, 0.1694], [0.0970, 0.1569], [0.0537, 0.1442], [0.0107, 0.1321], [-0.0342, 0.1322], [-0.0792, 0.1321]],
+  at: [[0.2952, 0.1830], [0.2426, 0.1830], [0.1900, 0.1830], [0.1403, 0.1786], [0.0970, 0.1661], [0.0537, 0.1536], [0.0107, 0.1414], [-0.0342, 0.1414], [-0.0792, 0.1414]],
   z0: Array(9).fill(-0.324), z1: [0.324, 0.324, 0.324, 0.324, 0.324, 0.324, 0.123, 0.123, 0.123],
   ratio: (36 / 14) * (25 / 18),
   k: Array(9).fill(1),
@@ -80,7 +87,7 @@ export const FLOOR = {
 // the two A43 rollers (16.5in: 15.5in of sleeve) over the floor's back, 0.316 m up (A41's front view:
 // a short row 7.2in over the floor's short rollers; fore and aft est.: 1690's two, 45 mm apart as the
 // A43s' 43T belt makes them), turning the other way, 1:1 off the floor's drive
-export const TOP = { at: [[-0.0342, 0.316], [-0.0792, 0.316]], r: (1.625 / 2) * IN, z: [-0.324, 0.07], k: [-1, -1] };
+export const TOP = { at: [[-0.0342, 0.3253], [-0.0792, 0.3253]], r: (1.625 / 2) * IN, z: [-0.324, 0.07], k: [-1, -1] };
 // the foam's rolling resistance on the floor's rollers (as 1690's: 0.08 of what presses it there;
 // with every roller at one speed a FUEL resting between two would otherwise spin in place)
 export const ROLL = { rr: 0.08 };
@@ -91,30 +98,30 @@ export const ROLL = { rr: 0.08 };
 // and their pitch radius; X44s through 12:36
 export const BELT = {
   x: [-0.158, -0.110], r: 0.0203, pitch: (24 * 0.005) / (2 * Math.PI), ratio: 36 / 12,
-  bottom: { y: 0.149, z: [0.1158 - 0.365, 0.1158] }, // its top run (A44 on the frame)
-  top: { y: 0.310 - 0.0203, z: [-0.2766, 0.0378] },  // its bottom run (A14)
+  bottom: { y: 0.1583, z: [0.1158 - 0.365, 0.1158] }, // its top run (A44 on the frame)
+  top: { y: 0.3193 - 0.0203, z: [-0.2766, 0.0378] },  // its bottom run (A14)
 };
 // the backing behind the belts (est.: polycarbonate), the channel's front wall over the quarter pipe
 export const BACK = { x: -0.2105, front: -0.056 };
 // the turret: its axis (A00), the bore up through its bearing (the 8in ID: the turret's opening, est.
 // 0.088 m, as 1690's) from the base plate's top to the gear's, the turret gear's top (the deck: P154/
 // P155 and A10's side view, above); travel +-185 deg (the binder)
-export const TURRET = { at: [-5.25 * IN, 7.25 * IN], bore: { r: 0.088, y: [0.359, 0.384] }, deck: 0.384, range: 185 };
+export const TURRET = { at: [-5.25 * IN, 7.25 * IN], bore: { r: 0.088, y: [0.3683, 0.3932] }, deck: 0.3932, range: 185 };
 // the side kicker: a 1.625in polyurethane sleeve 1.75in long (A11), standing in front of the belts'
 // channel at the quarter pipe's infeed (est. where), halfway up between the belts' runs, its X44's 18T
 // on the axle's 24T (est.: A10's BOM has the 18T pulley)
-export const VKICK = { at: [-0.0415, 0.10], y: [0.219 - 0.875 * IN, 0.219 + 0.875 * IN], r: (1.625 / 2) * IN, ratio: 24 / 18 };
+export const VKICK = { at: [-0.0415, 0.10], y: [0.2283 - 0.875 * IN, 0.2283 + 0.875 * IN], r: (1.625 / 2) * IN, ratio: 24 / 18 };
 // the quarter pipe: the shooter feed plate's 6.75in bend (P157: UP 70 deg; its flats and the frame's
 // guides round it: est. 90 deg in all), its center the A14's Stealth wheel (A10, A14: 0.088 m right of
 // center, 0.311 up), so a FUEL off the bottom belt's run rides round it and comes up under the
 // turret's axis (c: [z, y]); across the channel (x)
-export const PIPE = { R: 6.75 * IN, c: [0.088, 0.311], x: [-0.214, BACK.front], top: TURRET.bore.y[0] };
+export const PIPE = { R: 6.75 * IN, c: [0.088, 0.3203], x: [-0.214, BACK.front], top: TURRET.bore.y[0] };
 // the dual Stealth wheels (2in, 50A, est. 1in wide each), [z, y]: the A14's at the pipe's center,
 // driving the FUEL round it, the other (A10 item 19) across the bore over the pipe's end (its height
 // from A10's side view, ~0.33 m); one X60, 16:28, both shafts at its speed (the second turned back 1:1)
 export const FEED = {
   x: -0.134, w: 0.025, r: 1 * IN,
-  wheels: [[PIPE.c[0], PIPE.c[1]], [TURRET.at[1] + (R + 1 * IN - 0.0044), 0.33]],
+  wheels: [[PIPE.c[0], PIPE.c[1]], [TURRET.at[1] + (R + 1 * IN - 0.0044), 0.3393]],
   ratio: 28 / 16,
 };
 // the shooter, in the turret's frame (s along the shot, y up, z across; A19): the 4in wheel's axle
@@ -164,13 +171,13 @@ export const INTAKE1690 = globalThis.process?.env?.INTAKE1690 === '1';
 const EXT = (x, y) => [x - DRAWN[0] + SLIDE_OUT[0], y - DRAWN[1] + SLIDE_OUT[1]];
 export const INTAKE = {
   slide: SLIDE_OUT, width: 23.5 * IN, rackDeg: 15.2,
-  rollers: (INTAKE1690 ? [[0.5657, 0.167], [0.5097, 0.2599]] : [[0.577, 0.166], [0.529, 0.267]]).map(([x, y]) => [...OUT(x, y), (2.125 / 2) * IN]), ratio: 30 / 12,
-  frame: { front: EXT(0.635, 0)[0], sides: 0.352, top: EXT(0, 0.462)[1], panel: EXT(0, 0.344)[1], lip: [EXT(0.583, 0.308), EXT(0.564, 0.308)], bash: [EXT(0, 0.191)[1], EXT(0, 0.241)[1]] },
+  rollers: (INTAKE1690 ? [[0.5657, 0.167], [0.5097, 0.2599]] : [[0.5638, 0.1693], [0.5157, 0.2707]]).map(([x, y]) => [...OUT(x, y), (2.125 / 2) * IN]), ratio: 30 / 12,
+  frame: { front: EXT(0.6202, 0)[0], sides: 0.352, top: EXT(0, 0.467)[1], panel: EXT(0, 0.348)[1], lip: [EXT(0.5705, 0.312), EXT(0.5515, 0.312)], bash: [EXT(0, 0.1944)[1], EXT(0, 0.2456)[1]] },
   // (the kicker bar's arms: their pin, the first tube's distance from it, both tubes in the arms'
   // frame (+x toward the first), their angle folded (a0, deg) and how far they fall from it to their
   // stop)
   kick: {
-    ...(INTAKE1690 ? { pivot: OUT(0.2787, 0.1703), len: 0.186, tubes: [[0.186, 0]], a0: 55, fall: -90.2 } : { pivot: OUT(0.467, 0.194), len: 0.161, tubes: [[0.161, 0], [0.140, -0.034]], a0: 0, fall: -90 }),
+    ...(INTAKE1690 ? { pivot: OUT(0.2787, 0.1703), len: 0.186, tubes: [[0.186, 0]], a0: 55, fall: -90.2 } : { pivot: OUT(0.4530, 0.1996), len: 0.1617, tubes: [[0.1617, 0], [0.1411, -0.0345]], a0: 0, fall: -90 }),
     r: 0.375 * IN, width: 27.81 * IN, mass: 0.25, J: 0.008, tubing: { preload: 1.0, rate: 1.0 },
   },
 };
@@ -179,9 +186,9 @@ export const INTAKE = {
 export const SLIDE = { pinion: 0.75 * IN, ratio: 40 / 8, mass: 4.5, travel: Math.hypot(...INTAKE.slide), dir: [INTAKE.slide[0] / Math.hypot(...INTAKE.slide), INTAKE.slide[1] / Math.hypot(...INTAKE.slide), 0] };
 // the preload (8): three in the belts' channel, three on the floor, two on top of them
 export const PRELOAD = [
-  ...[-0.22, -0.07, 0.02].map((z) => [-0.135, 0.23, z]),
-  ...[-0.24, -0.09, 0.06].map((z) => [0.13, 0.25, z]),
-  ...[-0.17, -0.02].map((z) => [0.12, 0.40, z]),
+  ...[-0.22, -0.07, 0.02].map((z) => [-0.135, 0.24, z]),
+  ...[-0.24, -0.09, 0.06].map((z) => [0.13, 0.26, z]),
+  ...[-0.17, -0.02].map((z) => [0.12, 0.41, z]),
 ];
 // the hopper guide: in plan, from the third long roller's right end to the short rollers' end
 export const GUIDE = { from: [FLOOR.at[2][0], WALL.right], to: [FLOOR.at[6][0] - 0.004, FLOOR.z1[6]] };
@@ -314,7 +321,7 @@ function body() {
     guard(),
     // (over the top conveyor's beam, the hopper's back slopes down to the floor, so no FUEL rest on
     // the beam: est.)
-    grid(3, N(W.left - GUIDE.to[1]), (u, v) => [lerp(BACK.x, BELT.x[1] + 0.004, u), lerp(0.43, BELT.top.y + 2 * BELT.r + 0.008, u), lerp(W.left, GUIDE.to[1], v)]),
+    grid(3, N(W.left - GUIDE.to[1]), (u, v) => [lerp(BACK.x, BELT.x[1] + 0.004, u), lerp(0.439, BELT.top.y + 2 * BELT.r + 0.008, u), lerp(W.left, GUIDE.to[1], v)]),
     quarterPipe(),
   );
 }
