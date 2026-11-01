@@ -104,7 +104,7 @@ function shotWatch(shooter) {
         else if (touched.has(b)) {
           touched.delete(b);
           const v = b.linvel(), p = b.translation();
-          if (v.y > 1) { shots.push({ t, v: Math.hypot(v.x, v.y, v.z), s: backspin(v, b.angvel()), el: (Math.atan2(v.y, Math.hypot(v.x, v.z)) * 180) / Math.PI, x: p.x, y: p.y, b }); b.setTranslation({ x: 50 + shots.length, y: 5, z: 0 }, true); }
+          if (v.y > 1) { shots.push({ t, v: Math.hypot(v.x, v.y, v.z), s: backspin(v, b.angvel()), el: (Math.atan2(v.y, Math.hypot(v.x, v.z)) * 180) / Math.PI, x: p.x, y: p.y, hdg: (Math.atan2(-v.z, v.x) * 180) / Math.PI, b }); b.setTranslation({ x: 50 + shots.length, y: 5, z: 0 }, true); }
         }
       }
     },
@@ -207,7 +207,7 @@ const tests = {
         // as they do in play, posed each step as play poses them)
         if (process.env.TURN || process.env.HOODOSC) {
           const yy = yaw0 + Number(process.env.TURN ?? 0) * i * DT, ho = Number(process.env.HOODOSC ?? 0), ph = (ho * i * DT) % 12;
-          const hh = Math.max(0, hood + (ph < 6 ? ph - 3 : 9 - ph));
+          const hh = ho ? Math.max(0, hood + (ph < 6 ? ph - 3 : 9 - ph)) : hood;
           placeTurretSurfaces(S_, yy, hh); placeShooter(SW_, yy, hh);
         }
         stepBoth(path, shooter, live); w.step();
@@ -219,7 +219,7 @@ const tests = {
       const H = kind === 'hub' ? HUB.rimFront : R;
       const L = watch.shots.map((o) => { const h = sim2D(o.y, o.v, (o.el * Math.PI) / 180, H, 0, o.s ?? 0); return h ? h.d + o.x - TURRET[0] : NaN; }).filter(Number.isFinite);
       if (process.env.HOODLOG) console.log(`      the hood's CAD touched ${hoodHits.size} of ${balls.length}`);
-      if (process.env.TUNELOG) console.log(`      ${rpm.toFixed(0)}: ${watch.shots.map((o, k) => `${o.t.toFixed(2)}s ${o.v.toFixed(2)}@${o.el.toFixed(0)} ${(o.v / o.est).toFixed(3)} ${(L[k] ?? NaN).toFixed(2)}`).join(' | ')}`);
+      if (process.env.TUNELOG) console.log(`      ${rpm.toFixed(0)}: ${watch.shots.map((o, k) => `${o.t.toFixed(2)}s ${o.v.toFixed(2)}@${o.el.toFixed(0)} ${(o.v / o.est).toFixed(3)} h${(((o.hdg - (Number(process.env.YAW ?? 0) + (process.env.TURN ? (Number(process.env.TURN) * o.t * 180) / Math.PI : 0)) + 540) % 360) - 180).toFixed(1)} ${(L[k] ?? NaN).toFixed(2)}`).join(' | ')}`);
       return { land: L.length ? L.reduce((a, b) => a + b, 0) / L.length : NaN, n: L.length, spread: L.length ? Math.max(...L) - Math.min(...L) : NaN };
     };
     // (STREAM=rpm,hood: only that, each shot printed)
