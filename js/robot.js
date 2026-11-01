@@ -300,6 +300,16 @@ export class Robot {
           .setDensity(0).setFriction(0.05).setRestitution(0.1).setCollisionGroups(solid),
         this.body,
       );
+      // as the frame: a TRENCH arm stops the lid only if it reaches the arm (its top, tipped with
+      // the robot, where it is now or rising to by the end of the step). Down, 1678's lid is 1.6 cm
+      // under the arm, and its edge was caught on the arm's edge from 3 m/s.
+      const lid = this.lidCollider, body = this.body, dt = world.timestep, hl = (x1 - bay.x0) / 2, hw = bay.hw;
+      this.physics.passesUnder(lid, () => {
+        const t = lid.translation(), q = body.rotation(), v = body.linvel(), w = body.angvel();
+        // (the plate's corners rise by its half sizes times the sines of the robot's pitch and roll)
+        const tip = Math.abs(2 * (q.w * q.z + q.x * q.y)) * hl + Math.abs(2 * (q.w * q.x - q.y * q.z)) * hw;
+        return t.y + 0.006 + tip + Math.max(0, v.y + Math.abs(w.z) * hl + Math.abs(w.x) * hw) * dt;
+      });
     }
     const ic = this.cfg.intake;
     // Intakes are solid to the field and other robots as they come out, so one deployed against a
@@ -435,6 +445,7 @@ export class Robot {
   destroy() {
     this.hopper.clear();
     this.physics.forget(this.frameCollider);
+    if (this.lidCollider) this.physics.forget(this.lidCollider);
     this.physics.world.removeRigidBody(this.body);
     this.scene.remove(this.visual);
   }

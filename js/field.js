@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import {
   IN, FIELD_L, FIELD_W, HALF_L, HALF_W, BLUE, RED, HUB, BUMP, TRENCH, TOWER, DEPOT, OUTPOST,
   GUARDRAIL_H, DS_BASE_H, DS_GLASS_H, ALLIANCE_WALL_H, ALLIANCE_ZONE_DEPTH, FUEL, GROUP, groups,
+  trenchArmParts, DS_SPLIT_FY,
 } from './constants.js';
 import { mulQuat, yawQuat } from './physics.js';
 
@@ -231,7 +232,10 @@ export class Field {
     rect(0, 0, ALLIANCE_ZONE_DEPTH, FIELD_W, 'rgba(47,111,240,0.06)');
     rect(FIELD_L - ALLIANCE_ZONE_DEPTH, 0, FIELD_L, FIELD_W, 'rgba(224,52,52,0.04)');
     const tape = 2 * IN;
-    // ROBOT STARTING LINES (edge of each ALLIANCE ZONE)
+    // black 3in gaffer tape over the carpet's seam, down the middle of the field's length (field CAD)
+    rect(0, FIELD_W / 2 - 1.5 * IN, FIELD_L, FIELD_W / 2 + 1.5 * IN, '#1e1f23');
+    // ROBOT STARTING LINES (edge of each ALLIANCE ZONE: 2in tape, its far edge 158.61in from the
+    // ALLIANCE WALL, against the TRENCH and HUB; field CAD and FE-2026 sheet 3)
     rect(ALLIANCE_ZONE_DEPTH - tape, 0, ALLIANCE_ZONE_DEPTH, FIELD_W, '#2f6ff0');
     rect(FIELD_L - ALLIANCE_ZONE_DEPTH, 0, FIELD_L - ALLIANCE_ZONE_DEPTH + tape, FIELD_W, '#e03434');
     // CENTER LINE
@@ -557,15 +561,17 @@ export class Field {
     }
 
     // ================================================================ TRENCHES
-    // (the shapes of the official field CAD: see TRENCH in constants.js)
+    // (the official field CAD: see TRENCH and trenchArmParts in constants.js; the FIXED one is on world
+    // +z for both ALLIANCES, the HINGED one on -z)
     for (const sz of [1, -1]) {
-      const zGuard = sz * HALF_W;
-      const zOpenEnd = sz * (HALF_W - TRENCH.clearWidth);
-      const zPostEnd = sz * (HALF_W - TRENCH.width);
+      const fixed = s * sz === TRENCH.fixedZ;
+      const zg = (g) => sz * (HALF_W - g); // g in from the guardrail's face
+      const zOpenEnd = zg(TRENCH.clearWidth);
+      const zPostEnd = zg(TRENCH.width);
       const postW = Math.abs(zOpenEnd - zPostEnd);
       const postZ = (zOpenEnd + zPostEnd) / 2;
-      const td = TRENCH.depth / 2, at = TRENCH.armThick / 2;
-      // BUMP-side skirt: 30-degree ramps up from both ends to a short flat top beside the arm
+      const td = TRENCH.depth / 2;
+      // BUMP-side skirt: 30-degree ramps up from both ends to a short flat top beside the riser
       const dTop = td - (TRENCH.skirtTopH - TRENCH.skirtEndH) / Math.tan((TRENCH.skirtSlopeDeg * Math.PI) / 180);
       const prof = [[-td, 0], [td, 0], [td, TRENCH.skirtEndH], [dTop, TRENCH.skirtTopH], [-dTop, TRENCH.skirtTopH], [-td, TRENCH.skirtEndH]];
       const shape = new THREE.Shape();
@@ -577,24 +583,27 @@ export class Field {
       const pts = [];
       for (const z of [zOpenEnd, zPostEnd]) for (const [x, y] of prof) pts.push(hx + x, y, z);
       hullC(pts, { restitution: 0.4 });
-      // the arm: on the skirt from the carpet up, then across the opening 22.25in-26.25in up
-      const armH = TRENCH.armTop - TRENCH.clearHeight;
-      const armZ = (zGuard + zOpenEnd) / 2;
-      box(TRENCH.armThick, TRENCH.armTop, postW, col, hx, TRENCH.armTop / 2, postZ, grp);
-      boxC(hx, TRENCH.armTop / 2, postZ, at, TRENCH.armTop / 2, postW / 2, { restitution: 0.4 });
-      box(TRENCH.armThick, armH, TRENCH.clearWidth, col, hx, TRENCH.clearHeight + armH / 2, armZ, grp);
-      box(TRENCH.armThick + 0.02, 0.03, TRENCH.clearWidth, mats.alu, hx, TRENCH.clearHeight + 0.015, armZ, grp);
-      boxC(hx, TRENCH.clearHeight + armH / 2, armZ, at, armH / 2, TRENCH.clearWidth / 2, { restitution: 0.4, groups: P.trenchArmGroups });
+      // the riser in the skirt's middle: the FIXED one up to its arm (which runs on over it), the
+      // HINGED one (aluminum) up to the top plate over its arm's pivot
+      const riserTop = fixed ? TRENCH.armTop : TRENCH.hingedRiserTop;
+      box(TRENCH.riserW, riserTop, postW, fixed ? col : mats.alu, hx, riserTop / 2, postZ, grp);
+      boxC(hx, riserTop / 2, postZ, TRENCH.riserW / 2, riserTop / 2, postW / 2, { restitution: 0.4 });
+      // the arm, 22.25in-26.25in up: the FIXED one a 6in tube, the HINGED one a 4in tube, a cross tube
+      // and a fork back to its pivot
+      const armH = TRENCH.armTop - TRENCH.clearHeight, armY = TRENCH.clearHeight + armH / 2;
+      for (const p of trenchArmParts(fixed)) {
+        const cx = hx + (p.u0 + p.u1) / 2, cz = zg((p.g0 + p.g1) / 2), w = p.u1 - p.u0, d = p.g1 - p.g0;
+        box(w, armH, d, col, cx, armY, cz, grp);
+        boxC(cx, armY, cz, w / 2, armH / 2, d / 2, { restitution: 0.4, groups: P.trenchArmGroups });
+      }
       // the AprilTag mount standing on the arm over the middle of the opening
-      const tagH = TRENCH.height - TRENCH.armTop;
-      box(TRENCH.tagThick, tagH, TRENCH.tagWidth, mats.alu, hx, TRENCH.armTop + tagH / 2, armZ, grp);
-      boxC(hx, TRENCH.armTop + tagH / 2, armZ, TRENCH.tagThick / 2, tagH / 2, TRENCH.tagWidth / 2, { restitution: 0.4, groups: P.trenchArmGroups });
-      // floor rails (feet) of the trench, too low to matter for driving
-      for (const fx of [-td + 0.02, td - 0.02]) box(0.04, 0.012, TRENCH.clearWidth, mats.alu, hx + fx, 0.006, armZ, grp, false);
+      const tagZ = zg(TRENCH.tagIn), tagH = TRENCH.height - TRENCH.armTop;
+      box(TRENCH.tagThick, tagH, TRENCH.tagWidth, mats.alu, hx, TRENCH.armTop + tagH / 2, tagZ, grp);
+      boxC(hx, TRENCH.armTop + tagH / 2, tagZ, TRENCH.tagThick / 2, tagH / 2, TRENCH.tagWidth / 2, { restitution: 0.4, groups: P.trenchArmGroups });
       // AprilTags on the mount
       for (const sx of [-1, 1]) {
         const tag = new THREE.Mesh(new THREE.PlaneGeometry(0.2, 0.2), mats.tag);
-        tag.position.set(hx + sx * (TRENCH.tagThick / 2 + 0.003), 0.889, armZ);
+        tag.position.set(hx + sx * (TRENCH.tagThick / 2 + 0.003), TRENCH.tagY, tagZ);
         tag.rotation.y = sx * Math.PI / 2;
         grp.add(tag);
       }
@@ -604,13 +613,14 @@ export class Field {
     const wallT = 0.12;
     const wx = wallX - wallT / 2;
     const outZc = zOf(OUTPOST.fy);
-    const outEdge = zOf(OUTPOST.fy + OUTPOST.structW / 2 + 0.03); // DS side edge of outpost
+    const outEdge = zOf(OUTPOST.fy + OUTPOST.structW / 2); // DS side edge of the OUTPOST (where DS 3 starts)
     const towerZc = zOf(TOWER.fy);
     const towerZ0 = towerZc - TOWER.width / 2, towerZ1 = towerZc + TOWER.width / 2;
-    // DS / tower-wall segments (z ranges), from -HALF_W to outEdge
+    // DS / tower-wall segments (z ranges), from -HALF_W to outEdge (field CAD: DS 1, DS 2, the TOWER
+    // WALL, DS 3)
     const segs = [
-      { z0: -HALF_W, z1: zOf(6.33), kind: 'ds' },
-      { z0: zOf(6.33), z1: towerZ0, kind: 'ds' },
+      { z0: -HALF_W, z1: zOf(DS_SPLIT_FY), kind: 'ds' },
+      { z0: zOf(DS_SPLIT_FY), z1: towerZ0, kind: 'ds' },
       { z0: towerZ0, z1: towerZ1, kind: 'tower' },
       { z0: towerZ1, z1: outEdge, kind: 'ds' },
     ];
@@ -637,9 +647,10 @@ export class Field {
         banner.position.set(wallX + 0.002, 1.45, zc);
         banner.rotation.y = Math.PI / 2;
         grp.add(banner);
-        for (const dz of [-0.2159, 0.2159]) {
+        // AprilTags 31 on the TOWER's middle and 32 17in toward fy+ (FE-2026 sheet 11), 21.75in up
+        for (const dz of [0, -TOWER.tagStep]) {
           const tag = new THREE.Mesh(new THREE.PlaneGeometry(0.2, 0.2), mats.tag);
-          tag.position.set(wallX + 0.003, 0.5525, zc + dz);
+          tag.position.set(wallX + 0.003, 0.5525, towerZc + dz);
           tag.rotation.y = Math.PI / 2;
           grp.add(tag);
         }
@@ -658,13 +669,36 @@ export class Field {
         const uz = towerZc + sz * half;
         box(TOWER.uprightDeep, TOWER.uprightHeight, TOWER.uprightThick, tmat, ux, TOWER.uprightHeight / 2, uz, grp);
         boxC(ux, TOWER.uprightHeight / 2, uz, TOWER.uprightDeep / 2, TOWER.uprightHeight / 2, TOWER.uprightThick / 2, { restitution: 0.3 });
-        // support tube from the upright back to the TOWER WALL, and its gusset at the wall
+        // support tube from the upright back to the TOWER WALL; at the wall a gusset each side of it,
+        // its lower edge sloping up to the tube; on the upright a gusset over the tube
         const sLen = ux - TOWER.uprightDeep / 2 - wallX, st = TOWER.supportTube;
+        const sTop = TOWER.supportY + st / 2, sBot = TOWER.supportY - st / 2;
         box(sLen, st, st, mats.steel, wallX + sLen / 2, TOWER.supportY, uz, grp);
         boxC(wallX + sLen / 2, TOWER.supportY, uz, sLen / 2, st / 2, st / 2, {});
-        const gH = TOWER.supportY - st / 2 - TOWER.gussetLow, gD = TOWER.gussetDeep;
-        box(gD, gH, 0.006, mats.steel, wallX + gD / 2, TOWER.gussetLow + gH / 2, uz, grp);
-        boxC(wallX + gD / 2, TOWER.gussetLow + gH / 2, uz, gD / 2, gH / 2, 0.003, {});
+        const gD = TOWER.gussetDeep, ug = TOWER.uprightGusset, uf = ux - TOWER.uprightDeep / 2;
+        for (const [prof, zw] of [
+          [[[wallX, TOWER.gussetLow], [wallX, sTop], [wallX + gD, sTop], [wallX + gD, sBot]], st + 0.006],
+          [[[uf, sTop], [uf, sTop + ug], [uf - ug, sTop]], 0.006],
+        ]) {
+          const shp = new THREE.Shape();
+          prof.forEach(([x, y], i) => (i ? shp.lineTo(x, y) : shp.moveTo(x, y)));
+          const gm = new THREE.Mesh(new THREE.ExtrudeGeometry(shp, { depth: zw, bevelEnabled: false }), mats.steel);
+          gm.position.z = uz - zw / 2;
+          grp.add(gm);
+          const gp = [];
+          for (const dz of [-zw / 2, zw / 2]) for (const [x, y] of prof) gp.push(x, y, uz + dz);
+          hullC(gp, {});
+        }
+      }
+      // the two braces from the wall beside the TOWER's middle out to the support tubes
+      for (const sz of [-1, 1]) {
+        const ax = wallX, az = towerZc + sz * TOWER.braceIn, bx = wallX + TOWER.braceOut, bz = towerZc + sz * TOWER.braceSide;
+        const len = Math.hypot(bx - ax, bz - az), yaw = Math.atan2(-(bz - az), bx - ax);
+        const bt = TOWER.braceTube, cx = (ax + bx) / 2, cz = (az + bz) / 2;
+        const bm = box(len, bt, bt, mats.steel, cx, TOWER.braceY, cz, grp);
+        bm.rotation.y = yaw;
+        const pc = T(cx, cz);
+        P.orientedBox(pc.x, TOWER.braceY, pc.z, len / 2, bt / 2, bt / 2, rotQ(yawQuat(yaw)), {});
       }
       const rungHalf = half + TOWER.uprightThick / 2 + TOWER.rungExt;
       for (const ry of TOWER.rungs) {
@@ -726,32 +760,46 @@ export class Field {
       // robot-only barrier across the base opening (FUEL passes, ROBOTS cannot enter)
       const bp = T(wallX + 0.01, zc);
       P.box(bp.x, 0.3, bp.z, 0.01, 0.3, baseHalf, { groups: groups(GROUP.ROBOT_BARRIER, GROUP.ROBOT | GROUP.WHEEL | GROUP.INTAKE) });
-      // AprilTags
-      for (const dz of [-0.2159, 0.2159]) {
+      // AprilTags 29 on the OUTPOST's middle and 30 17in toward fy+ (FE-2026 sheet 11), 21.75in up
+      for (const dz of [0, -OUTPOST.tagStep]) {
         const tag = new THREE.Mesh(new THREE.PlaneGeometry(0.2, 0.2), mats.tag);
         tag.position.set(wallX + 0.003, 0.5525, zc + dz);
         tag.rotation.y = Math.PI / 2;
         grp.add(tag);
       }
-      // CORRAL behind the base opening
-      const cx0 = wx - wallT / 2, cx1 = cx0 - OUTPOST.corralD;
+      // CORRAL behind the base opening: its border from the back of the wall to 37.58in behind the
+      // wall's face, and the ramp in it down from the base opening's lip
+      const cx0 = wx - wallT / 2, cx1 = wallX - OUTPOST.corralD;
       const cz0 = zc - OUTPOST.corralW / 2, cz1 = zc + OUTPOST.corralW / 2;
       const cwh = OUTPOST.corralWallH;
+      // (2 cm thick, their inner faces where the CAD's are)
       for (const [x, z, w, d] of [
         [cx1 - 0.01, zc, 0.02, OUTPOST.corralW],
-        [(cx0 + cx1) / 2, cz0 - 0.01, OUTPOST.corralD, 0.02],
-        [(cx0 + cx1) / 2, cz1 + 0.01, OUTPOST.corralD, 0.02],
+        [(cx0 + cx1) / 2, cz0 - 0.01, cx0 - cx1, 0.02],
+        [(cx0 + cx1) / 2, cz1 + 0.01, cx0 - cx1, 0.02],
       ]) {
         const pm = new THREE.Mesh(new THREE.BoxGeometry(w, cwh, d), mats.poly);
         pm.position.set(x, cwh / 2, z);
         grp.add(pm);
         boxC(x, cwh / 2, z, w / 2, cwh / 2, d / 2, { restitution: 0.3 });
       }
-      // CHUTE: sloped tunnel rising away from the field behind the upper opening
+      {
+        const r0 = wallX - OUTPOST.rampFrom, r1 = r0 - OUTPOST.rampLen, rw = OUTPOST.baseW / 2;
+        const prof = [[r0, 0], [r0, OUTPOST.baseY], [r1, 0.12 * IN], [r1, 0]];
+        const shp = new THREE.Shape();
+        prof.forEach(([x, y], i) => (i ? shp.lineTo(x, y) : shp.moveTo(x, y)));
+        const rm = new THREE.Mesh(new THREE.ExtrudeGeometry(shp, { depth: 2 * rw, bevelEnabled: false }), mats.poly);
+        rm.position.z = zc - rw;
+        grp.add(rm);
+        const rp = [];
+        for (const dz of [-rw, rw]) for (const [x, y] of prof) rp.push(x, y, zc + dz);
+        hullC(rp, { friction: 0.5, restitution: 0.3 });
+      }
+      // CHUTE: sloped tunnel rising away from the field from the upper opening
       const slope = (OUTPOST.chuteSlopeDeg * Math.PI) / 180;
-      const chuteLen = 1.0;
+      const chuteLen = OUTPOST.chuteLen;
       const chute = new THREE.Group();
-      chute.position.set(wx - wallT / 2, OUTPOST.upperY, zc);
+      chute.position.set(wallX, OUTPOST.upperY, zc);
       chute.rotation.z = -slope;
       grp.add(chute);
       const floorMesh = new THREE.Mesh(new THREE.BoxGeometry(chuteLen, 0.01, OUTPOST.upperW), mats.poly);
