@@ -55,7 +55,12 @@
 //   - Gyro: bias 0.1 deg/min, random walk 0.05 deg/sqrt(min), scale 0.1% (after the Pigeon 2's
 //     boot calibration; teams report it "really low drift", Chief Delphi "Gyro drift", 2025; these
 //     are estimates).
-// Sources for each team's setup are at its profile below.
+// Sources for each team's setup are at its profile below. Links: Abbas et al. 2019,
+// https://pmc.ncbi.nlm.nih.gov/articles/PMC6960891/ ; PhotonVision multi-tag and calibration docs,
+// https://docs.photonvision.org/en/latest/docs/apriltag-pipelines/multitag.html ; Limelight's
+// MegaTag2 docs (docs.limelightvision.io, "MegaTag2": its setVisionMeasurementStdDevs(.7, .7, 9999999)
+// example); the gyro thread, https://www.chiefdelphi.com/t/gyro-drift/503380 ; std-dev tuning
+// discussions, https://www.chiefdelphi.com/t/vision-filtering/520684 .
 import { APRILTAGS, TAG_SIZE, HALF_L, HALF_W, HUB } from './constants.js';
 import { Field } from './field.js';
 
