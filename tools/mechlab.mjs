@@ -126,7 +126,8 @@ const tests = {
   // touch it, as the turret indexer's column delivers them); each one's exit speed, elevation and
   // spin, against their aim solver's exit speed for the motor speed at the catch
   shooter() {
-    for (const [e, target, bps] of [[68, 60, 4], [60, 75, 6], [52, 90, 8]]) {
+    // (SHOTS=elevation:rps:bps,... for others)
+    for (const [e, target, bps] of process.env.SHOTS ? process.env.SHOTS.split(',').map((q) => q.split(':').map(Number)) : [[68, 60, 4], [60, 75, 6], [52, 90, 8]]) {
       const w = world();
       const t = build8793();
       const wheels = shooterWheels(t, e, process.env.MU ? { mu: JSON.parse(process.env.MU) } : {});

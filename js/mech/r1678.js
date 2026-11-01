@@ -128,22 +128,21 @@ export const REGRESSIONS = {
     [1600, 1650, 1700, 1750, 1850, 1900, 2000, 2200, 2350]),
   far: table([0, 12.46, 13.133], [3100, 3150, 3500], [45, 45, 45], [1400, 1400, 1300]),
 };
-// Their ferry and far tables re-found by shooting (tools/mechlab1678.mjs tune): their distances,
-// hood angles and tunnel speeds, and the drum RPM at which the sim's FUEL, fed up the tunnel as
-// they are in play, come down on the carpet at the row's distance from the robot's center. Their
-// own RPMs put every pass 0.7-5 m short here, for two reasons. Up to ~2500 RPM the FUEL leave at
-// 0.71 of the drum's surface speed (the drum's and the hood rollers', geared 1:1 on a 3.5in drum
-// and 1.63in rollers, averaged) and fly drag-only, with no Magnus lift for the backspin the slower
-// hood rollers put on, so they need 10-30% more. Past that the FUEL slip on the drum: carried
-// round its 0.12 m radius (drum and FUEL) at 8.5 m/s they need ~130 N toward it, about all the
-// 2 cm squeeze between drum and hood rollers presses them with (the foam's measured, static curve,
-// constants.js), so the hood side takes the load, the drum's grip goes, and they leave at no more
-// than ~9 m/s however fast the drum turns: no more than ~8 m on the carpet, at any hood angle.
-// Rows past that are flat out (4200 RPM: the drum gets to 4350 under its loop) and land short.
-// THEIR_PASS=1 in the environment: their own RPMs. (The HUB's land as they are: the hood's turn,
-// SHOOTER.hoodTurn, was fitted to them.)
+// Their regressions re-found by shooting (tools/mechlab1678.mjs tune): their distances, hood angles
+// and tunnel speeds, and the drum RPM at which the sim's FUEL, fed up the tunnel as they are in
+// play, come down through the rim's height over the HUB's center (the HUB's rows: 0-5% under
+// theirs, which land 0-0.4 m long) or on the carpet at the row's distance from the robot's center
+// (the ferries). Their own ferry RPMs put every pass 0.5-3 m short here: the FUEL leave at ~0.71
+// of the drum's surface speed (the drum's and the hood rollers', 45% of it, averaged), and a ferry
+// takes 8-30% more. Past ~3000 RPM the FUEL are pulled off the drum toward the hood rollers as they
+// go round it (carried round its 0.12 m radius at 11 m/s a FUEL needs ~220 N toward its axle,
+// about all the 2 cm squeeze between drum and hood rollers presses it with) and they leave at no
+// more than ~11.5 m/s however fast it turns: the far ferry's rows are out of reach, flat out (4200
+// RPM: the drum gets to 4350 under its loop) and ~1-1.6 m short (11.5 m).
+// THEIR_PASS=1 in the environment: their own RPMs.
 export const SIM_PASS = {
-  ferry: [1990, 1990, 2240, 2465, 4200, 4200, 4200, 4200, 4200],
+  hub: [1815, 1815, 1865, 1910, 1990, 2055, 2105, 2170, 2210, 2230, 2330],
+  ferry: [1935, 1935, 2175, 2385, 2600, 2720, 2825, 2940, 3055],
   far: [4200, 4200, 4200],
 };
 const THEIR_PASS = typeof process !== 'undefined' && !!process.env?.THEIR_PASS;

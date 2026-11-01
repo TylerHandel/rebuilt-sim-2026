@@ -180,17 +180,14 @@ export const PASS_LUT = [[3.539, 1900, 55], [4.714, 2400, 55], [6.37, 2800, 55],
 // Their table re-found by shooting, as they found theirs ("Shooter Tuning", their CAD thread):
 // their distances and hood angles, and the motor RPM at which the sim's FUEL come down through the
 // HUB's rim height over its center (passes: on the carpet at the row's distance), from
-// tools/mechlab1114.mjs tune. Their own RPMs put every shot 0.4-1.5 m short here: the sim's FUEL
-// leave at 0.86 of the flywheel's surface speed (between it and the hood rollers' 0.74, as the
-// CAD's gearing has them) where their table needs about 0.96 in the sim's drag-only flight (it
-// has no Magnus lift for the backspin the slower hood rollers put on). So it asks 11-23% more up
-// to 4.5 m; past that, 65 deg needs more than the flywheel's grip gives easily (the FUEL slip above
-// ~3500 RPM and leave at no more than ~10 m/s): 4600-5850. Passes past 7.7 m are out of reach at
-// their 50-55 deg: flat out (5800).
-export const SIM_HUB = [[1.583, 2388, 74.4], [1.713, 2517, 74.4], [1.915, 2741, 74.4], [2.115, 2674, 72.5], [2.29, 2812, 72.5], [2.353, 2623, 70.5], [2.53, 2727, 70.5],
-  [2.73, 2848, 69.5], [2.93, 2930, 69], [3.02, 2982, 69], [3.22, 3063, 68.5], [3.35, 3003, 67.5], [3.5, 3183, 67.5], [3.67, 3356, 67.5], [3.8, 3125, 65.5], [3.9, 3172, 65.5],
-  [4.02, 3237, 65.5], [4.07, 3264, 65.5], [4.11, 3285, 65.5], [4.25, 3361, 65.5], [4.46, 3495, 65.5], [4.8, 4604, 65], [4.95, 4919, 65], [5.15, 5242, 65], [5.35, 5850, 65]];
-export const SIM_PASS = [[3.539, 2193, 55], [4.714, 2606, 55], [6.37, 3155, 55], [7.7, 5238, 55], [9.25, 5850, 55], [12.28, 5850, 50], [14.02, 5850, 50]];
+// tools/mechlab1114.mjs tune. Their own RPMs put every shot short here: it asks 6-16% more at the
+// HUB and 8-15% more passing. Past ~3600 RPM the FUEL are pulled off the flywheel toward the hood
+// as they go round it (the foam's squeeze can't hold them to it) and leave at no more than ~11.5
+// m/s: passes past ~10.9 m are out of reach at their 50 deg, flat out (5850) and short.
+export const SIM_HUB = [[1.583, 2347, 74.4], [1.713, 2487, 74.4], [1.915, 2585, 74.4], [2.115, 2591, 72.5], [2.29, 2687, 72.5], [2.353, 2597, 70.5], [2.53, 2688, 70.5],
+  [2.73, 2756, 69.5], [2.93, 2749, 69], [3.02, 2854, 69], [3.22, 2872, 68.5], [3.35, 2885, 67.5], [3.5, 2974, 67.5], [3.67, 3026, 67.5], [3.8, 2963, 65.5], [3.9, 2987, 65.5],
+  [4.02, 3076, 65.5], [4.07, 3089, 65.5], [4.11, 3113, 65.5], [4.25, 3189, 65.5], [4.46, 3307, 65.5], [4.8, 3390, 65], [4.95, 3447, 65], [5.15, 3533, 65], [5.35, 3640, 65]];
+export const SIM_PASS = [[3.539, 2187, 55], [4.714, 2585, 55], [6.37, 3088, 55], [7.7, 3524, 55], [9.25, 4044, 55], [12.28, 5850, 50], [14.02, 5850, 50]];
 // what their aimShooter asks for at distance d (their table, or with THEIR_RPM=1 in the
 // environment their own RPMs)
 const THEIR_RPM = typeof process !== 'undefined' && !!process.env?.THEIR_RPM;

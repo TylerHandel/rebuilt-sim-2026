@@ -16,7 +16,7 @@
 import { RAPIER } from '../js/physics.js';
 import { FUEL, GROUP, groups, HUB } from '../js/constants.js';
 import { Mechanism } from '../js/mech/mechanism.js';
-import { sim2D } from '../js/ballistics.js';
+import { sim2D, backspin } from '../js/ballistics.js';
 import {
   build604, wheels604, shooterWheels, pathSurfaces604, placeIntake, placeHopper, placeRotor, placeRotorSurface, placeShooter, placeTurretSurfaces,
   hoodElevation, launchFor, radFor, velocityAt, rollerRad, VELOCITY_MULTIPLIER, LAUNCH, INTAKE, ROTOR, SHOOTER, SERIALIZER, AXIS,
@@ -51,6 +51,7 @@ function rig({ arm = INTAKE.deploy, yaw = 0, hood = SHOOTER.hoodMin } = {}) {
   const pathW = [...wh.intake, ...wh.rotor];
   const path = new Mechanism({ substeps: 6, shafts: [...new Set(pathW.map((x) => x.shaft)), t.pivot, t.rotor], wheels: pathW, surfaces: Object.values(s) });
   const shooter = new Mechanism({ substeps: 6, sub: Number(process.env.SUB ?? 8), shafts: [t.main, t.hoodRoller], wheels: sw });
+  const SHARED = new Set([s.turret, s.hood]); shooter.surfaces.push(...SHARED);
   for (const tr of [t.intake, t.roller, t.launcher]) tr.cmd = null;
   t.rotor.cmd = null;
   const r = { t, wh, s, sw, path, shooter, arm, yaw, hood, phi: 0, buf: [] };
@@ -76,8 +77,10 @@ function rig({ arm = INTAKE.deploy, yaw = 0, hood = SHOOTER.hoodMin } = {}) {
   r.step = (balls, together = balls) => {
     r.pose();
     r.holdArm();
-    path.step(DT, balls, together);
-    shooter.step(DT, balls.filter((b) => b.translation().y > 0.5));
+    // (the turret's and hood's surfaces: the shooter's, for its FUEL, at each of its sub-steps)
+    const sb = balls.filter((b) => b.translation().y > 0.5);
+    path.step(DT, balls, together, { surfaces: SHARED, balls: new Set(sb) });
+    shooter.step(DT, sb);
     r.phi = (r.phi + t.rotor.omega * DT) % TAU;
   };
   r.pose();
@@ -99,7 +102,7 @@ function launcher(t, rad) { t.launcher.cmd = rad > 0 ? velocityDuty(t.launcher.m
 // a FUEL leaving the turret: where it comes down through the HUB's rim height, out from the axis
 // along the shot
 function landing(o) {
-  const hit = sim2D(o.y, o.v, (o.el * Math.PI) / 180, HUB.rimFront);
+  const hit = sim2D(o.y, o.v, (o.el * Math.PI) / 180, HUB.rimFront, 0, o.s ?? 0);
   return hit ? hit.d + o.x : NaN;
 }
 // a FUEL that touched the launcher's rollers and has left them going up and out: shot (turret
@@ -114,7 +117,7 @@ function shotWatch(shooter) {
         else if (touched.has(b)) {
           touched.delete(b);
           const v = b.linvel(), p = b.translation();
-          if (v.y > 2 && v.x > 0.5) { shots.push({ t, v: Math.hypot(v.x, v.y, v.z), el: (Math.atan2(v.y, Math.hypot(v.x, v.z)) * 180) / Math.PI, side: (Math.atan2(v.z, v.x) * 180) / Math.PI, x: p.x - AXIS[0], y: p.y, b }); b.setTranslation({ x: 50 + shots.length, y: 5, z: 0 }, true); b.setGravityScale(0, true); b.setLinvel({ x: 0, y: 0, z: 0 }, true); }
+          if (v.y > 2 && v.x > 0.5) { shots.push({ t, v: Math.hypot(v.x, v.y, v.z), s: backspin(v, b.angvel()), el: (Math.atan2(v.y, Math.hypot(v.x, v.z)) * 180) / Math.PI, side: (Math.atan2(v.z, v.x) * 180) / Math.PI, x: p.x - AXIS[0], y: p.y, b }); b.setTranslation({ x: 50 + shots.length, y: 5, z: 0 }, true); b.setGravityScale(0, true); b.setLinvel({ x: 0, y: 0, z: 0 }, true); }
         }
       }
     },
@@ -253,7 +256,7 @@ const tests = {
           else if (this.touched.has(b)) {
             this.touched.delete(b);
             const v = b.linvel(), p = b.translation();
-            if (v.y > 2) { this.shots.push({ t, v: Math.hypot(v.x, v.y, v.z), el: (Math.atan2(v.y, Math.hypot(v.x, v.z)) * 180) / Math.PI }); b.setTranslation({ x: 50 + this.shots.length, y: 5, z: 0 }, true); b.setGravityScale(0, true); b.setLinvel({ x: 0, y: 0, z: 0 }, true); }
+            if (v.y > 2) { this.shots.push({ t, v: Math.hypot(v.x, v.y, v.z), s: backspin(v, b.angvel()), el: (Math.atan2(v.y, Math.hypot(v.x, v.z)) * 180) / Math.PI }); b.setTranslation({ x: 50 + this.shots.length, y: 5, z: 0 }, true); b.setGravityScale(0, true); b.setLinvel({ x: 0, y: 0, z: 0 }, true); }
           }
         }
       },

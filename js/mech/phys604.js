@@ -82,7 +82,7 @@ export class Physical604 extends PhysicalRobot {
     const pathWheels = [...w.intake, ...w.rotor];
     super(robot, {
       path: new Mechanism({ body: robot.body, substeps: 6, shafts: [...new Set(pathWheels.map((x) => x.shaft)), t.pivot, t.rotor], wheels: pathWheels, surfaces: Object.values(s) }),
-      shooter: new Mechanism({ body: robot.body, substeps: 6, sub: 8, shafts: [t.main, t.hoodRoller], wheels: sw }),
+      shooter: new Mechanism({ body: robot.body, substeps: 6, sub: 8, shafts: [t.main, t.hoodRoller], wheels: sw, surfaces: [s.turret, s.hood] }),
       preload: PRELOAD,
     });
     Object.assign(this, { t, w, s, sw });

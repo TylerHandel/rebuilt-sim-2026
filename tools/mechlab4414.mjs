@@ -35,7 +35,7 @@ import { writeFileSync } from 'fs';
 import { RAPIER } from '../js/physics.js';
 import { FUEL, GROUP, groups, HUB } from '../js/constants.js';
 import { Mechanism, Surface, foam } from '../js/mech/mechanism.js';
-import { sim2D } from '../js/ballistics.js';
+import { sim2D, backspin } from '../js/ballistics.js';
 import {
   build4414, wheels4414, shooterWheels, pathSurfaces4414, placeIntake, placeRotor, placeRotorSurfaces, placeBox, placeShooter, placeTurretSurfaces,
   hoodElevation, chan, rotorPoint, hookCurve, hookBack, stadiumY, netY, AXIS, CH, HOOK, YB, FLY, SHOOTER, FEED, BORE, BOX, HALF_L, HALF_W, BAY, INTAKE, BEND, RAMP, STADIUM, FLOOR, COLUMN,
@@ -217,7 +217,7 @@ function feed(r, rps = ROTOR_RPS, rollers = ROLLERS) {
 }
 const launcher = (t, rad) => { t.launcher.cmd = rad > 0 ? velocityDuty(t.launcher.motor, t.fly.omega, rad, 12 / (t.launcher.motor.m.free / TAU), 0.3) : null; };
 function landing(o) {
-  const hit = sim2D(o.y, o.v, (o.el * Math.PI) / 180, HUB.rimFront);
+  const hit = sim2D(o.y, o.v, (o.el * Math.PI) / 180, HUB.rimFront, 0, o.s ?? 0);
   return hit ? hit.d + o.x : NaN;
 }
 // a FUEL that touched the flywheel and left it going up and out: shot (turret at yaw: out along it)
@@ -233,7 +233,7 @@ function shotWatch(r) {
           touched.delete(b);
           const v = b.linvel(), p = b.translation(), out = v.x * c - v.z * s;
           if (v.y > 2 && out > 0.5) {
-            shots.push({ t, v: Math.hypot(v.x, v.y, v.z), el: (Math.atan2(v.y, Math.hypot(v.x, v.z)) * 180) / Math.PI, side: (Math.atan2(v.x * s + v.z * c, out) * 180) / Math.PI, x: (p.x - AXIS[0]) * c - (p.z - AXIS[1]) * s, y: p.y, b });
+            shots.push({ t, v: Math.hypot(v.x, v.y, v.z), s: backspin(v, b.angvel()), el: (Math.atan2(v.y, Math.hypot(v.x, v.z)) * 180) / Math.PI, side: (Math.atan2(v.x * s + v.z * c, out) * 180) / Math.PI, x: (p.x - AXIS[0]) * c - (p.z - AXIS[1]) * s, y: p.y, b });
             b.setTranslation({ x: 50 + shots.length, y: 5, z: 0 }, true); b.setGravityScale(0, true); b.setLinvel({ x: 0, y: 0, z: 0 }, true);
           }
         }

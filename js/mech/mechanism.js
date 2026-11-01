@@ -550,8 +550,13 @@ export class Mechanism {
   // balls: the FUEL rigid bodies that might touch it this step; together: those of them whose
   // touching each other it works out too (foam on foam, with friction, solved with the wheels';
   // the world mustn't also collide them with each other)
-  step(dt, balls, together = null) {
+  // skip: { surfaces, balls } (Sets), contacts this one leaves to another mechanism this step: a
+  // shooter's hood, a surface of the ball path that a sub-stepped shooter also carries, for the FUEL
+  // that shooter has (physical.js), so a FUEL going round the shooter's wheel meets the hood at each
+  // of the shooter's sub-steps, not once a step after it's sunk into it
+  step(dt, balls, together = null, skip = null) {
     this.together = together ? new Set(together) : null;
+    this.skip = skip;
     if (this.tally) this.tally.step = new Map();
     // the motors: through the whole step at once, or (sub-stepped) through each sub-step before its
     // contacts, so a wheel's motor drives it back up while a FUEL is dragging it down
@@ -658,8 +663,10 @@ export class Mechanism {
   // the wheels' and surfaces' contacts with FUEL at the given centers ([body, center] pairs)
   _contacts(W, fr, at, state) {
     const C = [];
+    const skip = this.skip;
     for (const [b, bc] of at) {
       for (const sf of this.surfaces) {
+        if (skip && skip.surfaces.has(sf) && skip.balls.has(b)) continue;
         const hits = sf.touches(sf.toLocal(qrotInv(fr.q, sub(bc, fr.p))), b);
         for (const { depth, n: nl } of hits) {
           const st = state(b), n = qrot(fr.q, sf.dirToFrame(nl));
@@ -839,4 +846,13 @@ export class Mechanism {
       }
     }
   }
+}
+
+// A bench's ball path and sub-stepped shooter, both handed every FUEL each step: the shooter carries
+// the path's surfaces given (its hood), and the path leaves them to it (Mechanism.step's skip; in
+// play physical.js does this for the FUEL its shooter has)
+export function handOff(path, shooter, surfaces) {
+  for (const sf of surfaces) if (!shooter.surfaces.includes(sf)) shooter.surfaces.push(sf);
+  const set = new Set(surfaces), step = path.step.bind(path);
+  path.step = (dt, balls, together = null, skip = null) => step(dt, balls, together, skip ?? { surfaces: set, balls: new Set(balls) });
 }

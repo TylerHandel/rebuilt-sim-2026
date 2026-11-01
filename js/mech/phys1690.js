@@ -30,7 +30,7 @@
 //     stowed, and the arm holds the top plate down (r1690.js PLATE).
 //   - unjam (the AI's outtake): everything backward.
 import { Mechanism } from './mechanism.js';
-import { PhysicalRobot } from './physical.js';
+import { PhysicalRobot, FlatOut } from './physical.js';
 import {
   build1690, wheels1690, shooterWheel, feederWheels, pathSurfaces1690, placeIntake, placeTurret, turretPoint, intakeFront, kickAt, kickLoad, floorRoll,
   HALF_L, HALF_W, INTAKE, FLOOR, TOP, BELT, VKICK, FEED, SHOOTER, TURRET, NET, WALL, PRELOAD, SLIDE, PLATE, bowShape,
@@ -56,14 +56,14 @@ const AIM_SUB = globalThis.process?.env?.AIM === 'sub';
 // wheel's surface speed each exit speed takes (m/s). Tuned on FUEL fed up the bore in a stream by the
 // indexer (calibrate FED=1), the way it fires: those leave about 4% faster than lone FUEL thrown up
 // the bore, pressed into the wheel by the next one. Re-measured with the wheel's motor driving it
-// through the FUEL's contact (mechanism.js: the motors through the sub-steps): 2-4% less wheel for
-// the same exit, the stream topping out at ~9.1 m/s from 21 m/s of wheel (past it, a guess: 24). In
-// AI matches (four against 2910) those left 2-3.5% faster than asked from 8.5 m/s up, where the FUEL
-// slip on the wheel and a little more wheel goes a long way, coming down 0.3-0.4 m long: the points
-// from 8.57 m/s up moved to the wheel that gave what was asked there.
+// through the FUEL's contact (mechanism.js: the motors through the sub-steps), and again with the foam
+// as played with (constants.js): the stream tops out at ~10.6 m/s from the wheel's ~20 m/s (lone
+// FUEL at 11.1: pulled off the wheel toward the hood's feeder wheels as they go round it, the
+// squeeze can't hold them to it; past 16.3 m/s of wheel the points are the lone FUEL's, 4% slower,
+// as the stream's ran at 16 m/s). (It topped out at ~9.1 m/s from 21 m/s with the fresh foam.)
 export const EXIT = { s: 0.03, y: 0.66 };
-export const EL_MAP = [[125, 37.4], [143.9, 57.6], [144.6, 58], [145.8, 59], [147.2, 59.7], [148.4, 61], [150.5, 63], [151.7, 63.8], [153.7, 66.1], [156.5, 68.6], [160, 72], [163.1, 75], [172, 84.9]];
-export const EXIT_MAP = [[0, 0], [4, 4.84], [5.95, 7.23], [6.04, 7.37], [6.4, 7.9], [6.77, 8.45], [7.14, 9.02], [7.57, 9.75], [7.89, 10.42], [8.3, 12.55], [8.57, 13.3], [8.83, 14.8], [9.06, 17.0], [9.8, 24]];
+export const EL_MAP = [[125, 37.4], [144.7, 57.6], [145.2, 57.9], [146.5, 59], [147.6, 60], [148.7, 61], [151.1, 63], [152.1, 63.9], [154.5, 65.9], [157.3, 68.6], [161, 72], [164, 75], [172, 84.9]];
+export const EXIT_MAP = [[0, 0], [4, 4.84], [5.95, 7.22], [6.04, 7.34], [6.4, 7.85], [6.77, 8.45], [7.17, 9.16], [7.55, 9.81], [7.87, 10.35], [8.25, 11.04], [8.57, 12.02], [8.98, 14.15], [9.34, 16.33], [10.65, 20], [10.7, 24]];
 const interp = (t, x, a = 0, b = 1) => {
   if (x <= t[0][a]) return t[0][b];
   for (let k = 1; k < t.length; k++) if (x <= t[k][a]) return t[k - 1][b] + ((t[k][b] - t[k - 1][b]) * (x - t[k - 1][a])) / (t[k][a] - t[k - 1][a]);
@@ -273,7 +273,11 @@ export class Physical1690 extends PhysicalRobot {
     if (sol) { this.hoodGoal = inTrench ? HOOD_STOW : hoodFor(sol.el); speedLoop(T.shooter, surf / S.r, S.kP); }
     else { this.hoodGoal = HOOD_STOW; speedLoop(T.shooter, null); }
     const wheelSurf = Math.abs(T.wheel.omega) * S.r;
-    const atV = !!sol && Math.abs(wheelSurf - surf) < S.tolV * surf;
+    // (a pass that asks more of the wheel than its motors give, its longest throw: it goes once the
+    // wheel's as fast as it gets, as 2910's and 604's: FlatOut)
+    this.flat ||= new FlatOut();
+    const flat = this.flat.step(dt, wheelSurf, pass ? surf : 0);
+    const atV = !!sol && (Math.abs(wheelSurf - surf) < S.tolV * surf || flat);
     const atHood = Math.abs(this.hood - this.hoodGoal) < S.tolHood;
     const tol = pass ? 4 * DEG : Math.max(0.8 * DEG, Math.atan2(0.14, sol?.d || 1));
     const atYaw = Math.abs(r.aimErr ?? Infinity) < tol;

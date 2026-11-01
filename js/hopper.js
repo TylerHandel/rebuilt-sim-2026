@@ -35,7 +35,7 @@ const capCache = new Map();
 // How hard a robot's intake shoves FUEL into its hopper: the roller grips a FUEL it squeezes
 // (intake.squeeze, in: how much smaller the gap is than a FUEL) with the foam's spring force,
 // and rubber on foam grips about as hard as it's pressed (INTAKE_GRIP). Teams squeeze FUEL
-// 3/4-1in with compliant wheels, 1/2-5/8in with rigid rollers (Chief Delphi, 2026): about 60 N at 3/4in.
+// 3/4-1in with compliant wheels, 1/2-5/8in with rigid rollers (Chief Delphi, 2026): about 100 N at 3/4in.
 const INTAKE_GRIP = 1.0;
 export const intakePush = (cfg) => INTAKE_GRIP * fuelForce((cfg.intake.squeeze ?? 0.75) * 0.0254);
 

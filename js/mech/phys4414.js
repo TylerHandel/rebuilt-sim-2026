@@ -243,7 +243,8 @@ export class Physical4414 extends PhysicalRobot {
       // a pass: the hood at PASS_HOOD, the speed that lands it at the pass point
       el = fitOf('el', 450, PASS_HOOD);
       const y0 = fitOf('y', 450, PASS_HOOD) + dh, x0 = fitOf('x', 450, PASS_HOOD);
-      const reach = (s) => (sim2D(y0, s, el * DEG, R)?.d ?? 0) + x0;
+      // (with its FUEL's backspin's Magnus lift: the config's spin ratio)
+      const S = r.cfg.shooter.spin ?? 0, reach = (s) => (sim2D(y0, s, el * DEG, R, 0, (S * s) / R)?.d ?? 0) + x0;
       v0 = reach(fitOf('v', RADS[1], PASS_HOOD)) < d ? fitOf('v', RADS[1], PASS_HOOD) : bisect(reach, 3, 12, d);
     } else {
       ({ v: v0, el } = launchFor(d));

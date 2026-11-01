@@ -17,7 +17,7 @@
 import { RAPIER } from '../js/physics.js';
 import { FUEL, GROUP, groups, HUB } from '../js/constants.js';
 import { Mechanism } from '../js/mech/mechanism.js';
-import { sim2D } from '../js/ballistics.js';
+import { sim2D, backspin } from '../js/ballistics.js';
 import {
   build7769, wheels7769, pathSurfaces7769, placeIntake, placeSlide, slideStops, hoodRot, hoodElevation, kickRot, slideOffset,
   SHOOTER_SURFACES, INTAKE, SLIDE, SHOOTER, FEED, FLOOR, AXLE, HALF_L, FRONT_X, NET,
@@ -91,14 +91,14 @@ function shotWatch(shooter) {
         else if (touched.has(b) && !shooter.contacts.some((c) => c.ball === b)) {
           touched.delete(b);
           const v = b.linvel(), p = b.translation();
-          if (v.y > 2) { shots.push({ t, v: Math.hypot(v.x, v.y, v.z), el: (Math.atan2(v.y, -v.x) * 180) / Math.PI, x: p.x, y: p.y, z: p.z, b }); b.setTranslation({ x: 50 + shots.length, y: 5, z: 0 }, true); }
+          if (v.y > 2) { shots.push({ t, v: Math.hypot(v.x, v.y, v.z), s: backspin(v, b.angvel()), el: (Math.atan2(v.y, -v.x) * 180) / Math.PI, x: p.x, y: p.y, z: p.z, b }); b.setTranslation({ x: 50 + shots.length, y: 5, z: 0 }, true); }
         }
       }
     },
   };
 }
 // where a shot comes down through height h, back from the robot's center
-const landAt = (o, h) => { const k = sim2D(o.y, o.v, (o.el * Math.PI) / 180, h); return k ? k.d - o.x : NaN; };
+const landAt = (o, h) => { const k = sim2D(o.y, o.v, (o.el * Math.PI) / 180, h, 0, o.s ?? 0); return k ? k.d - o.x : NaN; };
 // where a FUEL is (robot frame), as js/mech/phys7769.js where() has it
 const frontAt = (ext) => FRONT_X + slideOffset(ext)[0];
 const inFrame = ([x, y, z]) => Math.abs(x) < HALF_L && Math.abs(z) < 0.35 && y > 0.05 && y < 0.62;

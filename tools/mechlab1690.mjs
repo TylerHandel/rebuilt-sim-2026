@@ -24,7 +24,7 @@
 import { RAPIER } from '../js/physics.js';
 import { FUEL, GROUP, groups, HUB, TRENCH } from '../js/constants.js';
 import { Mechanism } from '../js/mech/mechanism.js';
-import { sim2D, ShotTable } from '../js/ballistics.js';
+import { sim2D, ShotTable, backspin } from '../js/ballistics.js';
 import {
   build1690, wheels1690, shooterWheel, feederWheels, pathSurfaces1690, placeIntake, placeTurret, turretPoint, netY, hoodElevation, kickAt, floorRoll, ROLL,
   HALF_L, HALF_W, INTAKE, FLOOR, TOP, BELT, BACK, VKICK, FEED, SHOOTER, TURRET, NET, WALL, SLIDE, MU as GRIP, TREAD,
@@ -132,14 +132,14 @@ function shotWatch(r) {
         const v = b.linvel(), p = b.translation();
         if (v.y > 1 && Math.hypot(v.x, v.y, v.z) > 3) {
           const fx = Math.cos(r.yaw), fz = -Math.sin(r.yaw), [tx, tz] = TURRET.at;
-          shots.push({ t, v: Math.hypot(v.x, v.y, v.z), el: (Math.atan2(v.y, Math.hypot(v.x, v.z)) * 180) / Math.PI, side: (Math.atan2(v.x * -fz + v.z * fx, v.x * fx + v.z * fz) * 180) / Math.PI, x: (p.x - tx) * fx + (p.z - tz) * fz, y: p.y, b });
+          shots.push({ t, v: Math.hypot(v.x, v.y, v.z), s: backspin(v, b.angvel()), el: (Math.atan2(v.y, Math.hypot(v.x, v.z)) * 180) / Math.PI, side: (Math.atan2(v.x * -fz + v.z * fx, v.x * fx + v.z * fz) * 180) / Math.PI, x: (p.x - tx) * fx + (p.z - tz) * fz, y: p.y, b });
           b.setTranslation({ x: 50 + shots.length, y: 5, z: 0 }, true); b.setGravityScale(0, true); b.setLinvel({ x: 0, y: 0, z: 0 }, true);
         }
       }
     },
   };
 }
-function landing(o) { const hit = sim2D(o.y, o.v, (o.el * Math.PI) / 180, HUB.rimFront); return hit ? hit.d + o.x : NaN; }
+function landing(o) { const hit = sim2D(o.y, o.v, (o.el * Math.PI) / 180, HUB.rimFront, 0, o.s ?? 0); return hit ? hit.d + o.x : NaN; }
 function tables() {
   const sh = ROBOTS['1690'].shooter;
   const hub = new ShotTable({ h0: sh.exitY, Ht: HUB.targetHeight, hoodMin: sh.hoodMin, hoodMax: sh.hoodMax, speedMax: sh.speedMax, mode: 'hub', clearDist: HUB.size / 2 + FUEL.radius + 0.02, clearHeight: HUB.rimFront + FUEL.radius + 0.04 });

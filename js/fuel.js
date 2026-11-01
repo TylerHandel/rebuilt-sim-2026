@@ -8,6 +8,7 @@ import { FUEL, HUB, HALF_L, HALF_W, BLUE, RED, GROUP, groups, PHYSICS_DT } from 
 import { Field } from './field.js';
 import { rand, clamp } from './util.js';
 import { fuelTexture, squashable } from './fuelSkin.js';
+import { magnus } from './ballistics.js';
 
 const R = FUEL.radius;
 const NORMAL_GROUPS = groups(GROUP.BALL, GROUP.STATIC | GROUP.TERRAIN | GROUP.BALL | GROUP.HELD | GROUP.ROBOT | GROUP.INTAKE | GROUP.WHEEL);
@@ -15,6 +16,7 @@ const NO_ROBOT_GROUPS = groups(GROUP.BALL, GROUP.STATIC | GROUP.TERRAIN | GROUP.
 const HELD_GROUPS = groups(GROUP.HELD, GROUP.STATIC | GROUP.TERRAIN | GROUP.BALL);
 const IN_ROBOT_QUERY = groups(GROUP.BALL, GROUP.ROBOT);
 const HIDDEN = new THREE.Matrix4().makeScale(0, 0, 0);
+const LIFT = { x: 0, y: 0, z: 0 };
 
 export class FuelManager {
   constructor(physics, scene, field) {
@@ -204,6 +206,12 @@ export class FuelManager {
       let vx = v.x, vy = v.y, vz = v.z;
       const sp = Math.hypot(vx, vy, vz);
       if (sp > 0.3) {
+        // (the Magnus lift of its spin, from the velocity before the drag's step: ballistics.js
+        // magnus; not on one a robot's mechanisms have hold of, which move it themselves)
+        if (!b.held) {
+          const A = magnus(v, body.angvel(), LIFT);
+          vx += A.x * dt; vy += A.y * dt; vz += A.z * dt;
+        }
         const f = Math.max(0, 1 - k * sp * dt);
         vx *= f; vy *= f; vz *= f;
       }

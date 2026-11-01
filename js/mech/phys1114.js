@@ -67,7 +67,7 @@ export class Physical1114 extends PhysicalRobot {
     const pathWheels = [...w.floor, ...w.squish, ...w.side, ...w.passive, ...w.elev, ...w.wall, ...w.intake];
     super(robot, {
       path: new Mechanism({ body: robot.body, substeps: 6, shafts: [...new Set(pathWheels.map((x) => x.shaft)), t.slide], wheels: pathWheels, surfaces: Object.values(s) }),
-      shooter: new Mechanism({ body: robot.body, substeps: 6, sub: 8, shafts: [t.fly, t.hood], wheels: [w.fly, ...w.hood] }),
+      shooter: new Mechanism({ body: robot.body, substeps: 6, sub: 8, shafts: [t.fly, t.hood], wheels: [w.fly, ...w.hood], surfaces: [s.hood] }),
       // (full when its intake can't put more in: js/mech/physical.js. Under the blanket over the
       // box's front half, 0.3 m out to its front at 0.6 with the box out, 0.74 m across: a layer
       // of about 9, packed against it when two thirds of them are)
