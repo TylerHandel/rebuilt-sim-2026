@@ -87,6 +87,13 @@ for (const k of robots) {
   const f = (w) => { const s = mean(rows, (x) => x.coll[w]), n = mean(rows, (x) => x.took[w]); return `${s.toFixed(0).padStart(3)} s ${(n / Math.max(1, s)).toFixed(2)}/s`; };
   console.log(`${k.padEnd(6)} own ${f('own')} | mid ${f('mid')} | opp ${f('opp')}`);
 }
+console.log('\nshooting at its HUB: seconds a match and FUEL launched a second, moving | standing');
+for (const k of robots) {
+  const rows = per[k].filter((x) => x.fire);
+  if (!rows.length) continue;
+  const f = (T, N) => { const t = mean(rows, (x) => x.fire[T]), n = mean(rows, (x) => x.fire[N]); return `${t.toFixed(0).padStart(3)} s ${(n / Math.max(0.1, t)).toFixed(1).padStart(4)}/s`; };
+  console.log(`${k.padEnd(6)} moving ${f('moveT', 'moveN')} | standing ${f('standT', 'standN')}`);
+}
 console.log('\nstuck against (s a match) / idle while (s a match) / first FUEL in TELEOP (s) / unjams');
 for (const k of robots) {
   const s = stats(per[k]);
