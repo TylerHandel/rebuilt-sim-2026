@@ -268,6 +268,16 @@ export class FuelManager {
     return hit;
   }
 
+  // whether a FUEL put down at (x, z) would be clear of every robot: 0.45 m from its bumpers (an
+  // intake reaches 0.33 m past them)
+  _clearOfRobots({ x, z }) {
+    this._clear ||= new RAPIER.Ball(R + 0.45);
+    let hit = false;
+    this.physics.world.intersectionsWithShape({ x, y: R + 0.02, z }, { x: 0, y: 0, z: 0, w: 1 }, this._clear, () => { hit = true; return false; },
+      undefined, IN_ROBOT_QUERY);
+    return !hit;
+  }
+
   // ------------------------------------------------------------------ per frame
   update(dt, t) {
     const m = this.match;
@@ -330,8 +340,13 @@ export class FuelManager {
     for (let i = this.outQueue.length - 1; i >= 0; i--) {
       const q = this.outQueue[i];
       if (t < q.at) continue;
+      // (where no robot is: along the edge to the nearest spot clear of their bumpers and intakes,
+      // or a moment later. Put down where one stood, it came back inside its bumper or under its
+      // intake, and lay under the frame: 2056 and 341 waiting at the OUTPOST, tools/under-frame.mjs)
+      const at = [0, 0.5, -0.5, 1, -1, 1.5, -1.5, 2, -2].map((d) => ({ x: q.x, z: clamp(q.z + d, -HALF_W + 0.35, HALF_W - 0.35) })).find((c) => this._clearOfRobots(c));
+      if (!at) { q.at = t + 0.5; continue; }
       this.outQueue.splice(i, 1);
-      this.launch(q.b, { x: q.x, y: R + 0.02, z: q.z }, { x: 0, y: 0, z: 0 }, {});
+      this.launch(q.b, { x: at.x, y: R + 0.02, z: at.z }, { x: 0, y: 0, z: 0 }, {});
       q.b.inFlight = false;
     }
   }
