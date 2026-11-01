@@ -39,16 +39,21 @@ export const FUEL = {
   mass: 0.215,             // 0.448-0.500 lb
   // Foam: squeezed, it gives softly at first and firms up the harder it's pressed, as the cells
   // close up: F(x) = k0 * xc * (e^(x / xc) - 1) (hopper.js fuelForce), stiffness k0 to start,
-  // growing e-fold every xc of squeeze. Set so that over the first inch it averages 20 lb/in,
-  // the nominal spring rate in AndyMark's 2026 Scoring Element Testing Report (FUEL firms up with
-  // age, to ~30-38): 12 lb/in to start, 20.6 lb at 1in, 42 lb at 1.5in, 77 lb at 2in.
+  // growing e-fold every xc of squeeze. Set so that over the first inch it averages 33 lb/in: the
+  // FUEL played with. AndyMark's 2026 Scoring Element Testing Report has the batch's nominal 20
+  // lb/in when made (summer 2025), and the same balls retested at the season's start 26-38, 33 on
+  // average, every one at least 10% firmer ("all the fuel used on official fields would be
+  // similarly aged"; teams found the Kit of Parts FUEL firmer than AndyMark's). The curve's shape,
+  // the fresh balls' scaled up: 19.8 lb/in to start, 34 lb at 1in, 69 lb at 1.5in, 127 lb at 2in.
+  // (It was the fresh 20 lb/in, 12 to start: a shooter's FUEL, pressed toward its hood as they go
+  // round the wheel, pulled off the wheel at ~8-10 m/s, and no robot passed past ~8 m.)
   // Two FUEL pressed together squash the same (each contact is twice as stiff, in series).
-  springRate0: (12 * 4.448) / 0.0254, // N/m, uncompressed
+  springRate0: (19.8 * 4.448) / 0.0254, // N/m, uncompressed
   stiffen: 1.0 * 0.0254,               // m of squeeze per e-fold of stiffness
-  springRate: (20 * 4.448) / 0.0254,  // N/m, nominal (the average over the first inch)
+  springRate: (33 * 4.448) / 0.0254,  // N/m, nominal (the average over the first inch)
   // how hard an intake roller shoves FUEL into a hopper when nothing else says (hopper.js
-  // intakePush works it out per robot: 3/4in of squeeze -> ~60 N)
-  intakePush: 60,          // N
+  // intakePush works it out per robot: 3/4in of squeeze -> ~100 N)
+  intakePush: 100,         // N
   total: 504,
   perDepot: 24,
   perChute: 24,
