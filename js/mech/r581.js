@@ -33,7 +33,7 @@
 //   hood: an X44 through 8:62 and a 10t pinion on the hood plates' 154t sectors about the drum's
 //     axle (119.4:1)
 import { FUEL, IN } from '../constants.js';
-import { Motor, Shaft, Surface, Train, Wheel } from './mechanism.js';
+import { Block, BUMPER_MU, Motor, Shaft, Surface, Train, Wheel } from './mechanism.js';
 
 // what each grips FUEL with (estimates, in the order 8793's team gave): the intake rollers' grip
 // tape ("Cat Tongue" in the CAD); the drum, hood and tower rollers are drawn as bare tubes, but
@@ -223,7 +223,15 @@ export function pathSurfaces581(mesh, t, { mu = 0.35 } = {}) {
   const floor = s('floor', [PIVOT[0], PIVOT[1], 0]).onShaft(cam, [PIVOT[0], PIVOT[1], 0]);
   floor.cam = cam;
   const hood = s('hood', [DRUM[0], DRUM[1], 0]);
-  return { body, slide, floor, hood, net: new Net581() };
+  return { body, slide, floor, hood, bumper: bumper581(), net: new Net581() };
+}
+// The front bumper as a solid block (js/mech/mechanism.js Block: pressed into it however far, a FUEL
+// is pushed back out the nearest way), where the CAD's body has it as a shell (path581.js: its
+// faces 0.34-0.41 m out, 0.03-0.14 m up, across 0.88 m), as 341's, 2910's and 8793's are. Through
+// the shell alone, a FUEL the intake had hold of on the carpet, as the robot's nose came down on it
+// off a BUMP, went in through the bumper's face and lay under the frame (tools/under-frame.mjs)
+export function bumper581() {
+  return new Block({ name: 'bumper', x0: 0.3429, x1: 0.41, y0: 0.03, y1: 0.14, hw: 0.44, r: 0.005, mu: BUMPER_MU, tread: 20000 });
 }
 export function placeFloorSurface(sf, ext) {
   sf.setPose([PIVOT[0], PIVOT[1], 0], 0, floorRot(ext));
