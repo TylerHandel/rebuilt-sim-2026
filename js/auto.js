@@ -212,6 +212,18 @@ BEST_AUTOS[7769] = { start: 'rightTrench', preload: 'move', trips: [
   { depot: true, speed: 0.42 },
 ] };
 
+// OLDAUTOS=1: 2056's and 7769's plans as they were before they were searched (for before/after runs)
+if ((globalThis.process?.env?.OLDAUTOS ?? '0') !== '0') {
+  BEST_AUTOS[2056] = { start: 'rightTrench', preload: 'move', trips: [
+    { out: 'trench', fx: 8.42, a: 1.35, b: 2.57, speed: 0.32, home: 'bump', shootAt: [2.77, 2.44] },
+    { out: 'bump', fx: 7.54, a: 1.51, b: 5.27, speed: 0.87, home: 'trench', shootAt: [2.96, 5.6] },
+  ] };
+  BEST_AUTOS[7769] = { start: 'rightBump', preload: 'stand', trips: [
+    { out: 'bump', fx: 7.6, a: 2.0, b: 5.6, speed: 0.45, home: 'bump', shootAt: [2.7, 2.6] },
+    { out: 'bump', fx: 7.85, a: 2.6, b: 4.2, speed: 0.6, home: 'bump', shootAt: [2.7, 2.6] },
+  ] };
+}
+
 // Starting spots for one ALLIANCE's robots, so no two start on top of each other. entries (in
 // driver station order): { robot (key), auto, start, plan? }. Each gets the spot it wants if
 // it's free; 'best' on a robot whose team's code is in runs the team's own auto from the side it
