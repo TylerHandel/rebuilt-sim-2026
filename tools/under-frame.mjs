@@ -158,7 +158,9 @@ function watcher(r, fuel, physics, field) {
     while (k > 0 && Math.abs(h[k - 1].l[0]) < hL && Math.abs(h[k - 1].l[2]) < hW && h[k - 1].l[1] < UNDER_Y) k--;
     const a = h[k - 1], c = h[k];
     let route, edge = '-';
-    if (!a) route = 'unknown';
+    // (in plan the whole second before: it came up out of the overhang, the robot over it on a BUMP
+    // coming down onto it, or it was there before the watch began)
+    if (!a) route = h[0].solid && h[0].l[1] < BUMPER_Y0 ? 'rideover' : 'unknown';
     else {
       const inPlanA = Math.abs(a.l[0]) < hL && Math.abs(a.l[2]) < hW;
       const jump = Math.hypot(c.l[0] - a.l[0], c.l[2] - a.l[2]);
