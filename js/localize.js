@@ -64,7 +64,9 @@ const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 const env = globalThis.process?.env;
 export const AIM_TRUTH = env?.AIMTRUTH === '1' || (typeof location !== 'undefined' && new URLSearchParams(location.search).has('aimtruth'));
 const LOOP = 0.02;          // robot code's loop (s)
-const ACT_DELAY = 2;        // physics steps between the estimate the aim uses and now (~17 ms)
+const AIR_T = 0.3;          // s off the floor that a wheel spins at its setpoint (a BUMP's crest)
+const SPIN_T = 0.25;        // s barely moving with its wheels driven: stalled, its wheels spinning
+const ACT_DELAY = Number(env?.AIM_DELAY ?? 2); // physics steps between the estimate the aim uses and now (~17 ms)
 
 function mulberry32(seed) {
   let a = seed >>> 0;
@@ -270,6 +272,7 @@ export class Localizer {
     this.camT = this.prof.cams.map((c, i) => this.cal.cams[i].phase / (CAMS[c.cam].fps));
     this.v = { f: 0, l: 0, w: 0 };
     this.latched = false;
+    this.air = this.r.swerve.modules.map(() => 0);
     this.lastTurret = this.r.turretYaws?.slice() ?? [];
     this.t = null;
     this.stats = { frames: 0, used: 0 };
@@ -290,10 +293,32 @@ export class Localizer {
     this.gyroPrev = gyro;
     // ---- odometry: the modules' wheel speeds and angles, forward kinematics (robot frame: x forward,
     // z right in the sim's; out as forward / left)
-    const sw = r.swerve, rw = sw.d.rw * c.wheelR;
+    const sw = r.swerve;
     let a11 = 0, a12 = 0, a13 = 0, a22 = 0, a23 = 0, a33 = 0, b1 = 0, b2 = 0, b3 = 0;
+    // A wheel past its grip (drivetrain.js: its tire saturated) reads faster than the carpet goes by:
+    // while the robot moves, by a tire's slip at peak traction (up to ~7% of the speed, and 0.05 m/s);
+    // stalled against something (pushing: barely moving for SPIN_T with its wheels driven), scrubbing
+    // round at up to 0.25 m/s. (The sim's own wheel speed past grip, half way to what's asked, is
+    // for the motors' current: as odometry it ran off meters a minute)
+    const sp = Math.hypot(r.vel.x, r.vel.z);
+    const driven = sw.modules.some((m) => Math.abs(m.w * sw.d.rw) > 1);
+    this.stallT = sp < 0.3 && driven ? (this.stallT ?? 0) + dt : 0;
+    const cy = Math.cos(r.yaw), sy = Math.sin(r.yaw);
+    const rvx = r.vel.x * cy - r.vel.z * sy, rvz = r.vel.x * sy + r.vel.z * cy; // robot frame (x fwd, z right)
     sw.modules.forEach((m, i) => {
-      const [px, pz] = sw.pts[i], a = m.angle + c.mod[i], s = m.w * rw + this.gauss() * SIGMA.wheelV;
+      const [px, pz] = sw.pts[i];
+      let w = m.w * sw.d.rw;
+      const ground = (rvx + r.omega * pz) * Math.cos(m.angle) + (rvz - r.omega * px) * Math.sin(m.angle);
+      const air = (this.air[i] = sw.down && !sw.down[i] ? this.air[i] + dt : 0);
+      // off the floor (over a BUMP's crest, landing): spun freely to its setpoint. (Longer than
+      // AIR_T it isn't a wheel in the air but the sim's floor test missing it under a robot riding
+      // on its frame: read as rolling)
+      if (air > 0) w = air < AIR_T ? sw.want[i] : ground;
+      else if (m.slip) {
+        const cap = 0.07 * Math.abs(ground) + (this.stallT < SPIN_T ? 0.05 : 0.25);
+        w = ground + Math.max(-cap, Math.min(cap, w - ground));
+      }
+      const a = m.angle + c.mod[i], s = w * c.wheelR + this.gauss() * SIGMA.wheelV;
       const ux = s * Math.cos(a), uz = s * Math.sin(a);
       // rows [1 0 pz] -> ux, [0 1 -px] -> uz
       a11 += 1; a13 += pz; a22 += 1; a23 -= px; a33 += pz * pz + px * px;
@@ -540,8 +565,11 @@ export class Localizer {
   error() {
     const s = !this.truth && this.ready && this._aimState();
     if (!s) return null;
+    // live: the estimate now against the truth now; hub: where the aim (the estimate ACT_DELAY ago,
+    // against the truth now) puts the HUB's center; hubLive: where the estimate now would
     const T = this._truth(), h = Field.hubCenter(this.r.alliance), a = this.aimPt(h);
-    return { pos: Math.hypot(s.X - T.X, s.Y - T.Y), th: wrap(s.th - T.th), hub: Math.hypot(a.x - h.x, a.z - h.z), live: Math.hypot(this.est.X - T.X, this.est.Y - T.Y) };
+    const rel = between(this.est, { X: h.x, Y: -h.z, th: 0 }), w = compose(T, rel);
+    return { live: Math.hypot(this.est.X - T.X, this.est.Y - T.Y), th: wrap(this.est.th - T.th), hub: Math.hypot(a.x - h.x, a.z - h.z), hubLive: Math.hypot(w.X - h.x, w.Y + h.z) };
   }
 }
 
