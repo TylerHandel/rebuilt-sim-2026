@@ -488,15 +488,17 @@ A 3 v 3 of six physical robots is the heaviest thing the game does. Where a matc
 
 | Part | Before | Now |
 |---|---|---|
-| Robots' mechanisms (`js/mech/mechanism.js` Mechanism.step: contact search, solve, motors; each ball path ~100-180, each shooter ~10-30) | 826 | 520 |
-| Rapier's world step | 189 | 189 |
-| Aiming (the shot solver's flights, `js/ballistics.js`, every step a robot holds FUEL) | 110 | 110 |
-| FUEL (drag, Magnus, rolling, bookkeeping) | 49 | 49 |
-| Drive, wheel rays, hoppers | 85 | 85 |
-| Localization (vision at each camera's frame rate, not every step) | 22 | 22 |
-| AI, AUTOs, nav, rules | 25 | 25 |
-| GC | ~100 | ~60 |
-| **Total** | **1,294 (0.77x real time)** | **TOTAL_NOW** |
+| Robots' mechanisms (`js/mech/mechanism.js` Mechanism.step: contact search, solve, motors; each ball path ~60-180, each shooter ~10-30) | 826 | 620 |
+| Rapier's world step | 189 | 200 |
+| Aiming (the shot solver's flights, `js/ballistics.js`, every step a robot holds FUEL) | 110 | 72 |
+| FUEL (drag, Magnus, rolling, bookkeeping) | 49 | 55 |
+| Drive, wheel rays, hoppers | 85 | 68 |
+| Localization (vision at each camera's frame rate, not every step) | 22 | 23 |
+| AI, AUTOs, nav, rules | 25 | 26 |
+| GC (part of the above) | 102 | 58 |
+| **Total, with the timers' own cost** | **1,294 (0.77x real time)** | **1,074 (0.93x)** |
+
+(The parts not changed differ by the machine's load: it's shared.) Without the timers, CPU time per simulated second on the same machine, the two copies run alternately (`tools/perfab.mjs`, 30 s of each match, median of three): the 3 v 3 above 1,527 → 1,178 ms (−23%; 0.83x → 1.11x real time), the 3 v 3 8793, 341, 2056 v 604, 581, 1114 1,365 → 1,132 (−17%), a 1 v 1 2910 v 4414 1,018 → 827 (−19%). A desktop CPU like an i7-11700F runs a single thread about twice as fast as this 2.1 GHz Xeon.
 
 What was slow in the mechanisms, and what changed (every change gives the same matches to the bit: below):
 
@@ -505,13 +507,13 @@ What was slow in the mechanisms, and what changed (every change gives the same m
 - **Mesh contacts searched a coarse grid.** A FUEL against a robot's CAD surface (20,000+ triangles) looked through ~300 triangles in 27 cells; a tree of boxes (a BVH) finds the few near it. Faces are still taken in the grid's order (that order decides which faces merge into one contact), so the contacts are the same.
 - FUEL already sleep in Rapier when they come to rest, and each robot's vision runs at its cameras' frame rates; neither needed changing.
 
-Rendering a 3 v 3 (Medium, the Driver Station camera; `tools/browserperf.mjs --sim`): DRAW_NUMBERS. Most of a robot's parts never move but each was a draw call, twice a frame (the shadow map's pass and the view's). `js/merge.js` draws the still parts of each robot and of the field as one mesh per material (materials alike but for their color share one, the color in the vertices). What moves isn't listed anywhere, so it watches: a robot is merged a second after it appears, every frame each merged part's place (and its parents', up to the robot) is checked, and a batch any part of moved in comes apart before that frame is drawn and merges again a moment later without the part that moved (merged within that part instead: a turret's own still parts). Screenshots with and without it are the same to the pixel on every preset (`tools/shotdiff.mjs`, `tools/imgdiff.py`). `?nomerge` in the URL turns it off. The FUEL were already one instanced mesh.
+Rendering a 3 v 3 (the Driver Station camera, `tools/browserperf.mjs --sim`, headless Chromium): on High a frame was 7,354 draw calls over its passes (the shadow map's and the view's), now ~2,400, and the renderer's CPU time for a frame, merged against not in the same page, 31.6 ms against 68.0 ms on this machine; on Medium 2,973 → 1,141 draw calls. Most of a robot's parts never move but each was a draw call, twice a frame (the shadow map's pass and the view's). `js/merge.js` draws the still parts of each robot and of the field as one mesh per material (materials alike but for their color share one, the color in the vertices). What moves isn't listed anywhere, so it watches: a robot is merged a second after it appears, every frame each merged part's place (and its parents', up to the robot) is checked, and a batch any part of moved in comes apart before that frame is drawn and merges again a moment later without the part that moved (merged within that part instead: a turret's own still parts). Screenshots with and without it are the same to the pixel on every preset (`tools/shotdiff.mjs`, `tools/imgdiff.py`). `?nomerge` in the URL turns it off. The FUEL were already one instanced mesh.
 
 ### The physics thread
 
 **Settings → Physics thread → Separate** (or `?worker` in the URL) runs the match on a thread of its own (a Web Worker: `js/simWorker.js`, the page's side `js/simThread.js`): Rapier, every robot's mechanisms, FUEL, AIs, rules, human players, at 120 Hz against the clock, two steps then the per-frame updates, as the headless matches do. The page keeps its own copy of the match built from the same settings (the robots' models, the HUD, the camera's target), never steps it, and draws it from what the thread posts after every two steps: each robot's visual state (`Robot.visualState`, the same data the model's animation always drew from), the FUEL's instance matrices, the match's, robots' and human players' fields and the match's events. Robots and FUEL are drawn between the last two states (one state, 1/60 s, behind), so the motion stays smooth however the frames and the states fall. The driver's commands go to the thread every frame.
 
-So the page's thread only draws: a 3 v 3 runs at real time on its own core while the page keeps 60 fps, where on one thread the physics alone took most of each frame and the game slowed (`tools/browserperf.mjs --query worker`: WORKER_NUMBERS). Show FPS shows the thread's own time per step and its steps per second (120 is real time).
+So the page's thread only draws: a 3 v 3 runs at real time on its own core while the page keeps 60 fps, where on one thread the physics alone took most of each frame and the game slowed (`tools/browserperf.mjs --query worker`: here the thread ran the 3 v 3 at 6-10 ms a step, 80-125 steps a second, while SwiftShader drawing on the same four shared cores took the rest; on a desktop CPU it has a core to itself). Show FPS shows the thread's own time per step and its steps per second (120 is real time).
 
 - It needs the game served by **`serve.py`** (`start.bat`, `start.command`): a worker has no import map, so `serve.py` serves the game's files under `w/` with the page's import map applied to their imports (and three.js's add-ons, fetched from the CDN, likewise). On the website, or with another server, the match runs with the drawing (a message says so).
 - No cross-origin isolation headers are needed: the thread and the page pass messages (no SharedArrayBuffer).
