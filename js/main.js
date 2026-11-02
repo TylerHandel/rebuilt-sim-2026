@@ -431,6 +431,7 @@ function tick(dt, render) {
       thread.input({ driver: game.driver, hpControls: game.hpControls, climbTarget: game.robot?.climbTarget, climb: !!game.climbAsk });
       game.climbAsk = false;
       thread.apply(game, fuel, onEvent);
+      thread.between(game, fuel);
       if (game.match.over && !resultsShown) {
         resultsShown = true;
         finishMatch();

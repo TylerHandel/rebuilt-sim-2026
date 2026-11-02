@@ -36,7 +36,52 @@ try {
   await page.evaluate(() => window.__sim.startMatch());
   // (the CAD loads in the background: give it time, then measure)
   await page.waitForTimeout(6000);
-  await page.waitForFunction(() => window.__sim.game.match.t > 1, null, { timeout: 180000 }).catch(() => console.log('(the match clock did not start)'));
+  if (!args.includes('--sim')) await page.waitForFunction(() => window.__sim.game.match.t > 1, null, { timeout: 180000 }).catch(() => console.log('(the match clock did not start)'));
+  // --sim: the match stepped on the page's thread without drawing (__sim.advance), ms per simulated
+  // second (the CPU's work for the physics and game, as the page runs it), then the renderer's own
+  // CPU time for a frame (gfx.render, the GPU's work excluded as far as the browser lets: a tiny
+  // canvas), its draw calls and triangles over all its passes (shadow map included)
+  if (args.includes('--sim')) {
+    const r = await page.evaluate(async (secs) => {
+      const S = window.__sim;
+      S.hold = true;
+      // (merging waits for a second of the clock: let it happen first)
+      S.advance(1 / 60, 60); await new Promise((f) => setTimeout(f, 1500)); S.advance(1 / 60, 60);
+      const t0 = performance.now(), m0 = S.game.match.t;
+      S.advance(secs, 60);
+      const sim = (performance.now() - t0) / (S.game.match.t - m0);
+      // (the merged parts checked and merged again as the robots now stand, as they are each frame)
+      S.advance(1 / 60, 60); await new Promise((f) => setTimeout(f, 1500)); S.advance(1 / 60, 60);
+      S.renderer.info.autoReset = false;
+      const med = (fin) => {
+        const times = [];
+        for (let i = 0; i < 12; i++) {
+          S.renderer.info.reset();
+          const a = performance.now();
+          S.gfx.render(1 / 60);
+          times.push(performance.now() - a);
+          if (fin) S.renderer.getContext().finish();
+        }
+        return times.sort((x, y) => x - y)[6];
+      };
+      const cpu = med(true), calls = S.renderer.info.render.calls, tris = S.renderer.info.render.triangles;
+      // (merged against not, alternating in this page: the machine's load the same for both)
+      let ab = null;
+      if (S.merger) {
+        const on = [], off = [];
+        let offCalls = 0;
+        for (let k = 0; k < 3; k++) {
+          S.merger.on = false; S.advance(1 / 60, 60); off.push(med(true)); offCalls = S.renderer.info.render.calls;
+          S.merger.on = true; S.advance(1 / 60, 60); await new Promise((f) => setTimeout(f, 1200)); S.advance(1 / 60, 60); on.push(med(true));
+        }
+        const m = (xs) => xs.sort((x, y) => x - y)[1];
+        ab = { on: m(on), off: m(off), offCalls };
+      }
+      return { sim, cpu, calls, tris, merged: S.merger ? S.merger.stats : null, ab };
+    }, secs);
+    console.log(`${preset} ${W}x${H}${arg('query') ? ' ?' + arg('query') : ''}: simulation on the page's thread ${r.sim.toFixed(0)} ms per simulated second (${(1000 / r.sim).toFixed(2)}x real time); the renderer's CPU work for a frame ${r.cpu.toFixed(1)} ms (the GPU's finished between frames); ${r.calls} draw calls, ${(r.tris / 1e3).toFixed(0)}k triangles over all passes; merged ${JSON.stringify(r.merged)}${r.ab ? `; alternating in one page: merged ${r.ab.on.toFixed(1)} ms, not ${r.ab.off.toFixed(1)} ms (${r.ab.offCalls} draw calls)` : ''}`);
+    await browser.close(); srv.kill(); process.exit(0);
+  }
   const t0 = Date.now();
   const samples = [];
   while (Date.now() - t0 < secs * 1000) {
