@@ -32,6 +32,10 @@ const SHOOTHERE = knob(globalThis.process?.env?.SHOOTHERE, 0);
 // FULLGO=0: a robot whose intake is full short of half its rating doesn't head in, and a chassis-aimed
 // shooter drives in at its shooting speed, as before
 const FULLGO = knob(globalThis.process?.env?.FULLGO, 1);
+// BLOCKHOLD=1: shooting while driving into something that holds it up, it stops pushing for a second
+// (off: in this form it cost 4414 126 FUEL a match and 1690 75, seeds 1-2 against a champs 2910: it
+// stops as well whenever a pile of FUEL slows it while it collects and shoots)
+const BLOCKHOLD = knob(globalThis.process?.env?.BLOCKHOLD, 0);
 // SHUTTLEMODE=0: every robot feeds its zone with all it collects in its HUB's off shifts, as before
 const SHUTTLEMODE = knob(globalThis.process?.env?.SHUTTLEMODE, 1);
 // TURRETCAP=n: a turret collecting in its zone drives at full speed while it holds fewer than n
@@ -243,6 +247,20 @@ export class OpponentAI {
     // (where it's collecting, for its partners' _pickBall)
     r.aiBall = this.mode !== 'defend' && (this.state === 'collect' || this.state === 'feed') && this.ball ? { x: this.ball.pos.x, z: this.ball.pos.z } : null;
     this._smooth(dt);
+    // shooting while driving into something (a robot, a wall, a pile) that holds it up: it stops
+    // pushing for a second and shoots standing. Pushing, its wheels scrub or lift, and the velocity
+    // its shot leads by (measured at the wheels) is wrong: 4414's standing 4-5 m shots that led by
+    // 0.1 m/s or more landed 16 cm long and went in 70% against 87%
+    if (BLOCKHOLD && !this.shadow) {
+      const wantV = Math.hypot(cmd.vx, cmd.vz), haveV = Math.hypot(r.vel.x, r.vel.z);
+      const firing = cmd.shoot && r.stored.length > 0;
+      if (firing && wantV > 0.5 && haveV < 0.25) this.blockT = (this.blockT || 0) + dt; else this.blockT = 0;
+      if (this.blockT > 0.2) this.holdShotT = 1.0;
+      if (this.holdShotT > 0) {
+        this.holdShotT -= dt;
+        if (firing) { cmd.vx = 0; cmd.vz = 0; }
+      }
+    }
     // a physical robot whose ball path can lock up where its code can't see it (341's zipper):
     // nothing coming out, its driver lets go of the trigger for a moment and presses it again
     if (r.phys?.letGo?.()) { cmd.shoot = false; cmd.pass = false; }
