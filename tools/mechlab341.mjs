@@ -193,7 +193,7 @@ const tests = {
       if (SETTLED) for (let i = 0; i < 3 / DT; i++) { fly(t, rpm); shooter.step(DT, []); }
       else for (let i = 0; i < 6 / DT && !within(); i++) { fly(t, rpm); shooter.step(DT, []); }
       const balls = PRELOAD.map(([x, y, z]) => ball(w, x, y, z));
-      const watch = shotWatch(shooter), hoodHits = new Set();
+      const watch = shotWatch(shooter), hoodHits = new Map(), entry = new Map();
       let atSpeedT = 0.1;
       // (until all eight are out, or nothing's come out for a second: the zipper locked, as it can
       // in play, where the AI's driver lets go and presses again; the ones shot count)
@@ -214,12 +214,23 @@ const tests = {
         stepBoth(path, shooter, live); w.step();
         watch.check(live, i * DT);
         for (const o of watch.shots) o.est ??= Math.min(EXIT_PER_FLY_SURFACE * (Math.abs(t.fly.omega) * SHOOTER.fly.d) / 2, EXIT_SLIP[0] + (EXIT_SLIP[1] * Math.abs(t.fly.omega) * SHOOTER.fly.d) / 2);
-        if (process.env.HOODLOG) for (const c of shooter.contacts) if (c.wheel.name.startsWith('hood (CAD)')) { hoodHits.add(c.ball); if (process.env.HOODLOG === '2') console.log(`        hood contact n ${c.n.map((x) => x.toFixed(2)).join(',')} ${c.force.toFixed(0)} N at ${c.x.map((x) => x.toFixed(3)).join(',')}`); }
+        // (the hood's contacts wherever they're met: the shooter's, or the path's when it's left there
+        // (HOODSUB=bore); its side plates: the normal along the flywheel's axle. And each FUEL's
+        // offset along the axle from the turret's axis where the shooter first has it)
+        if (process.env.HOODLOG) {
+          const yy = process.env.TURN ? yaw0 + Number(process.env.TURN) * i * DT : yaw0, ax = [Math.sin(yy), 0, Math.cos(yy)];
+          for (const c of shooter.contacts) if (!entry.has(c.ball)) { const p = c.ball.translation(); entry.set(c.ball, (p.x - TURRET[0]) * ax[0] + (p.z - TURRET[1]) * ax[2]); }
+          for (const c of [...shooter.contacts, ...path.contacts]) {
+            if (!c.wheel.name.startsWith('hood (CAD)')) continue;
+            if (Math.abs(c.n[0] * ax[0] + c.n[2] * ax[2]) > 0.7 && c.force > 5) hoodHits.set(c.ball, Math.max(hoodHits.get(c.ball) ?? 0, c.force));
+            if (process.env.HOODLOG === '2') console.log(`        hood contact n ${c.n.map((x) => x.toFixed(2)).join(',')} ${c.force.toFixed(0)} N at ${c.x.map((x) => x.toFixed(3)).join(',')}`);
+          }
+        }
       }
       w.free();
       const H = kind === 'hub' ? HUB.rimFront : R;
       const L = watch.shots.map((o) => { const h = sim2D(o.y, o.v, (o.el * Math.PI) / 180, H, 0, o.s ?? 0); return h ? h.d + o.x - TURRET[0] : NaN; }).filter(Number.isFinite);
-      if (process.env.HOODLOG) console.log(`      the hood's CAD touched ${hoodHits.size} of ${balls.length}`);
+      if (process.env.HOODLOG) console.log(`      the hood's side plates pressed ${hoodHits.size} of ${balls.length} over 5 N (${[...hoodHits.values()].map((f) => f.toFixed(0)).join(' ')} N); off the turret's axis entering the shooter (mm): ${[...entry.values()].map((s) => (s * 1000).toFixed(0)).join(' ')}`);
       if (process.env.TUNELOG) console.log(`      ${rpm.toFixed(0)}: ${watch.shots.map((o, k) => `${o.t.toFixed(2)}s ${o.v.toFixed(2)}@${o.el.toFixed(0)} ${(o.v / o.est).toFixed(3)} h${(((o.hdg - (Number(process.env.YAW ?? 0) + (process.env.TURN ? (Number(process.env.TURN) * o.t * 180) / Math.PI : 0)) + 540) % 360) - 180).toFixed(1)} ${(L[k] ?? NaN).toFixed(2)}`).join(' | ')}`);
       return { land: L.length ? L.reduce((a, b) => a + b, 0) / L.length : NaN, n: L.length, spread: L.length ? Math.max(...L) - Math.min(...L) : NaN };
     };

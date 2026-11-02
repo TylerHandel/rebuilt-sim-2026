@@ -141,11 +141,11 @@ const interp = (t, x) => {
 // SUB341=1 (trial): the bore and hood met at the shooter's sub-steps, and the rows re-found that way
 export const SUB_BORE = typeof process !== 'undefined' && !!process.env?.SUB341;
 export const SIM_SHOTS = SUB_BORE ? {
-  rpm: [[1.51, 2550], [2.38, 2315], [3.07, 2235], [3.5, 2275], [4.24, 2300], [5.5, 2520], [14, 3370]],
-  feedRpm: [[4, 1715], [5.5, 2125], [7.5, 2600], [9, 2930], [10.5, 3245], [13.94, 5500], [16, 5500]],
+  rpm: [[1.51, 2560], [2.38, 2290], [3.07, 2210], [3.5, 2265], [4.24, 2285], [5.5, 2515], [14, 3365]],
+  feedRpm: [[4, 1710], [5.5, 2115], [7.5, 2595], [9, 2925], [10.5, 3250], [13.94, 4520], [16, 5500]],
 } : {
-  rpm: [[1.51, 2055], [2.38, 2145], [3.07, 2110], [3.5, 2195], [4.24, 2230], [5.5, 2455], [14, 3285]],
-  feedRpm: [[4, 1665], [5.5, 2060], [7.5, 2555], [9, 2885], [10.5, 3225], [13.94, 4430], [16, 5500]],
+  rpm: [[1.51, 2090], [2.38, 2130], [3.07, 2125], [3.5, 2180], [4.24, 2215], [5.5, 2460], [14, 3290]],
+  feedRpm: [[4, 1665], [5.5, 2065], [7.5, 2545], [9, 2890], [10.5, 3205], [13.94, 4520], [16, 5500]],
 };
 const THEIR_SHOTS = typeof process !== 'undefined' && !!process.env?.THEIR_SHOTS;
 export function shotFor(kind, d, { theirs = THEIR_SHOTS } = {}) {
@@ -347,11 +347,15 @@ export function pathSurfaces341(mesh, t, { mu = 0.35 } = {}) {
 // Panels NOT in their CAD (GUARDS=none leaves them out; GUARDS=lid,wall,omni picks): solid blocks
 // (mechanism.js Block) where FUEL got out of the ball path into places nothing reaches them
 const GUARDS = typeof process !== 'undefined' && process.env?.GUARDS != null ? process.env.GUARDS : 'lid,wall,omni';
+// (the lane's wall carried up flush with their CAD's wall below it, whose face is 0.149 m left of the
+// middle: it stood 4 mm proud of it, 0.145, and held the lane's FUEL 4 mm right of the turret's
+// axis, which the uptake handed on into the hood a few mm off its middle. WALL_Z=-0.1925 for that)
+const WALL_Z = Number(typeof process !== 'undefined' && process.env?.WALL_Z || -0.1965);
 export function guards341(which = GUARDS) {
   const want = new Set(which.split(',')), out = {};
   const at = (b, z) => { b.setPose([0, 0, z]); return b; };
   if (want.has('lid')) out.lid = at(new Block({ name: 'lane lid (not in the CAD)', x0: 0.008, x1: 0.062, y0: 0.326, y1: 0.345, hw: 0.07, r: 0.005, mu: 0.35 }), -0.075);
-  if (want.has('wall')) out.wall = at(new Block({ name: 'lane wall to the table (not in the CAD)', x0: -0.152, x1: 0.095, y0: 0.175, y1: 0.372, hw: 0.0475, r: 0.005, mu: 0.35 }), -0.1925);
+  if (want.has('wall')) out.wall = at(new Block({ name: 'lane wall to the table (not in the CAD)', x0: -0.152, x1: 0.095, y0: 0.175, y1: 0.372, hw: 0.0475, r: 0.005, mu: 0.35 }), WALL_Z);
   if (want.has('omni')) out.omni = at(new Block({ name: 'feeder omni cover (not in the CAD)', x0: -0.094, x1: 0.006, y0: 0.272, y1: 0.37, hw: 0.05, r: 0.005, mu: 0.35 }), 0.075);
   return out;
 }

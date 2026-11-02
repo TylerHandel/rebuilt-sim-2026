@@ -27,6 +27,10 @@ if (args.includes('--sum')) {
     const acc = (s) => (s.length ? ((100 * s.filter((x) => x.in).length) / s.length).toFixed(0).padStart(4) : '   -');
     for (const [k, p] of Object.entries(per)) {
       const S = p.shots, f1 = (x) => (Number.isFinite(x) ? (100 * x).toFixed(1) : '-').padStart(5);
+      // (the aim's HUB along the line to it, signed (cm): + long; each distance band, standing and moving)
+      const sg = (xs) => (xs.length ? `${f1(pct(xs, 0.1))}${f1(pct(xs, 0.5))}${f1(pct(xs, 0.9))}` : '    -    -    -');
+      const AL = (q) => S.filter((x) => x.al !== undefined && q(x)).map((x) => x.al);
+      if (S.some((x) => x.al !== undefined)) console.log(`${k.padEnd(6)} aim's HUB along the line (cm, 10/50/90%): all ${sg(AL(() => true))} | <3m ${sg(AL((x) => x.d < 3))} | 3-5m ${sg(AL((x) => x.d >= 3 && x.d < 5))} | >5m ${sg(AL((x) => x.d >= 5))} | standing ${sg(AL((x) => x.v < 0.5))} | moving ${sg(AL((x) => x.v >= 0.5))}; across ${sg(S.filter((x) => x.ac !== undefined).map((x) => x.ac))}`);
       console.log(`${k.padEnd(6)} ${p.n} ${(p.pts / p.n).toFixed(0).padStart(4)} | ${f1(pct(p.err, 0.5))} ${f1(pct(p.err, 0.9))}  ${f1(pct(p.errShoot, 0.5))} ${f1(pct(p.errShoot, 0.9))} | ${f1(pct(p.hubShoot, 0.5))} ${f1(pct(p.hubShoot, 0.9))} ${f1(pct(p.hubLive, 0.5))} ${f1(pct(p.hubLive, 0.9))} | ${(pct(p.th.map(Math.abs), 0.9) / (Math.PI / 180) || 0).toFixed(2).padStart(5)} | ${acc(S)} ${String(S.length).padStart(4)} | ${acc(S.filter((s) => s.d < 3))} ${acc(S.filter((s) => s.d >= 3 && s.d < 5))} ${acc(S.filter((s) => s.d >= 5))} | ${acc(S.filter((s) => s.v < 0.5))} ${acc(S.filter((s) => s.v >= 0.5))}`);
     }
   }
@@ -53,7 +57,11 @@ for (const seed of range(arg('seeds', '1'))) {
           const r = robots[k], mode = r.shot?.mode ?? r.lastMode;
           if (mode !== 'hub') return;
           const c = Field.hubCenter(r.alliance), e = r.loc.error();
-          const s = { d: +Math.hypot(c.x - r.pos.x, c.z - r.pos.z).toFixed(2), v: +Math.hypot(r.vel.x, r.vel.z).toFixed(2), hub: e ? +e.hub.toFixed(3) : 0, hubLive: e ? +e.hubLive.toFixed(3) : 0, w: +Math.abs(r.omega).toFixed(2), in: false, t: +(info.t ?? 0).toFixed(2) };
+          // (where the aim put the HUB's center against where it is: along the line from the robot to
+          // it, + beyond it (the shot goes long), and across it, + to the robot's left of the line)
+          const a = r.aimHub(), ux = (c.x - r.pos.x), uz = (c.z - r.pos.z), ul = Math.hypot(ux, uz) || 1;
+          const al = ((a.x - c.x) * ux + (a.z - c.z) * uz) / ul, ac = ((a.x - c.x) * uz - (a.z - c.z) * ux) / ul;
+          const s = { al: +al.toFixed(3), ac: +ac.toFixed(3), d: +Math.hypot(c.x - r.pos.x, c.z - r.pos.z).toFixed(2), v: +Math.hypot(r.vel.x, r.vel.z).toFixed(2), hub: e ? +e.hub.toFixed(3) : 0, hubLive: e ? +e.hubLive.toFixed(3) : 0, w: +Math.abs(r.omega).toFixed(2), in: false, t: +(info.t ?? 0).toFixed(2) };
           sides[k].shots.push(s);
           live.set(b, s);
         };

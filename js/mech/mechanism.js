@@ -287,6 +287,28 @@ export class Train {
   }
 }
 
+// Wheels side by side on one axle (a stack of flex wheels, compliant wheels between mecanums) make
+// one tread: where one's edge meets the next's, a FUEL rolling across meets the next wheel's
+// tread, not an edge. Met each on its own, a FUEL off the middle of the stack was pressed by the
+// inner wheel's edge too, at a slant out toward the side it was already on (12-13 N sideways at
+// 341's uptake, from each of its two stacks of two 1in flex wheels, where the tread's push was
+// ~100 N): a FUEL a little off the middle went further off, into the turret 15-20 mm off its
+// axis, and on into the hood's side plates. abutting() marks each wheel's sides that another
+// wheel's tread continues (coaxial, about the same radius, their faces within 1 mm), and the
+// contacts leave those edges and sides out (EDGES=1: as it was)
+const EDGES_ALL = globalThis.process?.env?.EDGES === '1';
+export function abutting(wheels) {
+  for (const w of wheels) w.covered ??= [false, false];
+  if (EDGES_ALL) return;
+  for (const a of wheels) for (const b of wheels) {
+    if (a === b || Math.abs(a.radius - b.radius) > 0.004 || Math.abs(dot(a.axis, b.axis)) < 0.999) continue;
+    if (a.pivotShaft !== b.pivotShaft) continue; // (both on the frame, or both on the same arm)
+    const d = sub(b.center, a.center), s = dot(d, a.axis);
+    if (len(sub(d, mul(a.axis, s))) > 0.002 || Math.abs(Math.abs(s) - (a.width + b.width) / 2) > 0.001) continue;
+    a.covered[s > 0 ? 1 : 0] = true;
+  }
+}
+
 export class Wheel {
   // shaft: the Shaft it's on; center, axis: in the frame's coordinates (m; axis a unit vector);
   // radius, width (m); kind: 'plain' | 'omni' | 'mecanum'; mecanum: its rollers' angle (deg,
@@ -554,6 +576,7 @@ export class Mechanism {
   // curved: its wheels meet FUEL as the cylinders they are (curvature, above), not as plates
   constructor({ body = null, shafts = [], wheels = [], surfaces = [], iterations = 6, gravity = [0, -9.81, 0], substeps = 4, sub = 1, carried = CARRIED, fast = null, curved = false } = {}) {
     Object.assign(this, { body, shafts, wheels, surfaces, iterations, gravity, sub, carried, fast, curved: CURVED ?? curved });
+    abutting(wheels);
     this.gShare = (substeps + 1) / (2 * substeps);
     this.contacts = [];  // last step's, for drawing and tests
     this.dents = [];     // its last substep's, every one (step)
@@ -729,6 +752,9 @@ export class Mechanism {
           n = mul(rad, 1 / rl);
           depth = R + wh.radius - rl;
           rim = add(c, add(mul(a, s), mul(n, wh.radius)));
+        } else if (wh.covered?.[s > 0 ? 1 : 0]) {
+          // (past an edge another wheel's tread carries on from: that wheel's)
+          continue;
         } else if (rl <= wh.radius) {
           // against its side (over the wheel, for a wheel lying flat)
           n = mul(a, Math.sign(s));
