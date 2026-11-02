@@ -1,0 +1,12 @@
+{
+ "ref": "e934a156dfdee51ac29ad1391179abfe04b4dde7",
+ "args": [
+  "--seeds",
+  "1-2",
+  "--jobs",
+  "12"
+ ],
+ "env": {
+  "SCHED3V3": "26"
+ }
+}
