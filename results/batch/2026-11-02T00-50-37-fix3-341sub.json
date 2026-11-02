@@ -1,0 +1,265 @@
+{
+ "name": "2026-11-02T00-50-37-fix3-341sub",
+ "threads": 16,
+ "jobs": 12,
+ "commit": "1870d1c",
+ "strategy": "scorer",
+ "skill": "champs",
+ "seeds": [
+  1,
+  2,
+  3,
+  4,
+  5,
+  6,
+  7,
+  8
+ ],
+ "env": {
+  "SUB341": "1"
+ },
+ "minutes": 3.1835166666666668,
+ "summary": "robot  matches  avg pts  avg FUEL  avg launched  avg passes  fouls  W-L-T\n2910         8    515.0     515.0         697.4       160.0      0  8-0-0\n341          8    156.8     149.3         349.0       146.6      0  0-8-0",
+ "results": [
+  {
+   "a": "341",
+   "b": "2910",
+   "seed": 3,
+   "ok": {
+    "robot": "2910",
+    "pts": 463,
+    "fuel": 463,
+    "launched": 685,
+    "passes": 153,
+    "fouls": []
+   },
+   "A": {
+    "robot": "341",
+    "pts": 161,
+    "fuel": 151,
+    "launched": 348,
+    "passes": 153,
+    "fouls": []
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 463,
+    "fuel": 463,
+    "launched": 685,
+    "passes": 153,
+    "fouls": []
+   },
+   "s": 179.71
+  },
+  {
+   "a": "341",
+   "b": "2910",
+   "seed": 1,
+   "ok": {
+    "robot": "2910",
+    "pts": 494,
+    "fuel": 494,
+    "launched": 623,
+    "passes": 128,
+    "fouls": []
+   },
+   "A": {
+    "robot": "341",
+    "pts": 167,
+    "fuel": 157,
+    "launched": 384,
+    "passes": 154,
+    "fouls": []
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 494,
+    "fuel": 494,
+    "launched": 623,
+    "passes": 128,
+    "fouls": []
+   },
+   "s": 179.83
+  },
+  {
+   "a": "341",
+   "b": "2910",
+   "seed": 8,
+   "ok": {
+    "robot": "2910",
+    "pts": 532,
+    "fuel": 532,
+    "launched": 719,
+    "passes": 173,
+    "fouls": []
+   },
+   "A": {
+    "robot": "341",
+    "pts": 153,
+    "fuel": 143,
+    "launched": 349,
+    "passes": 153,
+    "fouls": []
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 532,
+    "fuel": 532,
+    "launched": 719,
+    "passes": 173,
+    "fouls": []
+   },
+   "s": 181.676
+  },
+  {
+   "a": "341",
+   "b": "2910",
+   "seed": 6,
+   "ok": {
+    "robot": "2910",
+    "pts": 662,
+    "fuel": 662,
+    "launched": 860,
+    "passes": 185,
+    "fouls": []
+   },
+   "A": {
+    "robot": "341",
+    "pts": 160,
+    "fuel": 160,
+    "launched": 401,
+    "passes": 160,
+    "fouls": []
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 662,
+    "fuel": 662,
+    "launched": 860,
+    "passes": 185,
+    "fouls": []
+   },
+   "s": 185.966
+  },
+  {
+   "a": "341",
+   "b": "2910",
+   "seed": 5,
+   "ok": {
+    "robot": "2910",
+    "pts": 538,
+    "fuel": 538,
+    "launched": 680,
+    "passes": 125,
+    "fouls": []
+   },
+   "A": {
+    "robot": "341",
+    "pts": 143,
+    "fuel": 143,
+    "launched": 321,
+    "passes": 128,
+    "fouls": []
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 538,
+    "fuel": 538,
+    "launched": 680,
+    "passes": 125,
+    "fouls": []
+   },
+   "s": 186.625
+  },
+  {
+   "a": "341",
+   "b": "2910",
+   "seed": 4,
+   "ok": {
+    "robot": "2910",
+    "pts": 484,
+    "fuel": 484,
+    "launched": 693,
+    "passes": 179,
+    "fouls": []
+   },
+   "A": {
+    "robot": "341",
+    "pts": 140,
+    "fuel": 130,
+    "launched": 345,
+    "passes": 175,
+    "fouls": []
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 484,
+    "fuel": 484,
+    "launched": 693,
+    "passes": 179,
+    "fouls": []
+   },
+   "s": 187.462
+  },
+  {
+   "a": "341",
+   "b": "2910",
+   "seed": 2,
+   "ok": {
+    "robot": "2910",
+    "pts": 537,
+    "fuel": 537,
+    "launched": 711,
+    "passes": 161,
+    "fouls": []
+   },
+   "A": {
+    "robot": "341",
+    "pts": 169,
+    "fuel": 159,
+    "launched": 315,
+    "passes": 115,
+    "fouls": []
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 537,
+    "fuel": 537,
+    "launched": 711,
+    "passes": 161,
+    "fouls": []
+   },
+   "s": 190.077
+  },
+  {
+   "a": "341",
+   "b": "2910",
+   "seed": 7,
+   "ok": {
+    "robot": "2910",
+    "pts": 410,
+    "fuel": 410,
+    "launched": 608,
+    "passes": 176,
+    "fouls": []
+   },
+   "A": {
+    "robot": "341",
+    "pts": 161,
+    "fuel": 151,
+    "launched": 329,
+    "passes": 135,
+    "fouls": []
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 410,
+    "fuel": 410,
+    "launched": 608,
+    "passes": 176,
+    "fouls": []
+   },
+   "s": 190.977
+  }
+ ]
+}
