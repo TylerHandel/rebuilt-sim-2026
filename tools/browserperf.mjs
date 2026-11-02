@@ -42,7 +42,7 @@ try {
     await page.waitForTimeout(1000);
     samples.push(await page.evaluate(() => {
       const s = window.__sim, st = s.stats?.last ?? null, info = s.renderer.info;
-      return { merged: s.merger ? JSON.stringify(s.merger.stats) : "", st, calls: info.render.calls, tris: info.render.triangles, geos: info.memory.geometries, tex: info.memory.textures, t: s.game?.match?.t ?? 0, prof: s.profRows ? s.profRows() : null };
+      return { worker: s.stats.worker ? JSON.stringify(s.stats.worker) : "", merged: s.merger ? JSON.stringify(s.merger.stats) : "", st, calls: info.render.calls, tris: info.render.triangles, geos: info.memory.geometries, tex: info.memory.textures, t: s.game?.match?.t ?? 0, prof: s.profRows ? s.profRows() : null };
     }));
   }
   const ok = samples.filter((x) => x.st);
@@ -51,7 +51,7 @@ try {
   console.log(`${preset} ${W}x${H}, 3v3 ${blue.join(',')} v ${red.join(',')}: ${avg((x) => x.st.fps).toFixed(1)} fps, frame ${avg((x) => x.st.frame).toFixed(1)} ms = physics ${avg((x) => x.st.physics).toFixed(1)} (${avg((x) => x.st.steps).toFixed(0)} steps/s) + game ${avg((x) => x.st.game).toFixed(1)} + render CPU ${avg((x) => x.st.render).toFixed(1)}; GPU ${ok.some((x) => x.st.gpu !== null) ? avg((x) => x.st.gpu ?? 0).toFixed(1) + ' ms' : 'n/a'}; match clock ran ${(matchT / ((samples.length - 1) || 1)).toFixed(2)} s per s`);
   console.log(`draw calls ${avg((x) => x.calls).toFixed(0)}, triangles ${(avg((x) => x.tris) / 1e3).toFixed(0)}k per frame (last render pass); geometries ${samples.at(-1)?.geos}, textures ${samples.at(-1)?.tex}`);
   if (samples.at(-1)?.st?.parts) console.log("sim parts, self ms a frame: " + samples.at(-1).st.parts.map((p) => `${p.label} ${p.ms.toFixed(2)}`).join(", "));
-  console.log(`merged: ${samples.at(-1)?.merged}`);
+  console.log(`merged: ${samples.at(-1)?.merged}; physics thread: ${samples.at(-1)?.worker || "off"}`);
   // --census: what's in the scene, by top-level object: visible meshes (draw calls before culling),
   // triangles, shadow casters
   if (args.includes('--census')) {

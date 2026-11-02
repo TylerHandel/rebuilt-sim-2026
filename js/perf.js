@@ -16,6 +16,7 @@ export class FrameStats {
     this._reset();
     this.last = null; // the latest averages
     this.prof = null; // (a js/profiler.js Profiler: ?prof)
+    this.worker = null; // (the physics thread's own time, when the match runs there: js/simThread.js)
   }
 
   _reset() { this.acc = { frame: 0, physics: 0, game: 0, render: 0, gpu: 0, gpuN: 0, steps: 0, n: 0, calls: 0, tris: 0, shadow: 0, passes: 0 }; this.t = 0; }
@@ -79,7 +80,8 @@ export class FrameStats {
     const seg = (cls, ms) => `<span class="${cls}" style="width:${pct(ms).toFixed(1)}%"></span>`;
     return `<div class="ph">${head}</div>`
       + `<div class="pbar">${seg('pp', s.physics)}${seg('pg', s.game)}${seg('pc', s.render)}</div>`
-      + row('pp', `Physics <small>${Math.round(s.steps)} steps/s</small>`, s.physics)
+      + (this.worker ? `<div class="pr"><span><i class="pp"></i>Physics thread <small>${Math.round(this.worker.stepsPerS)} steps/s</small></span><b>${this.worker.msPerStep.toFixed(1)} ms</b><b>/step</b></div>`
+        : row('pp', `Physics <small>${Math.round(s.steps)} steps/s</small>`, s.physics))
       + row('pg', 'Game logic', s.game)
       + row('pc', 'Render (CPU)', s.render)
       + row('pf', s.gpu !== null ? 'Idle' : 'Idle / GPU wait', free)

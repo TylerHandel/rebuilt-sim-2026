@@ -46,7 +46,10 @@ export class StaticMerger {
       if (!R.root.parent) { for (const b of R.batches) this._unmerge(R, b, false); this.roots.splice(i, 1); continue; }
       for (let k = R.batches.length - 1; k >= 0; k--) {
         const b = R.batches[k], moved = this._moved(b);
-        if (moved.length) {
+        // (or the merged mesh itself changed by something that went through the scene: the CAD
+        // hiding the drawn field's parts but those kept with it, js/cadModels.js. Its parts, put
+        // back, are as that left them; they merge again in a moment)
+        if (moved.length || this._touched(b)) {
           for (const o of moved) R.moving.add(o);
           this._unmerge(R, b, true);
           R.batches.splice(k, 1);
@@ -66,8 +69,14 @@ export class StaticMerger {
     const p = o.position, q = o.quaternion, s = o.scale;
     const g = o.geometry, pa = g?.attributes?.position, na = g?.attributes?.normal;
     const m = o.material && !Array.isArray(o.material) ? o.material : null;
-    return [p.x, p.y, p.z, q.x, q.y, q.z, q.w, s.x, s.y, s.z, o.visible, o.material, g, pa ? pa.version : 0, na ? na.version : 0, g ? g.drawRange.count : 0, o.parent, o.layers.mask, ...matState(m)];
+    const M = o.matrixAutoUpdate ? null : o.matrix.elements.slice();
+    return [p.x, p.y, p.z, q.x, q.y, q.z, q.w, s.x, s.y, s.z, o.visible, o.material, g, pa ? pa.version : 0, na ? na.version : 0, g ? g.drawRange.count : 0, o.parent, o.layers.mask,
+      o.castShadow, o.receiveShadow, o.matrixAutoUpdate, M, ...matState(m)];
   }
+
+  // the merged mesh as it was made: shown, on its layers, casting, in its place
+  _meshState(m) { return [m.visible, m.layers.mask, m.castShadow, m.receiveShadow, m.parent, m.material, m.renderOrder]; }
+  _touched(b) { const s = b.meshSnap, m = b.mesh; return m.visible !== s[0] || m.layers.mask !== s[1] || m.castShadow !== s[2] || m.receiveShadow !== s[3] || m.parent !== s[4] || m.material !== s[5] || m.renderOrder !== s[6]; }
 
   _moved(b) {
     const out = [];
@@ -78,7 +87,8 @@ export class StaticMerger {
       if (p.x !== s[0] || p.y !== s[1] || p.z !== s[2] || q.x !== s[3] || q.y !== s[4] || q.z !== s[5] || q.w !== s[6]
         || sc.x !== s[7] || sc.y !== s[8] || sc.z !== s[9] || o.visible !== s[10] || o.material !== s[11] || g !== s[12]
         || (pa ? pa.version : 0) !== s[13] || (na ? na.version : 0) !== s[14] || (g ? g.drawRange.count : 0) !== s[15] || o.parent !== s[16]
-        || o.layers.mask !== (b.isSource[i] ? 0 : s[17]) || (b.watchMat && b.isSource[i] && matChanged(o.material, s, 18))) out.push(o);
+        || o.layers.mask !== (b.isSource[i] ? 0 : s[17]) || o.castShadow !== s[18] || o.receiveShadow !== s[19] || o.matrixAutoUpdate !== s[20]
+        || (s[21] && !sameMatrix(o.matrix.elements, s[21])) || (b.watchMat && b.isSource[i] && matChanged(o.material, s, 22))) out.push(o);
     }
     return out;
   }
@@ -127,6 +137,20 @@ export class StaticMerger {
       // its vertices (the same color: the shader multiplies the material's by the vertices')
       const mats = new Set(list.map((o) => o.material));
       const tint = mats.size > 1 && !list.every((o) => o.material.color && o.material.color.equals(list[0].material.color));
+      // (the merged mesh goes in the parts' nearest common parent: whatever goes through the scene
+      // by what a mesh is in finds it where they are)
+      const up = [];
+      for (let n = list[0].parent; n; n = n.parent) { up.push(n); if (n === root) break; }
+      let host = 0;
+      for (const o of list.slice(1)) {
+        const mine = new Set();
+        for (let n = o.parent; n; n = n.parent) { mine.add(n); if (n === root) break; }
+        let i = 0;
+        while (i < up.length - 1 && !mine.has(up[i])) i++;
+        host = Math.max(host, i);
+      }
+      const parent = up[host] ?? root;
+      this._inv.copy(parent.matrixWorld).invert();
       const geos = list.map((o) => {
         this._m.multiplyMatrices(this._inv, o.matrixWorld);
         const g = o.geometry.clone();
@@ -168,7 +192,7 @@ export class StaticMerger {
       mesh.layers.mask = src.layers.mask; mesh.renderOrder = src.renderOrder;
       mesh.userData.glow = src.userData.glow; mesh.userData.merged = true; mesh.userData.noMerge = true;
       mesh.matrixAutoUpdate = false;
-      root.add(mesh);
+      parent.add(mesh);
       mesh.updateMatrixWorld(true);
       // what to watch: the sources and every parent between them and the root
       const nodes = [], seen = new Set(), isSource = [];
@@ -181,7 +205,7 @@ export class StaticMerger {
       const snap = nodes.map((n) => this._state(n));
       for (const o of list) o.layers.mask = 0;
       // (several materials drawn as one: a change to any of them is a change; one shared changes the merged mesh too)
-      R.batches.push({ mesh, sources: list, nodes, snap, isSource, ownMat: tint, watchMat: mats.size > 1 });
+      R.batches.push({ mesh, sources: list, nodes, snap, isSource, ownMat: tint, watchMat: mats.size > 1, meshSnap: this._meshState(mesh) });
     }
   }
 
@@ -196,6 +220,7 @@ export class StaticMerger {
 
 // what's watched of a merged part's material: its color, glow, opacity, visibility (anything that
 // changes at run time; the rest of a material is set once)
+function sameMatrix(a, b) { for (let i = 0; i < 16; i++) if (a[i] !== b[i]) return false; return true; }
 function matState(m) {
   if (!m) return [0, 0, 0, 0, 0, 0, 0, 0, true];
   const c = m.color, e = m.emissive;

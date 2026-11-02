@@ -25,7 +25,7 @@ export const DEFAULT_SETTINGS = {
   hp: 'manual', climber: 'none', camera: 'driver', preview: 'on',
   opponent: 'scorer', oppRobot: '4414', oppSkill: 'regional', customSide: 'drawn',
   driver: 'human', driverSkill: 'trained', mode: 'normal', role: 'score', nnNet: 'auto', sound: 'medium',
-  graphics: 'auto', dynRes: 'off', fps: 'off',
+  graphics: 'auto', dynRes: 'off', fps: 'off', physThread: 'main',
 };
 
 export function loadSettings() {
@@ -106,6 +106,7 @@ const OPT = {
   }),
   sound: opt('sound', 'Sound', [['off', 'Off'], ['low', 'Low'], ['medium', 'Medium'], ['high', 'High']], 'Robots, FUEL, the field\'s match cues and the crowd (it cheers when a volley of FUEL scores).'),
   graphics: opt('graphics', 'Graphics', () => [['auto', 'Auto'], ...PRESET_ORDER.map((k) => [k, PRESETS[k].name])], (s) => graphicsInfo(s.graphics)),
+  physThread: opt('physThread', 'Physics thread', [['main', 'With the drawing'], ['worker', 'Separate']], 'Separate: the match (physics, every robot\'s mechanisms, the AIs) runs on a thread of its own while the page draws, so a 3v3 of physical robots keeps 60 fps on a desktop CPU. Needs the game served by serve.py (start.bat / start.command). Training mode, a neural-net driver and recording your driving for the AI run with the drawing.'),
   dynRes: opt('dynRes', 'Dynamic resolution', [['off', 'Off'], ['on', 'On']], 'Drops the render resolution (down to half) while the game can\'t keep up 60 fps, and brings it back when it can: DLSS\'s idea, render fewer pixels when the GPU is behind (the browser scales the frame up; DLSS itself needs a native app).'),
   fps: opt('fps', 'Show FPS', [['off', 'Off'], ['on', 'On']], 'Frame rate, preset and render resolution in the corner.'),
   preview: opt('preview', 'Shot preview line', [['on', 'On'], ['off', 'Off']], 'While you hold shoot, a line shows where the shot goes (green once it will score).'),
@@ -198,7 +199,7 @@ const PAGES = {
   settings: () => [
     sec('Your robot'), o('hp'), o('climber'),
     sec('View'), o('camera'), o('preview'),
-    sec('Graphics'), o('graphics'), o('dynRes'), o('fps'),
+    sec('Graphics'), o('graphics'), o('dynRes'), o('fps'), o('physThread'),
     sec('Sound'), o('sound'),
     btn('LOAD REAL MATCH SOUNDS…', 'loadSounds', { half: true, secondary: true, desc: 'Pick your own recordings of the field\'s match cues, like the official ones installed with the FRC Game Tools / Driver Station (search its install folder for .wav files), or the static/audio folder of Team 254\'s Cheesy Arena. They\'re matched by file name (start / teleop or resume / shift / endgame or warning; there\'s no end-of-match sound) and stay in this browser only.' }),
     btn('USE BUILT-IN SOUNDS', 'clearSounds', { half: true, secondary: true, desc: 'Go back to the built-in match cues.' }),
