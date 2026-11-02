@@ -119,7 +119,9 @@ export class NavGrid {
       for (let j = 0; j < NZ; j++) {
         const x = -HALF_L + (i + 0.5) * CELL, z = -HALF_W + (j + 0.5) * CELL;
         this.blocked[i * NZ + j] = arm(x, z, radius) || obstacleAt(x, z, radius) ? 1 : 0;
-        if (margin > 0 && !this.blocked[i * NZ + j]) this.near[i * NZ + j] = arm(x, z, radius + margin) || obstacleAt(x, z, radius + margin) ? 1 : 0;
+        // (not under a TRENCH's arm itself: the opening is a lane robots drive down square, and
+        // costing it sent them the long way over the BUMP)
+        if (margin > 0 && !this.blocked[i * NZ + j] && !underTrench(x, z)) this.near[i * NZ + j] = arm(x, z, radius + margin) || obstacleAt(x, z, radius + margin) ? 1 : 0;
       }
     }
     this.nearCost = 3;
