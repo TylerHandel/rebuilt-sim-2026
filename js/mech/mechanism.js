@@ -50,6 +50,8 @@ const MU_SIDE = 0.3;                  // FUEL on a wheel's side (its plates, hub
 const CARRIED = globalThis.process?.env?.CARRIED !== '0';
 const SUBMOTOR = globalThis.process?.env?.SUBMOTOR !== '0';
 const FAST = globalThis.process?.env?.FASTSUB !== '0';
+// (CURVED=1: every mechanism's wheels meet FUEL as cylinders, a trial; CURVED=0: none, the old way)
+const CURVED_ENV = globalThis.process?.env?.CURVED, CURVED = CURVED_ENV === '1' ? true : CURVED_ENV === '0' ? false : undefined;
 
 // ------------------------------------------------------------------ foam
 // one contact's dent d (m) -> force (N) and its slope (N/m): the plate test's curve at 2d.
@@ -73,16 +75,30 @@ export function foam(d) {
   const dF = k0 * e * g + Fe * g / (DENSE.sD - u);
   return { F: Fe * g + dF * (s - u), k: 2 * dF };
 }
-// the foam in series with a tread of stiffness kt (N/m): the total squeeze d splits between them
-function squeeze(d, kt) {
-  if (!(kt < Infinity)) return foam(d);
+// A FUEL pressed by a roller or a bar instead of a flat plate: the plate test's curve is a ball on
+// a plane, and a cylinder of radius rc crossing it touches over less of it at the same dent. As a
+// foam with next to no sideways spread (each bit of it squeezed by how far the surface has come into
+// it there: a Winkler foundation), the dent's footprint is an ellipse, sqrt(2 R d) along the
+// cylinder and sqrt(2 Re d) across it (1 / Re = 1 / R + 1 / rc), and every bit squeezed as the
+// plane's footprint is at the same place scaled across: the force at any dent is the plane's times
+// sqrt(Re / R) = sqrt(rc / (R + rc)). A 3/4in sleeve 0.33, a 1.25in bar 0.42, a 2in roller 0.50, a
+// 4in wheel 0.64 (FUEL on FUEL: their contact is the plane between them, as it was).
+// A mechanism with curved: true meets FUEL this way. It's the slow handling's (an intake's throat,
+// a floor, a tunnel: FUEL pressed over tenths of a second, as the plate test presses them); a
+// shooter's wheels squeeze each FUEL in milliseconds, where foam is stiffer than its slow test
+// (rate stiffening, not modeled), and they keep the plane's curve their tables were found with.
+export function curvature(rc) { return Math.sqrt(rc / (R + rc)); }
+// the foam (its force scaled by fs: curvature) in series with a tread of stiffness kt (N/m): the
+// total squeeze d splits between them
+function squeeze(d, kt, fs = 1) {
+  if (!(kt < Infinity)) { const f = foam(d); return { F: f.F * fs, k: f.k * fs }; }
   let xf = d * 0.5;
   for (let i = 0; i < 6; i++) {
-    const f = foam(xf), g = f.F - kt * (d - xf), dg = f.k + kt;
+    const f = foam(xf), g = fs * f.F - kt * (d - xf), dg = fs * f.k + kt;
     xf = Math.min(d, Math.max(0, xf - g / dg));
   }
   const f = foam(xf);
-  return { F: f.F, k: 1 / (1 / f.k + 1 / kt) };
+  return { F: fs * f.F, k: 1 / (1 / (fs * f.k) + 1 / kt) };
 }
 
 // ------------------------------------------------------------------ motors
@@ -268,6 +284,28 @@ export class Train {
       if (!r.limited) kd += k * k * motor.slope;
     }
     this.omega = (J * this.omega + dt * (tau + kd * this.omega)) / (J + dt * (kd + this.drag));
+  }
+}
+
+// Wheels side by side on one axle (a stack of flex wheels, compliant wheels between mecanums) make
+// one tread: where one's edge meets the next's, a FUEL rolling across meets the next wheel's
+// tread, not an edge. Met each on its own, a FUEL off the middle of the stack was pressed by the
+// inner wheel's edge too, at a slant out toward the side it was already on (12-13 N sideways at
+// 341's uptake, from each of its two stacks of two 1in flex wheels, where the tread's push was
+// ~100 N): a FUEL a little off the middle went further off, into the turret 15-20 mm off its
+// axis, and on into the hood's side plates. abutting() marks each wheel's sides that another
+// wheel's tread continues (coaxial, about the same radius, their faces within 1 mm), and the
+// contacts leave those edges and sides out (EDGES=1: as it was)
+const EDGES_ALL = globalThis.process?.env?.EDGES === '1';
+export function abutting(wheels) {
+  for (const w of wheels) w.covered ??= [false, false];
+  if (EDGES_ALL) return;
+  for (const a of wheels) for (const b of wheels) {
+    if (a === b || Math.abs(a.radius - b.radius) > 0.004 || Math.abs(dot(a.axis, b.axis)) < 0.999) continue;
+    if (a.pivotShaft !== b.pivotShaft) continue; // (both on the frame, or both on the same arm)
+    const d = sub(b.center, a.center), s = dot(d, a.axis);
+    if (len(sub(d, mul(a.axis, s))) > 0.002 || Math.abs(Math.abs(s) - (a.width + b.width) / 2) > 0.001) continue;
+    a.covered[s > 0 ? 1 : 0] = true;
   }
 }
 
@@ -535,8 +573,10 @@ export class Mechanism {
   // driving 1.5 m/s along the shot, 1690's 2-4% faster or slower and 2.6 deg flatter). One contact
   // step a step (a ball path, an intake) has nothing to carry: its FUEL and frame are both where
   // the step began, and the world moves both.
-  constructor({ body = null, shafts = [], wheels = [], surfaces = [], iterations = 6, gravity = [0, -9.81, 0], substeps = 4, sub = 1, carried = CARRIED, fast = null } = {}) {
-    Object.assign(this, { body, shafts, wheels, surfaces, iterations, gravity, sub, carried, fast });
+  // curved: its wheels meet FUEL as the cylinders they are (curvature, above), not as plates
+  constructor({ body = null, shafts = [], wheels = [], surfaces = [], iterations = 6, gravity = [0, -9.81, 0], substeps = 4, sub = 1, carried = CARRIED, fast = null, curved = false } = {}) {
+    Object.assign(this, { body, shafts, wheels, surfaces, iterations, gravity, sub, carried, fast, curved: CURVED ?? curved });
+    abutting(wheels);
     this.gShare = (substeps + 1) / (2 * substeps);
     this.contacts = [];  // last step's, for drawing and tests
     this.dents = [];     // its last substep's, every one (step)
@@ -712,6 +752,9 @@ export class Mechanism {
           n = mul(rad, 1 / rl);
           depth = R + wh.radius - rl;
           rim = add(c, add(mul(a, s), mul(n, wh.radius)));
+        } else if (wh.covered?.[s > 0 ? 1 : 0]) {
+          // (past an edge another wheel's tread carries on from: that wheel's)
+          continue;
         } else if (rl <= wh.radius) {
           // against its side (over the wheel, for a wheel lying flat)
           n = mul(a, Math.sign(s));
@@ -744,7 +787,7 @@ export class Mechanism {
           const g = (wh.mecanum * Math.PI) / 180, cg = Math.cos(g), sg = Math.sin(g);
           dirs = [[add(mul(t1, cg), mul(t2, sg)), wh.mu], [add(mul(t1, -sg), mul(t2, cg)), MU_FREE]];
         } else dirs = [[t1, wh.mu], [t2, wh.mu]];
-        const { F, k } = squeeze(depth, side ? Infinity : wh.tread);
+        const { F, k } = squeeze(depth, side ? Infinity : wh.tread, side || !this.curved ? 1 : curvature(wh.radius));
         const cdamp = 2 * ZETA * Math.sqrt(k * MB);
         // (on an arm: the contact's arm about the pivot's axis, which moves the wheel there; the
         // arm's inertia felt there, in every direction, normal too)

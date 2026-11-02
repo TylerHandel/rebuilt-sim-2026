@@ -51,7 +51,8 @@ export const FUEL = {
   // (It was the fresh 20 lb/in, 12 to start: a shooter's FUEL, pressed toward its hood as they go
   // round the wheel, pulled off the wheel at ~8-10 m/s, and no robot passed past ~8 m.)
   // Two FUEL pressed together squash the same (each contact is twice as stiff, in series).
-  springRate0: (19.8 * 4.448) / 0.0254, // N/m, uncompressed
+  // (FOAM0=12: the fresh foam's curve, a trial)
+  springRate0: (Number(globalThis.process?.env?.FOAM0 ?? 19.8) * 4.448) / 0.0254, // N/m, uncompressed
   stiffen: 1.0 * 0.0254,               // m of squeeze per e-fold of stiffness
   springRate: (33 * 4.448) / 0.0254,  // N/m, nominal (the average over the first inch)
   // how hard an intake roller shoves FUEL into a hopper when nothing else says (hopper.js

@@ -28,7 +28,7 @@ import { Mechanism, handOff } from '../js/mech/mechanism.js';
 import { sim2D, backspin } from '../js/ballistics.js';
 import {
   build341, wheels341, shooterWheels, pathSurfaces341, placeIntake, intakeRot, placeShooter, placeTurretSurfaces, hoodElevation,
-  shotFor, REGRESSIONS, INTAKE, SHOOTER, OMNI, PIVOT, TURRET, HALF, PRELOAD,
+  shotFor, REGRESSIONS, INTAKE, SHOOTER, OMNI, PIVOT, TURRET, HALF, PRELOAD, SUB_MODE,
 } from '../js/mech/r341.js';
 import PATH from '../js/mech/path341.js';
 import { EXIT_PER_FLY_SURFACE, EXIT_SLIP, LET_GO, FEEDER_V, FEED_BACKOFF } from '../js/mech/phys341.js';
@@ -37,6 +37,9 @@ await RAPIER.init();
 const R = FUEL.radius, DT = 1 / 120, SEEDS = Number(process.env.SEEDS ?? 6), SPEED = Number(process.env.SPEED ?? 1);
 const HELD = groups(GROUP.HELD, 0xffff & ~GROUP.HELD);
 const FEEDV = Number(process.env.FEEDV ?? FEEDER_V); // (path: the feeder's volts, as in play: js/mech/phys341.js FEEDER_V)
+// (HOODSUB: 1 the bore and the hood at the shooter's sub-steps, bore the bore alone, 0 the ball path's;
+// as play has them, js/mech/r341.js SUB_MODE, unless set)
+const HOODSUB = process.env.HOODSUB ?? (SUB_MODE === 'bore' ? 'bore' : SUB_MODE === '0' ? '0' : '1');
 const DOWN = Number(process.env.ARM ?? INTAKE.down);
 
 function world({ carpet = true } = {}) {
@@ -68,12 +71,12 @@ function rig({ deg = DOWN, hood = 0, yaw = 0 } = {}) {
   // (HOODSUB=1: the turret's bore and the hood met at each of the shooter's sub-steps, as the other
   // robots' hoods are; the 1in feed wheel pinches FUEL against the bore, so both sides of the pinch
   // are solved together. In play 341 stays the old way: js/mech/r341.js SIM_SHOTS)
-  if (process.env.HOODSUB === '1') handOff(path, shooter, [s.turret, s.hood]);
-  if (process.env.HOODSUB === 'bore') handOff(path, shooter, [s.turret]);
+  if (HOODSUB === '1') handOff(path, shooter, [s.turret, s.hood]);
+  if (HOODSUB === 'bore') handOff(path, shooter, [s.turret]);
   for (const tr of [t.intake, t.serializer, t.feederT, t.shooter]) tr.cmd = null;
   // (the arm held where it is)
   t.pivot.inertia = 1e6;
-  path.shared = new Set(process.env.HOODSUB === 'bore' ? [s.turret] : [s.turret, s.hood]);
+  path.shared = new Set(HOODSUB === 'bore' ? [s.turret] : [s.turret, s.hood]);
   return { t, w, s, sw, path, shooter };
 }
 // one step of both: every FUEL to the shooter, or (SPLIT=y) only those above y, as play gives it
@@ -81,7 +84,7 @@ function rig({ deg = DOWN, hood = 0, yaw = 0 } = {}) {
 function stepBoth(path, shooter, live) {
   if (!process.env.SPLIT) { path.step(DT, live, live); shooter.step(DT, live); return; }
   const sb = live.filter((b) => b.translation().y > +process.env.SPLIT);
-  path.step(DT, live, live, process.env.HOODSUB === '1' || process.env.HOODSUB === 'bore' ? { surfaces: path.shared, balls: new Set(sb) } : null);
+  path.step(DT, live, live, HOODSUB === '1' || HOODSUB === 'bore' ? { surfaces: path.shared, balls: new Set(sb) } : null);
   shooter.step(DT, sb);
 }
 // their flywheel velocity loop toward rpm (motor RPM, direct to the flywheel), no reverse volts
@@ -193,7 +196,7 @@ const tests = {
       if (SETTLED) for (let i = 0; i < 3 / DT; i++) { fly(t, rpm); shooter.step(DT, []); }
       else for (let i = 0; i < 6 / DT && !within(); i++) { fly(t, rpm); shooter.step(DT, []); }
       const balls = PRELOAD.map(([x, y, z]) => ball(w, x, y, z));
-      const watch = shotWatch(shooter), hoodHits = new Set();
+      const watch = shotWatch(shooter), hoodHits = new Map(), entry = new Map();
       let atSpeedT = 0.1;
       // (until all eight are out, or nothing's come out for a second: the zipper locked, as it can
       // in play, where the AI's driver lets go and presses again; the ones shot count)
@@ -214,12 +217,23 @@ const tests = {
         stepBoth(path, shooter, live); w.step();
         watch.check(live, i * DT);
         for (const o of watch.shots) o.est ??= Math.min(EXIT_PER_FLY_SURFACE * (Math.abs(t.fly.omega) * SHOOTER.fly.d) / 2, EXIT_SLIP[0] + (EXIT_SLIP[1] * Math.abs(t.fly.omega) * SHOOTER.fly.d) / 2);
-        if (process.env.HOODLOG) for (const c of shooter.contacts) if (c.wheel.name.startsWith('hood (CAD)')) { hoodHits.add(c.ball); if (process.env.HOODLOG === '2') console.log(`        hood contact n ${c.n.map((x) => x.toFixed(2)).join(',')} ${c.force.toFixed(0)} N at ${c.x.map((x) => x.toFixed(3)).join(',')}`); }
+        // (the hood's contacts wherever they're met: the shooter's, or the path's when it's left there
+        // (HOODSUB=bore); its side plates: the normal along the flywheel's axle. And each FUEL's
+        // offset along the axle from the turret's axis where the shooter first has it)
+        if (process.env.HOODLOG) {
+          const yy = process.env.TURN ? yaw0 + Number(process.env.TURN) * i * DT : yaw0, ax = [Math.sin(yy), 0, Math.cos(yy)];
+          for (const c of shooter.contacts) if (!entry.has(c.ball)) { const p = c.ball.translation(); entry.set(c.ball, (p.x - TURRET[0]) * ax[0] + (p.z - TURRET[1]) * ax[2]); }
+          for (const c of [...shooter.contacts, ...path.contacts]) {
+            if (!c.wheel.name.startsWith('hood (CAD)')) continue;
+            if (Math.abs(c.n[0] * ax[0] + c.n[2] * ax[2]) > 0.7 && c.force > 5) hoodHits.set(c.ball, Math.max(hoodHits.get(c.ball) ?? 0, c.force));
+            if (process.env.HOODLOG === '2') console.log(`        hood contact n ${c.n.map((x) => x.toFixed(2)).join(',')} ${c.force.toFixed(0)} N at ${c.x.map((x) => x.toFixed(3)).join(',')}`);
+          }
+        }
       }
       w.free();
       const H = kind === 'hub' ? HUB.rimFront : R;
       const L = watch.shots.map((o) => { const h = sim2D(o.y, o.v, (o.el * Math.PI) / 180, H, 0, o.s ?? 0); return h ? h.d + o.x - TURRET[0] : NaN; }).filter(Number.isFinite);
-      if (process.env.HOODLOG) console.log(`      the hood's CAD touched ${hoodHits.size} of ${balls.length}`);
+      if (process.env.HOODLOG) console.log(`      the hood's side plates pressed ${hoodHits.size} of ${balls.length} over 5 N (${[...hoodHits.values()].map((f) => f.toFixed(0)).join(' ')} N); off the turret's axis entering the shooter (mm): ${[...entry.values()].map((s) => (s * 1000).toFixed(0)).join(' ')}`);
       if (process.env.TUNELOG) console.log(`      ${rpm.toFixed(0)}: ${watch.shots.map((o, k) => `${o.t.toFixed(2)}s ${o.v.toFixed(2)}@${o.el.toFixed(0)} ${(o.v / o.est).toFixed(3)} h${(((o.hdg - (Number(process.env.YAW ?? 0) + (process.env.TURN ? (Number(process.env.TURN) * o.t * 180) / Math.PI : 0)) + 540) % 360) - 180).toFixed(1)} ${(L[k] ?? NaN).toFixed(2)}`).join(' | ')}`);
       return { land: L.length ? L.reduce((a, b) => a + b, 0) / L.length : NaN, n: L.length, spread: L.length ? Math.max(...L) - Math.min(...L) : NaN };
     };
