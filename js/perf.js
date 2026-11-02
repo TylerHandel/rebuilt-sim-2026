@@ -3,6 +3,9 @@
 // GPU's own time for the frame when the browser can measure it (EXT_disjoint_timer_query_webgl2;
 // the GPU works alongside the CPU, so its share is shown on its own bar). Averaged over half a
 // second, as a share of the frame time (vsync's wait included: what's left is headroom).
+// With ?prof in the URL (js/main.js) it also lists where the simulation's time goes part by part
+// (js/profiler.js: the Rapier step, each robot's mechanisms, AI, localization, FUEL...), in ms
+// per frame, and what the renderer drew: draw calls, triangles, shadow-map passes.
 export class FrameStats {
   constructor(renderer) {
     this.gl = renderer.getContext();
@@ -12,9 +15,14 @@ export class FrameStats {
     this.active = null;
     this._reset();
     this.last = null; // the latest averages
+    this.prof = null; // (a js/profiler.js Profiler: ?prof)
+    this.worker = null; // (the physics thread's own time, when the match runs there: js/simThread.js)
   }
 
-  _reset() { this.acc = { frame: 0, physics: 0, game: 0, render: 0, gpu: 0, gpuN: 0, steps: 0, n: 0 }; this.t = 0; }
+  _reset() { this.acc = { frame: 0, physics: 0, game: 0, render: 0, gpu: 0, gpuN: 0, steps: 0, n: 0, calls: 0, tris: 0, shadow: 0, passes: 0 }; this.t = 0; }
+
+  // what one frame's rendering drew (renderer.info, accumulated over the frame's passes)
+  drew(calls, tris, shadow, passes) { const a = this.acc; a.calls += calls; a.tris += tris; a.shadow += shadow; a.passes += passes; }
 
   add(cat, ms) { this.acc[cat] += ms; }
   step() { this.acc.steps++; }
@@ -30,7 +38,10 @@ export class FrameStats {
       this.last = {
         fps: (1000 * n) / a.frame, frame: a.frame / n, physics: a.physics / n, game: a.game / n, render: a.render / n,
         gpu: a.gpuN ? a.gpu / a.gpuN : null, steps: (1000 * a.steps) / a.frame,
+        calls: a.calls / n, tris: a.tris / n, shadow: a.shadow / n, passes: a.passes / n,
+        parts: this.prof ? this.prof.rows().slice(0, 14).map((r) => ({ label: r.label, ms: r.self / n })) : null,
       };
+      if (this.prof) this.prof.reset();
       this._reset();
     }
   }
@@ -69,10 +80,13 @@ export class FrameStats {
     const seg = (cls, ms) => `<span class="${cls}" style="width:${pct(ms).toFixed(1)}%"></span>`;
     return `<div class="ph">${head}</div>`
       + `<div class="pbar">${seg('pp', s.physics)}${seg('pg', s.game)}${seg('pc', s.render)}</div>`
-      + row('pp', `Physics <small>${Math.round(s.steps)} steps/s</small>`, s.physics)
+      + (this.worker ? `<div class="pr"><span><i class="pp"></i>Physics thread <small>${Math.round(this.worker.stepsPerS)} steps/s</small></span><b>${this.worker.msPerStep.toFixed(1)} ms</b><b>/step</b></div>`
+        : row('pp', `Physics <small>${Math.round(s.steps)} steps/s</small>`, s.physics))
       + row('pg', 'Game logic', s.game)
       + row('pc', 'Render (CPU)', s.render)
       + row('pf', s.gpu !== null ? 'Idle' : 'Idle / GPU wait', free)
-      + (s.gpu !== null ? `<div class="pbar gpu">${seg('pu', s.gpu)}</div>${row('pu', 'GPU', s.gpu)}` : '<div class="pr muted">GPU time: not measurable in this browser</div>');
+      + (s.gpu !== null ? `<div class="pbar gpu">${seg('pu', s.gpu)}</div>${row('pu', 'GPU', s.gpu)}` : '<div class="pr muted">GPU time: not measurable in this browser</div>')
+      + (this.prof ? `<div class="pr muted">${Math.round(s.calls)} draw calls, ${(s.tris / 1000).toFixed(0)}k triangles, ${s.shadow.toFixed(1)} shadow / ${s.passes.toFixed(1)} render passes a frame</div>`
+        + `<div class="pr muted">self time, ms a frame:</div>` + (s.parts || []).map((p) => `<div class="pr"><span>${p.label}</span><b>${p.ms.toFixed(2)}</b><b></b></div>`).join('') : '');
   }
 }

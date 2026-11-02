@@ -13,10 +13,15 @@ For the training dashboard (nn.html) it also answers:
   * Range requests (bytes=N-): the dashboard reads only what a training log gained since its
     last look, instead of the whole file every time;
   * /nn-api/runs: the training runs in runs/, most recently updated first, and this folder.
+
+For the physics thread (Settings -> Physics thread: Separate, js/simWorker.js) it serves w/<file>:
+the file, a script with index.html's import map applied to its imports ("three" -> the URL the map
+gives it): a worker has no import map, so the game's modules couldn't load in one as they are.
 """
 import http.server
 import json
 import os
+import re
 import socket
 import sys
 import threading
@@ -54,6 +59,52 @@ def runs_info():
     return {"folder": ROOT, "now": round(time.time()), "runs": out}
 
 
+def import_map():
+    """index.html's import map: {specifier: url}."""
+    try:
+        with open(os.path.join(ROOT, "index.html"), encoding="utf-8") as f:
+            m = re.search(r'<script type="importmap">(.*?)</script>', f.read(), re.S)
+        return json.loads(m.group(1))["imports"] if m else {}
+    except (OSError, ValueError, KeyError):
+        return {}
+
+
+CDN = "https://cdn.jsdelivr.net/npm/"
+CDN_CACHE = {}
+
+
+def rewrite_imports(src):
+    """The import map applied to a module's bare imports ("three", "three/addons/..."). A mapped
+    folder on the CDN (three's addons, which import "three" themselves) goes through w/cdn/, where
+    the same is done to them."""
+    imports = import_map()
+
+    def sub(m):
+        spec = m.group(2)
+        for k, url in imports.items():
+            if spec == k or (k.endswith("/") and spec.startswith(k)):
+                if k.endswith("/") and url.startswith(CDN):
+                    url = "/w/cdn/" + url[len(CDN):]
+                return m.group(1) + url + spec[len(k):] + m.group(3)
+        return m.group(0)
+    # from '...', import '...', import('...')
+    return re.sub(r"""((?:\bfrom|\bimport)\s*\(?\s*['"])([^'"./][^'"]*)(['"])""", sub, src)
+
+
+def mapped_js(path):
+    with open(path, encoding="utf-8") as f:
+        return rewrite_imports(f.read()).encode("utf-8")
+
+
+def cdn_js(rel):
+    """A module from the CDN (w/cdn/<package path>), its bare imports mapped."""
+    if rel not in CDN_CACHE:
+        opener = urllib.request.build_opener()
+        with opener.open(CDN + rel, timeout=20) as r:
+            CDN_CACHE[rel] = rewrite_imports(r.read().decode("utf-8")).encode("utf-8")
+    return CDN_CACHE[rel]
+
+
 class Handler(http.server.SimpleHTTPRequestHandler):
     extensions_map = {**http.server.SimpleHTTPRequestHandler.extensions_map, ".js": "text/javascript", ".jsonl": "text/plain"}
 
@@ -66,6 +117,30 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         pass
 
     def do_GET(self):
+        if self.path.startswith("/w/cdn/"):
+            try:
+                body = cdn_js(self.path[len("/w/cdn/"):].split("?")[0])
+            except Exception as e:
+                self.send_error(502, str(e))
+                return
+            self.send_response(200)
+            self.send_header("Content-Type", "text/javascript")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+        if self.path.startswith("/w/"):
+            path = self.translate_path(self.path[2:])
+            if not os.path.isfile(path):
+                self.send_error(404)
+                return
+            body = mapped_js(path) if path.endswith(".js") else open(path, "rb").read()
+            self.send_response(200)
+            self.send_header("Content-Type", self.guess_type(path))
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
         if self.path.split("?")[0] == "/nn-api/runs":
             body = json.dumps(runs_info()).encode()
             self.send_response(200)

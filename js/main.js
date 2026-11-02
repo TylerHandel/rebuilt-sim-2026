@@ -18,6 +18,9 @@ import { CameraRig, CAMERA_NAMES } from './cameras.js';
 import { UI, loadSettings, setGraphicsInfo } from './ui.js';
 import { Graphics, PRESETS, detectGPU, storedPreset } from './graphics.js';
 import { FrameStats } from './perf.js';
+import { Profiler } from './profiler.js';
+import { StaticMerger } from './merge.js';
+import { SimThread } from './simThread.js';
 import { BLUE, RED, PHYSICS_DT, other } from './constants.js';
 
 const $ = (id) => document.getElementById(id);
@@ -63,6 +66,17 @@ window.addEventListener('resize', () => {
 const physics = await Physics.create();
 // (timed for the Show FPS readout: js/perf.js)
 const stats = new FrameStats(renderer);
+// ?prof: the readout lists the simulation's time part by part and what each frame drew
+// (js/profiler.js wraps the hot methods; it changes no result)
+const PROF = new URLSearchParams(location.search).has('prof');
+const drawn = { passes: 0, shadow: 0 };
+if (PROF) {
+  stats.prof = new Profiler().install();
+  renderer.info.autoReset = false;
+  const render = renderer.render.bind(renderer), shadow = renderer.shadowMap.render.bind(renderer.shadowMap);
+  renderer.render = (...a) => { drawn.passes++; return render(...a); };
+  renderer.shadowMap.render = (...a) => { if (renderer.shadowMap.enabled && (renderer.shadowMap.autoUpdate || renderer.shadowMap.needsUpdate)) drawn.shadow++; return shadow(...a); };
+}
 let tickPhys = 0;
 {
   const step = physics.step.bind(physics);
@@ -70,6 +84,10 @@ let tickPhys = 0;
 }
 const field = new Field(scene, physics);
 field.build();
+// the parts that don't move drawn as one mesh per material (js/merge.js; ?nomerge: off)
+const merger = new StaticMerger();
+merger.on = !new URLSearchParams(location.search).has('nomerge');
+merger.track(field.group);
 // the alliance wall cut away where it hides your robot (js/wallCutaway.js)
 const cutaway = new WallCutaway(renderer, field);
 cutaway.register(field.group);
@@ -123,6 +141,10 @@ scene.add(previewLine);
 
 let game = null;
 let simAcc = 0;
+// the physics thread (Settings → Physics thread: Separate, or ?worker): js/simThread.js
+const thread = new SimThread();
+thread.onError = (m) => ui.toast('Physics thread stopped: ' + m.message, 'foul');
+let threaded = false;
 let resultsShown = false;
 let backHeld = 0;
 let lastInactiveToast = -10;
@@ -193,6 +215,9 @@ function onEvent(type, d) {
     case 'tower':
       ui.toast(`${d.alliance === me ? '' : 'Opponent '}TOWER LEVEL ${d.level}${d.auto ? ' in AUTO' : ''}: +${d.pts}`, d.alliance === me ? 'good' : 'info');
       break;
+    case 'climbMsg':
+      ui.toast(d.text, '');
+      break;
     case 'inactive':
       if (d.alliance === me && game.match.t - lastInactiveToast > 2.5) {
         lastInactiveToast = game.match.t;
@@ -252,12 +277,26 @@ function matchSettings() {
 function startMatch() {
   const { eff, cand, training, role } = matchSettings();
   game = createGame(world, eff, { onEvent, prev: game });
+  for (const r of game.robots) merger.track(r.visual);
   game.input = input;
   game.role = role;
   game.defenseTarget = learner.defenseAverage();
   game.training = training ? { cand, number: learner.s.matches + 1 } : null;
-  game.recorder = game.you && game.you.human ? new DrivingRecorder(game) : null;
-  game.nnRecorder = game.you && game.you.human ? new NNRecorder(game) : null;
+  // the match on the physics thread: not Training mode, a neural-net driver (its network is the
+  // page's) or recording your driving, which the page does
+  const usesNN = [eff.driver, eff.opponent, ...(eff.matchMode === '3v3' ? (eff.slots || []).map((sl) => sl.driver) : [])].includes('nn');
+  const wantThread = (settings.physThread === 'worker' || new URLSearchParams(location.search).has('worker')) && !training && !usesNN && !thread.failed;
+  threaded = false;
+  if (wantThread) {
+    const g = game;
+    threaded = true;
+    thread.start().then(() => {
+      if (game !== g) return;
+      try { thread.begin(eff, { role, defenseTarget: game.defenseTarget }); } catch (e) { threaded = false; ui.toast('Physics thread: ' + e.message + ' (running with the drawing)', 'foul'); }
+    }).catch((e) => { if (game === g) { threaded = false; ui.toast('Physics thread: ' + e.message + ' (running with the drawing)', 'foul'); } });
+  }
+  game.recorder = !threaded && game.you && game.you.human ? new DrivingRecorder(game) : null;
+  game.nnRecorder = !threaded && game.you && game.you.human ? new NNRecorder(game) : null;
   rig.alliance = game.me;
   rig.ds = settings.matchMode === '3v3' ? (game.you ? game.you.entry.station : 1) : settings.ds;
   rig.setMode(settings.camera);
@@ -319,8 +358,11 @@ function handleGameInput(inp, dt) {
     if (p.down) r.climbTarget = Math.max(1, r.climbTarget - 1);
   }
   if (p.a && game.match.isTeleop) {
-    const msg = r.requestClimb();
-    if (msg) ui.toast(msg, '');
+    if (threaded) game.climbAsk = true; // (the physics thread's robot asks: its answer comes back as an event)
+    else {
+      const msg = r.requestClimb();
+      if (msg) ui.toast(msg, '');
+    }
   }
   game.hpControls = { toggleDoor: p.x, throwHeld: inp.held.y };
   game.driver = driverCommand(inp, dt);
@@ -383,7 +425,19 @@ function tick(dt, render) {
 
   if (game && !overlay && ui.screen === 'hud') {
     handleGameInput(inp, dt);
-    if (ui.screen === 'hud') {
+    if (ui.screen === 'hud' && threaded) {
+      // (the physics thread steps it: send the driver's commands, draw what it last sent)
+      thread.run(true);
+      thread.input({ driver: game.driver, hpControls: game.hpControls, climbTarget: game.robot?.climbTarget, climb: !!game.climbAsk });
+      game.climbAsk = false;
+      thread.apply(game, fuel, onEvent);
+      thread.between(game, fuel);
+      if (game.match.over && !resultsShown) {
+        resultsShown = true;
+        finishMatch();
+        ui.showResults(game);
+      }
+    } else if (ui.screen === 'hud') {
       simAcc += dt;
       let n = 0;
       while (simAcc >= PHYSICS_DT && n < 8) {
@@ -401,8 +455,9 @@ function tick(dt, render) {
     }
   }
 
+  if (threaded && ui.screen !== 'hud') thread.run(false);
   if (game) {
-    for (const r of game.robots) r.update(dt);
+    if (threaded) { for (const r of game.robots) if (r._vis) r.applyVisual(r._vis, dt); } else for (const r of game.robots) r.update(dt);
     for (const a of [BLUE, RED]) field.setHubLights(a, game.match.hubLightMode(a), performance.now() / 1000);
     if (ui.screen === 'hud') ui.updateHUD(game);
     // shot preview
@@ -424,7 +479,7 @@ function tick(dt, render) {
   } else {
     for (const a of [BLUE, RED]) field.setHubLights(a, 'active', performance.now() / 1000);
   }
-  fuel.sync();
+  if (!threaded) fuel.sync();
   sound.update(game, camera, !!game && ui.screen === 'hud', dt);
 
   if (ui.screen === 'menu' || ui.screen === 'editor') {
@@ -447,11 +502,15 @@ function tick(dt, render) {
     stats.add('game', r0 - tick0 - tickPhys);
     const timing = settings.fps === 'on';
     if (timing) stats.gpuBegin();
+    merger.update(dt);
+    if (PROF) { renderer.info.reset(); drawn.passes = 0; drawn.shadow = 0; }
     gfx.render(dt);
     if (timing) stats.gpuEnd();
     stats.add('render', performance.now() - r0);
+    if (PROF) stats.drew(renderer.info.render.calls, renderer.info.render.triangles, drawn.shadow, drawn.passes);
     if (timing && (fpsT -= dt) <= 0) {
       fpsT = 0.5;
+      stats.worker = threaded ? thread.cost : null;
       const s = stats.last;
       $('fps').innerHTML = stats.html(`${Math.round(s ? s.fps : gfx.fps)} fps · ${PRESETS[gfx.key].name} · ${gfx.resolution}${gfx.dynamic && gfx.dynScale < 1 ? ` (${Math.round(gfx.dynScale * 100)}%)` : ''}`);
     }
@@ -462,7 +521,7 @@ requestAnimationFrame(frame);
 
 // debugging / test handle: __sim.advance(seconds) steps the game without animation frames
 window.__sim = {
-  get game() { return game; }, learner, fuel, field, physics, settings, THREE, renderer, scene, camera, gfx, ui, rig, startMatch, sound,
+  get game() { return game; }, learner, fuel, field, physics, settings, THREE, renderer, scene, camera, gfx, ui, rig, startMatch, sound, stats, merger, thread, get threaded() { return threaded; },
   setInput(v) { debugInput = v; },
   // test hook: let an AI drive the player's robot (same as the "Your robot" menu option)
   autopilot(strategy = 'scorer', skill = 'champs') {
