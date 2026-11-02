@@ -143,6 +143,7 @@ let game = null;
 let simAcc = 0;
 // the physics thread (Settings → Physics thread: Separate, or ?worker): js/simThread.js
 const thread = new SimThread();
+thread.onError = (m) => ui.toast('Physics thread stopped: ' + m.message, 'foul');
 let threaded = false;
 let resultsShown = false;
 let backHeld = 0;
@@ -519,7 +520,7 @@ requestAnimationFrame(frame);
 
 // debugging / test handle: __sim.advance(seconds) steps the game without animation frames
 window.__sim = {
-  get game() { return game; }, learner, fuel, field, physics, settings, THREE, renderer, scene, camera, gfx, ui, rig, startMatch, sound, stats, merger,
+  get game() { return game; }, learner, fuel, field, physics, settings, THREE, renderer, scene, camera, gfx, ui, rig, startMatch, sound, stats, merger, thread, get threaded() { return threaded; },
   setInput(v) { debugInput = v; },
   // test hook: let an AI drive the player's robot (same as the "Your robot" menu option)
   autopilot(strategy = 'scorer', skill = 'champs') {

@@ -67,6 +67,10 @@ function snapshot() {
 function run() {
   timer = null;
   if (!on || !game) return;
+  try { turn(); } catch (err) { on = false; postMessage({ type: 'error', message: String(err && err.message || err), stack: String(err && err.stack || '') }); return; }
+  timer = setTimeout(run, 2);
+}
+function turn() {
   const now = performance.now();
   acc += Math.min(0.05, (now - last) / 1000);
   last = now;
@@ -82,11 +86,12 @@ function run() {
   }
   if (n) snapshot();
   if (n >= 8) acc = 0;
-  timer = setTimeout(run, 2);
 }
 
 self.onmessage = async (e) => {
-  const msg = e.data;
+  try { await handle(e.data); } catch (err) { on = false; postMessage({ type: 'error', message: String(err && err.message || err), stack: String(err && err.stack || '') }); }
+};
+async function handle(msg) {
   if (msg.type === 'init') {
     setStorage(msg.storage);
     const physics = await Physics.create();
@@ -116,4 +121,4 @@ self.onmessage = async (e) => {
     if (r && msg.climbTarget !== undefined) r.climbTarget = msg.climbTarget;
     if (r && msg.climb) { const said = r.requestClimb(); if (said) events.push(['climbMsg', { text: said }]); }
   }
-};
+}

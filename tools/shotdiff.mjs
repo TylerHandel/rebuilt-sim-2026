@@ -32,6 +32,7 @@ const shot = async (preset, q, file) => {
   await page.waitForFunction(() => window.__sim && window.__sim.ui, null, { timeout: 120000 });
   // (the CAD loads in the background)
   await page.waitForTimeout(5000);
+  if (preset !== 'potato') await page.waitForFunction(() => window.__sim.scene.children.some((o) => o.userData.cad), null, { timeout: 90000 }).catch(() => console.log('(no field CAD)'));
   await page.evaluate((s) => { const S = window.__sim; S.hold = true; window.__reseed(777); globalThis.SIM_SEED = 777; S.startMatch(); S.advance(s, 60); }, secs);
   // (time for merging, which waits a second of the wall clock, then a frame to draw it)
   await page.waitForTimeout(1500);

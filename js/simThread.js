@@ -30,6 +30,7 @@ export class SimThread {
         const m = e.data;
         if (m.type === 'ready') resolve(true);
         else if (m.type === 'snap') { this.snap = m; this.cost = m.cost; }
+        else if (m.type === 'error') { this.error = m; console.error('physics thread:', m.message, m.stack); if (this.onError) this.onError(m); }
       };
       w.postMessage({ type: 'init', storage: storage() });
       setTimeout(() => fail('the physics thread did not answer (it needs serve.py: start.bat / start.command)'), 20000);
