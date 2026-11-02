@@ -29,7 +29,7 @@ import { Mechanism } from './mechanism.js';
 import { PhysicalRobot } from './physical.js';
 import {
   build341, wheels341, shooterWheels, placeShooter, placeIntake, intakeRot, hoodRot, hoodElevation, pathSurfaces341, placeTurretSurfaces,
-  shotFor, HALF, INTAKE, SHOOTER, PRELOAD, PIVOT, TURRET,
+  shotFor, HALF, INTAKE, SHOOTER, PRELOAD, PIVOT, TURRET, SUB_BORE, SUB_MODE,
 } from './r341.js';
 import PATH from './path341.js';
 import { Field } from '../field.js';
@@ -41,10 +41,14 @@ const DEG = Math.PI / 180;
 const R = 0.075;
 const ENV = (typeof process !== 'undefined' && process.env) || {};
 const JAMLOG = !!ENV.JAMLOG;
-// (12 V: their IntakeConstants.FEEDER_VOLTAGE, which nothing in their code uses; their Superstructure
-// runs it at 3 V. At 3 V the omni, slowed by the FUEL it presses, grinds the merge's FUEL into the
-// lane; at 12 V it carries them round: FEEDER_V=3 for theirs)
-export const FEEDER_V = Number(ENV.FEEDER_V ?? 12);
+// Their Superstructure runs it at 3 V. (It ran at 12 V here, their IntakeConstants.FEEDER_VOLTAGE
+// that nothing in their code uses: at 3 V the omni, slowed by the FUEL it presses, ground the
+// merge's FUEL into the lane and the zipper locked up (12 of 48 path runs). With the uptake's flex
+// wheels met as one tread and the lane's wall flush with the CAD's, it doesn't (0 of 24, 9.3 FUEL/s
+// coming, their binder's 8-10), and at 12 V the omni threw the merging FUEL against the lane's wall,
+// off which they came up the uptake and into the hood's side plates (a quarter of its shots in play).
+// FEEDER_V=12 for that)
+export const FEEDER_V = Number(ENV.FEEDER_V ?? 3);
 // the hood: an X44 through 133.7:1 (about 340 deg/s free), a profile toward its goal
 const HOOD_MM = { v: 300, a: 3000 };
 const profile = (p, v, goal, vmax, amax, dt) => {
@@ -60,7 +64,7 @@ const profile = (p, v, goal, vmax, amax, dt) => {
 // past that they slip on it, and leave at no more than 10.8 m/s plus 0.13 of its surface speed
 // (10.9 m/s at 3245 RPM, 14.3 at 4640 and 5500, with the foam as played with): exitSpeed. (The shot tables are re-found by shooting:
 // js/mech/r341.js SIM_SHOTS)
-export const EXIT_PER_FLY_SURFACE = globalThis.process?.env?.SUB341 ? 0.67 : 0.7, EXIT_SLIP = [10.8, 0.13];
+export const EXIT_PER_FLY_SURFACE = SUB_BORE ? 0.67 : 0.7, EXIT_SLIP = [10.8, 0.13];
 // the AI's driver letting go of the trigger when nothing comes out (letGo): after (s) without a
 // shot, for (s)
 export const LET_GO = { after: 0.8, for: 0.4 };
@@ -99,7 +103,7 @@ export class Physical341 extends PhysicalRobot {
     const sw = shooterWheels(t);
     super(robot, {
       path: new Mechanism({ body: robot.body, substeps: 6, shafts: [...new Set(pathWheels.map((x) => x.shaft)), t.pivot], wheels: pathWheels, surfaces: Object.values(s) }),
-      shooter: new Mechanism({ body: robot.body, substeps: 6, sub: 8, shafts: [t.fly, t.stealth, t.feed], wheels: sw, surfaces: globalThis.process?.env?.SUB341 === "bore" ? [s.turret] : globalThis.process?.env?.SUB341 ? [s.turret, s.hood] : [] }),
+      shooter: new Mechanism({ body: robot.body, substeps: 6, sub: 8, shafts: [t.fly, t.stealth, t.feed], wheels: sw, surfaces: SUB_MODE === 'bore' ? [s.turret] : SUB_BORE ? [s.turret, s.hood] : [] }),
       preload: PRELOAD,
     });
     Object.assign(this, { t, w, s, sw });

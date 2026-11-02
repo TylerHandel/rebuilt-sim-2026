@@ -28,7 +28,7 @@ import { Mechanism, handOff } from '../js/mech/mechanism.js';
 import { sim2D, backspin } from '../js/ballistics.js';
 import {
   build341, wheels341, shooterWheels, pathSurfaces341, placeIntake, intakeRot, placeShooter, placeTurretSurfaces, hoodElevation,
-  shotFor, REGRESSIONS, INTAKE, SHOOTER, OMNI, PIVOT, TURRET, HALF, PRELOAD,
+  shotFor, REGRESSIONS, INTAKE, SHOOTER, OMNI, PIVOT, TURRET, HALF, PRELOAD, SUB_MODE,
 } from '../js/mech/r341.js';
 import PATH from '../js/mech/path341.js';
 import { EXIT_PER_FLY_SURFACE, EXIT_SLIP, LET_GO, FEEDER_V, FEED_BACKOFF } from '../js/mech/phys341.js';
@@ -37,6 +37,9 @@ await RAPIER.init();
 const R = FUEL.radius, DT = 1 / 120, SEEDS = Number(process.env.SEEDS ?? 6), SPEED = Number(process.env.SPEED ?? 1);
 const HELD = groups(GROUP.HELD, 0xffff & ~GROUP.HELD);
 const FEEDV = Number(process.env.FEEDV ?? FEEDER_V); // (path: the feeder's volts, as in play: js/mech/phys341.js FEEDER_V)
+// (HOODSUB: 1 the bore and the hood at the shooter's sub-steps, bore the bore alone, 0 the ball path's;
+// as play has them, js/mech/r341.js SUB_MODE, unless set)
+const HOODSUB = process.env.HOODSUB ?? (SUB_MODE === 'bore' ? 'bore' : SUB_MODE === '0' ? '0' : '1');
 const DOWN = Number(process.env.ARM ?? INTAKE.down);
 
 function world({ carpet = true } = {}) {
@@ -68,12 +71,12 @@ function rig({ deg = DOWN, hood = 0, yaw = 0 } = {}) {
   // (HOODSUB=1: the turret's bore and the hood met at each of the shooter's sub-steps, as the other
   // robots' hoods are; the 1in feed wheel pinches FUEL against the bore, so both sides of the pinch
   // are solved together. In play 341 stays the old way: js/mech/r341.js SIM_SHOTS)
-  if (process.env.HOODSUB === '1') handOff(path, shooter, [s.turret, s.hood]);
-  if (process.env.HOODSUB === 'bore') handOff(path, shooter, [s.turret]);
+  if (HOODSUB === '1') handOff(path, shooter, [s.turret, s.hood]);
+  if (HOODSUB === 'bore') handOff(path, shooter, [s.turret]);
   for (const tr of [t.intake, t.serializer, t.feederT, t.shooter]) tr.cmd = null;
   // (the arm held where it is)
   t.pivot.inertia = 1e6;
-  path.shared = new Set(process.env.HOODSUB === 'bore' ? [s.turret] : [s.turret, s.hood]);
+  path.shared = new Set(HOODSUB === 'bore' ? [s.turret] : [s.turret, s.hood]);
   return { t, w, s, sw, path, shooter };
 }
 // one step of both: every FUEL to the shooter, or (SPLIT=y) only those above y, as play gives it
@@ -81,7 +84,7 @@ function rig({ deg = DOWN, hood = 0, yaw = 0 } = {}) {
 function stepBoth(path, shooter, live) {
   if (!process.env.SPLIT) { path.step(DT, live, live); shooter.step(DT, live); return; }
   const sb = live.filter((b) => b.translation().y > +process.env.SPLIT);
-  path.step(DT, live, live, process.env.HOODSUB === '1' || process.env.HOODSUB === 'bore' ? { surfaces: path.shared, balls: new Set(sb) } : null);
+  path.step(DT, live, live, HOODSUB === '1' || HOODSUB === 'bore' ? { surfaces: path.shared, balls: new Set(sb) } : null);
   shooter.step(DT, sb);
 }
 // their flywheel velocity loop toward rpm (motor RPM, direct to the flywheel), no reverse volts

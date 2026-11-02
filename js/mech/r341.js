@@ -143,10 +143,15 @@ const interp = (t, x) => {
 // further off with the inner wheel's edge (mechanism.js abutting); and the hood's mesh, on a 1 cm
 // grid, had its plates' inner faces 80 mm either side of its middle where the CAD has 83 (166 mm
 // apart: tools/path-mesh-341.py's HOOD_GRID). In play (seed 1, its first minute, SUB341=bore) 43%
-// of its shots rubbed the plates, 11% now, those at ~12 N. Rows re-found for both paths.)
+// of its shots rubbed the plates, 11% now, those at ~12 N; with both sub-stepped 26%, the feeder at
+// 12 V throwing the merge's FUEL off the lane's wall, and 2.5% at their 3 V. Rows re-found for both.)
 // THEIR_SHOTS=1 in the environment: their own RPMs.
-// SUB341=1 (trial): the bore and hood met at the shooter's sub-steps, and the rows re-found that way
-export const SUB_BORE = typeof process !== 'undefined' && !!process.env?.SUB341;
+// The bore and the hood are met at the shooter's sub-steps (as every other robot's hood), and the
+// rows re-found that way, since its FUEL come into the turret on its axis and the feeder runs at
+// their 3 V (phys341.js FEEDER_V): SUB341=0 for the old way (both the ball path's, met once a step,
+// its own rows), SUB341=bore for the bore alone sub-stepped (the same rows)
+export const SUB_MODE = (typeof process !== 'undefined' && process.env?.SUB341) || '1';
+export const SUB_BORE = SUB_MODE !== '0';
 export const SIM_SHOTS = SUB_BORE ? {
   rpm: [[1.51, 2560], [2.38, 2290], [3.07, 2210], [3.5, 2265], [4.24, 2285], [5.5, 2515], [14, 3365]],
   feedRpm: [[4, 1710], [5.5, 2115], [7.5, 2595], [9, 2925], [10.5, 3250], [13.94, 4520], [16, 5500]],
