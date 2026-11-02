@@ -98,6 +98,12 @@ export class HumanPlayer {
     }
     // visuals
     this.armT = Math.max(0, this.armT - dt);
+    this.syncVisual();
+  }
+
+  // the human player's arm and the chute door, drawn as they are (also from the physics thread's
+  // copy of them: js/simWorker.js)
+  syncVisual() {
     const arm = this.info.hpArm;
     arm.rotation.z = -0.6 + (this.armT > 0 ? Math.sin((this.armT / 0.35) * Math.PI) * 1.8 : 0);
     this.info.door.rotation.z = this.doorOpen ? -1.4 : 0;

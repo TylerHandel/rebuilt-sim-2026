@@ -403,26 +403,49 @@ export class Surface {
       B[t * 6 + 3 + j] = Math.max(T[t * 9 + j], T[t * 9 + 3 + j], T[t * 9 + 6 + j]);
     }
     this.lo = lo.map((v) => v - R); this.hi = hi.map((v) => v + R);
-    // a grid of cells over its bounds, each listing the triangles whose bounds reach into it
-    // (flat: cell c's triangles are ids[start[c] .. start[c + 1]])
+    // Where in the mesh to look: a tree of boxes over the triangles' bounds (a bounding volume
+    // hierarchy), so a FUEL's query visits the few triangles near it. The faces it touches are
+    // taken in the order a grid of cells (cell m) over the bounds would list them: cell by cell (x,
+    // then y, then z) over the cells the FUEL's box covers, each cell's triangles by index, each
+    // triangle at the first cell it's in. That order decides which faces merge (touches), and it
+    // was a grid that found them before: 9x fewer triangles looked at for the same contacts to the
+    // bit. (g0, gn: the grid; cell0: each triangle's first cell along x, y, z)
     const g0 = (this.g0 = lo.map((v) => Math.floor((v - R) / cell)));
-    const gn = (this.gn = hi.map((v, j) => Math.floor((v + R) / cell) - g0[j] + 1));
-    const cellOf = (i, j, k) => (i * gn[1] + j) * gn[2] + k;
-    const span = (t, j) => [Math.floor(Math.min(T[t * 9 + j], T[t * 9 + 3 + j], T[t * 9 + 6 + j]) / cell) - g0[j], Math.floor(Math.max(T[t * 9 + j], T[t * 9 + 3 + j], T[t * 9 + 6 + j]) / cell) - g0[j]];
-    const count = new Uint32Array(gn[0] * gn[1] * gn[2] + 1);
-    const each = (t, f) => {
-      const [a0, a1] = span(t, 0), [b0, b1] = span(t, 1), [c0, c1] = span(t, 2);
-      for (let i = a0; i <= a1; i++) for (let j = b0; j <= b1; j++) for (let k = c0; k <= c1; k++) f(cellOf(i, j, k));
-    };
-    for (let t = 0; t < n; t++) each(t, (c) => count[c + 1]++);
-    for (let c = 1; c < count.length; c++) count[c] += count[c - 1];
-    this.start = count;
-    this.ids = new Uint32Array(count[count.length - 1]);
-    const fill = count.slice();
-    for (let t = 0; t < n; t++) each(t, (c) => { this.ids[fill[c]++] = t; });
-    this.stamp = new Uint32Array(n);
-    this.mark = 0;
+    this.gn = hi.map((v, j) => Math.floor((v + R) / cell) - g0[j] + 1);
+    const cell0 = (this.cell0 = new Int32Array(n * 3));
+    for (let t = 0; t < n; t++) for (let j = 0; j < 3; j++) cell0[t * 3 + j] = Math.floor(Math.min(T[t * 9 + j], T[t * 9 + 3 + j], T[t * 9 + 6 + j]) / cell) - g0[j];
+    this._buildTree(n);
     this.q = new Float64Array(3);
+  }
+  // the tree: nodes' boxes in nodeBox (6 each: lo, hi), and in nodeA / nodeB either the two
+  // children (nodeB >= 0) or a leaf's run of triangles in order (nodeA its start in leafTri,
+  // -1 - nodeB how many)
+  _buildTree(n) {
+    const B = this.box, order = new Int32Array(n), cen = new Float64Array(n * 3);
+    for (let t = 0; t < n; t++) { order[t] = t; for (let j = 0; j < 3; j++) cen[t * 3 + j] = (B[t * 6 + j] + B[t * 6 + 3 + j]) / 2; }
+    const box = [], A = [], Bn = [];
+    const LEAF = 4;
+    const build = (s, e) => {
+      const id = A.length;
+      A.push(0); Bn.push(0);
+      const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
+      for (let i = s; i < e; i++) { const o = order[i] * 6; for (let j = 0; j < 3; j++) { if (B[o + j] < lo[j]) lo[j] = B[o + j]; if (B[o + 3 + j] > hi[j]) hi[j] = B[o + 3 + j]; } }
+      box.push(lo[0], lo[1], lo[2], hi[0], hi[1], hi[2]);
+      if (e - s <= LEAF) { A[id] = s; Bn[id] = -1 - (e - s); return id; }
+      // split at the median centroid along the box's longest side
+      const ax = hi[0] - lo[0] >= hi[1] - lo[1] && hi[0] - lo[0] >= hi[2] - lo[2] ? 0 : hi[1] - lo[1] >= hi[2] - lo[2] ? 1 : 2;
+      const part = Array.from(order.subarray(s, e)).sort((a, b) => cen[a * 3 + ax] - cen[b * 3 + ax] || a - b);
+      order.set(part, s);
+      const m = (s + e) >> 1;
+      A[id] = build(s, m);
+      Bn[id] = build(m, e);
+      return id;
+    };
+    if (n) build(0, n);
+    this.nodeBox = new Float64Array(box);
+    this.nodeA = new Int32Array(A);
+    this.nodeB = new Int32Array(Bn);
+    this.leafTri = order;
   }
   // a surface that swings on a shaft (an intake arm on its pivot): FUEL it touches feel it moving,
   // and push back on that shaft's motor. pivot, axis: a point on the shaft's axis and its
@@ -452,21 +475,23 @@ export class Surface {
   // plate's far side, merged into the deepest). (The mechanism also passes the FUEL itself, its
   // body: a surface that remembers which side of it each FUEL is on uses it; a mesh doesn't)
   touches(p) {
-    const [px, py, pz] = p, r = R;
-    if (px < this.lo[0] || px > this.hi[0] || py < this.lo[1] || py > this.hi[1] || pz < this.lo[2] || pz > this.hi[2]) return NONE;
-    const cell = this.cell, T = this.tri, P = this.plane, B = this.box, q = this.q, g0 = this.g0, gn = this.gn, start = this.start, ids = this.ids, stamp = this.stamp;
-    const i0 = Math.max(0, Math.floor((px - r) / cell) - g0[0]), i1 = Math.min(gn[0] - 1, Math.floor((px + r) / cell) - g0[0]);
-    const j0 = Math.max(0, Math.floor((py - r) / cell) - g0[1]), j1 = Math.min(gn[1] - 1, Math.floor((py + r) / cell) - g0[1]);
-    const k0 = Math.max(0, Math.floor((pz - r) / cell) - g0[2]), k1 = Math.min(gn[2] - 1, Math.floor((pz + r) / cell) - g0[2]);
-    if (++this.mark === 0xffffffff) { stamp.fill(0); this.mark = 1; }
-    const mark = this.mark;
-    let out = NONE;
-    for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) for (let k = k0; k <= k1; k++) {
-      const c = (i * gn[1] + j) * gn[2] + k;
-      for (let m = start[c], e = start[c + 1]; m < e; m++) {
-        const t = ids[m];
-        if (stamp[t] === mark) continue;
-        stamp[t] = mark;
+    const px = p[0], py = p[1], pz = p[2], r = R;
+    if (px < this.lo[0] || px > this.hi[0] || py < this.lo[1] || py > this.hi[1] || pz < this.lo[2] || pz > this.hi[2] || !this.nodeA.length) return NONE;
+    const cell = this.cell, T = this.tri, P = this.plane, B = this.box, q = this.q, g0 = this.g0, gn = this.gn;
+    const NB = this.nodeBox, NA = this.nodeA, NBn = this.nodeB, leafTri = this.leafTri, cell0 = this.cell0;
+    // (the grid's cells the FUEL's box covers: where each face found falls in the grid's order)
+    const i0 = Math.max(0, Math.floor((px - r) / cell) - g0[0]), j0 = Math.max(0, Math.floor((py - r) / cell) - g0[1]), k0 = Math.max(0, Math.floor((pz - r) / cell) - g0[2]);
+    let nh = 0;
+    const stack = STACK;
+    let sp = 0;
+    stack[sp++] = 0;
+    while (sp) {
+      const id = stack[--sp], b = id * 6;
+      if (px + r < NB[b] || px - r > NB[b + 3] || py + r < NB[b + 1] || py - r > NB[b + 4] || pz + r < NB[b + 2] || pz - r > NB[b + 5]) continue;
+      const nb = NBn[id];
+      if (nb >= 0) { stack[sp++] = nb; stack[sp++] = NA[id]; continue; }
+      for (let m = NA[id], e = m - 1 - nb; m < e; m++) {
+        const t = leafTri[m];
         const o = t * 6;
         if (px + r < B[o] || px - r > B[o + 3] || py + r < B[o + 1] || py - r > B[o + 4] || pz + r < B[o + 2] || pz - r > B[o + 5]) continue;
         const sd = P[t * 4] * px + P[t * 4 + 1] * py + P[t * 4 + 2] * pz - P[t * 4 + 3];
@@ -477,21 +502,40 @@ export class Surface {
         closestOnTri(px, py, pz, T, t * 9, q);
         const dx = px - q[0], dy = py - q[1], dz = pz - q[2], dl = Math.sqrt(dx * dx + dy * dy + dz * dz);
         if (dl >= r || dl < 1e-9) continue;
-        const depth = r - dl, nx = dx / dl, ny = dy / dl, nz = dz / dl;
-        // one per face: into the one it's alongside if any (the deeper of the two kept)
-        let merged = false;
-        for (const f of out) {
-          if (f.n[0] * nx + f.n[1] * ny + f.n[2] * nz > 0.9) {
-            if (depth > f.depth) { f.depth = depth; f.n[0] = nx; f.n[1] = ny; f.n[2] = nz; }
-            merged = true;
-            break;
-          }
-        }
-        if (!merged) (out === NONE ? (out = []) : out).push({ depth, n: [nx, ny, nz] });
+        // (its place in the grid's order: its first cell among the FUEL's, then its index)
+        const ci = Math.max(i0, cell0[t * 3]), cj = Math.max(j0, cell0[t * 3 + 1]), ck = Math.max(k0, cell0[t * 3 + 2]);
+        const key = ((ci * gn[1] + cj) * gn[2] + ck) * (T.length / 9) + t;
+        // (in order as they come: few faces, an insertion)
+        let at = nh++;
+        while (at > 0 && HK[at - 1] > key) { HK[at] = HK[at - 1]; HD[at] = HD[at - 1]; HN[3 * at] = HN[3 * at - 3]; HN[3 * at + 1] = HN[3 * at - 2]; HN[3 * at + 2] = HN[3 * at - 1]; at--; }
+        HK[at] = key; HD[at] = r - dl; HN[3 * at] = dx / dl; HN[3 * at + 1] = dy / dl; HN[3 * at + 2] = dz / dl;
+        if (nh === HK.length) growHits();
       }
+    }
+    let out = NONE;
+    for (let h = 0; h < nh; h++) {
+      const depth = HD[h], nx = HN[3 * h], ny = HN[3 * h + 1], nz = HN[3 * h + 2];
+      // one per face: into the one it's alongside if any (the deeper of the two kept)
+      let merged = false;
+      for (const f of out) {
+        if (f.n[0] * nx + f.n[1] * ny + f.n[2] * nz > 0.9) {
+          if (depth > f.depth) { f.depth = depth; f.n[0] = nx; f.n[1] = ny; f.n[2] = nz; }
+          merged = true;
+          break;
+        }
+      }
+      if (!merged) (out === NONE ? (out = []) : out).push({ depth, n: [nx, ny, nz] });
     }
     return out;
   }
+}
+// (touches' scratch: the tree walk's stack, and the faces found, in the grid's order)
+const STACK = new Int32Array(256);
+let HK = new Float64Array(64), HD = new Float64Array(64), HN = new Float64Array(192);
+function growHits() {
+  const k = new Float64Array(HK.length * 2), d = new Float64Array(HK.length * 2), nn = new Float64Array(HK.length * 6);
+  k.set(HK); d.set(HD); nn.set(HN);
+  HK = k; HD = d; HN = nn;
 }
 const NONE = [];
 // the point of triangle t (at T[o..o+8]) nearest p, into q (Ericson, Real-Time Collision
@@ -604,9 +648,10 @@ export class Mechanism {
     if (this.tally) this.tally.step = new Map();
     // the motors: through the whole step at once, or (sub-stepped) through each sub-step before its
     // contacts, so a wheel's motor drives it back up while a FUEL is dragging it down
+    const trains = new Set(this.shafts.map((s) => s.train).filter(Boolean));
     const drives = (h, slice) => {
       for (const s of this.shafts) s.integrate(h, this.V, slice);
-      for (const t of new Set(this.shafts.map((s) => s.train).filter(Boolean))) t.integrate(h, this.V, slice);
+      for (const t of trains) t.integrate(h, this.V, slice);
     };
     const fr0 = this._frame();
     // (fast: { speed, sub }: a step with any of its FUEL moving faster than speed over the frame is
@@ -623,7 +668,6 @@ export class Mechanism {
     const subMotor = SUBMOTOR && nSub > 1;
     if (!subMotor) drives(dt, null);
     let fr = fr0;
-    const frameVel = (x) => add(fr.v, cross(fr.w, sub(x, fr.com)));
     // wheels in the world (and the pivot's axis, for one on an arm)
     const place = () => this.wheels.map((wh) => {
       const w = { wh, c: add(fr.p, qrot(fr.q, wh.center)), a: qrot(fr.q, wh.axis) };
@@ -658,7 +702,8 @@ export class Mechanism {
       // (the FUEL that touch each other here, every one: one resting only on others is held up by them)
       if (this.together) for (const b of balls) if (this.together.has(b)) state(b);
     }
-    const reaction = [];
+    // (what the FUEL push back on the frame with: added up as Rapier would add each push, below)
+    const reaction = this.body && this.body.isDynamic() ? new Reaction(this.body, fr0) : null;
     const seen = new Map(); // the step's contacts (the firmest of each wheel and FUEL), for drawing and tests
     // (and every contact of its last substep, each FUEL's dent against a wheel or a surface: where
     // a FUEL is drawn flattened, js/mech/physical.js)
@@ -670,7 +715,7 @@ export class Mechanism {
       if (subMotor) drives(h, { t0: k * h, T: dt });
       if (n > 1) for (const st of S.values()) st.v = add(st.v, mul(g, h));
       const C = this._contacts(W, fr, n > 1 ? [...S.values()].map((st) => [st.b, st.c]) : balls.map((b) => { const t = b.translation(); return [b, [t.x, t.y, t.z]]; }), state);
-      this._solve(C, h, frameVel, reaction, fr.w);
+      this._solve(C, h, fr, reaction, fr.w);
       if (n > 1) for (const st of S.values()) st.c = add(st.c, mul(st.v, h));
       for (const ct of C) {
         if (ct.st2) continue;
@@ -678,7 +723,7 @@ export class Mechanism {
         seen.set(key, m);
         const was = m.get(ct.st.b);
         // (torque: what it gave the wheel's or the surface's shaft about its axis, N·m over the step)
-        if (!was || ct.lamN / h > was.force) m.set(ct.st.b, { wheel: ct.W1.wh, ball: ct.st.b, depth: ct.depth, force: ct.lamN / h, x: ct.x, n: ct.n, torque: -(ct.lamN * dot(cross(ct.rw, ct.n), ct.W1.a) + ct.fric.reduce((s, f) => s + f.lam * dot(cross(ct.rw, f.u), ct.W1.a), 0)) / h });
+        if (!was || ct.lamN / h > was.force) m.set(ct.st.b, { wheel: ct.W1.wh, ball: ct.st.b, depth: ct.depth, force: ct.lamN / h, x: ct.x, n: ct.n, torque: -(ct.lamN * ct.dn.Lk + ct.fric.reduce((s, f) => s + f.lam * f.Lk, 0)) / h });
         if (k === n - 1) this.dents.push({ wheel: ct.W1.wh, ball: ct.st.b, depth: ct.depth, n: ct.n });
       }
     }
@@ -698,9 +743,7 @@ export class Mechanism {
         st.b.setAngvel({ x: st.w[0], y: st.w[1], z: st.w[2] }, true);
       }
     }
-    if (this.body && this.body.isDynamic()) {
-      for (const [x, J] of reaction) this.body.applyImpulseAtPoint({ x: J[0], y: J[1], z: J[2] }, { x: x[0], y: x[1], z: x[2] }, true);
-    }
+    if (reaction) reaction.apply();
     this.contacts = [...seen.values()].flatMap((m) => [...m.values()]);
   }
 
@@ -709,9 +752,10 @@ export class Mechanism {
     const C = [];
     const skip = this.skip;
     for (const [b, bc] of at) {
+      const inFrame = this.surfaces.length ? qrotInv(fr.q, sub(bc, fr.p)) : null;
       for (const sf of this.surfaces) {
         if (skip && skip.surfaces.has(sf) && skip.balls.has(b)) continue;
-        const hits = sf.touches(sf.toLocal(qrotInv(fr.q, sub(bc, fr.p))), b);
+        const hits = sf.touches(sf.toLocal(inFrame), b);
         for (const { depth, n: nl } of hits) {
           const st = state(b), n = qrot(fr.q, sf.dirToFrame(nl));
           const x = sub(bc, mul(n, R - depth / 2)), rb = sub(x, bc);
@@ -837,57 +881,78 @@ export class Mechanism {
     byB.set(ct.st.b, e);
   }
 
-  // the contacts' impulses over a step of h (projected Gauss-Seidel)
-  _solve(C, h, frameVel, reaction, frameW = [0, 0, 0]) {
+  // the contacts' impulses over a step of h (projected Gauss-Seidel). fr: the frame (its motion at
+  // each contact); reaction: what the FUEL push back on the frame with (a Reaction, or null).
+  // (Written out component by component, every sum and product in the order the vector helpers
+  // did them, with each contact's fixed parts worked out once instead of at every pass: the same
+  // numbers to the last bit, without the garbage)
+  _solve(C, h, fr, reaction, frameW = [0, 0, 0]) {
     const twist = TWIST_ENV === 'all' || (TWIST_ENV !== '0' && this.sub > 1);
-    // relative velocity of the ball's surface over the wheel's at the contact
+    for (const ct of C) prepare(ct, h, fr, reaction);
+    const tally = this.tally;
+    // relative velocity of the ball's surface over the wheel's at the contact, into RV
     const relVel = (ct) => {
-      const { st, st2, W1, x, rb, rw } = ct;
-      const vb = add(st.v, cross(st.w, rb));
-      if (st2) return sub(vb, add(st2.v, cross(st2.w, ct.rb2)));
-      let vw = add(frameVel(x), mul(cross(W1.a, rw), W1.wh.shaft.omega));
-      if (ct.piv) vw = add(vw, mul(cross(ct.piv.a, ct.piv.r), ct.piv.shaft.omega));
-      return sub(vb, vw);
-    };
-    const apply = (ct, u, lam) => {
-      const { st, st2, W1, rb, rw, x } = ct;
-      st.v = add(st.v, mul(u, lam / MB));
-      st.w = add(st.w, mul(cross(rb, u), lam / IB));
+      const st = ct.st, v = st.v, w = st.w, rb = ct.rb;
+      let r0 = v[0] + (w[1] * rb[2] - w[2] * rb[1]), r1 = v[1] + (w[2] * rb[0] - w[0] * rb[2]), r2 = v[2] + (w[0] * rb[1] - w[1] * rb[0]);
+      const st2 = ct.st2;
       if (st2) {
-        st2.v = add(st2.v, mul(u, -lam / MB));
-        st2.w = add(st2.w, mul(cross(ct.rb2, u), -lam / IB));
+        const v2 = st2.v, w2 = st2.w, q = ct.rb2;
+        r0 = r0 - (v2[0] + (w2[1] * q[2] - w2[2] * q[1]));
+        r1 = r1 - (v2[1] + (w2[2] * q[0] - w2[0] * q[2]));
+        r2 = r2 - (v2[2] + (w2[0] * q[1] - w2[1] * q[0]));
+      } else {
+        const om = ct.W1.wh.shaft.omega, fv = ct.fv, ca = ct.ca;
+        let w0 = fv[0] + ca[0] * om, w1 = fv[1] + ca[1] * om, w2 = fv[2] + ca[2] * om;
+        if (ct.piv) { const po = ct.piv.shaft.omega, cp = ct.cp; w0 = w0 + cp[0] * po; w1 = w1 + cp[1] * po; w2 = w2 + cp[2] * po; }
+        r0 = r0 - w0; r1 = r1 - w1; r2 = r2 - w2;
+      }
+      RV[0] = r0; RV[1] = r1; RV[2] = r2;
+    };
+    const along = (u) => RV[0] * u[0] + RV[1] * u[1] + RV[2] * u[2];
+    // an impulse lam along direction D (D.u, and its fixed parts: prepare)
+    const apply = (ct, D, lam) => {
+      const st = ct.st, u = D.u, cb = D.cb, kv = lam / MB, kw = lam / IB;
+      const v = st.v, w = st.w;
+      v[0] = v[0] + u[0] * kv; v[1] = v[1] + u[1] * kv; v[2] = v[2] + u[2] * kv;
+      w[0] = w[0] + cb[0] * kw; w[1] = w[1] + cb[1] * kw; w[2] = w[2] + cb[2] * kw;
+      const st2 = ct.st2;
+      if (st2) {
+        const kv2 = -lam / MB, kw2 = -lam / IB, v2 = st2.v, w2 = st2.w, cb2 = D.cb2;
+        v2[0] = v2[0] + u[0] * kv2; v2[1] = v2[1] + u[1] * kv2; v2[2] = v2[2] + u[2] * kv2;
+        w2[0] = w2[0] + cb2[0] * kw2; w2[1] = w2[1] + cb2[1] * kw2; w2[2] = w2[2] + cb2[2] * kw2;
         return;
       }
-      const L = -lam * dot(cross(rw, u), W1.a);
-      W1.wh.shaft.impulse(L);
-      if (ct.piv) ct.piv.shaft.impulse(-lam * dot(cross(ct.piv.r, u), ct.piv.a));
-      if (this.tally) this._tally(ct, W1.wh.shaft === this.tally.shaft ? L : 0, ct.piv && ct.piv.shaft === this.tally.shaft ? -lam * dot(cross(ct.piv.r, u), ct.piv.a) : 0);
-      reaction.push([x, mul(u, -lam)]);
+      const L = -lam * D.Lk;
+      ct.W1.wh.shaft.impulse(L);
+      if (ct.piv) ct.piv.shaft.impulse(-lam * D.pk);
+      if (tally) this._tally(ct, ct.W1.wh.shaft === tally.shaft ? L : 0, ct.piv && ct.piv.shaft === tally.shaft ? -lam * D.pk : 0);
+      if (reaction) reaction.add(u[0] * -lam, u[1] * -lam, u[2] * -lam, ct.rx, ct.ry, ct.rz);
     };
     for (let it = 0; it < this.iterations; it++) {
       for (const ct of C) {
         // normal: the foam spring and damper, implicit over the step, never pulling
-        const vn = dot(relVel(ct), ct.n);
-        const g = h * (ct.k * h + ct.c) * (ct.im ?? 1 / MB);
-        const target = (h * ct.F - h * (ct.k * h + ct.c) * vn + g * ct.lamN) / (1 + g);
+        relVel(ct);
+        const vn = along(ct.n);
+        const target = (h * ct.F - ct.hk * vn + ct.g * ct.lamN) / (1 + ct.g);
         const lamN = Math.max(0, target);
         const dN = lamN - ct.lamN;
-        if (dN !== 0) { apply(ct, ct.n, dN); ct.lamN = lamN; }
+        if (dN !== 0) { apply(ct, ct.dn, dN); ct.lamN = lamN; }
         // friction: stop the sliding along each grip direction, up to mu x the squeeze
-        const vr = relVel(ct);
         if (ct.plain) {
           // a plain wheel: one friction circle over both directions
-          const [f1, f2] = ct.fric;
-          let l1 = f1.lam - dot(vr, f1.u) * f1.m, l2 = f2.lam - dot(vr, f2.u) * f2.m;
+          relVel(ct);
+          const f1 = ct.fric[0], f2 = ct.fric[1];
+          let l1 = f1.lam - along(f1.u) * f1.m, l2 = f2.lam - along(f2.u) * f2.m;
           const lim = f1.mu * ct.lamN, m = Math.hypot(l1, l2);
           if (m > lim) { l1 *= lim / m; l2 *= lim / m; }
-          apply(ct, f1.u, l1 - f1.lam); f1.lam = l1;
-          apply(ct, f2.u, l2 - f2.lam); f2.lam = l2;
+          apply(ct, f1, l1 - f1.lam); f1.lam = l1;
+          apply(ct, f2, l2 - f2.lam); f2.lam = l2;
         } else {
           for (const f of ct.fric) {
             const lim = f.mu * ct.lamN;
-            const l = Math.max(-lim, Math.min(lim, f.lam - dot(relVel(ct), f.u) * f.m));
-            apply(ct, f.u, l - f.lam);
+            relVel(ct);
+            const l = Math.max(-lim, Math.min(lim, f.lam - along(f.u) * f.m));
+            apply(ct, f, l - f.lam);
             f.lam = l;
           }
         }
@@ -897,17 +962,103 @@ export class Mechanism {
         // wheel or hood would keep that spin through a shot, and leave with sidespin (TWIST=0: none)
         if (twist && ct.depth > 0 && (TWIST_ENV === 'all' || TWIST_ENV === 'full' || !(ct.st2 || ct.W1.wh.touches))) {
           const { st, st2, W1, n } = ct;
-          const wOther = st2 ? st2.w : add(frameW, mul(W1.a, W1.wh.shaft.omega));
-          const wr = dot(sub(st.w, wOther), n), lim = TWIST_K * ct.fric[0].mu * Math.sqrt(R * ct.depth) * ct.lamN;
+          const sw = st.w;
+          let o0, o1, o2;
+          if (st2) { o0 = st2.w[0]; o1 = st2.w[1]; o2 = st2.w[2]; } else {
+            const a = W1.a, om = W1.wh.shaft.omega;
+            o0 = frameW[0] + a[0] * om; o1 = frameW[1] + a[1] * om; o2 = frameW[2] + a[2] * om;
+          }
+          const wr = (sw[0] - o0) * n[0] + (sw[1] - o1) * n[1] + (sw[2] - o2) * n[2], lim = TWIST_K * ct.fric[0].mu * Math.sqrt(R * ct.depth) * ct.lamN;
           const im = st2 ? 2 / IB : 1 / IB, l = Math.max(-lim, Math.min(lim, (ct.lamT ?? 0) - wr / im)), dl = l - (ct.lamT ?? 0);
           if (dl) {
-            st.w = add(st.w, mul(n, dl / IB));
-            if (st2) st2.w = add(st2.w, mul(n, -dl / IB));
+            const k1 = dl / IB;
+            sw[0] = sw[0] + n[0] * k1; sw[1] = sw[1] + n[1] * k1; sw[2] = sw[2] + n[2] * k1;
+            if (st2) { const w2 = st2.w, k2 = -dl / IB; w2[0] = w2[0] + n[0] * k2; w2[1] = w2[1] + n[1] * k2; w2[2] = w2[2] + n[2] * k2; }
             ct.lamT = l;
           }
         }
       }
     }
+  }
+}
+
+// (_solve's scratch: a contact's relative velocity)
+const RV = new Float64Array(3);
+// a contact's parts that stay put through a step's solve: the frame's velocity at it, how the
+// wheel's (and its arm's) turning moves the contact point, and for each direction an impulse goes
+// along (the normal, the friction directions: ct.dn, ct.fric) what it does to the FUEL's spin, the
+// shaft's and the arm's
+function prepare(ct, h, fr, reaction) {
+  const { W1, x, rw, rb, n } = ct;
+  ct.hk = h * (ct.k * h + ct.c);
+  ct.g = ct.hk * (ct.im ?? 1 / MB);
+  const dir = (D) => {
+    D.cb = cross(rb, D.u);
+    if (ct.st2) { D.cb2 = cross(ct.rb2, D.u); return D; }
+    D.Lk = dot(cross(rw, D.u), W1.a);
+    if (ct.piv) D.pk = dot(cross(ct.piv.r, D.u), ct.piv.a);
+    return D;
+  };
+  ct.dn = dir({ u: n });
+  for (const f of ct.fric) dir(f);
+  if (ct.st2) return;
+  // the frame's velocity at x
+  const w = fr.w, c = fr.com, dx = x[0] - c[0], dy = x[1] - c[1], dz = x[2] - c[2];
+  ct.fv = [fr.v[0] + (w[1] * dz - w[2] * dy), fr.v[1] + (w[2] * dx - w[0] * dz), fr.v[2] + (w[0] * dy - w[1] * dx)];
+  ct.ca = cross(W1.a, rw);
+  if (ct.piv) ct.cp = cross(ct.piv.a, ct.piv.r);
+  if (reaction) reaction.at(ct, x);
+}
+
+// What a mechanism's contacts push back on the frame's rigid body with over a step: each push as
+// Rapier's applyImpulseAtPoint would add it, in the same order, in its own 32-bit floats (velocity
+// += impulse x inverse mass, spin += world inverse inertia x (r x impulse), each skipped for a zero
+// vector as Rapier does), and the body's velocities set once at the end: the same velocities to
+// the bit (tools/samecheck.mjs) for one call into the physics engine instead of one per push
+// (~2,000 a step in a 3v3 of six physical robots, ~0.9 us each)
+const f32 = Math.fround;
+class Reaction {
+  constructor(body, fr0) {
+    this.body = body;
+    this.com = fr0.com; // (the body's own center of mass, as the engine has it: worldCom)
+    this.lv = fr0.v; this.av = fr0.w; // (its linvel and angvel: 32-bit values)
+    this.ready = false;
+    this.any = false;
+  }
+  _init() {
+    const m = this.body.effectiveInvMass(), e = this.body.effectiveWorldInvInertia().elements;
+    this.m0 = m.x; this.m1 = m.y; this.m2 = m.z;
+    // (copied now: the matrix's buffer is the engine's scratch, overwritten by its next call)
+    this.e = [e[0], e[1], e[2], e[3], e[4], e[5]];
+    this.l0 = this.lv[0]; this.l1 = this.lv[1]; this.l2 = this.lv[2];
+    this.a0 = this.av[0]; this.a1 = this.av[1]; this.a2 = this.av[2];
+    this.ready = true;
+  }
+  // a contact's point as the engine takes it, relative to the center of mass
+  at(ct, x) {
+    const c = this.com;
+    ct.rx = f32(f32(x[0]) - c[0]); ct.ry = f32(f32(x[1]) - c[1]); ct.rz = f32(f32(x[2]) - c[2]);
+  }
+  add(Jx, Jy, Jz, rx, ry, rz) {
+    if (!this.ready) this._init();
+    const jx = f32(Jx), jy = f32(Jy), jz = f32(Jz);
+    const tx = f32(f32(ry * jz) - f32(rz * jy)), ty = f32(f32(rz * jx) - f32(rx * jz)), tz = f32(f32(rx * jy) - f32(ry * jx));
+    if (jx !== 0 || jy !== 0 || jz !== 0) {
+      this.l0 = f32(this.l0 + f32(jx * this.m0)); this.l1 = f32(this.l1 + f32(jy * this.m1)); this.l2 = f32(this.l2 + f32(jz * this.m2));
+      this.any = true;
+    }
+    if (tx !== 0 || ty !== 0 || tz !== 0) {
+      const e = this.e;
+      this.a0 = f32(this.a0 + f32(f32(f32(e[0] * tx) + f32(e[1] * ty)) + f32(e[2] * tz)));
+      this.a1 = f32(this.a1 + f32(f32(f32(e[1] * tx) + f32(e[3] * ty)) + f32(e[4] * tz)));
+      this.a2 = f32(this.a2 + f32(f32(f32(e[2] * tx) + f32(e[4] * ty)) + f32(e[5] * tz)));
+      this.any = true;
+    }
+  }
+  apply() {
+    if (!this.any) return;
+    this.body.setLinvel({ x: this.l0, y: this.l1, z: this.l2 }, true);
+    this.body.setAngvel({ x: this.a0, y: this.a1, z: this.a2 }, true);
   }
 }
 

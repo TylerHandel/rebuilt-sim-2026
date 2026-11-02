@@ -443,7 +443,7 @@ export class Robot {
     this.aimVel = { x: 0, z: 0 };
     this.swerve.reset();
     this.loc.reset();
-    this._syncVisual(0);
+    this.update(0);
   }
 
   destroy() {
@@ -1640,39 +1640,27 @@ export class Robot {
 
   // ------------------------------------------------------------------ visuals
   update(dt) {
-    this._syncVisual(dt);
+    this.applyVisual(this.visualState(), dt);
   }
 
-  _syncVisual(dt) {
-    const v = this.visual;
-    const f = this.field;
-    // the model follows the body, tilt and all (climbing leans it back a little on the hooks)
-    v.position.copy(this.pos);
-    v.quaternion.copy(this.quat);
-    if (this.climbState !== 'none') v.rotateZ(-Math.min(0.12, this.climbLift * 0.15));
-    // stored FUEL
-    const m = this.model;
-    const list = this.hopper.list;
-    const n = Math.min(list.length, m.storedMesh.instanceMatrix.count);
-    const mat = new THREE.Matrix4();
-    // squeezed FUEL is drawn flattened where it's pressed (against other FUEL and the walls)
-    const tc = m.storedTouch || [], patches = this._touch || (this._touch = new Float32Array(16));
-    for (let i = 0; i < n; i++) {
-      const k = this.hopper.touchPatches(list[i], patches);
-      for (let j = 0; j < tc.length; j++) {
-        const a = tc[j].array, o = 4 * i;
-        if (j < k) { a[o] = patches[4 * j]; a[o + 1] = patches[4 * j + 1]; a[o + 2] = patches[4 * j + 2]; a[o + 3] = patches[4 * j + 3]; }
-        else { a[o] = 0; a[o + 1] = 1; a[o + 2] = 0; a[o + 3] = 1; } // no patch: a plane beyond the ball
-      }
-      mat.makeTranslation(list[i].p.x, list[i].p.y, list[i].p.z);
-      m.storedMesh.setMatrixAt(i, mat);
-    }
-    for (const a of tc) a.needsUpdate = true;
-    m.storedMesh.count = n;
-    m.storedMesh.instanceMatrix.needsUpdate = true;
-    // mechanisms
+  // What the model is drawn from, as data: where it is, its stored FUEL and how each is pressed,
+  // and its mechanisms' state (the model's anim). plain: the load as plain points (the physics
+  // thread sends this to the page: js/simWorker.js)
+  visualState(plain = false) {
     const sh = this.cfg.shooter;
-    m.anim({
+    const list = this.hopper.list;
+    const n = Math.min(list.length, this.model.storedMesh.instanceMatrix.count);
+    const at = new Float64Array(3 * n), k = new Uint8Array(n), patches = new Float32Array(16 * n), one = this._touch || (this._touch = new Float32Array(16));
+    for (let i = 0; i < n; i++) {
+      k[i] = this.hopper.touchPatches(list[i], one);
+      patches.set(one.subarray(0, 4 * Math.min(4, k[i])), 16 * i);
+      at[3 * i] = list[i].p.x; at[3 * i + 1] = list[i].p.y; at[3 * i + 2] = list[i].p.z;
+    }
+    return {
+      pos: [this.pos.x, this.pos.y, this.pos.z], quat: [this.quat.x, this.quat.y, this.quat.z, this.quat.w],
+      vel: [this.vel.x, this.vel.z], omega: this.omega, yaw: this.yaw, climbState: this.climbState, climbLift: this.climbLift,
+      stored: { n, at, k, patches },
+      anim: {
       intakeDeploy: this.intakeDeploy,
       // (a physical arm's own turn from its CAD pose, rad: 1678's, 8793's)
       armTurn: this.phys?.armTurn?.(),
@@ -1695,20 +1683,51 @@ export class Robot {
       climbState: this.climbState,
       rotorAngle: this.hopper.finAngle,
       // (a physical robot's FUEL are the field's, not in its hopper's list)
-      load: this.phys?.netLoad ? this.phys.netLoad() : this.hopper.list,
+      load: plain ? (this.phys?.netLoad ? this.phys.netLoad() : this.hopper.list).map((e) => ({ p: { x: e.p.x, y: e.p.y, z: e.p.z } })) : this.phys?.netLoad ? this.phys.netLoad() : this.hopper.list,
       lift: this.hopper.liftScale,
-    }, dt);
+},
+    };
+  }
+
+  // the model drawn from visualState()
+  applyVisual(vs, dt) {
+    const v = this.visual;
+    // the model follows the body, tilt and all (climbing leans it back a little on the hooks)
+    v.position.set(vs.pos[0], vs.pos[1], vs.pos[2]);
+    v.quaternion.set(vs.quat[0], vs.quat[1], vs.quat[2], vs.quat[3]);
+    if (vs.climbState !== 'none') v.rotateZ(-Math.min(0.12, vs.climbLift * 0.15));
+    // stored FUEL
+    const m = this.model;
+    const { n, at, k: ks, patches } = vs.stored;
+    const mat = new THREE.Matrix4();
+    // squeezed FUEL is drawn flattened where it's pressed (against other FUEL and the walls)
+    const tc = m.storedTouch || [];
+    for (let i = 0; i < n; i++) {
+      const k = ks[i], P = 16 * i;
+      for (let j = 0; j < tc.length; j++) {
+        const a = tc[j].array, o = 4 * i;
+        if (j < k) { a[o] = patches[P + 4 * j]; a[o + 1] = patches[P + 4 * j + 1]; a[o + 2] = patches[P + 4 * j + 2]; a[o + 3] = patches[P + 4 * j + 3]; }
+        else { a[o] = 0; a[o + 1] = 1; a[o + 2] = 0; a[o + 3] = 1; } // no patch: a plane beyond the ball
+      }
+      mat.makeTranslation(at[3 * i], at[3 * i + 1], at[3 * i + 2]);
+      m.storedMesh.setMatrixAt(i, mat);
+    }
+    for (const a of tc) a.needsUpdate = true;
+    m.storedMesh.count = n;
+    m.storedMesh.instanceMatrix.needsUpdate = true;
+    // mechanisms
+    m.anim(vs.anim, dt);
     // swerve module steering to match the motion
-    const lv = this.worldToLocalVec(this.vel.x, this.vel.z);
+    const c = Math.cos(vs.yaw), sn = Math.sin(vs.yaw), lv = { x: vs.vel[0] * c - vs.vel[1] * sn, z: vs.vel[0] * sn + vs.vel[1] * c };
     for (const mod of m.modules) {
       const p = mod.pivot.parent.position;
-      const vx = lv.x + this.omega * p.z;
-      const vz = lv.z - this.omega * p.x;
+      const vx = lv.x + vs.omega * p.z;
+      const vz = lv.z - vs.omega * p.x;
       if (Math.hypot(vx, vz) > 0.05) mod.pivot.rotation.y = -Math.atan2(vz, vx);
       mod.wheel.rotation.y -= Math.hypot(vx, vz) * dt / WHEEL_R;
     }
     if (m.climber) {
-      m.climber.hook.position.y = 0.55 + (this.climbState === 'aligning' ? 0.25 : this.climbState !== 'none' ? Math.max(0, 0.25 - this.climbLift) : 0);
+      m.climber.hook.position.y = 0.55 + (vs.climbState === 'aligning' ? 0.25 : vs.climbState !== 'none' ? Math.max(0, 0.25 - vs.climbLift) : 0);
     }
   }
 
