@@ -95,7 +95,7 @@ export class Profiler {
     this.wrap(Robot.prototype, '_stepHopper', 'robot.hopper');
     this.wrap(Robot.prototype, '_guideCaptured', 'robot.guideCaptured');
     this.wrap(Robot.prototype, '_intakePhys', 'robot.intakePhys');
-    this.wrap(Robot.prototype, 'syncVisual', 'robot.syncVisual(render)');
+    this.wrap(Robot.prototype, 'update', 'robot.update(visual)');
     this.wrap(PhysicalRobot.prototype, 'stepMechanisms', () => `mech ${team()}`);
     this.wrap(PhysicalRobot.prototype, 'account', () => `mech ${team()} account`);
     this.wrap(Mechanism.prototype, 'step', (m) => `mech ${team()} ${mechKind(m)}`);

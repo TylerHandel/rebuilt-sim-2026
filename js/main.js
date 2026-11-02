@@ -18,6 +18,8 @@ import { CameraRig, CAMERA_NAMES } from './cameras.js';
 import { UI, loadSettings, setGraphicsInfo } from './ui.js';
 import { Graphics, PRESETS, detectGPU, storedPreset } from './graphics.js';
 import { FrameStats } from './perf.js';
+import { Profiler } from './profiler.js';
+import { StaticMerger } from './merge.js';
 import { BLUE, RED, PHYSICS_DT, other } from './constants.js';
 
 const $ = (id) => document.getElementById(id);
@@ -63,6 +65,17 @@ window.addEventListener('resize', () => {
 const physics = await Physics.create();
 // (timed for the Show FPS readout: js/perf.js)
 const stats = new FrameStats(renderer);
+// ?prof: the readout lists the simulation's time part by part and what each frame drew
+// (js/profiler.js wraps the hot methods; it changes no result)
+const PROF = new URLSearchParams(location.search).has('prof');
+const drawn = { passes: 0, shadow: 0 };
+if (PROF) {
+  stats.prof = new Profiler().install();
+  renderer.info.autoReset = false;
+  const render = renderer.render.bind(renderer), shadow = renderer.shadowMap.render.bind(renderer.shadowMap);
+  renderer.render = (...a) => { drawn.passes++; return render(...a); };
+  renderer.shadowMap.render = (...a) => { if (renderer.shadowMap.enabled && (renderer.shadowMap.autoUpdate || renderer.shadowMap.needsUpdate)) drawn.shadow++; return shadow(...a); };
+}
 let tickPhys = 0;
 {
   const step = physics.step.bind(physics);
@@ -70,6 +83,10 @@ let tickPhys = 0;
 }
 const field = new Field(scene, physics);
 field.build();
+// the parts that don't move drawn as one mesh per material (js/merge.js; ?nomerge: off)
+const merger = new StaticMerger();
+merger.on = !new URLSearchParams(location.search).has('nomerge');
+merger.track(field.group);
 // the alliance wall cut away where it hides your robot (js/wallCutaway.js)
 const cutaway = new WallCutaway(renderer, field);
 cutaway.register(field.group);
@@ -252,6 +269,7 @@ function matchSettings() {
 function startMatch() {
   const { eff, cand, training, role } = matchSettings();
   game = createGame(world, eff, { onEvent, prev: game });
+  for (const r of game.robots) merger.track(r.visual);
   game.input = input;
   game.role = role;
   game.defenseTarget = learner.defenseAverage();
@@ -447,9 +465,12 @@ function tick(dt, render) {
     stats.add('game', r0 - tick0 - tickPhys);
     const timing = settings.fps === 'on';
     if (timing) stats.gpuBegin();
+    merger.update(dt);
+    if (PROF) { renderer.info.reset(); drawn.passes = 0; drawn.shadow = 0; }
     gfx.render(dt);
     if (timing) stats.gpuEnd();
     stats.add('render', performance.now() - r0);
+    if (PROF) stats.drew(renderer.info.render.calls, renderer.info.render.triangles, drawn.shadow, drawn.passes);
     if (timing && (fpsT -= dt) <= 0) {
       fpsT = 0.5;
       const s = stats.last;
@@ -462,7 +483,7 @@ requestAnimationFrame(frame);
 
 // debugging / test handle: __sim.advance(seconds) steps the game without animation frames
 window.__sim = {
-  get game() { return game; }, learner, fuel, field, physics, settings, THREE, renderer, scene, camera, gfx, ui, rig, startMatch, sound,
+  get game() { return game; }, learner, fuel, field, physics, settings, THREE, renderer, scene, camera, gfx, ui, rig, startMatch, sound, stats, merger,
   setInput(v) { debugInput = v; },
   // test hook: let an AI drive the player's robot (same as the "Your robot" menu option)
   autopilot(strategy = 'scorer', skill = 'champs') {
