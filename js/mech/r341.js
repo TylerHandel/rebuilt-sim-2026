@@ -136,8 +136,15 @@ const interp = (t, x) => {
 // either side of a centred FUEL), 46 N at the median and 115 N at the 90th percentile, the bench's
 // stream 1-2 of 8 at 4-30 N, whatever the turret's angle or turn rate or the hood's swing on the
 // bench (mechlab341 YAW, TURN, HOODOSC, SPLIT; HOODLOG=2); those leave 3% slower. Eight AI matches:
-// 70% in against 84% (79.5% with the bore alone sub-stepped, SUB341=bore). What presses them into
-// the plates in play is still open.) THEIR_SHOTS=1 in the environment: their own RPMs.
+// 70% in against 84% (79.5% with the bore alone sub-stepped, SUB341=bore). Found: the FUEL came into
+// the turret 10-20 mm off its axis, along the flywheel's axle, and the plates were 3 mm too close.
+// The lane's wall above the CAD's (guards341) stood 4 mm proud of it and held the lane's FUEL right
+// of the axis; the uptake's two stacks of two 1in flex wheels each pushed a FUEL off their middle
+// further off with the inner wheel's edge (mechanism.js abutting); and the hood's mesh, on a 1 cm
+// grid, had its plates' inner faces 80 mm either side of its middle where the CAD has 83 (166 mm
+// apart: tools/path-mesh-341.py's HOOD_GRID). In play (seed 1, its first minute, SUB341=bore) 43%
+// of its shots rubbed the plates, 11% now, those at ~12 N. Rows re-found for both paths.)
+// THEIR_SHOTS=1 in the environment: their own RPMs.
 // SUB341=1 (trial): the bore and hood met at the shooter's sub-steps, and the rows re-found that way
 export const SUB_BORE = typeof process !== 'undefined' && !!process.env?.SUB341;
 export const SIM_SHOTS = SUB_BORE ? {
