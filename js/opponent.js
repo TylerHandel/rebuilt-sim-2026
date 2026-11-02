@@ -32,6 +32,8 @@ const SHOOTHERE = knob(globalThis.process?.env?.SHOOTHERE, 0);
 // FULLGO=0: a robot whose intake is full short of half its rating doesn't head in, and a chassis-aimed
 // shooter drives in at its shooting speed, as before
 const FULLGO = knob(globalThis.process?.env?.FULLGO, 1);
+// SHUTTLEMODE=0: every robot feeds its zone with all it collects in its HUB's off shifts, as before
+const SHUTTLEMODE = knob(globalThis.process?.env?.SHUTTLEMODE, 1);
 // TURRETCAP=n: a turret collecting in its zone drives at full speed while it holds fewer than n
 // (0: held to its shooting speed with any aboard, as before)
 const TURRETCAP = knob(globalThis.process?.env?.TURRETCAP, 0);
@@ -503,7 +505,18 @@ export class OpponentAI {
     const canShoot = active || this._inGrace();
     // off shift: feed our zone until it's time to load the hopper and head in
     const loadTime = FULLGO && r.full ? 0 : Math.max(0, cap - stored) / Math.max(0.8, this.rate);
-    const feed = B.shuttle >= 0.5 && !canShoot && untilActive > travel + loadTime + B.stageMargin;
+    let feed = B.shuttle >= 0.5 && !canShoot && untilActive > travel + loadTime + B.stageMargin;
+    // (SHUTTLEMODE 1: one with a hopper feeds its zone only with what it can't hold: full, with time
+    // to fill up again before its HUB turns on, it passes its load and goes on collecting; otherwise
+    // it keeps what it collects for its HUB. Feeding everything it picked up, it had to pick each up
+    // again in its zone at a third of the rate: against a champs 2910, seeds 1-4, no feeding at all
+    // scored 581 103 FUEL a match more, 1114 68, 2910 44, 7769 34, but 8793 32 and 341 12 fewer:
+    // they hold a few at most, and feed as before)
+    if (SHUTTLEMODE && !this.flow) {
+      const refill = this.maxLoad / Math.max(0.8, this.rate);
+      const time = !canShoot && untilActive > travel + refill + B.stageMargin;
+      feed = B.shuttle >= 0.5 && time && (r.full || !this._hasRoom() || (this.state === 'feed' && stored > 0));
+    }
 
     this.thinkT -= dt;
     if (this.thinkT <= 0) {
