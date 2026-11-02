@@ -16,7 +16,7 @@
 // each quarter second)
 import { RAPIER } from '../js/physics.js';
 import { FUEL, GROUP, groups, HUB } from '../js/constants.js';
-import { Mechanism, handOff } from '../js/mech/mechanism.js';
+import { Mechanism, handOff, foam } from '../js/mech/mechanism.js';
 import { sim2D, backspin } from '../js/ballistics.js';
 import {
   build1678, wheels1678, pathSurfaces1678, placeIntake, placeHood, placeNet, intakeRot, slotExt, slotRate, SLOT, hoodRot, hoodElevation, shotFor, REGRESSIONS,
@@ -59,7 +59,7 @@ function rig({ deg = Number(process.env.ARM ?? INTAKE.down), hood = SHOOTER.hood
   s.lid.setPose([0, lift, 0]);
   placeNet(s.net, ext, lift);
   const pathW = [...wh.floor, ...wh.tunnel, ...wh.intake];
-  const path = new Mechanism({ substeps: 6, shafts: [...new Set(pathW.map((x) => x.shaft)), t.pivot], wheels: pathW, surfaces: Object.values(s) });
+  const path = new Mechanism({ substeps: 6, shafts: [...new Set(pathW.map((x) => x.shaft)), t.pivot], wheels: pathW, surfaces: Object.values(s), curved: true }); // (as phys1678: its rollers meet FUEL as the cylinders they are)
   const shooter = new Mechanism({ substeps: 6, sub: 8, shafts: [t.drum, t.hood], wheels: [wh.drum, ...wh.hood] });
   handOff(path, shooter, [s.hood]); // (the hood: met at each of the shooter's sub-steps)
   for (const tr of [t.intake, t.floor, t.tunnel, t.feederT, t.shooter]) tr.cmd = null;
@@ -247,7 +247,25 @@ const tests = {
     for (let seed = 1; seed <= Number(process.env.SEEDS ?? 3); seed++) {
       const { t, path } = rig();
       t.intake.cmd = 1;
-      const fill = intakeFill(t);
+      const fill0 = intakeFill(t), at = (process.env.THROAT || '').split(':').filter(Boolean).map(Number);
+      // (THROAT=t1:t2..: at those times, every FUEL in the intake's throat, what it touches and how hard)
+      const fill = (tt, balls) => {
+        fill0(tt, balls);
+        if (!at.some((a) => Math.abs(tt - a) < DT / 2)) return;
+        console.log(`  t ${tt.toFixed(2)}: roller ${RPM(t.main.omega).toFixed(0)} rpm, intake ${(t.intake.motor?.current ?? 0).toFixed(0)} A`);
+        for (const b of balls) {
+          const p = b.translation(), v = b.linvel();
+          if (p.x < 0.05 || p.x > 0.5 || p.y > 0.42) continue;
+          const cs = path.contacts.filter((c) => c.ball === b).map((c) => `${c.wheel.name.replace(/intake |polycarbonate /g, '')} (${c.n.map((x) => x.toFixed(1)).join(",")}) ${c.force.toFixed(0)}N/${(c.depth * 1000).toFixed(0)}mm`);
+          // (and the FUEL it's squeezed against: the direction they push it, and how hard)
+          for (const o of balls) {
+            if (o === b) continue;
+            const q = o.translation(), d = [p.x - q.x, p.y - q.y, p.z - q.z], l = Math.hypot(...d);
+            if (l < 2 * R) cs.push(`FUEL (${d.map((x) => (x / l).toFixed(1)).join(',')}) ${foam((2 * R - l) / 2).F.toFixed(0)}N/${((2 * R - l) * 1000).toFixed(0)}mm`);
+          }
+          console.log(`   ${[p.x, p.y, p.z].map((q) => q.toFixed(3)).join(',')} v ${Math.hypot(v.x, v.y, v.z).toFixed(2)}: ${cs.join('; ')}`);
+        }
+      };
       const r = fillRun(RAPIER, { world: () => world({ carpet: false }), ball, path, DT, held: held1678, own: own1678, top: TOP1678, control: fill, speed: SPEED, sec: Number(process.env.SEC ?? 12), seed, front: 0.4 });
       console.log(fillReport(`1678 intaking at ${SPEED} m/s, seed ${seed}`, r));
       runs.push(r);

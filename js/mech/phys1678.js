@@ -93,7 +93,7 @@ export class Physical1678 extends PhysicalRobot {
     const t = build1678(), w = wheels1678(t), s = pathSurfaces1678(PATH, t);
     const pathWheels = [...w.floor, ...w.tunnel, ...w.intake];
     super(robot, {
-      path: new Mechanism({ body: robot.body, substeps: 6, shafts: [...new Set(pathWheels.map((x) => x.shaft)), t.pivot], wheels: pathWheels, surfaces: Object.values(s) }),
+      path: new Mechanism({ body: robot.body, substeps: 6, shafts: [...new Set(pathWheels.map((x) => x.shaft)), t.pivot], wheels: pathWheels, surfaces: Object.values(s), curved: true }),
       shooter: new Mechanism({ body: robot.body, substeps: 6, sub: 8, shafts: [t.drum, t.hood], wheels: [w.drum, ...w.hood], surfaces: [s.hood] }),
       // (full when its intake can't put more in: js/mech/physical.js. Over the front of the
       // hopper, from 0.1 m under the lid to its front edge and on under the net to the extension's

@@ -50,6 +50,8 @@ const MU_SIDE = 0.3;                  // FUEL on a wheel's side (its plates, hub
 const CARRIED = globalThis.process?.env?.CARRIED !== '0';
 const SUBMOTOR = globalThis.process?.env?.SUBMOTOR !== '0';
 const FAST = globalThis.process?.env?.FASTSUB !== '0';
+// (CURVED=1: every mechanism's wheels meet FUEL as cylinders, a trial; CURVED=0: none, the old way)
+const CURVED_ENV = globalThis.process?.env?.CURVED, CURVED = CURVED_ENV === '1' ? true : CURVED_ENV === '0' ? false : undefined;
 
 // ------------------------------------------------------------------ foam
 // one contact's dent d (m) -> force (N) and its slope (N/m): the plate test's curve at 2d.
@@ -73,16 +75,30 @@ export function foam(d) {
   const dF = k0 * e * g + Fe * g / (DENSE.sD - u);
   return { F: Fe * g + dF * (s - u), k: 2 * dF };
 }
-// the foam in series with a tread of stiffness kt (N/m): the total squeeze d splits between them
-function squeeze(d, kt) {
-  if (!(kt < Infinity)) return foam(d);
+// A FUEL pressed by a roller or a bar instead of a flat plate: the plate test's curve is a ball on
+// a plane, and a cylinder of radius rc crossing it touches over less of it at the same dent. As a
+// foam with next to no sideways spread (each bit of it squeezed by how far the surface has come into
+// it there: a Winkler foundation), the dent's footprint is an ellipse, sqrt(2 R d) along the
+// cylinder and sqrt(2 Re d) across it (1 / Re = 1 / R + 1 / rc), and every bit squeezed as the
+// plane's footprint is at the same place scaled across: the force at any dent is the plane's times
+// sqrt(Re / R) = sqrt(rc / (R + rc)). A 3/4in sleeve 0.33, a 1.25in bar 0.42, a 2in roller 0.50, a
+// 4in wheel 0.64 (FUEL on FUEL: their contact is the plane between them, as it was).
+// A mechanism with curved: true meets FUEL this way. It's the slow handling's (an intake's throat,
+// a floor, a tunnel: FUEL pressed over tenths of a second, as the plate test presses them); a
+// shooter's wheels squeeze each FUEL in milliseconds, where foam is stiffer than its slow test
+// (rate stiffening, not modeled), and they keep the plane's curve their tables were found with.
+export function curvature(rc) { return Math.sqrt(rc / (R + rc)); }
+// the foam (its force scaled by fs: curvature) in series with a tread of stiffness kt (N/m): the
+// total squeeze d splits between them
+function squeeze(d, kt, fs = 1) {
+  if (!(kt < Infinity)) { const f = foam(d); return { F: f.F * fs, k: f.k * fs }; }
   let xf = d * 0.5;
   for (let i = 0; i < 6; i++) {
-    const f = foam(xf), g = f.F - kt * (d - xf), dg = f.k + kt;
+    const f = foam(xf), g = fs * f.F - kt * (d - xf), dg = fs * f.k + kt;
     xf = Math.min(d, Math.max(0, xf - g / dg));
   }
   const f = foam(xf);
-  return { F: f.F, k: 1 / (1 / f.k + 1 / kt) };
+  return { F: fs * f.F, k: 1 / (1 / (fs * f.k) + 1 / kt) };
 }
 
 // ------------------------------------------------------------------ motors
@@ -535,8 +551,9 @@ export class Mechanism {
   // driving 1.5 m/s along the shot, 1690's 2-4% faster or slower and 2.6 deg flatter). One contact
   // step a step (a ball path, an intake) has nothing to carry: its FUEL and frame are both where
   // the step began, and the world moves both.
-  constructor({ body = null, shafts = [], wheels = [], surfaces = [], iterations = 6, gravity = [0, -9.81, 0], substeps = 4, sub = 1, carried = CARRIED, fast = null } = {}) {
-    Object.assign(this, { body, shafts, wheels, surfaces, iterations, gravity, sub, carried, fast });
+  // curved: its wheels meet FUEL as the cylinders they are (curvature, above), not as plates
+  constructor({ body = null, shafts = [], wheels = [], surfaces = [], iterations = 6, gravity = [0, -9.81, 0], substeps = 4, sub = 1, carried = CARRIED, fast = null, curved = false } = {}) {
+    Object.assign(this, { body, shafts, wheels, surfaces, iterations, gravity, sub, carried, fast, curved: CURVED ?? curved });
     this.gShare = (substeps + 1) / (2 * substeps);
     this.contacts = [];  // last step's, for drawing and tests
     this.dents = [];     // its last substep's, every one (step)
@@ -744,7 +761,7 @@ export class Mechanism {
           const g = (wh.mecanum * Math.PI) / 180, cg = Math.cos(g), sg = Math.sin(g);
           dirs = [[add(mul(t1, cg), mul(t2, sg)), wh.mu], [add(mul(t1, -sg), mul(t2, cg)), MU_FREE]];
         } else dirs = [[t1, wh.mu], [t2, wh.mu]];
-        const { F, k } = squeeze(depth, side ? Infinity : wh.tread);
+        const { F, k } = squeeze(depth, side ? Infinity : wh.tread, side || !this.curved ? 1 : curvature(wh.radius));
         const cdamp = 2 * ZETA * Math.sqrt(k * MB);
         // (on an arm: the contact's arm about the pivot's axis, which moves the wheel there; the
         // arm's inertia felt there, in every direction, normal too)
