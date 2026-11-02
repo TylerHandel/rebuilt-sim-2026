@@ -30,6 +30,10 @@ if (args.includes('--sum')) {
       // (the aim's HUB along the line to it, signed (cm): + long; each distance band, standing and moving)
       const sg = (xs) => (xs.length ? `${f1(pct(xs, 0.1))}${f1(pct(xs, 0.5))}${f1(pct(xs, 0.9))}` : '    -    -    -');
       const AL = (q) => S.filter((x) => x.al !== undefined && q(x)).map((x) => x.al);
+      const LA = (q) => S.filter((x) => x.la !== undefined && q(x)).map((x) => x.la);
+      const VE = (q) => S.filter((x) => x.ve !== undefined && q(x)).map((x) => x.ve);
+      if (S.some((x) => x.la !== undefined)) console.log(`${k.padEnd(6)} down through the rim along the line (cm, 10/50/90%): <3m ${sg(LA((x) => x.d < 3))} | 3-5m ${sg(LA((x) => x.d >= 3 && x.d < 5))} | >5m ${sg(LA((x) => x.d >= 5))} | standing 3-5m ${sg(LA((x) => x.v < 0.5 && x.d >= 3 && x.d < 5))} | standing 4-5m ${sg(LA((x) => x.v < 0.5 && x.d >= 4 && x.d < 5))} | moving ${sg(LA((x) => x.v >= 0.5))}; across ${sg(S.filter((x) => x.lc !== undefined).map((x) => x.lc))}`);
+      if (S.some((x) => x.ve !== undefined)) console.log(`${k.padEnd(6)} lead velocity's error along the line (cm/s, 10/50/90%): standing ${sg(VE((x) => x.v < 0.5))} | moving ${sg(VE((x) => x.v >= 0.5))}`);
       if (S.some((x) => x.al !== undefined)) console.log(`${k.padEnd(6)} aim's HUB along the line (cm, 10/50/90%): all ${sg(AL(() => true))} | <3m ${sg(AL((x) => x.d < 3))} | 3-5m ${sg(AL((x) => x.d >= 3 && x.d < 5))} | >5m ${sg(AL((x) => x.d >= 5))} | standing ${sg(AL((x) => x.v < 0.5))} | moving ${sg(AL((x) => x.v >= 0.5))}; across ${sg(S.filter((x) => x.ac !== undefined).map((x) => x.ac))}`);
       console.log(`${k.padEnd(6)} ${p.n} ${(p.pts / p.n).toFixed(0).padStart(4)} | ${f1(pct(p.err, 0.5))} ${f1(pct(p.err, 0.9))}  ${f1(pct(p.errShoot, 0.5))} ${f1(pct(p.errShoot, 0.9))} | ${f1(pct(p.hubShoot, 0.5))} ${f1(pct(p.hubShoot, 0.9))} ${f1(pct(p.hubLive, 0.5))} ${f1(pct(p.hubLive, 0.9))} | ${(pct(p.th.map(Math.abs), 0.9) / (Math.PI / 180) || 0).toFixed(2).padStart(5)} | ${acc(S)} ${String(S.length).padStart(4)} | ${acc(S.filter((s) => s.d < 3))} ${acc(S.filter((s) => s.d >= 3 && s.d < 5))} ${acc(S.filter((s) => s.d >= 5))} | ${acc(S.filter((s) => s.v < 0.5))} ${acc(S.filter((s) => s.v >= 0.5))}`);
     }
@@ -39,10 +43,11 @@ if (args.includes('--sum')) {
 
 const { runMatch } = await import('./headless.mjs');
 const { Field } = await import('../js/field.js');
+const { HUB } = await import('../js/constants.js');
 const robot = arg('robot', '6328'), opp = arg('opp', '2910'), out = arg('out', 'aim-stats.jsonl');
 for (const seed of range(arg('seeds', '1'))) {
   const sides = {};
-  let patched = false;
+  let patched = false, fly = new Map();
   const r0 = await runMatch({ strategy: 'scorer', skill: 'champs', robot }, { strategy: 'scorer', skill: 'champs', robot: opp }, {
     seed,
     trace(game, step) {
@@ -51,6 +56,7 @@ for (const seed of range(arg('seeds', '1'))) {
         patched = true;
         for (const k of ['A', 'B']) sides[k] = { err: [], errShoot: [], hub: [], hubShoot: [], hubLiveShoot: [], thShoot: [], shots: [] };
         const fuel = game.fuel, live = new Map();
+        fly = new Map();
         const note = (b, info) => {
           const k = Object.keys(robots).find((x) => robots[x].alliance === info?.alliance);
           if (!k || info.by !== 'robot') return;
@@ -61,14 +67,29 @@ for (const seed of range(arg('seeds', '1'))) {
           // it, + beyond it (the shot goes long), and across it, + to the robot's left of the line)
           const a = r.aimHub(), ux = (c.x - r.pos.x), uz = (c.z - r.pos.z), ul = Math.hypot(ux, uz) || 1;
           const al = ((a.x - c.x) * ux + (a.z - c.z) * uz) / ul, ac = ((a.x - c.x) * uz - (a.z - c.z) * ux) / ul;
-          const s = { al: +al.toFixed(3), ac: +ac.toFixed(3), d: +Math.hypot(c.x - r.pos.x, c.z - r.pos.z).toFixed(2), v: +Math.hypot(r.vel.x, r.vel.z).toFixed(2), hub: e ? +e.hub.toFixed(3) : 0, hubLive: e ? +e.hubLive.toFixed(3) : 0, w: +Math.abs(r.omega).toFixed(2), in: false, t: +(info.t ?? 0).toFixed(2) };
+          // (and the velocity the aim leads with against the truth's, along the line: + toward the HUB)
+          const ev = r.estVel(), tv = r.body.linvel(), vErr = ((ev.x - tv.x) * ux + (ev.z - tv.z) * uz) / ul;
+          const s = { ve: +vErr.toFixed(3), hx: c.x, hz: c.z, ux: ux / ul, uz: uz / ul, al: +al.toFixed(3), ac: +ac.toFixed(3), d: +Math.hypot(c.x - r.pos.x, c.z - r.pos.z).toFixed(2), v: +Math.hypot(r.vel.x, r.vel.z).toFixed(2), hub: e ? +e.hub.toFixed(3) : 0, hubLive: e ? +e.hubLive.toFixed(3) : 0, w: +Math.abs(r.omega).toFixed(2), in: false, t: +(info.t ?? 0).toFixed(2) };
           sides[k].shots.push(s);
           live.set(b, s);
+          fly.set(b, s);
         };
         const L = fuel.launch.bind(fuel), R = fuel.release.bind(fuel), H = fuel._enterHub.bind(fuel);
         fuel.launch = (b, p, v, info = {}) => { const x = L(b, p, v, info); note(b, info); return x; };
         fuel.release = (b, info = {}) => { const x = R(b, info); note(b, info); return x; };
         fuel._enterHub = (b, a, t) => { const s = live.get(b); if (s) { s.in = true; live.delete(b); } return H(b, a, t); };
+      }
+      // (each HUB shot where it comes down through the rim's height: along the line from the robot to
+      // the HUB (+ long) and across it, against the HUB's center)
+      for (const [b, s] of fly) {
+        const p = b.pos ?? b.body?.translation?.(), y = p?.y;
+        if (y === undefined) { fly.delete(b); continue; }
+        if (s.py !== undefined && s.py >= HUB.rimFront && y < HUB.rimFront) {
+          const dx = p.x - s.hx, dz = p.z - s.hz;
+          s.la = +(dx * s.ux + dz * s.uz).toFixed(3); s.lc = +(dx * s.uz - dz * s.ux).toFixed(3);
+          fly.delete(b);
+        } else s.py = y;
+        if (s.py !== undefined && y < 0.3) fly.delete(b);
       }
       if (step % 6) return;
       for (const k of ['A', 'B']) {
