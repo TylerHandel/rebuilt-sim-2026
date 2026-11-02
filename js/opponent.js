@@ -25,8 +25,10 @@ const UNSTICK = knob(globalThis.process?.env?.UNSTICK, 1);
 const WALLFUEL = knob(globalThis.process?.env?.WALLFUEL, 2);
 // CLAIM=0: partners don't leave each other's piles alone (3 v 3)
 const CLAIM = knob(globalThis.process?.env?.CLAIM, 1);
-// SHOOTHERE=0: a chassis-aimed shooter always drives to its set spot to shoot
-const SHOOTHERE = knob(globalThis.process?.env?.SHOOTHERE, 1);
+// SHOOTHERE=1: a chassis-aimed shooter well inside its zone shoots from where it is rather than its
+// set spot (off: against a champs 2910, seeds 1-4 on the runner, it cost 581 28 FUEL a match, 1114 32,
+// 7769 17: their set spots shoot better)
+const SHOOTHERE = knob(globalThis.process?.env?.SHOOTHERE, 0);
 // FULLGO=0: a robot whose intake is full short of half its rating doesn't head in, and a chassis-aimed
 // shooter drives in at its shooting speed, as before
 const FULLGO = knob(globalThis.process?.env?.FULLGO, 1);
