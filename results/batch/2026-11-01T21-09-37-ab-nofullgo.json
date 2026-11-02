@@ -1,0 +1,10069 @@
+{
+ "name": "2026-11-01T21-09-37-ab-nofullgo",
+ "threads": 16,
+ "jobs": 12,
+ "commit": "61290de",
+ "strategy": "scorer",
+ "skill": "champs",
+ "seeds": [
+  1,
+  2,
+  3,
+  4
+ ],
+ "env": {
+  "FULLGO": "0"
+ },
+ "minutes": 19.639133333333334,
+ "summary": "robot  matches  avg pts  avg FUEL  avg AUTO  avg launched  avg passes  fouls  W-L-T\n4414         4    482.8     482.8      82.5         730.5       157.3      1  2-2-0\n2910        56    478.8     476.4     104.0         608.7       112.8      3  48-8-0\n6328         4    426.0     426.0      80.5         465.5        33.8      0  1-3-0\n1114         4    421.0     417.3     105.0         567.5        61.3      0  1-3-0\n7769         4    388.0     388.0      58.0         498.8       103.0      0  0-4-0\n1690         4    355.0     355.0      59.3         492.0        92.3      0  0-4-0\n2056         4    347.0     347.0      50.0         489.3        97.5      1  0-4-0\n581          4    337.3     337.3      31.5         466.0        87.5      0  0-4-0\n1678         4    327.0     313.3     113.5         417.0        56.0      0  0-4-0\n604          4    323.3     323.3      61.0         445.5        75.8      3  0-4-0\n1706         4    249.5     249.5      37.3         336.8        35.0      2  0-4-0\n8793         4    175.5     175.5      18.0         451.0       231.5      1  0-4-0\n341          4    159.0     149.0      16.0         341.3       144.8      0  0-4-0",
+ "results": [
+  {
+   "a": "8793",
+   "b": "2910",
+   "seed": 4,
+   "ok": {
+    "robot": "2910",
+    "pts": 467,
+    "fuel": 467,
+    "launched": 625,
+    "passes": 127,
+    "fouls": []
+   },
+   "A": {
+    "robot": "8793",
+    "pts": 139,
+    "fuel": 139,
+    "launched": 393,
+    "passes": 205,
+    "fouls": []
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 467,
+    "fuel": 467,
+    "launched": 625,
+    "passes": 127,
+    "fouls": []
+   },
+   "audit": [
+    {
+     "robot": "8793",
+     "alliance": "blue",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 17,
+      "trans": 11,
+      "a1": 15,
+      "a2": 40,
+      "end": 38,
+      "inactive": 4
+     },
+     "launched": 393,
+     "passes": 205,
+     "intaked": 404,
+     "unjams": 0,
+     "unsticks": 0,
+     "cycles": 4,
+     "firstScore": 3.5,
+     "fouls": 0,
+     "coll": {
+      "own": 76.2,
+      "mid": 57.7
+     },
+     "took": {
+      "own": 164,
+      "mid": 171,
+      "opp": 0
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 11.7,
+      "staged": 2.9,
+      "stuck": 4.1,
+      "carryOut": 0.4,
+      "inZoneOff": 9.4,
+      "emptyActive": 28.6
+     },
+     "stuckBy": {
+      "tower": 0.9,
+      "depot": 0.1,
+      "wall": 0.4,
+      "trench": 0.1,
+      "hub": 2,
+      "open": 0.2,
+      "bump": 0.4,
+      "skirt": 0.1
+     },
+     "idleBy": {
+      "Shooting while collecting": 5.7,
+      "Collecting": 5.7,
+      "Feeding its zone": 0.2
+     },
+     "labels": {
+      "Shooting while collecting": 73.2,
+      "Collecting": 21.9,
+      "Passing while collecting": 5.6,
+      "Feeding its zone": 33.3,
+      "Staged — waiting for HUB": 2.9,
+      "Returning to score": 3.1
+     },
+     "stuckEp": []
+    },
+    {
+     "robot": "2910",
+     "alliance": "red",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 108,
+      "trans": 59,
+      "a1": 112,
+      "a2": 57,
+      "end": 117,
+      "inactive": 1
+     },
+     "launched": 625,
+     "passes": 127,
+     "intaked": 631,
+     "unjams": 0,
+     "unsticks": 1,
+     "cycles": 9,
+     "firstScore": 7.6,
+     "fouls": 0,
+     "coll": {
+      "own": 45.8,
+      "mid": 55.9
+     },
+     "took": {
+      "own": 151,
+      "mid": 372,
+      "opp": 0
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 7.2,
+      "staged": 5.9,
+      "stuck": 7.3,
+      "carryOut": 22.8,
+      "inZoneOff": 9.3,
+      "emptyActive": 4.9
+     },
+     "stuckBy": {
+      "open": 0.5,
+      "depot": 1.6,
+      "hub": 0.1,
+      "skirt": 1,
+      "wall": 0.3,
+      "tower": 3.6,
+      "trench": 0.1,
+      "bump": 0.1
+     },
+     "idleBy": {
+      "Feeding its zone": 0.7,
+      "Collecting": 4.2,
+      "Aiming": 1.9,
+      "Unsticking": 0.1,
+      "Shooting": 0.4
+     },
+     "labels": {
+      "Collecting": 73.8,
+      "Returning to score": 4.2,
+      "Aiming": 14.1,
+      "Shooting": 14,
+      "Feeding its zone": 27.3,
+      "Staged — waiting for HUB": 5.9,
+      "Unsticking": 0.7
+     },
+     "stuckEp": [
+      {
+       "t": 132.4,
+       "s": 1.3,
+       "by": "tower",
+       "x": 6.61,
+       "z": -0.45,
+       "label": "Collecting"
+      },
+      {
+       "t": 10.5,
+       "s": 1.2,
+       "by": "depot",
+       "x": 7.61,
+       "z": 2.01,
+       "label": "Collecting"
+      },
+      {
+       "t": 93,
+       "s": 1.2,
+       "by": "tower",
+       "x": 7.57,
+       "z": -1.63,
+       "label": "Collecting"
+      }
+     ]
+    }
+   ],
+   "s": 234.315
+  },
+  {
+   "a": "8793",
+   "b": "2910",
+   "seed": 2,
+   "ok": {
+    "robot": "2910",
+    "pts": 418,
+    "fuel": 403,
+    "launched": 597,
+    "passes": 124,
+    "fouls": []
+   },
+   "A": {
+    "robot": "8793",
+    "pts": 197,
+    "fuel": 197,
+    "launched": 510,
+    "passes": 263,
+    "fouls": [
+     "G407"
+    ]
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 418,
+    "fuel": 403,
+    "launched": 597,
+    "passes": 124,
+    "fouls": []
+   },
+   "audit": [
+    {
+     "robot": "8793",
+     "alliance": "blue",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 14,
+      "trans": 9,
+      "a1": 37,
+      "a2": 54,
+      "end": 62,
+      "inactive": 4
+     },
+     "launched": 510,
+     "passes": 263,
+     "intaked": 509,
+     "unjams": 1,
+     "unsticks": 0,
+     "cycles": 3,
+     "firstScore": 6.1,
+     "fouls": 1,
+     "coll": {
+      "own": 77.9,
+      "mid": 51.8,
+      "opp": 1.5
+     },
+     "took": {
+      "own": 220,
+      "mid": 225,
+      "opp": 0
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 1.5,
+      "staged": 5.8,
+      "stuck": 6.5,
+      "carryOut": 2.8,
+      "inZoneOff": 7.3,
+      "emptyActive": 26.6
+     },
+     "stuckBy": {
+      "tower": 1.2,
+      "depot": 0.5,
+      "wall": 2.9,
+      "bump": 0.1,
+      "hub": 0.3,
+      "trench": 1.3,
+      "open": 0.1,
+      "skirt": 0.1
+     },
+     "idleBy": {
+      "Feeding its zone": 0.6,
+      "Shooting while collecting": 0.8,
+      "Collecting": 0.1
+     },
+     "labels": {
+      "Shooting while collecting": 77.4,
+      "Collecting": 14.2,
+      "Passing while collecting": 8.4,
+      "Feeding its zone": 31.2,
+      "Returning to score": 3,
+      "Staged — waiting for HUB": 5.8
+     },
+     "stuckEp": [
+      {
+       "t": 72.8,
+       "s": 1.1,
+       "by": "trench",
+       "x": -4.49,
+       "z": -3.36,
+       "label": "Shooting while collecting"
+      }
+     ]
+    },
+    {
+     "robot": "2910",
+     "alliance": "red",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 70,
+      "trans": 59,
+      "a1": 117,
+      "a2": 94,
+      "end": 52,
+      "inactive": 0
+     },
+     "launched": 597,
+     "passes": 124,
+     "intaked": 601,
+     "unjams": 0,
+     "unsticks": 0,
+     "cycles": 8,
+     "firstScore": 7.9,
+     "fouls": 0,
+     "coll": {
+      "own": 48.6,
+      "mid": 55.6,
+      "opp": 1.3
+     },
+     "took": {
+      "own": 164,
+      "mid": 314,
+      "opp": 5
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 4.6,
+      "staged": 5.4,
+      "stuck": 4.5,
+      "carryOut": 22.4,
+      "inZoneOff": 9.3,
+      "emptyActive": 5.4
+     },
+     "stuckBy": {
+      "open": 0.4,
+      "depot": 0.3,
+      "trench": 0.1,
+      "hub": 1.4,
+      "skirt": 1.7,
+      "bump": 0.1,
+      "tower": 0.4,
+      "wall": 0.1
+     },
+     "idleBy": {
+      "Aiming": 0.7,
+      "Shooting": 0.2,
+      "Feeding its zone": 1,
+      "Collecting": 2.8
+     },
+     "labels": {
+      "Collecting": 77.4,
+      "Returning to score": 7.7,
+      "Aiming": 9.4,
+      "Shooting": 11.9,
+      "Feeding its zone": 28.1,
+      "Staged — waiting for HUB": 5.4
+     },
+     "stuckEp": [
+      {
+       "t": 50.4,
+       "s": 1.1,
+       "by": "skirt",
+       "x": 4.78,
+       "z": 3.21,
+       "label": "Collecting"
+      },
+      {
+       "t": 106.2,
+       "s": 1.1,
+       "by": "hub",
+       "x": 4.87,
+       "z": 0.32,
+       "label": "Collecting"
+      }
+     ]
+    }
+   ],
+   "s": 235.058
+  },
+  {
+   "a": "8793",
+   "b": "2910",
+   "seed": 1,
+   "ok": {
+    "robot": "2910",
+    "pts": 462,
+    "fuel": 462,
+    "launched": 649,
+    "passes": 160,
+    "fouls": []
+   },
+   "A": {
+    "robot": "8793",
+    "pts": 182,
+    "fuel": 182,
+    "launched": 410,
+    "passes": 200,
+    "fouls": []
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 462,
+    "fuel": 462,
+    "launched": 649,
+    "passes": 160,
+    "fouls": []
+   },
+   "audit": [
+    {
+     "robot": "8793",
+     "alliance": "blue",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 20,
+      "trans": 6,
+      "a1": 36,
+      "a2": 43,
+      "end": 66,
+      "inactive": 4
+     },
+     "launched": 410,
+     "passes": 200,
+     "intaked": 410,
+     "unjams": 1,
+     "unsticks": 2,
+     "cycles": 5,
+     "firstScore": 3.1,
+     "fouls": 0,
+     "coll": {
+      "own": 79.8,
+      "mid": 35.1,
+      "opp": 9.9
+     },
+     "took": {
+      "own": 167,
+      "mid": 144,
+      "opp": 30
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 13.7,
+      "staged": 4.3,
+      "stuck": 8.1,
+      "carryOut": 3.1,
+      "inZoneOff": 7.5,
+      "emptyActive": 28.6
+     },
+     "stuckBy": {
+      "tower": 0.2,
+      "depot": 1.9,
+      "wall": 3.9,
+      "skirt": 0.7,
+      "open": 0.2,
+      "bump": 0.1,
+      "trench": 1.2,
+      "hub": 0.1
+     },
+     "idleBy": {
+      "Shooting while collecting": 4.8,
+      "Collecting": 7.4,
+      "Unsticking": 0.4,
+      "Feeding its zone": 1.1
+     },
+     "labels": {
+      "Shooting while collecting": 76.4,
+      "Passing while collecting": 2.7,
+      "Collecting": 16.6,
+      "Returning to score": 10.5,
+      "Aiming": 0.3,
+      "Unsticking": 1.4,
+      "Feeding its zone": 27.7,
+      "Staged — waiting for HUB": 4.3,
+      "Shooting": 0.1
+     },
+     "stuckEp": [
+      {
+       "t": 30.3,
+       "s": 1.4,
+       "by": "depot",
+       "x": -7.19,
+       "z": -2.44,
+       "label": "Shooting while collecting"
+      },
+      {
+       "t": 20.3,
+       "s": 1.3,
+       "by": "wall",
+       "x": -7.52,
+       "z": 3.41,
+       "label": "Shooting while collecting"
+      },
+      {
+       "t": 90.9,
+       "s": 1.2,
+       "by": "trench",
+       "x": -2.88,
+       "z": 3.33,
+       "label": "Feeding its zone"
+      }
+     ]
+    },
+    {
+     "robot": "2910",
+     "alliance": "red",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 101,
+      "trans": 60,
+      "a1": 109,
+      "a2": 114,
+      "end": 59,
+      "inactive": 0
+     },
+     "launched": 649,
+     "passes": 160,
+     "intaked": 664,
+     "unjams": 0,
+     "unsticks": 1,
+     "cycles": 8,
+     "firstScore": 9.3,
+     "fouls": 0,
+     "coll": {
+      "own": 51.8,
+      "mid": 53.1
+     },
+     "took": {
+      "own": 179,
+      "mid": 378,
+      "opp": 0
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 3.3,
+      "staged": 5.6,
+      "stuck": 3.4,
+      "carryOut": 18,
+      "inZoneOff": 7.9,
+      "emptyActive": 2.1
+     },
+     "stuckBy": {
+      "skirt": 0.3,
+      "open": 0.8,
+      "depot": 0.2,
+      "tower": 1.9,
+      "wall": 0.3,
+      "trench": 0.1
+     },
+     "idleBy": {
+      "Feeding its zone": 0.6,
+      "Collecting": 2.2,
+      "Shooting": 0.1,
+      "Unsticking": 0.4
+     },
+     "labels": {
+      "Collecting": 76,
+      "Returning to score": 4.1,
+      "Aiming": 13.5,
+      "Shooting": 11.9,
+      "Feeding its zone": 28.2,
+      "Staged — waiting for HUB": 5.6,
+      "Unsticking": 0.7
+     },
+     "stuckEp": [
+      {
+       "t": 120.5,
+       "s": 1.3,
+       "by": "tower",
+       "x": 6.6,
+       "z": -0.08,
+       "label": "Collecting"
+      }
+     ]
+    }
+   ],
+   "s": 242.861
+  },
+  {
+   "a": "8793",
+   "b": "2910",
+   "seed": 3,
+   "ok": {
+    "robot": "2910",
+    "pts": 517,
+    "fuel": 517,
+    "launched": 644,
+    "passes": 117,
+    "fouls": []
+   },
+   "A": {
+    "robot": "8793",
+    "pts": 184,
+    "fuel": 184,
+    "launched": 491,
+    "passes": 258,
+    "fouls": []
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 517,
+    "fuel": 517,
+    "launched": 644,
+    "passes": 117,
+    "fouls": []
+   },
+   "audit": [
+    {
+     "robot": "8793",
+     "alliance": "blue",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 21,
+      "trans": 9,
+      "a1": 34,
+      "a2": 44,
+      "end": 57,
+      "inactive": 1
+     },
+     "launched": 491,
+     "passes": 258,
+     "intaked": 495,
+     "unjams": 2,
+     "unsticks": 0,
+     "cycles": 4,
+     "firstScore": 4.1,
+     "fouls": 0,
+     "coll": {
+      "own": 78.8,
+      "mid": 52.2
+     },
+     "took": {
+      "own": 191,
+      "mid": 240,
+      "opp": 0
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 0.5,
+      "staged": 3.3,
+      "stuck": 4.3,
+      "carryOut": 6.9,
+      "inZoneOff": 7.7,
+      "emptyActive": 20.4
+     },
+     "stuckBy": {
+      "tower": 0.8,
+      "trench": 0.2,
+      "depot": 0.4,
+      "wall": 1.2,
+      "skirt": 1.4,
+      "open": 0.1,
+      "hub": 0.3
+     },
+     "idleBy": {
+      "Shooting while collecting": 0.5
+     },
+     "labels": {
+      "Shooting while collecting": 77.5,
+      "Collecting": 10,
+      "Passing while collecting": 9.2,
+      "Returning to score": 5.3,
+      "Aiming": 0.3,
+      "Feeding its zone": 34.4,
+      "Staged — waiting for HUB": 3.3
+     },
+     "stuckEp": []
+    },
+    {
+     "robot": "2910",
+     "alliance": "red",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 120,
+      "trans": 59,
+      "a1": 112,
+      "a2": 118,
+      "end": 94,
+      "inactive": 4
+     },
+     "launched": 644,
+     "passes": 117,
+     "intaked": 645,
+     "unjams": 0,
+     "unsticks": 0,
+     "cycles": 8,
+     "firstScore": 7.7,
+     "fouls": 0,
+     "coll": {
+      "own": 36.2,
+      "mid": 58.2,
+      "opp": 1.1
+     },
+     "took": {
+      "own": 118,
+      "mid": 412,
+      "opp": 8
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 3.3,
+      "staged": 5.3,
+      "stuck": 5.4,
+      "carryOut": 31.4,
+      "inZoneOff": 9.8,
+      "emptyActive": 5.2
+     },
+     "stuckBy": {
+      "open": 0.8,
+      "depot": 0.2,
+      "hub": 1.5,
+      "skirt": 1.3,
+      "tower": 1.6,
+      "wall": 0.2,
+      "trench": 0.1
+     },
+     "idleBy": {
+      "Aiming": 1.6,
+      "Shooting": 0.5,
+      "Feeding its zone": 0.5,
+      "Collecting": 0.8
+     },
+     "labels": {
+      "Collecting": 69.7,
+      "Returning to score": 10.8,
+      "Aiming": 14.7,
+      "Shooting": 13.7,
+      "Feeding its zone": 25.8,
+      "Staged — waiting for HUB": 5.3
+     },
+     "stuckEp": []
+    }
+   ],
+   "s": 250.808
+  },
+  {
+   "a": "2910",
+   "b": "2910",
+   "seed": 4,
+   "ok": {
+    "robot": "2910",
+    "pts": 430,
+    "fuel": 430,
+    "launched": 544,
+    "passes": 92,
+    "fouls": []
+   },
+   "A": {
+    "robot": "2910",
+    "pts": 447,
+    "fuel": 447,
+    "launched": 544,
+    "passes": 83,
+    "fouls": []
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 430,
+    "fuel": 430,
+    "launched": 544,
+    "passes": 92,
+    "fouls": []
+   },
+   "audit": [
+    {
+     "robot": "2910",
+     "alliance": "blue",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 64,
+      "trans": 55,
+      "a1": 109,
+      "a2": 87,
+      "end": 119,
+      "inactive": 0
+     },
+     "launched": 544,
+     "passes": 83,
+     "intaked": 547,
+     "unjams": 0,
+     "unsticks": 0,
+     "cycles": 11,
+     "firstScore": 6.5,
+     "fouls": 0,
+     "coll": {
+      "own": 43.4,
+      "mid": 50
+     },
+     "took": {
+      "own": 134,
+      "mid": 306,
+      "opp": 0
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 12.4,
+      "staged": 3.9,
+      "stuck": 3.7,
+      "carryOut": 25.2,
+      "inZoneOff": 16.8,
+      "emptyActive": 5.1
+     },
+     "stuckBy": {
+      "open": 1.1,
+      "hub": 0.7,
+      "wall": 0.5,
+      "trench": 0.1,
+      "bump": 0.1,
+      "skirt": 0.4,
+      "depot": 0.2,
+      "tower": 0.7
+     },
+     "idleBy": {
+      "Aiming": 2.5,
+      "Shooting": 0.3,
+      "Feeding its zone": 4,
+      "Collecting": 3.3,
+      "Returning to score": 2.2
+     },
+     "labels": {
+      "Collecting": 71.3,
+      "Returning to score": 10.4,
+      "Aiming": 18.4,
+      "Shooting": 13.9,
+      "Feeding its zone": 22.1,
+      "Staged — waiting for HUB": 3.9
+     },
+     "stuckEp": []
+    },
+    {
+     "robot": "2910",
+     "alliance": "red",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 63,
+      "trans": 60,
+      "a1": 122,
+      "a2": 111,
+      "end": 60,
+      "inactive": 1
+     },
+     "launched": 544,
+     "passes": 92,
+     "intaked": 548,
+     "unjams": 0,
+     "unsticks": 1,
+     "cycles": 10,
+     "firstScore": 6.1,
+     "fouls": 0,
+     "coll": {
+      "own": 43.7,
+      "mid": 54.4,
+      "opp": 1
+     },
+     "took": {
+      "own": 97,
+      "mid": 350,
+      "opp": 0
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 3.9,
+      "staged": 4.8,
+      "stuck": 5.2,
+      "carryOut": 26.3,
+      "inZoneOff": 13.8,
+      "emptyActive": 6.3
+     },
+     "stuckBy": {
+      "skirt": 0.3,
+      "open": 0.9,
+      "hub": 0.3,
+      "tower": 1.5,
+      "wall": 0.3,
+      "bump": 0.2,
+      "depot": 1.8
+     },
+     "idleBy": {
+      "Collecting": 1.9,
+      "Feeding its zone": 0.2,
+      "Shooting": 0.2,
+      "Aiming": 1,
+      "Returning to score": 0.2,
+      "Unsticking": 0.4
+     },
+     "labels": {
+      "Collecting": 78.9,
+      "Returning to score": 7.4,
+      "Aiming": 15.3,
+      "Shooting": 13.5,
+      "Feeding its zone": 19.4,
+      "Staged — waiting for HUB": 4.8,
+      "Unsticking": 0.7
+     },
+     "stuckEp": [
+      {
+       "t": 112.6,
+       "s": 1.6,
+       "by": "depot",
+       "x": 7.49,
+       "z": 1.78,
+       "label": "Collecting"
+      }
+     ]
+    }
+   ],
+   "s": 276.282
+  },
+  {
+   "a": "2910",
+   "b": "2910",
+   "seed": 2,
+   "ok": {
+    "robot": "2910",
+    "pts": 474,
+    "fuel": 474,
+    "launched": 584,
+    "passes": 90,
+    "fouls": [
+     "G407"
+    ]
+   },
+   "A": {
+    "robot": "2910",
+    "pts": 480,
+    "fuel": 465,
+    "launched": 597,
+    "passes": 114,
+    "fouls": []
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 474,
+    "fuel": 474,
+    "launched": 584,
+    "passes": 90,
+    "fouls": [
+     "G407"
+    ]
+   },
+   "audit": [
+    {
+     "robot": "2910",
+     "alliance": "blue",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 63,
+      "trans": 62,
+      "a1": 107,
+      "a2": 55,
+      "end": 164,
+      "inactive": 1
+     },
+     "launched": 597,
+     "passes": 114,
+     "intaked": 601,
+     "unjams": 0,
+     "unsticks": 1,
+     "cycles": 10,
+     "firstScore": 6.1,
+     "fouls": 0,
+     "coll": {
+      "own": 43,
+      "mid": 55.5
+     },
+     "took": {
+      "own": 128,
+      "mid": 366,
+      "opp": 0
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 7.1,
+      "staged": 4.9,
+      "stuck": 5.5,
+      "carryOut": 24.5,
+      "inZoneOff": 11.4,
+      "emptyActive": 6.4
+     },
+     "stuckBy": {
+      "skirt": 0.3,
+      "open": 0.4,
+      "trench": 0.1,
+      "hub": 1.3,
+      "tower": 1.9,
+      "bump": 0.1,
+      "depot": 0.2,
+      "wall": 1.4
+     },
+     "idleBy": {
+      "Collecting": 4.1,
+      "Aiming": 1.5,
+      "Feeding its zone": 1.3,
+      "Shooting": 0.2
+     },
+     "labels": {
+      "Collecting": 73.1,
+      "Returning to score": 6.4,
+      "Aiming": 16.8,
+      "Shooting": 13.4,
+      "Feeding its zone": 24.8,
+      "Staged — waiting for HUB": 4.9,
+      "Unsticking": 0.7
+     },
+     "stuckEp": [
+      {
+       "t": 106.6,
+       "s": 1.4,
+       "by": "wall",
+       "x": -7.54,
+       "z": 3.26,
+       "label": "Collecting"
+      },
+      {
+       "t": 49.1,
+       "s": 1.3,
+       "by": "tower",
+       "x": -7.61,
+       "z": -1.07,
+       "label": "Collecting"
+      },
+      {
+       "t": 93.5,
+       "s": 1.1,
+       "by": "hub",
+       "x": -2.39,
+       "z": 0.51,
+       "label": "Collecting"
+      }
+     ]
+    },
+    {
+     "robot": "2910",
+     "alliance": "red",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 62,
+      "trans": 57,
+      "a1": 106,
+      "a2": 97,
+      "end": 139,
+      "inactive": 0
+     },
+     "launched": 584,
+     "passes": 90,
+     "intaked": 587,
+     "unjams": 0,
+     "unsticks": 1,
+     "cycles": 9,
+     "firstScore": 3.7,
+     "fouls": 1,
+     "coll": {
+      "own": 40.4,
+      "mid": 53
+     },
+     "took": {
+      "own": 111,
+      "mid": 371,
+      "opp": 0
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 7.2,
+      "staged": 5.3,
+      "stuck": 3.2,
+      "carryOut": 28.5,
+      "inZoneOff": 14.4,
+      "emptyActive": 6.6
+     },
+     "stuckBy": {
+      "open": 0.5,
+      "hub": 0.2,
+      "tower": 0.7,
+      "skirt": 1.5,
+      "wall": 0.3,
+      "trench": 0.1,
+      "bump": 0.1
+     },
+     "idleBy": {
+      "Collecting": 2.2,
+      "Aiming": 2.2,
+      "Shooting": 0.5,
+      "Feeding its zone": 1.2,
+      "Unsticking": 0.7,
+      "Returning to score": 0.5
+     },
+     "labels": {
+      "Collecting": 69,
+      "Returning to score": 10.1,
+      "Aiming": 16.5,
+      "Shooting": 14.7,
+      "Feeding its zone": 23.7,
+      "Staged — waiting for HUB": 5.3,
+      "Unsticking": 0.7
+     },
+     "stuckEp": [
+      {
+       "t": 104.8,
+       "s": 1.3,
+       "by": "skirt",
+       "x": 4.85,
+       "z": 3.12,
+       "label": "Collecting"
+      }
+     ]
+    }
+   ],
+   "s": 277.188
+  },
+  {
+   "a": "2910",
+   "b": "2910",
+   "seed": 3,
+   "ok": {
+    "robot": "2910",
+    "pts": 420,
+    "fuel": 420,
+    "launched": 539,
+    "passes": 98,
+    "fouls": []
+   },
+   "A": {
+    "robot": "2910",
+    "pts": 463,
+    "fuel": 463,
+    "launched": 624,
+    "passes": 130,
+    "fouls": []
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 420,
+    "fuel": 420,
+    "launched": 539,
+    "passes": 98,
+    "fouls": []
+   },
+   "audit": [
+    {
+     "robot": "2910",
+     "alliance": "blue",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 59,
+      "trans": 58,
+      "a1": 117,
+      "a2": 108,
+      "end": 113,
+      "inactive": 0
+     },
+     "launched": 624,
+     "passes": 130,
+     "intaked": 626,
+     "unjams": 0,
+     "unsticks": 0,
+     "cycles": 10,
+     "firstScore": 5.9,
+     "fouls": 0,
+     "coll": {
+      "own": 29.7,
+      "mid": 57.7,
+      "opp": 8.3
+     },
+     "took": {
+      "own": 104,
+      "mid": 423,
+      "opp": 5
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 7.7,
+      "staged": 5.9,
+      "stuck": 3.1,
+      "carryOut": 37.4,
+      "inZoneOff": 10,
+      "emptyActive": 4.8
+     },
+     "stuckBy": {
+      "open": 0.9,
+      "depot": 1,
+      "hub": 0.2,
+      "wall": 0.8,
+      "bump": 0.2,
+      "robot": 0.1,
+      "tower": 0.1
+     },
+     "idleBy": {
+      "Aiming": 1.3,
+      "Shooting": 0.3,
+      "Feeding its zone": 3.4,
+      "Collecting": 2.7
+     },
+     "labels": {
+      "Collecting": 72.9,
+      "Returning to score": 7.7,
+      "Aiming": 15.8,
+      "Shooting": 14.8,
+      "Feeding its zone": 22.8,
+      "Staged — waiting for HUB": 5.9
+     },
+     "stuckEp": []
+    },
+    {
+     "robot": "2910",
+     "alliance": "red",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 56,
+      "trans": 56,
+      "a1": 90,
+      "a2": 104,
+      "end": 103,
+      "inactive": 0
+     },
+     "launched": 539,
+     "passes": 98,
+     "intaked": 539,
+     "unjams": 0,
+     "unsticks": 0,
+     "cycles": 8,
+     "firstScore": 6.4,
+     "fouls": 0,
+     "coll": {
+      "own": 48,
+      "mid": 55.3
+     },
+     "took": {
+      "own": 120,
+      "mid": 320,
+      "opp": 0
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 7.6,
+      "staged": 4,
+      "stuck": 2.4,
+      "carryOut": 20.6,
+      "inZoneOff": 10.3,
+      "emptyActive": 4
+     },
+     "stuckBy": {
+      "open": 0.3,
+      "skirt": 0.8,
+      "bump": 0.1,
+      "wall": 0.3,
+      "robot": 0.2,
+      "tower": 0.5,
+      "trench": 0.1,
+      "depot": 0.1
+     },
+     "idleBy": {
+      "Aiming": 1.2,
+      "Shooting": 0.3,
+      "Collecting": 5.5,
+      "Feeding its zone": 0.5
+     },
+     "labels": {
+      "Collecting": 76,
+      "Returning to score": 6.2,
+      "Aiming": 13.5,
+      "Shooting": 13,
+      "Feeding its zone": 27.4,
+      "Staged — waiting for HUB": 4
+     },
+     "stuckEp": []
+    }
+   ],
+   "s": 277.944
+  },
+  {
+   "a": "2910",
+   "b": "2910",
+   "seed": 1,
+   "ok": {
+    "robot": "2910",
+    "pts": 435,
+    "fuel": 435,
+    "launched": 509,
+    "passes": 60,
+    "fouls": []
+   },
+   "A": {
+    "robot": "2910",
+    "pts": 298,
+    "fuel": 298,
+    "launched": 372,
+    "passes": 68,
+    "fouls": []
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 435,
+    "fuel": 435,
+    "launched": 509,
+    "passes": 60,
+    "fouls": []
+   },
+   "audit": [
+    {
+     "robot": "2910",
+     "alliance": "blue",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 59,
+      "trans": 57,
+      "a1": 108,
+      "a2": 58,
+      "end": 1,
+      "inactive": 1
+     },
+     "launched": 372,
+     "passes": 68,
+     "intaked": 427,
+     "unjams": 0,
+     "unsticks": 0,
+     "cycles": 7,
+     "firstScore": 5.9,
+     "fouls": 0,
+     "coll": {
+      "own": 22.2,
+      "mid": 49.9
+     },
+     "took": {
+      "own": 64,
+      "mid": 257,
+      "opp": 0
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 39.4,
+      "staged": 4.3,
+      "stuck": 3.3,
+      "holdIdle": 32.4,
+      "carryOut": 16.5,
+      "inZoneOff": 12.6,
+      "emptyActive": 2.5
+     },
+     "stuckBy": {
+      "open": 1,
+      "depot": 0.4,
+      "hub": 0.4,
+      "skirt": 0.4,
+      "tower": 0.7,
+      "wall": 0.1,
+      "trench": 0.2,
+      "bump": 0.2
+     },
+     "idleBy": {
+      "Aiming": 35.6,
+      "Shooting": 0.3,
+      "Collecting": 2.4,
+      "Returning to score": 0.9,
+      "Feeding its zone": 0.2
+     },
+     "labels": {
+      "Collecting": 56.8,
+      "Returning to score": 6.4,
+      "Aiming": 48.4,
+      "Shooting": 8.7,
+      "Staged — waiting for HUB": 4.3,
+      "Feeding its zone": 15.2
+     },
+     "stuckEp": []
+    },
+    {
+     "robot": "2910",
+     "alliance": "red",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 58,
+      "trans": 54,
+      "a1": 101,
+      "a2": 88,
+      "end": 121,
+      "inactive": 2
+     },
+     "launched": 509,
+     "passes": 60,
+     "intaked": 511,
+     "unjams": 0,
+     "unsticks": 1,
+     "cycles": 9,
+     "firstScore": 7.3,
+     "fouls": 0,
+     "coll": {
+      "own": 34.8,
+      "mid": 56.8,
+      "opp": 1.5
+     },
+     "took": {
+      "own": 82,
+      "mid": 324,
+      "opp": 4
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 8.5,
+      "staged": 6.3,
+      "stuck": 4.2,
+      "carryOut": 25,
+      "inZoneOff": 7.9,
+      "emptyActive": 7.1
+     },
+     "stuckBy": {
+      "open": 0.7,
+      "skirt": 1.8,
+      "depot": 0.1,
+      "trench": 0.3,
+      "bump": 0.1,
+      "tower": 0.3,
+      "hub": 0.2,
+      "wall": 0.8
+     },
+     "idleBy": {
+      "Aiming": 3.1,
+      "Shooting": 0.6,
+      "Collecting": 3.8,
+      "Feeding its zone": 1.1
+     },
+     "labels": {
+      "Collecting": 68,
+      "Aiming": 16.8,
+      "Shooting": 13.2,
+      "Returning to score": 10.6,
+      "Staged — waiting for HUB": 6.3,
+      "Feeding its zone": 24.4,
+      "Unsticking": 0.7
+     },
+     "stuckEp": [
+      {
+       "t": 74.3,
+       "s": 1.3,
+       "by": "skirt",
+       "x": 4.81,
+       "z": 3.14,
+       "label": "Collecting"
+      }
+     ]
+    }
+   ],
+   "s": 296.883
+  },
+  {
+   "a": "4414",
+   "b": "2910",
+   "seed": 3,
+   "ok": {
+    "robot": "2910",
+    "pts": 434,
+    "fuel": 419,
+    "launched": 586,
+    "passes": 143,
+    "fouls": []
+   },
+   "A": {
+    "robot": "4414",
+    "pts": 427,
+    "fuel": 427,
+    "launched": 712,
+    "passes": 154,
+    "fouls": [
+     "G407"
+    ]
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 434,
+    "fuel": 419,
+    "launched": 586,
+    "passes": 143,
+    "fouls": []
+   },
+   "audit": [
+    {
+     "robot": "4414",
+     "alliance": "blue",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 77,
+      "trans": 57,
+      "a1": 84,
+      "a2": 108,
+      "end": 89,
+      "inactive": 0
+     },
+     "launched": 712,
+     "passes": 154,
+     "intaked": 715,
+     "unjams": 0,
+     "unsticks": 3,
+     "cycles": 9,
+     "firstScore": 2.7,
+     "fouls": 1,
+     "coll": {
+      "own": 69.7,
+      "mid": 46.7
+     },
+     "took": {
+      "own": 200,
+      "mid": 383,
+      "opp": 0
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 0.9,
+      "staged": 5.5,
+      "stuck": 5.3,
+      "carryOut": 17.5,
+      "inZoneOff": 10.1,
+      "emptyActive": 1.4
+     },
+     "stuckBy": {
+      "skirt": 1.7,
+      "bump": 0.1,
+      "hub": 0.3,
+      "open": 0.3,
+      "depot": 1.5,
+      "wall": 0.3,
+      "tower": 1.3
+     },
+     "idleBy": {
+      "Feeding its zone": 0.2,
+      "Shooting while collecting": 0.6,
+      "Aiming": 0.1
+     },
+     "labels": {
+      "Collecting": 20.3,
+      "Returning to score": 8.3,
+      "Aiming": 4.9,
+      "Shooting": 4.8,
+      "Shooting while collecting": 63.2,
+      "Feeding its zone": 30.9,
+      "Staged — waiting for HUB": 5.5,
+      "Unsticking": 2.1
+     },
+     "stuckEp": [
+      {
+       "t": 67.7,
+       "s": 1.4,
+       "by": "depot",
+       "x": -7.47,
+       "z": -2.23,
+       "label": "Shooting while collecting"
+      },
+      {
+       "t": 121.8,
+       "s": 1.3,
+       "by": "skirt",
+       "x": -4.84,
+       "z": -3.17,
+       "label": "Shooting while collecting"
+      },
+      {
+       "t": 114,
+       "s": 1.3,
+       "by": "tower",
+       "x": -7.62,
+       "z": -1.01,
+       "label": "Shooting while collecting"
+      }
+     ]
+    },
+    {
+     "robot": "2910",
+     "alliance": "red",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 97,
+      "trans": 58,
+      "a1": 115,
+      "a2": 56,
+      "end": 79,
+      "inactive": 0
+     },
+     "launched": 586,
+     "passes": 143,
+     "intaked": 588,
+     "unjams": 0,
+     "unsticks": 1,
+     "cycles": 8,
+     "firstScore": 7.7,
+     "fouls": 0,
+     "coll": {
+      "own": 49.3,
+      "mid": 55.9
+     },
+     "took": {
+      "own": 130,
+      "mid": 356,
+      "opp": 0
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 8.6,
+      "staged": 5.9,
+      "stuck": 4.4,
+      "carryOut": 22.7,
+      "inZoneOff": 12.5,
+      "emptyActive": 5.7
+     },
+     "stuckBy": {
+      "skirt": 0.9,
+      "open": 0.5,
+      "depot": 1.5,
+      "wall": 0.8,
+      "tower": 0.4,
+      "trench": 0.1,
+      "hub": 0.3
+     },
+     "idleBy": {
+      "Shooting": 0.3,
+      "Aiming": 1.8,
+      "Feeding its zone": 0.3,
+      "Collecting": 5.7,
+      "Unsticking": 0.5
+     },
+     "labels": {
+      "Collecting": 79.1,
+      "Returning to score": 4.1,
+      "Aiming": 12.6,
+      "Shooting": 12.2,
+      "Feeding its zone": 25.5,
+      "Staged — waiting for HUB": 5.9,
+      "Unsticking": 0.7
+     },
+     "stuckEp": [
+      {
+       "t": 94.8,
+       "s": 1.3,
+       "by": "depot",
+       "x": 7.56,
+       "z": 2.32,
+       "label": "Collecting"
+      }
+     ]
+    }
+   ],
+   "s": 299.639
+  },
+  {
+   "a": "4414",
+   "b": "2910",
+   "seed": 1,
+   "ok": {
+    "robot": "2910",
+    "pts": 494,
+    "fuel": 494,
+    "launched": 606,
+    "passes": 95,
+    "fouls": []
+   },
+   "A": {
+    "robot": "4414",
+    "pts": 527,
+    "fuel": 527,
+    "launched": 737,
+    "passes": 122,
+    "fouls": []
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 494,
+    "fuel": 494,
+    "launched": 606,
+    "passes": 95,
+    "fouls": []
+   },
+   "audit": [
+    {
+     "robot": "4414",
+     "alliance": "blue",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 89,
+      "trans": 58,
+      "a1": 130,
+      "a2": 103,
+      "end": 132,
+      "inactive": 0
+     },
+     "launched": 737,
+     "passes": 122,
+     "intaked": 748,
+     "unjams": 0,
+     "unsticks": 0,
+     "cycles": 9,
+     "firstScore": 2.6,
+     "fouls": 0,
+     "coll": {
+      "own": 67.8,
+      "mid": 50
+     },
+     "took": {
+      "own": 181,
+      "mid": 431,
+      "opp": 0
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 1.7,
+      "staged": 4.5,
+      "stuck": 3.5,
+      "carryOut": 19.1,
+      "inZoneOff": 12.5,
+      "emptyActive": 1.2
+     },
+     "stuckBy": {
+      "hub": 1.3,
+      "wall": 0.1,
+      "skirt": 0.6,
+      "depot": 0.1,
+      "trench": 1.3,
+      "open": 0.2,
+      "bump": 0.1,
+      "tower": 0.1
+     },
+     "idleBy": {
+      "Feeding its zone": 0.9,
+      "Shooting while collecting": 0.5,
+      "Collecting": 0.1,
+      "Returning to score": 0.3
+     },
+     "labels": {
+      "Collecting": 26.8,
+      "Returning to score": 7.4,
+      "Aiming": 5.9,
+      "Shooting": 4.1,
+      "Shooting while collecting": 62.8,
+      "Feeding its zone": 28.3,
+      "Staged — waiting for HUB": 4.5
+     },
+     "stuckEp": []
+    },
+    {
+     "robot": "2910",
+     "alliance": "red",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 100,
+      "trans": 55,
+      "a1": 117,
+      "a2": 120,
+      "end": 91,
+      "inactive": 0
+     },
+     "launched": 606,
+     "passes": 95,
+     "intaked": 616,
+     "unjams": 0,
+     "unsticks": 1,
+     "cycles": 10,
+     "firstScore": 8.2,
+     "fouls": 0,
+     "coll": {
+      "own": 28.5,
+      "mid": 60.4,
+      "opp": 2.7
+     },
+     "took": {
+      "own": 113,
+      "mid": 400,
+      "opp": 0
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 7.5,
+      "staged": 3.2,
+      "stuck": 2.8,
+      "carryOut": 28.7,
+      "inZoneOff": 7.4,
+      "emptyActive": 4.3
+     },
+     "stuckBy": {
+      "depot": 1.5,
+      "open": 0.5,
+      "trench": 0.1,
+      "skirt": 0.1,
+      "tower": 0.2,
+      "wall": 0.4,
+      "bump": 0.1,
+      "hub": 0.1
+     },
+     "idleBy": {
+      "Feeding its zone": 2.3,
+      "Collecting": 1.9,
+      "Aiming": 2.7,
+      "Shooting": 0.3,
+      "Unsticking": 0.3
+     },
+     "labels": {
+      "Collecting": 64.4,
+      "Returning to score": 11.6,
+      "Aiming": 19,
+      "Shooting": 13.9,
+      "Feeding its zone": 27.3,
+      "Staged — waiting for HUB": 3.2,
+      "Unsticking": 0.7
+     },
+     "stuckEp": [
+      {
+       "t": 52.2,
+       "s": 1.3,
+       "by": "depot",
+       "x": 7.53,
+       "z": 1.43,
+       "label": "Aiming"
+      }
+     ]
+    }
+   ],
+   "s": 299.95
+  },
+  {
+   "a": "4414",
+   "b": "2910",
+   "seed": 2,
+   "ok": {
+    "robot": "2910",
+    "pts": 452,
+    "fuel": 452,
+    "launched": 619,
+    "passes": 159,
+    "fouls": []
+   },
+   "A": {
+    "robot": "4414",
+    "pts": 493,
+    "fuel": 493,
+    "launched": 718,
+    "passes": 173,
+    "fouls": []
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 452,
+    "fuel": 452,
+    "launched": 619,
+    "passes": 159,
+    "fouls": []
+   },
+   "audit": [
+    {
+     "robot": "4414",
+     "alliance": "blue",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 79,
+      "trans": 58,
+      "a1": 93,
+      "a2": 85,
+      "end": 167,
+      "inactive": 0
+     },
+     "launched": 718,
+     "passes": 173,
+     "intaked": 725,
+     "unjams": 0,
+     "unsticks": 2,
+     "cycles": 9,
+     "firstScore": 3.2,
+     "fouls": 0,
+     "coll": {
+      "own": 66.3,
+      "mid": 50.8
+     },
+     "took": {
+      "own": 170,
+      "mid": 441,
+      "opp": 0
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 1.4,
+      "staged": 5.5,
+      "stuck": 7.4,
+      "carryOut": 18.3,
+      "inZoneOff": 8.2,
+      "emptyActive": 0.4
+     },
+     "stuckBy": {
+      "wall": 0.4,
+      "skirt": 2.3,
+      "hub": 0.1,
+      "open": 0.1,
+      "depot": 3.9,
+      "tower": 0.6,
+      "bump": 0.1
+     },
+     "idleBy": {
+      "Collecting": 1.2,
+      "Aiming": 0.1,
+      "Shooting while collecting": 0.1
+     },
+     "labels": {
+      "Collecting": 29.3,
+      "Returning to score": 6.9,
+      "Aiming": 5.1,
+      "Shooting": 5.2,
+      "Shooting while collecting": 61.3,
+      "Unsticking": 1.4,
+      "Feeding its zone": 25.2,
+      "Staged — waiting for HUB": 5.5
+     },
+     "stuckEp": [
+      {
+       "t": 20.7,
+       "s": 1.3,
+       "by": "skirt",
+       "x": -2.49,
+       "z": 3.13,
+       "label": "Collecting"
+      },
+      {
+       "t": 64.5,
+       "s": 1.3,
+       "by": "depot",
+       "x": -7.34,
+       "z": -2.65,
+       "label": "Shooting while collecting"
+      }
+     ]
+    },
+    {
+     "robot": "2910",
+     "alliance": "red",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 101,
+      "trans": 54,
+      "a1": 104,
+      "a2": 59,
+      "end": 119,
+      "inactive": 0
+     },
+     "launched": 619,
+     "passes": 159,
+     "intaked": 631,
+     "unjams": 0,
+     "unsticks": 3,
+     "cycles": 9,
+     "firstScore": 9,
+     "fouls": 0,
+     "coll": {
+      "own": 53.3,
+      "mid": 50.4
+     },
+     "took": {
+      "own": 152,
+      "mid": 371,
+      "opp": 0
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 6.6,
+      "staged": 3.9,
+      "stuck": 9.3,
+      "carryOut": 11.4,
+      "inZoneOff": 12.8,
+      "emptyActive": 5.6
+     },
+     "stuckBy": {
+      "open": 0.8,
+      "depot": 2.9,
+      "wall": 0.2,
+      "tower": 3.1,
+      "bump": 0.2,
+      "trench": 0.3,
+      "skirt": 2
+     },
+     "idleBy": {
+      "Shooting": 0.4,
+      "Collecting": 3.9,
+      "Aiming": 0.8,
+      "Feeding its zone": 1.5,
+      "Unsticking": 0.1
+     },
+     "labels": {
+      "Collecting": 77.7,
+      "Returning to score": 6.8,
+      "Aiming": 13.5,
+      "Shooting": 12.1,
+      "Feeding its zone": 24,
+      "Unsticking": 2.1,
+      "Staged — waiting for HUB": 3.9
+     },
+     "stuckEp": [
+      {
+       "t": 98.1,
+       "s": 2,
+       "by": "skirt",
+       "x": 4.77,
+       "z": 1.99,
+       "label": "Collecting"
+      },
+      {
+       "t": 29.4,
+       "s": 1.3,
+       "by": "depot",
+       "x": 7.53,
+       "z": 2.81,
+       "label": "Collecting"
+      },
+      {
+       "t": 92.5,
+       "s": 1.3,
+       "by": "tower",
+       "x": 6.68,
+       "z": -0.31,
+       "label": "Collecting"
+      },
+      {
+       "t": 107.7,
+       "s": 1.3,
+       "by": "depot",
+       "x": 7.61,
+       "z": 2.8,
+       "label": "Collecting"
+      }
+     ]
+    }
+   ],
+   "s": 304.129
+  },
+  {
+   "a": "4414",
+   "b": "2910",
+   "seed": 4,
+   "ok": {
+    "robot": "2910",
+    "pts": 500,
+    "fuel": 500,
+    "launched": 641,
+    "passes": 125,
+    "fouls": []
+   },
+   "A": {
+    "robot": "4414",
+    "pts": 484,
+    "fuel": 484,
+    "launched": 755,
+    "passes": 180,
+    "fouls": []
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 500,
+    "fuel": 500,
+    "launched": 641,
+    "passes": 125,
+    "fouls": []
+   },
+   "audit": [
+    {
+     "robot": "4414",
+     "alliance": "blue",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 85,
+      "trans": 63,
+      "a1": 90,
+      "a2": 118,
+      "end": 119,
+      "inactive": 0
+     },
+     "launched": 755,
+     "passes": 180,
+     "intaked": 752,
+     "unjams": 0,
+     "unsticks": 0,
+     "cycles": 12,
+     "firstScore": 2.9,
+     "fouls": 0,
+     "coll": {
+      "own": 64.7,
+      "mid": 51.6
+     },
+     "took": {
+      "own": 177,
+      "mid": 455,
+      "opp": 0
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 2.2,
+      "staged": 4.8,
+      "stuck": 1.8,
+      "carryOut": 23.9,
+      "inZoneOff": 11.9,
+      "emptyActive": 0.1
+     },
+     "stuckBy": {
+      "hub": 0.7,
+      "skirt": 0.1,
+      "wall": 0.3,
+      "depot": 0.3,
+      "robot": 0.1,
+      "open": 0.2,
+      "tower": 0.1,
+      "bump": 0.1
+     },
+     "idleBy": {
+      "Feeding its zone": 0.2,
+      "Shooting while collecting": 0.6,
+      "Collecting": 0.2,
+      "Returning to score": 0.8,
+      "Aiming": 0.3,
+      "Shooting": 0.3
+     },
+     "labels": {
+      "Collecting": 31.2,
+      "Returning to score": 9.8,
+      "Aiming": 6.4,
+      "Shooting": 2.6,
+      "Shooting while collecting": 59.3,
+      "Feeding its zone": 25.8,
+      "Staged — waiting for HUB": 4.8
+     },
+     "stuckEp": []
+    },
+    {
+     "robot": "2910",
+     "alliance": "red",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 102,
+      "trans": 58,
+      "a1": 124,
+      "a2": 54,
+      "end": 149,
+      "inactive": 0
+     },
+     "launched": 641,
+     "passes": 125,
+     "intaked": 638,
+     "unjams": 0,
+     "unsticks": 0,
+     "cycles": 8,
+     "firstScore": 9.1,
+     "fouls": 0,
+     "coll": {
+      "own": 49.1,
+      "mid": 50.9
+     },
+     "took": {
+      "own": 171,
+      "mid": 362,
+      "opp": 0
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 2.5,
+      "staged": 4.4,
+      "stuck": 4.5,
+      "carryOut": 25.3,
+      "inZoneOff": 17.1,
+      "emptyActive": 5.3
+     },
+     "stuckBy": {
+      "skirt": 1.2,
+      "open": 0.5,
+      "wall": 0.2,
+      "tower": 1.6,
+      "hub": 0.2,
+      "robot": 0.1,
+      "trench": 0.9,
+      "depot": 0.1
+     },
+     "idleBy": {
+      "Collecting": 2.1,
+      "Feeding its zone": 0.4,
+      "Shooting": 0.1
+     },
+     "labels": {
+      "Collecting": 78.1,
+      "Returning to score": 9.7,
+      "Aiming": 11.8,
+      "Shooting": 14.1,
+      "Feeding its zone": 21.9,
+      "Staged — waiting for HUB": 4.4
+     },
+     "stuckEp": [
+      {
+       "t": 51.5,
+       "s": 1.1,
+       "by": "tower",
+       "x": 7.6,
+       "z": -1.61,
+       "label": "Collecting"
+      }
+     ]
+    }
+   ],
+   "s": 306.899
+  },
+  {
+   "a": "1678",
+   "b": "2910",
+   "seed": 2,
+   "ok": {
+    "robot": "2910",
+    "pts": 471,
+    "fuel": 471,
+    "launched": 590,
+    "passes": 111,
+    "fouls": []
+   },
+   "A": {
+    "robot": "1678",
+    "pts": 367,
+    "fuel": 357,
+    "launched": 488,
+    "passes": 89,
+    "fouls": []
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 471,
+    "fuel": 471,
+    "launched": 590,
+    "passes": 111,
+    "fouls": []
+   },
+   "audit": [
+    {
+     "robot": "1678",
+     "alliance": "blue",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 114,
+      "trans": 40,
+      "a1": 90,
+      "a2": 55,
+      "end": 44,
+      "inactive": 0
+     },
+     "launched": 488,
+     "passes": 89,
+     "intaked": 547,
+     "unjams": 0,
+     "unsticks": 2,
+     "cycles": 7,
+     "firstScore": 9,
+     "fouls": 0,
+     "coll": {
+      "own": 50.1,
+      "mid": 53.3
+     },
+     "took": {
+      "own": 108,
+      "mid": 324,
+      "opp": 0
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 9.4,
+      "staged": 11.4,
+      "stuck": 5.9,
+      "carryOut": 24.7,
+      "inZoneOff": 13.5,
+      "emptyActive": 4.4
+     },
+     "stuckBy": {
+      "open": 1.3,
+      "depot": 0.3,
+      "hub": 0.2,
+      "skirt": 0.9,
+      "wall": 0.5,
+      "tower": 2.7,
+      "bump": 0.1
+     },
+     "idleBy": {
+      "Feeding its zone": 0.6,
+      "Collecting": 5.7,
+      "Returning to score": 1,
+      "Aiming": 1,
+      "Shooting": 0.2,
+      "Unsticking": 0.9
+     },
+     "labels": {
+      "Collecting": 86.1,
+      "Returning to score": 7,
+      "Aiming": 6.7,
+      "Shooting": 11.4,
+      "Feeding its zone": 16,
+      "Staged — waiting for HUB": 6.3,
+      "Unsticking": 1.4,
+      "Going to climb": 1,
+      "Climbing": 2.7,
+      "Hanging": 1.4
+     },
+     "stuckEp": [
+      {
+       "t": 111.1,
+       "s": 1.3,
+       "by": "tower",
+       "x": -6.55,
+       "z": 0.54,
+       "label": "Collecting"
+      },
+      {
+       "t": 99.5,
+       "s": 1.3,
+       "by": "tower",
+       "x": -6.52,
+       "z": -0.25,
+       "label": "Collecting"
+      }
+     ]
+    },
+    {
+     "robot": "2910",
+     "alliance": "red",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 105,
+      "trans": 54,
+      "a1": 80,
+      "a2": 121,
+      "end": 100,
+      "inactive": 0
+     },
+     "launched": 590,
+     "passes": 111,
+     "intaked": 595,
+     "unjams": 0,
+     "unsticks": 2,
+     "cycles": 9,
+     "firstScore": 6.1,
+     "fouls": 0,
+     "coll": {
+      "own": 45.3,
+      "mid": 49.7
+     },
+     "took": {
+      "own": 126,
+      "mid": 355,
+      "opp": 0
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 11.4,
+      "staged": 5.1,
+      "stuck": 5.3,
+      "carryOut": 27.6,
+      "inZoneOff": 17.4,
+      "emptyActive": 5.2
+     },
+     "stuckBy": {
+      "open": 0.5,
+      "depot": 1.6,
+      "wall": 0.3,
+      "skirt": 0.2,
+      "trench": 1.5,
+      "tower": 1.3,
+      "hub": 0.1
+     },
+     "idleBy": {
+      "Collecting": 6.3,
+      "Aiming": 2.7,
+      "Shooting": 0.3,
+      "Feeding its zone": 0.8,
+      "Unsticking": 0.7,
+      "Returning to score": 0.6
+     },
+     "labels": {
+      "Collecting": 75.9,
+      "Returning to score": 11.2,
+      "Aiming": 13.9,
+      "Shooting": 14.1,
+      "Unsticking": 1.4,
+      "Feeding its zone": 18.4,
+      "Staged — waiting for HUB": 5.1
+     },
+     "stuckEp": [
+      {
+       "t": 9.2,
+       "s": 1.3,
+       "by": "depot",
+       "x": 7.56,
+       "z": 1.83,
+       "label": "Collecting"
+      },
+      {
+       "t": 135.2,
+       "s": 1.3,
+       "by": "trench",
+       "x": 3.67,
+       "z": 3.35,
+       "label": "Aiming"
+      }
+     ]
+    }
+   ],
+   "s": 255.914
+  },
+  {
+   "a": "1678",
+   "b": "2910",
+   "seed": 1,
+   "ok": {
+    "robot": "2910",
+    "pts": 495,
+    "fuel": 495,
+    "launched": 617,
+    "passes": 107,
+    "fouls": []
+   },
+   "A": {
+    "robot": "1678",
+    "pts": 245,
+    "fuel": 235,
+    "launched": 288,
+    "passes": 0,
+    "fouls": []
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 495,
+    "fuel": 495,
+    "launched": 617,
+    "passes": 107,
+    "fouls": []
+   },
+   "audit": [
+    {
+     "robot": "1678",
+     "alliance": "blue",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 105,
+      "trans": 0,
+      "a1": 0,
+      "a2": 45,
+      "end": 75,
+      "inactive": 0
+     },
+     "launched": 288,
+     "passes": 0,
+     "intaked": 298,
+     "unjams": 0,
+     "unsticks": 6,
+     "cycles": 5,
+     "firstScore": 61.5,
+     "fouls": 0,
+     "coll": {
+      "own": 50.8,
+      "mid": 37.2
+     },
+     "took": {
+      "own": 66,
+      "mid": 124,
+      "opp": 0
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 38.4,
+      "staged": 34.9,
+      "stuck": 11.2,
+      "carryOut": 21.3,
+      "inZoneOff": 9.9,
+      "emptyActive": 2.6
+     },
+     "stuckBy": {
+      "hub": 0.1,
+      "depot": 6.4,
+      "tower": 1.1,
+      "wall": 0.9,
+      "open": 0.3,
+      "trench": 2.4
+     },
+     "idleBy": {
+      "Collecting": 28.2,
+      "Unsticking": 3.5,
+      "Aiming": 4.7,
+      "Returning to score": 1.7,
+      "Shooting": 0.3
+     },
+     "labels": {
+      "Collecting": 79.5,
+      "Unsticking": 4.2,
+      "Aiming": 7.1,
+      "Returning to score": 1.9,
+      "Staged — waiting for HUB": 29.1,
+      "Shooting": 12.5,
+      "Going to climb": 1.5,
+      "Climbing": 2.7,
+      "Hanging": 1.6
+     },
+     "stuckEp": [
+      {
+       "t": 9.4,
+       "s": 1.3,
+       "by": "depot",
+       "x": -7.56,
+       "z": -1.98,
+       "label": "Collecting"
+      },
+      {
+       "t": 29.2,
+       "s": 1.3,
+       "by": "depot",
+       "x": -7.55,
+       "z": -1.53,
+       "label": "Collecting"
+      },
+      {
+       "t": 34.6,
+       "s": 1.3,
+       "by": "depot",
+       "x": -7.51,
+       "z": -2.02,
+       "label": "Aiming"
+      },
+      {
+       "t": 32.2,
+       "s": 1.3,
+       "by": "depot",
+       "x": -7.48,
+       "z": -1.58,
+       "label": "Aiming"
+      }
+     ]
+    },
+    {
+     "robot": "2910",
+     "alliance": "red",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 105,
+      "trans": 55,
+      "a1": 112,
+      "a2": 52,
+      "end": 158,
+      "inactive": 0
+     },
+     "launched": 617,
+     "passes": 107,
+     "intaked": 618,
+     "unjams": 0,
+     "unsticks": 0,
+     "cycles": 9,
+     "firstScore": 9.6,
+     "fouls": 0,
+     "coll": {
+      "own": 37.4,
+      "mid": 63.6,
+      "opp": 1.5
+     },
+     "took": {
+      "own": 96,
+      "mid": 408,
+      "opp": 4
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 7.5,
+      "staged": 2.9,
+      "stuck": 3.4,
+      "carryOut": 24.7,
+      "inZoneOff": 4.4,
+      "emptyActive": 5.4
+     },
+     "stuckBy": {
+      "skirt": 1.9,
+      "open": 0.3,
+      "depot": 0.1,
+      "bump": 0.2,
+      "trench": 0.2,
+      "wall": 0.3,
+      "hub": 0.3,
+      "tower": 0.3
+     },
+     "idleBy": {
+      "Aiming": 4.5,
+      "Shooting": 0.4,
+      "Returning to score": 0.7,
+      "Feeding its zone": 0.2,
+      "Collecting": 1.7
+     },
+     "labels": {
+      "Collecting": 76.5,
+      "Returning to score": 9,
+      "Aiming": 12.5,
+      "Shooting": 13.1,
+      "Feeding its zone": 26,
+      "Staged — waiting for HUB": 2.9
+     },
+     "stuckEp": []
+    }
+   ],
+   "s": 262.091
+  },
+  {
+   "a": "341",
+   "b": "2910",
+   "seed": 1,
+   "ok": {
+    "robot": "2910",
+    "pts": 510,
+    "fuel": 510,
+    "launched": 668,
+    "passes": 133,
+    "fouls": []
+   },
+   "A": {
+    "robot": "341",
+    "pts": 147,
+    "fuel": 137,
+    "launched": 350,
+    "passes": 175,
+    "fouls": []
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 510,
+    "fuel": 510,
+    "launched": 668,
+    "passes": 133,
+    "fouls": []
+   },
+   "audit": [
+    {
+     "robot": "341",
+     "alliance": "blue",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 18,
+      "trans": 7,
+      "a1": 27,
+      "a2": 35,
+      "end": 38,
+      "inactive": 0
+     },
+     "launched": 350,
+     "passes": 175,
+     "intaked": 345,
+     "unjams": 0,
+     "unsticks": 6,
+     "cycles": 3,
+     "firstScore": 2.6,
+     "fouls": 0,
+     "coll": {
+      "own": 76.3,
+      "mid": 46.5,
+      "opp": 6.9
+     },
+     "took": {
+      "own": 116,
+      "mid": 205,
+      "opp": 3
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 9.4,
+      "staged": 8.9,
+      "stuck": 13.3,
+      "carryOut": 3.9,
+      "inZoneOff": 6.3,
+      "emptyActive": 47.9
+     },
+     "stuckBy": {
+      "depot": 7,
+      "open": 0.3,
+      "wall": 2.3,
+      "skirt": 1.1,
+      "robot": 0.2,
+      "tower": 2.1,
+      "trench": 0.1,
+      "hub": 0.3
+     },
+     "idleBy": {
+      "Unsticking": 0.8,
+      "Shooting while collecting": 6.1,
+      "Collecting": 0.2,
+      "Feeding its zone": 2.3,
+      "Shooting": 0.1
+     },
+     "labels": {
+      "Shooting while collecting": 67.7,
+      "Unsticking": 4.2,
+      "Collecting": 13.9,
+      "Passing while collecting": 6.5,
+      "Returning to score": 4.9,
+      "Shooting": 0.2,
+      "Feeding its zone": 33.6,
+      "Staged — waiting for HUB": 5,
+      "Climbing": 3.4,
+      "Hanging": 0.5
+     },
+     "stuckEp": [
+      {
+       "t": 134.2,
+       "s": 1.3,
+       "by": "tower",
+       "x": -6.57,
+       "z": 0.15,
+       "label": "Shooting while collecting"
+      },
+      {
+       "t": 5.2,
+       "s": 1.3,
+       "by": "depot",
+       "x": -7.46,
+       "z": -2.29,
+       "label": "Shooting while collecting"
+      },
+      {
+       "t": 63.5,
+       "s": 1.3,
+       "by": "depot",
+       "x": -7.52,
+       "z": -1.32,
+       "label": "Shooting while collecting"
+      },
+      {
+       "t": 113.8,
+       "s": 1.3,
+       "by": "depot",
+       "x": -7.58,
+       "z": -1.2,
+       "label": "Shooting while collecting"
+      }
+     ]
+    },
+    {
+     "robot": "2910",
+     "alliance": "red",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 127,
+      "trans": 60,
+      "a1": 99,
+      "a2": 113,
+      "end": 97,
+      "inactive": 0
+     },
+     "launched": 668,
+     "passes": 133,
+     "intaked": 674,
+     "unjams": 0,
+     "unsticks": 0,
+     "cycles": 9,
+     "firstScore": 6.7,
+     "fouls": 0,
+     "coll": {
+      "own": 30.5,
+      "mid": 66.1
+     },
+     "took": {
+      "own": 101,
+      "mid": 455,
+      "opp": 0
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 6.3,
+      "staged": 5.3,
+      "stuck": 4.8,
+      "carryOut": 36.5,
+      "inZoneOff": 12,
+      "emptyActive": 5.5
+     },
+     "stuckBy": {
+      "open": 0.5,
+      "skirt": 0.7,
+      "trench": 3,
+      "depot": 0.2,
+      "tower": 0.2,
+      "robot": 0.1,
+      "wall": 0.2,
+      "hub": 0.1
+     },
+     "idleBy": {
+      "Feeding its zone": 0.7,
+      "Collecting": 4.4,
+      "Aiming": 1.1,
+      "Shooting": 0.1
+     },
+     "labels": {
+      "Collecting": 73.7,
+      "Aiming": 15.8,
+      "Shooting": 13.4,
+      "Returning to score": 8.9,
+      "Feeding its zone": 23,
+      "Staged — waiting for HUB": 5.3
+     },
+     "stuckEp": [
+      {
+       "t": 21.8,
+       "s": 1.3,
+       "by": "trench",
+       "x": 3.18,
+       "z": 3.31,
+       "label": "Collecting"
+      },
+      {
+       "t": 23.9,
+       "s": 1,
+       "by": "trench",
+       "x": 3.42,
+       "z": 3.31,
+       "label": "Collecting"
+      }
+     ]
+    }
+   ],
+   "s": 197.939
+  },
+  {
+   "a": "1678",
+   "b": "2910",
+   "seed": 4,
+   "ok": {
+    "robot": "2910",
+    "pts": 469,
+    "fuel": 469,
+    "launched": 534,
+    "passes": 52,
+    "fouls": []
+   },
+   "A": {
+    "robot": "1678",
+    "pts": 322,
+    "fuel": 312,
+    "launched": 452,
+    "passes": 72,
+    "fouls": []
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 469,
+    "fuel": 469,
+    "launched": 534,
+    "passes": 52,
+    "fouls": []
+   },
+   "audit": [
+    {
+     "robot": "1678",
+     "alliance": "blue",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 119,
+      "trans": 0,
+      "a1": 60,
+      "a2": 89,
+      "end": 33,
+      "inactive": 0
+     },
+     "launched": 452,
+     "passes": 72,
+     "intaked": 471,
+     "unjams": 0,
+     "unsticks": 2,
+     "cycles": 6,
+     "firstScore": 36.3,
+     "fouls": 0,
+     "coll": {
+      "own": 46.3,
+      "mid": 55.2
+     },
+     "took": {
+      "own": 103,
+      "mid": 244,
+      "opp": 0
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 20.5,
+      "staged": 13.4,
+      "stuck": 6.2,
+      "carryOut": 20.8,
+      "inZoneOff": 9.8,
+      "emptyActive": 4.8
+     },
+     "stuckBy": {
+      "depot": 3.8,
+      "trench": 0.1,
+      "hub": 0.3,
+      "open": 0.6,
+      "bump": 0.2,
+      "tower": 0.3,
+      "wall": 0.7,
+      "skirt": 0.2,
+      "robot": 0.1
+     },
+     "idleBy": {
+      "Unsticking": 1.1,
+      "Aiming": 4,
+      "Returning to score": 3.2,
+      "Feeding its zone": 2,
+      "Shooting": 1.1,
+      "Collecting": 9
+     },
+     "labels": {
+      "Collecting": 88.5,
+      "Aiming": 6.7,
+      "Unsticking": 1.4,
+      "Returning to score": 4.9,
+      "Feeding its zone": 7.4,
+      "Staged — waiting for HUB": 7.9,
+      "Shooting": 17.6,
+      "Going to climb": 1.4,
+      "Climbing": 2.7,
+      "Hanging": 1.4
+     },
+     "stuckEp": [
+      {
+       "t": 6.8,
+       "s": 1.3,
+       "by": "depot",
+       "x": -7.54,
+       "z": -1.9,
+       "label": "Aiming"
+      },
+      {
+       "t": 8.9,
+       "s": 1.3,
+       "by": "depot",
+       "x": -7.46,
+       "z": -2.05,
+       "label": "Aiming"
+      }
+     ]
+    },
+    {
+     "robot": "2910",
+     "alliance": "red",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 106,
+      "trans": 34,
+      "a1": 79,
+      "a2": 115,
+      "end": 117,
+      "inactive": 0
+     },
+     "launched": 534,
+     "passes": 52,
+     "intaked": 536,
+     "unjams": 0,
+     "unsticks": 2,
+     "cycles": 8,
+     "firstScore": 7.3,
+     "fouls": 0,
+     "coll": {
+      "own": 34.4,
+      "mid": 59.2,
+      "opp": 7.8
+     },
+     "took": {
+      "own": 75,
+      "mid": 333,
+      "opp": 19
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 9.2,
+      "staged": 5.7,
+      "stuck": 5.3,
+      "carryOut": 27.5,
+      "inZoneOff": 4,
+      "emptyActive": 5.9
+     },
+     "stuckBy": {
+      "open": 0.5,
+      "bump": 0.3,
+      "wall": 0.3,
+      "trench": 0.2,
+      "skirt": 1.4,
+      "hub": 0.2,
+      "depot": 2.3,
+      "tower": 0.2
+     },
+     "idleBy": {
+      "Aiming": 2.3,
+      "Shooting": 0.3,
+      "Collecting": 5.5,
+      "Unsticking": 1.1,
+      "Returning to score": 0.1
+     },
+     "labels": {
+      "Collecting": 79,
+      "Aiming": 12.8,
+      "Shooting": 13.3,
+      "Unsticking": 1.4,
+      "Returning to score": 6.7,
+      "Feeding its zone": 21.1,
+      "Staged — waiting for HUB": 5.7
+     },
+     "stuckEp": [
+      {
+       "t": 64.1,
+       "s": 1.6,
+       "by": "depot",
+       "x": 7.22,
+       "z": 1.63,
+       "label": "Collecting"
+      },
+      {
+       "t": 29,
+       "s": 1.3,
+       "by": "skirt",
+       "x": 4.71,
+       "z": 3.21,
+       "label": "Collecting"
+      }
+     ]
+    }
+   ],
+   "s": 252.718
+  },
+  {
+   "a": "1678",
+   "b": "2910",
+   "seed": 3,
+   "ok": {
+    "robot": "2910",
+    "pts": 453,
+    "fuel": 453,
+    "launched": 562,
+    "passes": 100,
+    "fouls": [
+     "G407"
+    ]
+   },
+   "A": {
+    "robot": "1678",
+    "pts": 374,
+    "fuel": 349,
+    "launched": 440,
+    "passes": 63,
+    "fouls": []
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 453,
+    "fuel": 453,
+    "launched": 562,
+    "passes": 100,
+    "fouls": [
+     "G407"
+    ]
+   },
+   "audit": [
+    {
+     "robot": "1678",
+     "alliance": "blue",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 116,
+      "trans": 45,
+      "a1": 84,
+      "a2": 64,
+      "end": 30,
+      "inactive": 0
+     },
+     "launched": 440,
+     "passes": 63,
+     "intaked": 513,
+     "unjams": 0,
+     "unsticks": 3,
+     "cycles": 6,
+     "firstScore": 9.1,
+     "fouls": 0,
+     "coll": {
+      "own": 51.8,
+      "mid": 50.3
+     },
+     "took": {
+      "own": 98,
+      "mid": 296,
+      "opp": 0
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 11.7,
+      "staged": 17,
+      "stuck": 6,
+      "carryOut": 22.7,
+      "inZoneOff": 9.5,
+      "emptyActive": 3.7
+     },
+     "stuckBy": {
+      "open": 1.1,
+      "hub": 0.2,
+      "wall": 0.2,
+      "tower": 3.9,
+      "skirt": 0.1,
+      "trench": 0.2,
+      "depot": 0.3,
+      "bump": 0.1
+     },
+     "idleBy": {
+      "Feeding its zone": 0.2,
+      "Collecting": 7.2,
+      "Aiming": 1.2,
+      "Shooting": 0.2,
+      "Returning to score": 2.7,
+      "Unsticking": 0.2
+     },
+     "labels": {
+      "Collecting": 77.1,
+      "Returning to score": 7.9,
+      "Aiming": 4.5,
+      "Shooting": 14.7,
+      "Feeding its zone": 16.7,
+      "Staged — waiting for HUB": 10.8,
+      "Unsticking": 2.1,
+      "Going to climb": 2.3,
+      "Climbing": 2.7,
+      "Hanging": 1.2
+     },
+     "stuckEp": [
+      {
+       "t": 46.6,
+       "s": 1.3,
+       "by": "tower",
+       "x": -7.54,
+       "z": -1.07,
+       "label": "Collecting"
+      },
+      {
+       "t": 125.6,
+       "s": 1.3,
+       "by": "depot",
+       "x": -7.56,
+       "z": -1.14,
+       "label": "Collecting"
+      },
+      {
+       "t": 90.3,
+       "s": 1.2,
+       "by": "tower",
+       "x": -7.58,
+       "z": -1.06,
+       "label": "Collecting"
+      }
+     ]
+    },
+    {
+     "robot": "2910",
+     "alliance": "red",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 100,
+      "trans": 1,
+      "a1": 118,
+      "a2": 108,
+      "end": 114,
+      "inactive": 0
+     },
+     "launched": 562,
+     "passes": 100,
+     "intaked": 563,
+     "unjams": 0,
+     "unsticks": 2,
+     "cycles": 9,
+     "firstScore": 9.3,
+     "fouls": 1,
+     "coll": {
+      "own": 36.6,
+      "mid": 60.2
+     },
+     "took": {
+      "own": 118,
+      "mid": 336,
+      "opp": 0
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 8.3,
+      "staged": 6.4,
+      "stuck": 5,
+      "carryOut": 35,
+      "inZoneOff": 15.6,
+      "emptyActive": 5.7
+     },
+     "stuckBy": {
+      "hub": 0.5,
+      "skirt": 1.6,
+      "open": 0.4,
+      "depot": 0.2,
+      "wall": 0.3,
+      "tower": 0.3,
+      "trench": 1.6,
+      "bump": 0.2
+     },
+     "idleBy": {
+      "Collecting": 1.2,
+      "Feeding its zone": 1.4,
+      "Returning to score": 3.1,
+      "Shooting": 0.9,
+      "Aiming": 1.8
+     },
+     "labels": {
+      "Collecting": 74.5,
+      "Returning to score": 6.4,
+      "Aiming": 16.1,
+      "Shooting": 13.7,
+      "Feeding its zone": 21.5,
+      "Unsticking": 1.4,
+      "Staged — waiting for HUB": 6.4
+     },
+     "stuckEp": [
+      {
+       "t": 47.9,
+       "s": 1.3,
+       "by": "trench",
+       "x": 2.9,
+       "z": 3.32,
+       "label": "Feeding its zone"
+      },
+      {
+       "t": 124.4,
+       "s": 1.3,
+       "by": "skirt",
+       "x": 2.46,
+       "z": 3.14,
+       "label": "Collecting"
+      }
+     ]
+    }
+   ],
+   "s": 265.975
+  },
+  {
+   "a": "341",
+   "b": "2910",
+   "seed": 3,
+   "ok": {
+    "robot": "2910",
+    "pts": 510,
+    "fuel": 510,
+    "launched": 704,
+    "passes": 178,
+    "fouls": []
+   },
+   "A": {
+    "robot": "341",
+    "pts": 168,
+    "fuel": 158,
+    "launched": 326,
+    "passes": 121,
+    "fouls": []
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 510,
+    "fuel": 510,
+    "launched": 704,
+    "passes": 178,
+    "fouls": []
+   },
+   "audit": [
+    {
+     "robot": "341",
+     "alliance": "blue",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 18,
+      "trans": 9,
+      "a1": 37,
+      "a2": 49,
+      "end": 34,
+      "inactive": 0
+     },
+     "launched": 326,
+     "passes": 121,
+     "intaked": 324,
+     "unjams": 0,
+     "unsticks": 3,
+     "cycles": 6,
+     "firstScore": 2.5,
+     "fouls": 0,
+     "coll": {
+      "own": 79.6,
+      "mid": 44.9
+     },
+     "took": {
+      "own": 123,
+      "mid": 180,
+      "opp": 0
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 7.5,
+      "staged": 10.8,
+      "stuck": 10.3,
+      "carryOut": 7.3,
+      "inZoneOff": 4.9,
+      "emptyActive": 47.6
+     },
+     "stuckBy": {
+      "depot": 2.7,
+      "open": 0.4,
+      "wall": 2.2,
+      "skirt": 2,
+      "tower": 1.7,
+      "bump": 0.1,
+      "trench": 1.1,
+      "hub": 0.1
+     },
+     "idleBy": {
+      "Shooting while collecting": 5,
+      "Collecting": 0.3,
+      "Returning to score": 0.5,
+      "Feeding its zone": 0.9,
+      "Unsticking": 0.8,
+      "Shooting": 0.2
+     },
+     "labels": {
+      "Shooting while collecting": 72.6,
+      "Collecting": 7.5,
+      "Passing while collecting": 3.5,
+      "Returning to score": 9.2,
+      "Shooting": 0.5,
+      "Feeding its zone": 33.7,
+      "Staged — waiting for HUB": 5.7,
+      "Unsticking": 2.1,
+      "Aiming": 0.1,
+      "Going to climb": 0.8,
+      "Climbing": 3,
+      "Hanging": 1.4
+     },
+     "stuckEp": [
+      {
+       "t": 122.2,
+       "s": 1.3,
+       "by": "depot",
+       "x": -7.28,
+       "z": -2.59,
+       "label": "Shooting while collecting"
+      },
+      {
+       "t": 75.3,
+       "s": 1.3,
+       "by": "skirt",
+       "x": -4.75,
+       "z": 3.16,
+       "label": "Shooting while collecting"
+      },
+      {
+       "t": 68.6,
+       "s": 1.2,
+       "by": "tower",
+       "x": -7.52,
+       "z": 1.17,
+       "label": "Shooting while collecting"
+      },
+      {
+       "t": 34.2,
+       "s": 1.1,
+       "by": "trench",
+       "x": -4.49,
+       "z": 3.25,
+       "label": "Shooting while collecting"
+      }
+     ]
+    },
+    {
+     "robot": "2910",
+     "alliance": "red",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 110,
+      "trans": 60,
+      "a1": 114,
+      "a2": 119,
+      "end": 97,
+      "inactive": 0
+     },
+     "launched": 704,
+     "passes": 178,
+     "intaked": 712,
+     "unjams": 0,
+     "unsticks": 0,
+     "cycles": 9,
+     "firstScore": 6.6,
+     "fouls": 0,
+     "coll": {
+      "own": 38,
+      "mid": 56.9
+     },
+     "took": {
+      "own": 187,
+      "mid": 411,
+      "opp": 0
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 4.7,
+      "staged": 6.2,
+      "stuck": 3.1,
+      "carryOut": 26.7,
+      "inZoneOff": 10.1,
+      "emptyActive": 5.1
+     },
+     "stuckBy": {
+      "open": 0.3,
+      "trench": 1.1,
+      "hub": 0.1,
+      "tower": 1.4,
+      "wall": 0.2,
+      "depot": 0.1,
+      "skirt": 0.1
+     },
+     "idleBy": {
+      "Feeding its zone": 0.2,
+      "Collecting": 2.3,
+      "Aiming": 1.8,
+      "Shooting": 0.2,
+      "Returning to score": 0.3
+     },
+     "labels": {
+      "Collecting": 64.8,
+      "Returning to score": 8.8,
+      "Aiming": 15.5,
+      "Shooting": 14.5,
+      "Feeding its zone": 30.2,
+      "Staged — waiting for HUB": 6.2
+     },
+     "stuckEp": [
+      {
+       "t": 76.9,
+       "s": 1,
+       "by": "trench",
+       "x": 3.49,
+       "z": 3.31,
+       "label": "Collecting"
+      }
+     ]
+    }
+   ],
+   "s": 210.746
+  },
+  {
+   "a": "341",
+   "b": "2910",
+   "seed": 2,
+   "ok": {
+    "robot": "2910",
+    "pts": 524,
+    "fuel": 524,
+    "launched": 693,
+    "passes": 152,
+    "fouls": []
+   },
+   "A": {
+    "robot": "341",
+    "pts": 169,
+    "fuel": 159,
+    "launched": 364,
+    "passes": 149,
+    "fouls": []
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 524,
+    "fuel": 524,
+    "launched": 693,
+    "passes": 152,
+    "fouls": []
+   },
+   "audit": [
+    {
+     "robot": "341",
+     "alliance": "blue",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 13,
+      "trans": 15,
+      "a1": 35,
+      "a2": 38,
+      "end": 43,
+      "inactive": 0
+     },
+     "launched": 364,
+     "passes": 149,
+     "intaked": 360,
+     "unjams": 0,
+     "unsticks": 2,
+     "cycles": 6,
+     "firstScore": 2.8,
+     "fouls": 0,
+     "coll": {
+      "own": 81.8,
+      "mid": 42.8,
+      "opp": 3.9
+     },
+     "took": {
+      "own": 146,
+      "mid": 192,
+      "opp": 0
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 6.1,
+      "staged": 10.9,
+      "stuck": 8.9,
+      "carryOut": 6.2,
+      "inZoneOff": 11.6,
+      "emptyActive": 43.2
+     },
+     "stuckBy": {
+      "skirt": 1.5,
+      "wall": 1.1,
+      "tower": 2.8,
+      "depot": 2.3,
+      "trench": 0.8,
+      "open": 0.3,
+      "bump": 0.2
+     },
+     "idleBy": {
+      "Collecting": 2.5,
+      "Feeding its zone": 0.5,
+      "Shooting while collecting": 2.8,
+      "Returning to score": 0.2,
+      "Shooting": 0.1
+     },
+     "labels": {
+      "Shooting while collecting": 68.9,
+      "Collecting": 11,
+      "Passing while collecting": 9.5,
+      "Returning to score": 6.1,
+      "Shooting": 0.5,
+      "Feeding its zone": 31.7,
+      "Staged — waiting for HUB": 4.7,
+      "Unsticking": 1.4,
+      "Going to climb": 1.1,
+      "Climbing": 2.9,
+      "Hanging": 2.2
+     },
+     "stuckEp": [
+      {
+       "t": 114.7,
+       "s": 1.3,
+       "by": "tower",
+       "x": -7.6,
+       "z": -1.04,
+       "label": "Shooting while collecting"
+      },
+      {
+       "t": 74.2,
+       "s": 1.2,
+       "by": "skirt",
+       "x": -4.9,
+       "z": 2.84,
+       "label": "Shooting while collecting"
+      }
+     ]
+    },
+    {
+     "robot": "2910",
+     "alliance": "red",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 116,
+      "trans": 54,
+      "a1": 118,
+      "a2": 115,
+      "end": 113,
+      "inactive": 1
+     },
+     "launched": 693,
+     "passes": 152,
+     "intaked": 696,
+     "unjams": 0,
+     "unsticks": 1,
+     "cycles": 11,
+     "firstScore": 6.4,
+     "fouls": 0,
+     "coll": {
+      "own": 29,
+      "mid": 60.7
+     },
+     "took": {
+      "own": 112,
+      "mid": 470,
+      "opp": 0
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 8.4,
+      "staged": 3,
+      "stuck": 4.3,
+      "carryOut": 25.9,
+      "inZoneOff": 3.9,
+      "emptyActive": 7.4
+     },
+     "stuckBy": {
+      "open": 0.7,
+      "trench": 0.1,
+      "skirt": 1.8,
+      "depot": 0.1,
+      "tower": 1.5,
+      "wall": 0.4
+     },
+     "idleBy": {
+      "Feeding its zone": 0.2,
+      "Collecting": 2.2,
+      "Returning to score": 1.8,
+      "Unsticking": 0.7,
+      "Aiming": 3.2,
+      "Shooting": 0.3
+     },
+     "labels": {
+      "Collecting": 60.7,
+      "Returning to score": 10.4,
+      "Aiming": 21,
+      "Shooting": 15.4,
+      "Staged — waiting for HUB": 3,
+      "Feeding its zone": 29,
+      "Unsticking": 0.7
+     },
+     "stuckEp": [
+      {
+       "t": 80.9,
+       "s": 1.3,
+       "by": "skirt",
+       "x": 2.44,
+       "z": -2.88,
+       "label": "Collecting"
+      },
+      {
+       "t": 42.8,
+       "s": 1.1,
+       "by": "tower",
+       "x": 7.31,
+       "z": 0.81,
+       "label": "Collecting"
+      }
+     ]
+    }
+   ],
+   "s": 216.166
+  },
+  {
+   "a": "341",
+   "b": "2910",
+   "seed": 4,
+   "ok": {
+    "robot": "2910",
+    "pts": 545,
+    "fuel": 545,
+    "launched": 728,
+    "passes": 169,
+    "fouls": []
+   },
+   "A": {
+    "robot": "341",
+    "pts": 152,
+    "fuel": 142,
+    "launched": 325,
+    "passes": 134,
+    "fouls": []
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 545,
+    "fuel": 545,
+    "launched": 728,
+    "passes": 169,
+    "fouls": []
+   },
+   "audit": [
+    {
+     "robot": "341",
+     "alliance": "blue",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 15,
+      "trans": 7,
+      "a1": 24,
+      "a2": 38,
+      "end": 46,
+      "inactive": 0
+     },
+     "launched": 325,
+     "passes": 134,
+     "intaked": 321,
+     "unjams": 0,
+     "unsticks": 3,
+     "cycles": 5,
+     "firstScore": 2.2,
+     "fouls": 0,
+     "coll": {
+      "own": 83.5,
+      "mid": 45.4
+     },
+     "took": {
+      "own": 134,
+      "mid": 167,
+      "opp": 0
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 11,
+      "staged": 8.8,
+      "stuck": 9.4,
+      "carryOut": 4.3,
+      "inZoneOff": 14.2,
+      "emptyActive": 45
+     },
+     "stuckBy": {
+      "wall": 2,
+      "tower": 1.8,
+      "depot": 4.1,
+      "open": 0.3,
+      "hub": 0.4,
+      "bump": 0.1,
+      "skirt": 0.7,
+      "trench": 0.1
+     },
+     "idleBy": {
+      "Shooting while collecting": 7.2,
+      "Collecting": 1.7,
+      "Shooting": 0.2,
+      "Unsticking": 0.2,
+      "Feeding its zone": 1.2,
+      "Returning to score": 0.5
+     },
+     "labels": {
+      "Shooting while collecting": 69.3,
+      "Unsticking": 2.1,
+      "Collecting": 10.3,
+      "Passing while collecting": 5.8,
+      "Returning to score": 6.8,
+      "Aiming": 0.2,
+      "Shooting": 0.4,
+      "Feeding its zone": 36.3,
+      "Staged — waiting for HUB": 3.7,
+      "Going to climb": 1,
+      "Climbing": 2.9,
+      "Hanging": 1.2
+     },
+     "stuckEp": [
+      {
+       "t": 68.3,
+       "s": 1.3,
+       "by": "depot",
+       "x": -7.5,
+       "z": -2.53,
+       "label": "Shooting while collecting"
+      },
+      {
+       "t": 11.6,
+       "s": 1.3,
+       "by": "depot",
+       "x": -7.57,
+       "z": -1.87,
+       "label": "Shooting while collecting"
+      },
+      {
+       "t": 122.4,
+       "s": 1.3,
+       "by": "tower",
+       "x": -7.57,
+       "z": -1.08,
+       "label": "Shooting while collecting"
+      }
+     ]
+    },
+    {
+     "robot": "2910",
+     "alliance": "red",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 118,
+      "trans": 61,
+      "a1": 115,
+      "a2": 121,
+      "end": 118,
+      "inactive": 0
+     },
+     "launched": 728,
+     "passes": 169,
+     "intaked": 732,
+     "unjams": 0,
+     "unsticks": 0,
+     "cycles": 11,
+     "firstScore": 6.1,
+     "fouls": 0,
+     "coll": {
+      "own": 34.9,
+      "mid": 59.5
+     },
+     "took": {
+      "own": 158,
+      "mid": 460,
+      "opp": 0
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 4.9,
+      "staged": 5.5,
+      "stuck": 2.6,
+      "carryOut": 22.8,
+      "inZoneOff": 6.1,
+      "emptyActive": 5.2
+     },
+     "stuckBy": {
+      "open": 0.7,
+      "trench": 0.2,
+      "bump": 0.1,
+      "depot": 0.5,
+      "skirt": 0.8,
+      "tower": 0.2,
+      "wall": 0.3
+     },
+     "idleBy": {
+      "Feeding its zone": 0.7,
+      "Collecting": 0.7,
+      "Returning to score": 0.3,
+      "Aiming": 2.9,
+      "Shooting": 0.3
+     },
+     "labels": {
+      "Collecting": 66.4,
+      "Returning to score": 6.1,
+      "Aiming": 18.7,
+      "Shooting": 15.3,
+      "Staged — waiting for HUB": 5.5,
+      "Feeding its zone": 28
+     },
+     "stuckEp": []
+    }
+   ],
+   "s": 213.348
+  },
+  {
+   "a": "1690",
+   "b": "2910",
+   "seed": 3,
+   "ok": {
+    "robot": "2910",
+    "pts": 493,
+    "fuel": 493,
+    "launched": 593,
+    "passes": 94,
+    "fouls": []
+   },
+   "A": {
+    "robot": "1690",
+    "pts": 353,
+    "fuel": 353,
+    "launched": 517,
+    "passes": 101,
+    "fouls": []
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 493,
+    "fuel": 493,
+    "launched": 593,
+    "passes": 94,
+    "fouls": []
+   },
+   "audit": [
+    {
+     "robot": "1690",
+     "alliance": "blue",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 53,
+      "trans": 17,
+      "a1": 35,
+      "a2": 122,
+      "end": 110,
+      "inactive": 4
+     },
+     "launched": 517,
+     "passes": 101,
+     "intaked": 519,
+     "unjams": 0,
+     "unsticks": 0,
+     "cycles": 10,
+     "firstScore": 3.2,
+     "fouls": 0,
+     "coll": {
+      "own": 60.7,
+      "mid": 63.2
+     },
+     "took": {
+      "own": 167,
+      "mid": 301,
+      "opp": 0
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 16.9,
+      "staged": 5.6,
+      "stuck": 6.5,
+      "carryOut": 20.3,
+      "inZoneOff": 11.8,
+      "emptyActive": 6.2
+     },
+     "stuckBy": {
+      "depot": 3,
+      "wall": 0.5,
+      "skirt": 0.4,
+      "open": 0.1,
+      "tower": 1.1,
+      "bump": 0.3,
+      "hub": 1.2
+     },
+     "idleBy": {
+      "Collecting": 9.4,
+      "Shooting while collecting": 2.8,
+      "Feeding its zone": 0.8,
+      "Shooting": 3.5,
+      "Aiming": 0.2,
+      "Returning to score": 0.1
+     },
+     "labels": {
+      "Shooting while collecting": 54.2,
+      "Collecting": 46.1,
+      "Returning to score": 4.5,
+      "Feeding its zone": 23.6,
+      "Staged — waiting for HUB": 5.6,
+      "Aiming": 1,
+      "Shooting": 4.9
+     },
+     "stuckEp": []
+    },
+    {
+     "robot": "2910",
+     "alliance": "red",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 110,
+      "trans": 58,
+      "a1": 117,
+      "a2": 94,
+      "end": 99,
+      "inactive": 0
+     },
+     "launched": 593,
+     "passes": 94,
+     "intaked": 594,
+     "unjams": 0,
+     "unsticks": 1,
+     "cycles": 9,
+     "firstScore": 6,
+     "fouls": 0,
+     "coll": {
+      "own": 42.1,
+      "mid": 55.6,
+      "opp": 1
+     },
+     "took": {
+      "own": 111,
+      "mid": 371,
+      "opp": 3
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 12.2,
+      "staged": 5.7,
+      "stuck": 5,
+      "carryOut": 24,
+      "inZoneOff": 12.5,
+      "emptyActive": 7.8
+     },
+     "stuckBy": {
+      "open": 0.7,
+      "depot": 2.4,
+      "trench": 0.1,
+      "robot": 0.1,
+      "bump": 0.4,
+      "hub": 0.3,
+      "wall": 0.2,
+      "tower": 0.8,
+      "skirt": 0.1
+     },
+     "idleBy": {
+      "Feeding its zone": 1.4,
+      "Collecting": 7.9,
+      "Returning to score": 1.2,
+      "Aiming": 0.8,
+      "Unsticking": 0.7,
+      "Shooting": 0.2
+     },
+     "labels": {
+      "Collecting": 73,
+      "Returning to score": 7.1,
+      "Aiming": 15.6,
+      "Shooting": 12.9,
+      "Staged — waiting for HUB": 5.7,
+      "Feeding its zone": 25,
+      "Unsticking": 0.7
+     },
+     "stuckEp": [
+      {
+       "t": 96.8,
+       "s": 1.3,
+       "by": "depot",
+       "x": 7.28,
+       "z": 2.07,
+       "label": "Collecting"
+      }
+     ]
+    }
+   ],
+   "s": 297.417
+  },
+  {
+   "a": "1690",
+   "b": "2910",
+   "seed": 4,
+   "ok": {
+    "robot": "2910",
+    "pts": 474,
+    "fuel": 474,
+    "launched": 618,
+    "passes": 121,
+    "fouls": []
+   },
+   "A": {
+    "robot": "1690",
+    "pts": 340,
+    "fuel": 340,
+    "launched": 441,
+    "passes": 65,
+    "fouls": []
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 474,
+    "fuel": 474,
+    "launched": 618,
+    "passes": 121,
+    "fouls": []
+   },
+   "audit": [
+    {
+     "robot": "1690",
+     "alliance": "blue",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 69,
+      "trans": 5,
+      "a1": 62,
+      "a2": 93,
+      "end": 93,
+      "inactive": 0
+     },
+     "launched": 441,
+     "passes": 65,
+     "intaked": 448,
+     "unjams": 0,
+     "unsticks": 2,
+     "cycles": 5,
+     "firstScore": 1.7,
+     "fouls": 0,
+     "coll": {
+      "own": 64.7,
+      "mid": 58.3,
+      "opp": 2
+     },
+     "took": {
+      "own": 155,
+      "mid": 237,
+      "opp": 0
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 18.8,
+      "staged": 5.7,
+      "stuck": 4.8,
+      "carryOut": 12.6,
+      "inZoneOff": 4.2,
+      "emptyActive": 5.3
+     },
+     "stuckBy": {
+      "skirt": 0.8,
+      "depot": 1.9,
+      "open": 0.2,
+      "wall": 0.5,
+      "bump": 0.1,
+      "hub": 0.1,
+      "trench": 1,
+      "tower": 0.3
+     },
+     "idleBy": {
+      "Collecting": 11.8,
+      "Shooting while collecting": 1.2,
+      "Returning to score": 2.2,
+      "Feeding its zone": 3.2,
+      "Shooting": 0.1,
+      "Unsticking": 0.4
+     },
+     "labels": {
+      "Shooting while collecting": 63.9,
+      "Collecting": 32.5,
+      "Shooting": 1.1,
+      "Aiming": 0.6,
+      "Feeding its zone": 27.1,
+      "Returning to score": 7.6,
+      "Staged — waiting for HUB": 5.7,
+      "Unsticking": 1.4
+     },
+     "stuckEp": [
+      {
+       "t": 128.8,
+       "s": 1.3,
+       "by": "skirt",
+       "x": 2.62,
+       "z": 3.3,
+       "label": "Collecting"
+      },
+      {
+       "t": 75.2,
+       "s": 1.2,
+       "by": "depot",
+       "x": -7.64,
+       "z": -2.8,
+       "label": "Shooting while collecting"
+      }
+     ]
+    },
+    {
+     "robot": "2910",
+     "alliance": "red",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 117,
+      "trans": 59,
+      "a1": 114,
+      "a2": 56,
+      "end": 113,
+      "inactive": 3
+     },
+     "launched": 618,
+     "passes": 121,
+     "intaked": 626,
+     "unjams": 0,
+     "unsticks": 1,
+     "cycles": 8,
+     "firstScore": 8.7,
+     "fouls": 0,
+     "coll": {
+      "own": 51.5,
+      "mid": 55.9
+     },
+     "took": {
+      "own": 155,
+      "mid": 355,
+      "opp": 0
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 3.9,
+      "staged": 6.5,
+      "stuck": 4.5,
+      "carryOut": 24.7,
+      "inZoneOff": 15,
+      "emptyActive": 4.1
+     },
+     "stuckBy": {
+      "depot": 1.6,
+      "open": 0.8,
+      "wall": 0.2,
+      "trench": 1.2,
+      "tower": 0.3,
+      "hub": 0.5,
+      "skirt": 0.1,
+      "robot": 0.1
+     },
+     "idleBy": {
+      "Feeding its zone": 0.3,
+      "Collecting": 2.6,
+      "Aiming": 0.9,
+      "Shooting": 0.1,
+      "Unsticking": 0.1
+     },
+     "labels": {
+      "Collecting": 80.4,
+      "Aiming": 12.5,
+      "Shooting": 12.2,
+      "Feeding its zone": 26.3,
+      "Staged — waiting for HUB": 6.5,
+      "Returning to score": 1.5,
+      "Unsticking": 0.7
+     },
+     "stuckEp": [
+      {
+       "t": 95.4,
+       "s": 1.3,
+       "by": "depot",
+       "x": 7.57,
+       "z": 2.83,
+       "label": "Collecting"
+      },
+      {
+       "t": 20.2,
+       "s": 1.1,
+       "by": "trench",
+       "x": 2.88,
+       "z": 3.3,
+       "label": "Feeding its zone"
+      }
+     ]
+    }
+   ],
+   "s": 289.803
+  },
+  {
+   "a": "1690",
+   "b": "2910",
+   "seed": 1,
+   "ok": {
+    "robot": "2910",
+    "pts": 494,
+    "fuel": 494,
+    "launched": 639,
+    "passes": 125,
+    "fouls": []
+   },
+   "A": {
+    "robot": "1690",
+    "pts": 378,
+    "fuel": 378,
+    "launched": 543,
+    "passes": 133,
+    "fouls": []
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 494,
+    "fuel": 494,
+    "launched": 639,
+    "passes": 125,
+    "fouls": []
+   },
+   "audit": [
+    {
+     "robot": "1690",
+     "alliance": "blue",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 59,
+      "trans": 3,
+      "a1": 98,
+      "a2": 118,
+      "end": 84,
+      "inactive": 4
+     },
+     "launched": 543,
+     "passes": 133,
+     "intaked": 552,
+     "unjams": 0,
+     "unsticks": 1,
+     "cycles": 8,
+     "firstScore": 2.8,
+     "fouls": 0,
+     "coll": {
+      "own": 60.4,
+      "mid": 54.9,
+      "opp": 4.3
+     },
+     "took": {
+      "own": 149,
+      "mid": 358,
+      "opp": 5
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 7.6,
+      "staged": 5.3,
+      "stuck": 4.2,
+      "carryOut": 28.9,
+      "inZoneOff": 10.9,
+      "emptyActive": 4.5
+     },
+     "stuckBy": {
+      "open": 0.3,
+      "depot": 1.5,
+      "skirt": 0.1,
+      "trench": 1,
+      "tower": 0.9,
+      "hub": 0.2,
+      "wall": 0.3
+     },
+     "idleBy": {
+      "Shooting while collecting": 0.7,
+      "Collecting": 2.8,
+      "Returning to score": 2.4,
+      "Shooting": 0.1,
+      "Feeding its zone": 1.6,
+      "Aiming": 0.1
+     },
+     "labels": {
+      "Shooting while collecting": 54.1,
+      "Unsticking": 0.7,
+      "Collecting": 35.9,
+      "Returning to score": 9.1,
+      "Aiming": 2.9,
+      "Shooting": 2.9,
+      "Feeding its zone": 29,
+      "Staged — waiting for HUB": 5.3
+     },
+     "stuckEp": [
+      {
+       "t": 1.2,
+       "s": 1.4,
+       "by": "depot",
+       "x": -7.58,
+       "z": -1.56,
+       "label": "Shooting while collecting"
+      }
+     ]
+    },
+    {
+     "robot": "2910",
+     "alliance": "red",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 110,
+      "trans": 56,
+      "a1": 117,
+      "a2": 108,
+      "end": 90,
+      "inactive": 0
+     },
+     "launched": 639,
+     "passes": 125,
+     "intaked": 643,
+     "unjams": 0,
+     "unsticks": 0,
+     "cycles": 9,
+     "firstScore": 7.5,
+     "fouls": 0,
+     "coll": {
+      "own": 37.6,
+      "mid": 59
+     },
+     "took": {
+      "own": 141,
+      "mid": 375,
+      "opp": 0
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 6.6,
+      "staged": 5.6,
+      "stuck": 2.4,
+      "carryOut": 27.5,
+      "inZoneOff": 10.2,
+      "emptyActive": 7.6
+     },
+     "stuckBy": {
+      "open": 0.4,
+      "skirt": 0.4,
+      "trench": 0.2,
+      "bump": 0.1,
+      "depot": 0.1,
+      "hub": 0.4,
+      "tower": 0.6,
+      "wall": 0.1
+     },
+     "idleBy": {
+      "Feeding its zone": 0.3,
+      "Collecting": 4.2,
+      "Shooting": 0.3,
+      "Aiming": 1.7
+     },
+     "labels": {
+      "Collecting": 69.7,
+      "Returning to score": 9,
+      "Aiming": 15.3,
+      "Shooting": 13.5,
+      "Feeding its zone": 26.9,
+      "Staged — waiting for HUB": 5.6
+     },
+     "stuckEp": []
+    }
+   ],
+   "s": 316.568
+  },
+  {
+   "a": "1690",
+   "b": "2910",
+   "seed": 2,
+   "ok": {
+    "robot": "2910",
+    "pts": 521,
+    "fuel": 521,
+    "launched": 613,
+    "passes": 86,
+    "fouls": []
+   },
+   "A": {
+    "robot": "1690",
+    "pts": 349,
+    "fuel": 349,
+    "launched": 467,
+    "passes": 70,
+    "fouls": []
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 521,
+    "fuel": 521,
+    "launched": 613,
+    "passes": 86,
+    "fouls": []
+   },
+   "audit": [
+    {
+     "robot": "1690",
+     "alliance": "blue",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 56,
+      "trans": 4,
+      "a1": 59,
+      "a2": 108,
+      "end": 106,
+      "inactive": 6
+     },
+     "launched": 467,
+     "passes": 70,
+     "intaked": 487,
+     "unjams": 0,
+     "unsticks": 1,
+     "cycles": 6,
+     "firstScore": 1.3,
+     "fouls": 0,
+     "coll": {
+      "own": 51.8,
+      "mid": 66.9,
+      "opp": 4.4
+     },
+     "took": {
+      "own": 114,
+      "mid": 324,
+      "opp": 4
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 13.2,
+      "staged": 6.2,
+      "stuck": 7.1,
+      "carryOut": 40.7,
+      "inZoneOff": 7.1,
+      "emptyActive": 7.2
+     },
+     "stuckBy": {
+      "depot": 2.4,
+      "open": 0.3,
+      "wall": 0.3,
+      "trench": 1.6,
+      "skirt": 2.3,
+      "bump": 0.1,
+      "hub": 0.1
+     },
+     "idleBy": {
+      "Shooting while collecting": 4.5,
+      "Collecting": 3.3,
+      "Returning to score": 1.7,
+      "Aiming": 0.1,
+      "Unsticking": 0.7,
+      "Feeding its zone": 2.9
+     },
+     "labels": {
+      "Shooting while collecting": 50.4,
+      "Collecting": 44.1,
+      "Returning to score": 9.8,
+      "Aiming": 0.7,
+      "Feeding its zone": 27.9,
+      "Staged — waiting for HUB": 6.2,
+      "Unsticking": 0.7,
+      "Shooting": 0.1
+     },
+     "stuckEp": [
+      {
+       "t": 75.9,
+       "s": 1.3,
+       "by": "trench",
+       "x": -2.7,
+       "z": 3.21,
+       "label": "Collecting"
+      },
+      {
+       "t": 2.1,
+       "s": 1.1,
+       "by": "depot",
+       "x": -7.57,
+       "z": -1.66,
+       "label": "Shooting while collecting"
+      },
+      {
+       "t": 31.2,
+       "s": 1,
+       "by": "trench",
+       "x": -3.07,
+       "z": 3.34,
+       "label": "Collecting"
+      }
+     ]
+    },
+    {
+     "robot": "2910",
+     "alliance": "red",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 113,
+      "trans": 53,
+      "a1": 127,
+      "a2": 63,
+      "end": 151,
+      "inactive": 0
+     },
+     "launched": 613,
+     "passes": 86,
+     "intaked": 623,
+     "unjams": 0,
+     "unsticks": 0,
+     "cycles": 10,
+     "firstScore": 9.2,
+     "fouls": 0,
+     "coll": {
+      "own": 33.4,
+      "mid": 63.8
+     },
+     "took": {
+      "own": 98,
+      "mid": 402,
+      "opp": 0
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 10.3,
+      "staged": 6,
+      "stuck": 4.4,
+      "carryOut": 31.5,
+      "inZoneOff": 9.4,
+      "emptyActive": 6.2
+     },
+     "stuckBy": {
+      "tower": 1.2,
+      "skirt": 0.2,
+      "open": 0.7,
+      "trench": 1.1,
+      "hub": 0.1,
+      "bump": 0.2,
+      "wall": 0.1,
+      "depot": 1.1
+     },
+     "idleBy": {
+      "Feeding its zone": 3.7,
+      "Collecting": 2.8,
+      "Aiming": 3.3,
+      "Shooting": 0.4,
+      "Returning to score": 0.1
+     },
+     "labels": {
+      "Collecting": 73,
+      "Aiming": 14.6,
+      "Shooting": 15.4,
+      "Feeding its zone": 24.2,
+      "Staged — waiting for HUB": 6,
+      "Returning to score": 6.8
+     },
+     "stuckEp": [
+      {
+       "t": 28.7,
+       "s": 1.1,
+       "by": "trench",
+       "x": 2.88,
+       "z": -3.31,
+       "label": "Collecting"
+      }
+     ]
+    }
+   ],
+   "s": 326.716
+  },
+  {
+   "a": "581",
+   "b": "2910",
+   "seed": 2,
+   "ok": {
+    "robot": "2910",
+    "pts": 540,
+    "fuel": 540,
+    "launched": 680,
+    "passes": 122,
+    "fouls": []
+   },
+   "A": {
+    "robot": "581",
+    "pts": 315,
+    "fuel": 315,
+    "launched": 485,
+    "passes": 129,
+    "fouls": []
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 540,
+    "fuel": 540,
+    "launched": 680,
+    "passes": 122,
+    "fouls": []
+   },
+   "audit": [
+    {
+     "robot": "581",
+     "alliance": "blue",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 28,
+      "trans": 40,
+      "a1": 79,
+      "a2": 69,
+      "end": 86,
+      "inactive": 0
+     },
+     "launched": 485,
+     "passes": 129,
+     "intaked": 482,
+     "unjams": 0,
+     "unsticks": 0,
+     "cycles": 9,
+     "firstScore": 8.4,
+     "fouls": 0,
+     "coll": {
+      "own": 37.1,
+      "mid": 53.1
+     },
+     "took": {
+      "own": 102,
+      "mid": 349,
+      "opp": 0
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 4.1,
+      "staged": 5.4,
+      "stuck": 2.6,
+      "carryOut": 24,
+      "inZoneOff": 12.8,
+      "emptyActive": 4.6
+     },
+     "stuckBy": {
+      "wall": 0.3,
+      "open": 1.1,
+      "depot": 0.3,
+      "skirt": 0.2,
+      "tower": 0.6,
+      "hub": 0.1,
+      "trench": 0.1
+     },
+     "idleBy": {
+      "Collecting": 2,
+      "Feeding its zone": 1.5,
+      "Returning to score": 0.2,
+      "Aiming": 0.3,
+      "Shooting": 0.3
+     },
+     "labels": {
+      "Collecting": 67.4,
+      "Returning to score": 11.6,
+      "Aiming": 6.6,
+      "Shooting": 26.2,
+      "Staged — waiting for HUB": 5.4,
+      "Feeding its zone": 22.8
+     },
+     "stuckEp": []
+    },
+    {
+     "robot": "2910",
+     "alliance": "red",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 116,
+      "trans": 48,
+      "a1": 113,
+      "a2": 106,
+      "end": 143,
+      "inactive": 0
+     },
+     "launched": 680,
+     "passes": 122,
+     "intaked": 682,
+     "unjams": 0,
+     "unsticks": 3,
+     "cycles": 9,
+     "firstScore": 8.3,
+     "fouls": 0,
+     "coll": {
+      "own": 37.3,
+      "mid": 56,
+      "opp": 3.1
+     },
+     "took": {
+      "own": 148,
+      "mid": 395,
+      "opp": 15
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 4.3,
+      "staged": 3.5,
+      "stuck": 6.9,
+      "carryOut": 20.3,
+      "inZoneOff": 4.9,
+      "emptyActive": 5.8
+     },
+     "stuckBy": {
+      "open": 0.7,
+      "skirt": 1.7,
+      "depot": 2.9,
+      "tower": 1.5,
+      "wall": 0.1
+     },
+     "idleBy": {
+      "Shooting": 0.5,
+      "Collecting": 1.5,
+      "Aiming": 2.3
+     },
+     "labels": {
+      "Collecting": 72.5,
+      "Aiming": 15.8,
+      "Shooting": 14.9,
+      "Feeding its zone": 22.5,
+      "Unsticking": 2.1,
+      "Returning to score": 8.7,
+      "Staged — waiting for HUB": 3.5
+     },
+     "stuckEp": [
+      {
+       "t": 46.8,
+       "s": 1.5,
+       "by": "depot",
+       "x": 7.55,
+       "z": 1.47,
+       "label": "Collecting"
+      },
+      {
+       "t": 102.2,
+       "s": 1.4,
+       "by": "tower",
+       "x": 6.62,
+       "z": -0.84,
+       "label": "Collecting"
+      },
+      {
+       "t": 29,
+       "s": 1.3,
+       "by": "skirt",
+       "x": 2.44,
+       "z": -2.65,
+       "label": "Collecting"
+      }
+     ]
+    }
+   ],
+   "s": 232.842
+  },
+  {
+   "a": "581",
+   "b": "2910",
+   "seed": 4,
+   "ok": {
+    "robot": "2910",
+    "pts": 456,
+    "fuel": 456,
+    "launched": 591,
+    "passes": 125,
+    "fouls": []
+   },
+   "A": {
+    "robot": "581",
+    "pts": 314,
+    "fuel": 314,
+    "launched": 468,
+    "passes": 111,
+    "fouls": []
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 456,
+    "fuel": 456,
+    "launched": 591,
+    "passes": 125,
+    "fouls": []
+   },
+   "audit": [
+    {
+     "robot": "581",
+     "alliance": "blue",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 32,
+      "trans": 0,
+      "a1": 105,
+      "a2": 76,
+      "end": 88,
+      "inactive": 0
+     },
+     "launched": 468,
+     "passes": 111,
+     "intaked": 460,
+     "unjams": 0,
+     "unsticks": 3,
+     "cycles": 9,
+     "firstScore": 12.6,
+     "fouls": 0,
+     "coll": {
+      "own": 50,
+      "mid": 48.9
+     },
+     "took": {
+      "own": 125,
+      "mid": 292,
+      "opp": 0
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 6.6,
+      "staged": 5.9,
+      "stuck": 6.8,
+      "carryOut": 18.3,
+      "inZoneOff": 12.4,
+      "emptyActive": 2.9
+     },
+     "stuckBy": {
+      "wall": 0.5,
+      "depot": 3.1,
+      "open": 0.6,
+      "skirt": 0.4,
+      "bump": 0.2,
+      "trench": 0.6,
+      "tower": 1.5
+     },
+     "idleBy": {
+      "Collecting": 3.5,
+      "Unsticking": 0.3,
+      "Aiming": 1.2,
+      "Shooting": 1.4,
+      "Feeding its zone": 0.3
+     },
+     "labels": {
+      "Collecting": 73.4,
+      "Aiming": 5.8,
+      "Unsticking": 2.1,
+      "Shooting": 23.6,
+      "Returning to score": 5,
+      "Feeding its zone": 24.1,
+      "Staged — waiting for HUB": 5.9
+     },
+     "stuckEp": [
+      {
+       "t": 8.5,
+       "s": 1.3,
+       "by": "depot",
+       "x": -7.47,
+       "z": -1.22,
+       "label": "Aiming"
+      },
+      {
+       "t": 67.1,
+       "s": 1.3,
+       "by": "tower",
+       "x": -7.58,
+       "z": -1.07,
+       "label": "Collecting"
+      },
+      {
+       "t": 78.5,
+       "s": 1.3,
+       "by": "depot",
+       "x": -7.6,
+       "z": -3.21,
+       "label": "Collecting"
+      }
+     ]
+    },
+    {
+     "robot": "2910",
+     "alliance": "red",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 108,
+      "trans": 57,
+      "a1": 106,
+      "a2": 110,
+      "end": 58,
+      "inactive": 2
+     },
+     "launched": 591,
+     "passes": 125,
+     "intaked": 607,
+     "unjams": 0,
+     "unsticks": 2,
+     "cycles": 9,
+     "firstScore": 7.1,
+     "fouls": 0,
+     "coll": {
+      "own": 37,
+      "mid": 53.2,
+      "opp": 2.4
+     },
+     "took": {
+      "own": 123,
+      "mid": 370,
+      "opp": 1
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 13,
+      "staged": 5.1,
+      "stuck": 4.5,
+      "carryOut": 22.8,
+      "inZoneOff": 7.1,
+      "emptyActive": 5.8
+     },
+     "stuckBy": {
+      "hub": 0.3,
+      "open": 0.7,
+      "depot": 0.4,
+      "skirt": 1.6,
+      "wall": 0.2,
+      "tower": 0.1,
+      "trench": 1.2
+     },
+     "idleBy": {
+      "Feeding its zone": 1.1,
+      "Collecting": 1.2,
+      "Aiming": 6.6,
+      "Shooting": 0.5,
+      "Unsticking": 1.3,
+      "Returning to score": 2.3
+     },
+     "labels": {
+      "Collecting": 67.2,
+      "Returning to score": 11.1,
+      "Aiming": 17,
+      "Shooting": 13.5,
+      "Feeding its zone": 24.7,
+      "Staged — waiting for HUB": 5.1,
+      "Unsticking": 1.4
+     },
+     "stuckEp": [
+      {
+       "t": 48.1,
+       "s": 1.3,
+       "by": "skirt",
+       "x": 4.78,
+       "z": 3.2,
+       "label": "Collecting"
+      },
+      {
+       "t": 125.7,
+       "s": 1.2,
+       "by": "trench",
+       "x": 3.67,
+       "z": -3.35,
+       "label": "Aiming"
+      }
+     ]
+    }
+   ],
+   "s": 230.145
+  },
+  {
+   "a": "581",
+   "b": "2910",
+   "seed": 1,
+   "ok": {
+    "robot": "2910",
+    "pts": 499,
+    "fuel": 499,
+    "launched": 635,
+    "passes": 110,
+    "fouls": []
+   },
+   "A": {
+    "robot": "581",
+    "pts": 381,
+    "fuel": 381,
+    "launched": 496,
+    "passes": 61,
+    "fouls": []
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 499,
+    "fuel": 499,
+    "launched": 635,
+    "passes": 110,
+    "fouls": []
+   },
+   "audit": [
+    {
+     "robot": "581",
+     "alliance": "blue",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 32,
+      "trans": 14,
+      "a1": 115,
+      "a2": 103,
+      "end": 105,
+      "inactive": 0
+     },
+     "launched": 496,
+     "passes": 61,
+     "intaked": 491,
+     "unjams": 0,
+     "unsticks": 2,
+     "cycles": 11,
+     "firstScore": 9.4,
+     "fouls": 0,
+     "coll": {
+      "own": 28.7,
+      "mid": 54.7,
+      "opp": 3.9
+     },
+     "took": {
+      "own": 98,
+      "mid": 350,
+      "opp": 16
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 4.5,
+      "staged": 3.8,
+      "stuck": 5.7,
+      "carryOut": 29.5,
+      "inZoneOff": 7.7,
+      "emptyActive": 3.8
+     },
+     "stuckBy": {
+      "open": 0.9,
+      "hub": 0.3,
+      "wall": 0.5,
+      "skirt": 1.4,
+      "robot": 0.1,
+      "depot": 1.9,
+      "bump": 0.3,
+      "trench": 0.1,
+      "tower": 0.3
+     },
+     "idleBy": {
+      "Shooting": 0.2,
+      "Feeding its zone": 1.4,
+      "Unsticking": 0.7,
+      "Returning to score": 2.3
+     },
+     "labels": {
+      "Collecting": 58.8,
+      "Returning to score": 13.6,
+      "Aiming": 6.4,
+      "Shooting": 28.2,
+      "Staged — waiting for HUB": 3.8,
+      "Feeding its zone": 27.8,
+      "Unsticking": 1.4
+     },
+     "stuckEp": [
+      {
+       "t": 52.2,
+       "s": 1.3,
+       "by": "depot",
+       "x": 7.5,
+       "z": 2.77,
+       "label": "Returning to score"
+      },
+      {
+       "t": 86.9,
+       "s": 1.3,
+       "by": "skirt",
+       "x": -4.83,
+       "z": -2.94,
+       "label": "Feeding its zone"
+      }
+     ]
+    },
+    {
+     "robot": "2910",
+     "alliance": "red",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 119,
+      "trans": 57,
+      "a1": 101,
+      "a2": 116,
+      "end": 90,
+      "inactive": 1
+     },
+     "launched": 635,
+     "passes": 110,
+     "intaked": 639,
+     "unjams": 0,
+     "unsticks": 1,
+     "cycles": 8,
+     "firstScore": 9.2,
+     "fouls": 0,
+     "coll": {
+      "own": 37.5,
+      "mid": 59.8
+     },
+     "took": {
+      "own": 130,
+      "mid": 391,
+      "opp": 0
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 5.6,
+      "staged": 5.7,
+      "stuck": 6.8,
+      "carryOut": 24.4,
+      "inZoneOff": 7.5,
+      "emptyActive": 3.8
+     },
+     "stuckBy": {
+      "hub": 0.3,
+      "open": 0.4,
+      "wall": 0.3,
+      "skirt": 0.9,
+      "trench": 3.5,
+      "robot": 0.1,
+      "tower": 0.2,
+      "depot": 1.1
+     },
+     "idleBy": {
+      "Collecting": 2.1,
+      "Aiming": 2.6,
+      "Unsticking": 0.3,
+      "Returning to score": 0.3,
+      "Shooting": 0.2
+     },
+     "labels": {
+      "Collecting": 72,
+      "Aiming": 18,
+      "Shooting": 12.8,
+      "Feeding its zone": 25.3,
+      "Returning to score": 5.6,
+      "Staged — waiting for HUB": 5.7,
+      "Unsticking": 0.7
+     },
+     "stuckEp": [
+      {
+       "t": 37.1,
+       "s": 1.3,
+       "by": "trench",
+       "x": 3.81,
+       "z": -3.35,
+       "label": "Aiming"
+      },
+      {
+       "t": 80.1,
+       "s": 1.1,
+       "by": "trench",
+       "x": 2.82,
+       "z": 3.26,
+       "label": "Collecting"
+      }
+     ]
+    }
+   ],
+   "s": 245.548
+  },
+  {
+   "a": "581",
+   "b": "2910",
+   "seed": 3,
+   "ok": {
+    "robot": "2910",
+    "pts": 452,
+    "fuel": 452,
+    "launched": 575,
+    "passes": 86,
+    "fouls": []
+   },
+   "A": {
+    "robot": "581",
+    "pts": 339,
+    "fuel": 339,
+    "launched": 415,
+    "passes": 49,
+    "fouls": []
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 452,
+    "fuel": 452,
+    "launched": 575,
+    "passes": 86,
+    "fouls": []
+   },
+   "audit": [
+    {
+     "robot": "581",
+     "alliance": "blue",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 34,
+      "trans": 48,
+      "a1": 59,
+      "a2": 87,
+      "end": 99,
+      "inactive": 0
+     },
+     "launched": 415,
+     "passes": 49,
+     "intaked": 408,
+     "unjams": 0,
+     "unsticks": 2,
+     "cycles": 9,
+     "firstScore": 6.8,
+     "fouls": 0,
+     "coll": {
+      "own": 38.5,
+      "mid": 49.3,
+      "opp": 9.9
+     },
+     "took": {
+      "own": 74,
+      "mid": 273,
+      "opp": 21
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 6.6,
+      "staged": 4.4,
+      "stuck": 6.6,
+      "carryOut": 23.1,
+      "inZoneOff": 4.9,
+      "emptyActive": 2.3
+     },
+     "stuckBy": {
+      "open": 0.9,
+      "depot": 4.5,
+      "wall": 0.1,
+      "trench": 0.2,
+      "robot": 0.2,
+      "skirt": 0.5,
+      "tower": 0.2,
+      "bump": 0.2
+     },
+     "idleBy": {
+      "Collecting": 3.3,
+      "Feeding its zone": 1.3,
+      "Aiming": 0.2,
+      "Shooting": 1,
+      "Returning to score": 0.2,
+      "Unsticking": 0.7
+     },
+     "labels": {
+      "Collecting": 69.4,
+      "Returning to score": 10.8,
+      "Aiming": 3.7,
+      "Shooting": 23.4,
+      "Staged — waiting for HUB": 4.4,
+      "Feeding its zone": 26.9,
+      "Unsticking": 1.4
+     },
+     "stuckEp": [
+      {
+       "t": 115.9,
+       "s": 1.3,
+       "by": "depot",
+       "x": -7.26,
+       "z": -1.64,
+       "label": "Collecting"
+      },
+      {
+       "t": 127.2,
+       "s": 1.3,
+       "by": "depot",
+       "x": -7.38,
+       "z": -2.29,
+       "label": "Collecting"
+      }
+     ]
+    },
+    {
+     "robot": "2910",
+     "alliance": "red",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 117,
+      "trans": 61,
+      "a1": 96,
+      "a2": 109,
+      "end": 61,
+      "inactive": 1
+     },
+     "launched": 575,
+     "passes": 86,
+     "intaked": 577,
+     "unjams": 0,
+     "unsticks": 2,
+     "cycles": 8,
+     "firstScore": 6.3,
+     "fouls": 0,
+     "coll": {
+      "own": 45.6,
+      "mid": 51.7,
+      "opp": 4.6
+     },
+     "took": {
+      "own": 109,
+      "mid": 341,
+      "opp": 14
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 12,
+      "staged": 5.1,
+      "stuck": 7.1,
+      "carryOut": 19.7,
+      "inZoneOff": 10.3,
+      "emptyActive": 3
+     },
+     "stuckBy": {
+      "skirt": 2.3,
+      "depot": 3.3,
+      "trench": 0.1,
+      "open": 0.4,
+      "bump": 0.2,
+      "wall": 0.3,
+      "hub": 0.5,
+      "tower": 0.1
+     },
+     "idleBy": {
+      "Feeding its zone": 2,
+      "Collecting": 4.9,
+      "Aiming": 3.2,
+      "Shooting": 0.4,
+      "Unsticking": 0.7,
+      "Returning to score": 0.8
+     },
+     "labels": {
+      "Collecting": 70.4,
+      "Aiming": 13.5,
+      "Shooting": 13.3,
+      "Feeding its zone": 30.2,
+      "Returning to score": 6.1,
+      "Staged — waiting for HUB": 5.1,
+      "Unsticking": 1.4
+     },
+     "stuckEp": [
+      {
+       "t": 130.3,
+       "s": 1.8,
+       "by": "depot",
+       "x": 7.55,
+       "z": 2.44,
+       "label": "Collecting"
+      },
+      {
+       "t": 120.9,
+       "s": 1.3,
+       "by": "depot",
+       "x": 7.4,
+       "z": 2.26,
+       "label": "Collecting"
+      },
+      {
+       "t": 26.7,
+       "s": 1.1,
+       "by": "skirt",
+       "x": 3.91,
+       "z": -1.77,
+       "label": "Feeding its zone"
+      }
+     ]
+    }
+   ],
+   "s": 240.1
+  },
+  {
+   "a": "1706",
+   "b": "2910",
+   "seed": 1,
+   "ok": {
+    "robot": "2910",
+    "pts": 433,
+    "fuel": 433,
+    "launched": 547,
+    "passes": 102,
+    "fouls": []
+   },
+   "A": {
+    "robot": "1706",
+    "pts": 228,
+    "fuel": 228,
+    "launched": 312,
+    "passes": 31,
+    "fouls": []
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 433,
+    "fuel": 433,
+    "launched": 547,
+    "passes": 102,
+    "fouls": []
+   },
+   "audit": [
+    {
+     "robot": "1706",
+     "alliance": "blue",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 35,
+      "trans": 4,
+      "a1": 26,
+      "a2": 81,
+      "end": 63,
+      "inactive": 2
+     },
+     "launched": 312,
+     "passes": 31,
+     "intaked": 341,
+     "unjams": 0,
+     "unsticks": 1,
+     "cycles": 4,
+     "firstScore": 1.4,
+     "fouls": 0,
+     "coll": {
+      "own": 63.4,
+      "mid": 59.1
+     },
+     "took": {
+      "own": 89,
+      "mid": 206,
+      "opp": 0
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 24.6,
+      "staged": 12.2,
+      "stuck": 6.3,
+      "carryOut": 21.3,
+      "inZoneOff": 7.5
+     },
+     "stuckBy": {
+      "depot": 3,
+      "wall": 1.7,
+      "skirt": 1,
+      "hub": 0.1,
+      "open": 0.1,
+      "trench": 0.1,
+      "tower": 0.3
+     },
+     "idleBy": {
+      "Shooting while collecting": 11.3,
+      "Collecting": 10,
+      "Returning to score": 3,
+      "Feeding its zone": 0.2,
+      "Shooting": 0.2
+     },
+     "labels": {
+      "Shooting while collecting": 60.7,
+      "Collecting": 48.2,
+      "Feeding its zone": 12.9,
+      "Returning to score": 3.4,
+      "Staged — waiting for HUB": 12.2,
+      "Shooting": 1.7,
+      "Unsticking": 0.7,
+      "Aiming": 0.2
+     },
+     "stuckEp": [
+      {
+       "t": 5.9,
+       "s": 1.2,
+       "by": "depot",
+       "x": -7.68,
+       "z": -2.34,
+       "label": "Shooting while collecting"
+      },
+      {
+       "t": 112.9,
+       "s": 1.2,
+       "by": "depot",
+       "x": -7.51,
+       "z": -1.43,
+       "label": "Shooting while collecting"
+      }
+     ]
+    },
+    {
+     "robot": "2910",
+     "alliance": "red",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 114,
+      "trans": 60,
+      "a1": 87,
+      "a2": 43,
+      "end": 112,
+      "inactive": 0
+     },
+     "launched": 547,
+     "passes": 102,
+     "intaked": 557,
+     "unjams": 0,
+     "unsticks": 1,
+     "cycles": 9,
+     "firstScore": 6.2,
+     "fouls": 0,
+     "coll": {
+      "own": 46.2,
+      "mid": 47.2
+     },
+     "took": {
+      "own": 150,
+      "mid": 283,
+      "opp": 0
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 8,
+      "staged": 5.7,
+      "stuck": 5.7,
+      "carryOut": 27.5,
+      "inZoneOff": 19.3,
+      "emptyActive": 4.1
+     },
+     "stuckBy": {
+      "open": 1,
+      "trench": 3,
+      "bump": 0.2,
+      "tower": 1.2,
+      "wall": 0.1,
+      "skirt": 0.1,
+      "depot": 0.1,
+      "hub": 0.2
+     },
+     "idleBy": {
+      "Feeding its zone": 1.1,
+      "Collecting": 2.4,
+      "Returning to score": 0.4,
+      "Aiming": 3.1,
+      "Shooting": 0.3,
+      "Unsticking": 0.5
+     },
+     "labels": {
+      "Collecting": 72.6,
+      "Aiming": 16.5,
+      "Shooting": 10.9,
+      "Staged — waiting for HUB": 5.7,
+      "Feeding its zone": 20.9,
+      "Returning to score": 12.7,
+      "Unsticking": 0.7
+     },
+     "stuckEp": [
+      {
+       "t": 134.9,
+       "s": 1.3,
+       "by": "trench",
+       "x": 3.97,
+       "z": -3.35,
+       "label": "Aiming"
+      },
+      {
+       "t": 36.8,
+       "s": 1.1,
+       "by": "trench",
+       "x": 4.35,
+       "z": 3.3,
+       "label": "Collecting"
+      }
+     ]
+    }
+   ],
+   "s": 282.543
+  },
+  {
+   "a": "1706",
+   "b": "2910",
+   "seed": 3,
+   "ok": {
+    "robot": "2910",
+    "pts": 481,
+    "fuel": 481,
+    "launched": 627,
+    "passes": 131,
+    "fouls": []
+   },
+   "A": {
+    "robot": "1706",
+    "pts": 247,
+    "fuel": 247,
+    "launched": 330,
+    "passes": 44,
+    "fouls": []
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 481,
+    "fuel": 481,
+    "launched": 627,
+    "passes": 131,
+    "fouls": []
+   },
+   "audit": [
+    {
+     "robot": "1706",
+     "alliance": "blue",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 44,
+      "trans": 9,
+      "a1": 67,
+      "a2": 55,
+      "end": 62,
+      "inactive": 0
+     },
+     "launched": 330,
+     "passes": 44,
+     "intaked": 387,
+     "unjams": 0,
+     "unsticks": 0,
+     "cycles": 7,
+     "firstScore": 3.4,
+     "fouls": 0,
+     "coll": {
+      "own": 67.1,
+      "mid": 56.2
+     },
+     "took": {
+      "own": 102,
+      "mid": 249,
+      "opp": 0
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 5.9,
+      "staged": 4.2,
+      "stuck": 3.6,
+      "carryOut": 26.8,
+      "inZoneOff": 9.5
+     },
+     "stuckBy": {
+      "depot": 1.5,
+      "wall": 0.7,
+      "skirt": 0.2,
+      "hub": 0.1,
+      "tower": 1.1,
+      "open": 0.2,
+      "bump": 0.1,
+      "robot": 0.1
+     },
+     "idleBy": {
+      "Collecting": 2.3,
+      "Returning to score": 2.2,
+      "Aiming": 0.3,
+      "Shooting": 0.3,
+      "Shooting while collecting": 0.6,
+      "Feeding its zone": 0.2
+     },
+     "labels": {
+      "Shooting while collecting": 63,
+      "Collecting": 42.6,
+      "Returning to score": 10.1,
+      "Aiming": 0.5,
+      "Shooting": 1.9,
+      "Feeding its zone": 17.7,
+      "Staged — waiting for HUB": 4.2
+     },
+     "stuckEp": []
+    },
+    {
+     "robot": "2910",
+     "alliance": "red",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 117,
+      "trans": 49,
+      "a1": 106,
+      "a2": 100,
+      "end": 99,
+      "inactive": 0
+     },
+     "launched": 627,
+     "passes": 131,
+     "intaked": 631,
+     "unjams": 0,
+     "unsticks": 1,
+     "cycles": 8,
+     "firstScore": 10.3,
+     "fouls": 0,
+     "coll": {
+      "own": 41.4,
+      "mid": 58.7
+     },
+     "took": {
+      "own": 138,
+      "mid": 380,
+      "opp": 0
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 8.7,
+      "staged": 6.2,
+      "stuck": 3.8,
+      "carryOut": 24.1,
+      "inZoneOff": 9.4,
+      "emptyActive": 4.4
+     },
+     "stuckBy": {
+      "bump": 0.1,
+      "trench": 1.3,
+      "open": 0.5,
+      "skirt": 0.2,
+      "tower": 1.8,
+      "robot": 0.1,
+      "wall": 0.1
+     },
+     "idleBy": {
+      "Collecting": 5.1,
+      "Unsticking": 0.7,
+      "Shooting": 0.2,
+      "Returning to score": 0.3,
+      "Aiming": 2.4
+     },
+     "labels": {
+      "Collecting": 73.7,
+      "Aiming": 15.7,
+      "Shooting": 14.6,
+      "Staged — waiting for HUB": 6.2,
+      "Feeding its zone": 25.7,
+      "Returning to score": 3.4,
+      "Unsticking": 0.7
+     },
+     "stuckEp": [
+      {
+       "t": 48.5,
+       "s": 1.3,
+       "by": "tower",
+       "x": 6.63,
+       "z": -0.14,
+       "label": "Collecting"
+      },
+      {
+       "t": 4.2,
+       "s": 1.1,
+       "by": "trench",
+       "x": 2.91,
+       "z": 3.3,
+       "label": "Collecting"
+      }
+     ]
+    }
+   ],
+   "s": 287.736
+  },
+  {
+   "a": "1706",
+   "b": "2910",
+   "seed": 4,
+   "ok": {
+    "robot": "2910",
+    "pts": 468,
+    "fuel": 453,
+    "launched": 575,
+    "passes": 93,
+    "fouls": []
+   },
+   "A": {
+    "robot": "1706",
+    "pts": 251,
+    "fuel": 251,
+    "launched": 336,
+    "passes": 24,
+    "fouls": [
+     "G407"
+    ]
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 468,
+    "fuel": 453,
+    "launched": 575,
+    "passes": 93,
+    "fouls": []
+   },
+   "audit": [
+    {
+     "robot": "1706",
+     "alliance": "blue",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 39,
+      "trans": 0,
+      "a1": 67,
+      "a2": 77,
+      "end": 56,
+      "inactive": 0
+     },
+     "launched": 336,
+     "passes": 24,
+     "intaked": 354,
+     "unjams": 0,
+     "unsticks": 0,
+     "cycles": 7,
+     "firstScore": 16.7,
+     "fouls": 1,
+     "coll": {
+      "own": 66.5,
+      "mid": 53.6,
+      "opp": 0.8
+     },
+     "took": {
+      "own": 125,
+      "mid": 193,
+      "opp": 0
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 7.8,
+      "staged": 8.8,
+      "stuck": 2.3,
+      "carryOut": 23.3,
+      "inZoneOff": 8.2,
+      "emptyActive": 1
+     },
+     "stuckBy": {
+      "skirt": 0.8,
+      "hub": 0.1,
+      "wall": 0.3,
+      "tower": 0.7,
+      "open": 0.5,
+      "trench": 0.1
+     },
+     "idleBy": {
+      "Collecting": 5.2,
+      "Returning to score": 1.6,
+      "Feeding its zone": 0.3,
+      "Shooting while collecting": 0.8
+     },
+     "labels": {
+      "Collecting": 47.7,
+      "Returning to score": 7,
+      "Aiming": 0.9,
+      "Shooting": 2.3,
+      "Shooting while collecting": 63.5,
+      "Feeding its zone": 9.8,
+      "Staged — waiting for HUB": 8.8
+     },
+     "stuckEp": []
+    },
+    {
+     "robot": "2910",
+     "alliance": "red",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 109,
+      "trans": 57,
+      "a1": 90,
+      "a2": 51,
+      "end": 129,
+      "inactive": 0
+     },
+     "launched": 575,
+     "passes": 93,
+     "intaked": 582,
+     "unjams": 0,
+     "unsticks": 3,
+     "cycles": 9,
+     "firstScore": 8.7,
+     "fouls": 0,
+     "coll": {
+      "own": 49.8,
+      "mid": 49
+     },
+     "took": {
+      "own": 138,
+      "mid": 328,
+      "opp": 0
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 5,
+      "staged": 5.3,
+      "stuck": 5.6,
+      "carryOut": 26.6,
+      "inZoneOff": 20.7,
+      "emptyActive": 4.8
+     },
+     "stuckBy": {
+      "wall": 0.3,
+      "depot": 0.3,
+      "open": 0.5,
+      "skirt": 1.6,
+      "bump": 0.1,
+      "tower": 1.4,
+      "hub": 1.4,
+      "trench": 0.1
+     },
+     "idleBy": {
+      "Collecting": 4,
+      "Feeding its zone": 0.2,
+      "Aiming": 0.7,
+      "Shooting": 0.2
+     },
+     "labels": {
+      "Collecting": 77.8,
+      "Aiming": 15.2,
+      "Shooting": 12.8,
+      "Feeding its zone": 19,
+      "Staged — waiting for HUB": 5.3,
+      "Returning to score": 7.8,
+      "Unsticking": 2.1
+     },
+     "stuckEp": [
+      {
+       "t": 101.4,
+       "s": 1.3,
+       "by": "skirt",
+       "x": 4.86,
+       "z": 3.06,
+       "label": "Collecting"
+      },
+      {
+       "t": 105.7,
+       "s": 1.3,
+       "by": "tower",
+       "x": 6.58,
+       "z": -0.14,
+       "label": "Collecting"
+      },
+      {
+       "t": 120.8,
+       "s": 1.3,
+       "by": "hub",
+       "x": 2.41,
+       "z": 0.77,
+       "label": "Collecting"
+      }
+     ]
+    }
+   ],
+   "s": 289.676
+  },
+  {
+   "a": "1706",
+   "b": "2910",
+   "seed": 2,
+   "ok": {
+    "robot": "2910",
+    "pts": 534,
+    "fuel": 519,
+    "launched": 661,
+    "passes": 119,
+    "fouls": []
+   },
+   "A": {
+    "robot": "1706",
+    "pts": 272,
+    "fuel": 272,
+    "launched": 369,
+    "passes": 41,
+    "fouls": [
+     "G407"
+    ]
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 534,
+    "fuel": 519,
+    "launched": 661,
+    "passes": 119,
+    "fouls": []
+   },
+   "audit": [
+    {
+     "robot": "1706",
+     "alliance": "blue",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 31,
+      "trans": 12,
+      "a1": 51,
+      "a2": 72,
+      "end": 90,
+      "inactive": 0
+     },
+     "launched": 369,
+     "passes": 41,
+     "intaked": 394,
+     "unjams": 0,
+     "unsticks": 0,
+     "cycles": 6,
+     "firstScore": 1.4,
+     "fouls": 1,
+     "coll": {
+      "own": 64.8,
+      "mid": 55.6
+     },
+     "took": {
+      "own": 108,
+      "mid": 230,
+      "opp": 0
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 9.4,
+      "staged": 6.2,
+      "stuck": 6.8,
+      "carryOut": 22.6,
+      "inZoneOff": 8.5,
+      "emptyActive": 0.1
+     },
+     "stuckBy": {
+      "depot": 2.8,
+      "tower": 1.5,
+      "wall": 0.5,
+      "hub": 0.9,
+      "bump": 0.3,
+      "skirt": 0.8,
+      "open": 0.2
+     },
+     "idleBy": {
+      "Shooting while collecting": 1.5,
+      "Returning to score": 1.5,
+      "Aiming": 0.3,
+      "Shooting": 1.6,
+      "Collecting": 4.3,
+      "Feeding its zone": 0.2
+     },
+     "labels": {
+      "Shooting while collecting": 61.8,
+      "Collecting": 48.6,
+      "Returning to score": 5,
+      "Aiming": 0.3,
+      "Shooting": 8.1,
+      "Feeding its zone": 10,
+      "Staged — waiting for HUB": 6.2
+     },
+     "stuckEp": [
+      {
+       "t": 22.6,
+       "s": 1,
+       "by": "tower",
+       "x": -6.57,
+       "z": 0.32,
+       "label": "Shooting while collecting"
+      }
+     ]
+    },
+    {
+     "robot": "2910",
+     "alliance": "red",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 125,
+      "trans": 60,
+      "a1": 111,
+      "a2": 48,
+      "end": 163,
+      "inactive": 1
+     },
+     "launched": 661,
+     "passes": 119,
+     "intaked": 662,
+     "unjams": 0,
+     "unsticks": 0,
+     "cycles": 8,
+     "firstScore": 8.1,
+     "fouls": 0,
+     "coll": {
+      "own": 44,
+      "mid": 60.9
+     },
+     "took": {
+      "own": 158,
+      "mid": 390,
+      "opp": 0
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 0.9,
+      "staged": 4.6,
+      "stuck": 2.9,
+      "carryOut": 29.5,
+      "inZoneOff": 13.7,
+      "emptyActive": 4.7
+     },
+     "stuckBy": {
+      "tower": 0.4,
+      "trench": 0.1,
+      "hub": 0.1,
+      "wall": 0.4,
+      "open": 0.5,
+      "skirt": 1.4
+     },
+     "idleBy": {
+      "Collecting": 0.4,
+      "Feeding its zone": 0.3,
+      "Shooting": 0.1
+     },
+     "labels": {
+      "Collecting": 85.4,
+      "Aiming": 11.5,
+      "Shooting": 13.9,
+      "Feeding its zone": 19.6,
+      "Returning to score": 5,
+      "Staged — waiting for HUB": 4.6
+     },
+     "stuckEp": []
+    }
+   ],
+   "s": 303.548
+  },
+  {
+   "a": "1114",
+   "b": "2910",
+   "seed": 1,
+   "ok": {
+    "robot": "2910",
+    "pts": 494,
+    "fuel": 494,
+    "launched": 608,
+    "passes": 87,
+    "fouls": []
+   },
+   "A": {
+    "robot": "1114",
+    "pts": 439,
+    "fuel": 439,
+    "launched": 602,
+    "passes": 56,
+    "fouls": []
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 494,
+    "fuel": 494,
+    "launched": 608,
+    "passes": 87,
+    "fouls": []
+   },
+   "audit": [
+    {
+     "robot": "1114",
+     "alliance": "blue",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 104,
+      "trans": 3,
+      "a1": 105,
+      "a2": 122,
+      "end": 93,
+      "inactive": 0
+     },
+     "launched": 602,
+     "passes": 56,
+     "intaked": 598,
+     "unjams": 0,
+     "unsticks": 1,
+     "cycles": 7,
+     "firstScore": 9.4,
+     "fouls": 0,
+     "coll": {
+      "own": 26.1,
+      "mid": 55.6,
+      "opp": 4.3
+     },
+     "took": {
+      "own": 84,
+      "mid": 393,
+      "opp": 12
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 6.1,
+      "staged": 4.9,
+      "stuck": 2.7,
+      "carryOut": 28.8,
+      "inZoneOff": 10.5,
+      "emptyActive": 1.2
+     },
+     "stuckBy": {
+      "hub": 0.7,
+      "skirt": 0.2,
+      "wall": 0.1,
+      "open": 0.4,
+      "depot": 0.1,
+      "tower": 1.3
+     },
+     "idleBy": {
+      "Aiming": 0.2,
+      "Shooting": 0.2,
+      "Collecting": 5.5,
+      "Feeding its zone": 0.2
+     },
+     "labels": {
+      "Collecting": 66.1,
+      "Returning to score": 8.9,
+      "Aiming": 3.8,
+      "Shooting": 36.3,
+      "Feeding its zone": 19.2,
+      "Staged — waiting for HUB": 4.9,
+      "Unsticking": 0.7
+     },
+     "stuckEp": [
+      {
+       "t": 121.6,
+       "s": 1.3,
+       "by": "tower",
+       "x": -7.39,
+       "z": 1.49,
+       "label": "Collecting"
+      }
+     ]
+    },
+    {
+     "robot": "2910",
+     "alliance": "red",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 113,
+      "trans": 57,
+      "a1": 103,
+      "a2": 113,
+      "end": 98,
+      "inactive": 0
+     },
+     "launched": 608,
+     "passes": 87,
+     "intaked": 616,
+     "unjams": 0,
+     "unsticks": 2,
+     "cycles": 9,
+     "firstScore": 8.7,
+     "fouls": 0,
+     "coll": {
+      "own": 39.4,
+      "mid": 53.4,
+      "opp": 7.3
+     },
+     "took": {
+      "own": 132,
+      "mid": 352,
+      "opp": 17
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 9.3,
+      "staged": 3.3,
+      "stuck": 4.4,
+      "carryOut": 23.9,
+      "inZoneOff": 9.8,
+      "emptyActive": 4.4
+     },
+     "stuckBy": {
+      "open": 0.7,
+      "depot": 1.5,
+      "tower": 0.4,
+      "skirt": 1.4,
+      "wall": 0.3,
+      "trench": 0.2,
+      "robot": 0.1
+     },
+     "idleBy": {
+      "Feeding its zone": 3.1,
+      "Shooting": 0.2,
+      "Collecting": 3.6,
+      "Returning to score": 1.4,
+      "Unsticking": 0.7,
+      "Aiming": 0.3
+     },
+     "labels": {
+      "Collecting": 70.4,
+      "Returning to score": 7.6,
+      "Aiming": 15.2,
+      "Shooting": 13.7,
+      "Feeding its zone": 28.4,
+      "Unsticking": 1.4,
+      "Staged — waiting for HUB": 3.3
+     },
+     "stuckEp": [
+      {
+       "t": 11.8,
+       "s": 1.3,
+       "by": "depot",
+       "x": 7.55,
+       "z": 1.88,
+       "label": "Feeding its zone"
+      },
+      {
+       "t": 129.7,
+       "s": 1.3,
+       "by": "skirt",
+       "x": 4.77,
+       "z": 3.21,
+       "label": "Collecting"
+      }
+     ]
+    }
+   ],
+   "s": 265.889
+  },
+  {
+   "a": "1114",
+   "b": "2910",
+   "seed": 2,
+   "ok": {
+    "robot": "2910",
+    "pts": 402,
+    "fuel": 402,
+    "launched": 595,
+    "passes": 120,
+    "fouls": []
+   },
+   "A": {
+    "robot": "1114",
+    "pts": 407,
+    "fuel": 407,
+    "launched": 563,
+    "passes": 69,
+    "fouls": []
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 402,
+    "fuel": 402,
+    "launched": 595,
+    "passes": 120,
+    "fouls": []
+   },
+   "audit": [
+    {
+     "robot": "1114",
+     "alliance": "blue",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 106,
+      "trans": 0,
+      "a1": 101,
+      "a2": 104,
+      "end": 81,
+      "inactive": 0
+     },
+     "launched": 563,
+     "passes": 69,
+     "intaked": 558,
+     "unjams": 0,
+     "unsticks": 2,
+     "cycles": 6,
+     "firstScore": 16.7,
+     "fouls": 0,
+     "coll": {
+      "own": 35.9,
+      "mid": 55.9
+     },
+     "took": {
+      "own": 94,
+      "mid": 350,
+      "opp": 0
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 10.2,
+      "staged": 5.8,
+      "stuck": 5.8,
+      "carryOut": 28,
+      "inZoneOff": 12.8,
+      "emptyActive": 2.7
+     },
+     "stuckBy": {
+      "open": 0.6,
+      "depot": 1.8,
+      "tower": 0.2,
+      "trench": 0.4,
+      "skirt": 0.5,
+      "bump": 0.2,
+      "wall": 0.5,
+      "hub": 1.6
+     },
+     "idleBy": {
+      "Collecting": 6.5,
+      "Aiming": 1.8,
+      "Shooting": 0.4,
+      "Returning to score": 0.7,
+      "Unsticking": 0.7
+     },
+     "labels": {
+      "Collecting": 70.3,
+      "Unsticking": 1.4,
+      "Aiming": 2.8,
+      "Shooting": 31.8,
+      "Returning to score": 7.7,
+      "Feeding its zone": 20.2,
+      "Staged — waiting for HUB": 5.8
+     },
+     "stuckEp": [
+      {
+       "t": 8.3,
+       "s": 1.3,
+       "by": "depot",
+       "x": -7.43,
+       "z": -2.4,
+       "label": "Collecting"
+      },
+      {
+       "t": 127.2,
+       "s": 1.3,
+       "by": "hub",
+       "x": -4.78,
+       "z": -0.93,
+       "label": "Collecting"
+      }
+     ]
+    },
+    {
+     "robot": "2910",
+     "alliance": "red",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 114,
+      "trans": 57,
+      "a1": 71,
+      "a2": 54,
+      "end": 97,
+      "inactive": 0
+     },
+     "launched": 595,
+     "passes": 120,
+     "intaked": 604,
+     "unjams": 0,
+     "unsticks": 1,
+     "cycles": 9,
+     "firstScore": 6.9,
+     "fouls": 0,
+     "coll": {
+      "own": 55,
+      "mid": 49.4
+     },
+     "took": {
+      "own": 182,
+      "mid": 310,
+      "opp": 0
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 8.6,
+      "staged": 5.7,
+      "stuck": 3.7,
+      "carryOut": 16.8,
+      "inZoneOff": 13.5,
+      "emptyActive": 3.7
+     },
+     "stuckBy": {
+      "hub": 0.2,
+      "open": 0.4,
+      "depot": 1.9,
+      "trench": 0.4,
+      "skirt": 0.2,
+      "tower": 0.4,
+      "bump": 0.1,
+      "wall": 0.2
+     },
+     "idleBy": {
+      "Feeding its zone": 2,
+      "Collecting": 5.6,
+      "Aiming": 0.3,
+      "Unsticking": 0.7
+     },
+     "labels": {
+      "Collecting": 76.1,
+      "Aiming": 14.6,
+      "Shooting": 12,
+      "Returning to score": 3.3,
+      "Staged — waiting for HUB": 5.7,
+      "Feeding its zone": 27.7,
+      "Unsticking": 0.7
+     },
+     "stuckEp": [
+      {
+       "t": 92.6,
+       "s": 1.3,
+       "by": "depot",
+       "x": 7.55,
+       "z": 1.52,
+       "label": "Collecting"
+      }
+     ]
+    }
+   ],
+   "s": 268.615
+  },
+  {
+   "a": "1114",
+   "b": "2910",
+   "seed": 3,
+   "ok": {
+    "robot": "2910",
+    "pts": 488,
+    "fuel": 488,
+    "launched": 595,
+    "passes": 107,
+    "fouls": []
+   },
+   "A": {
+    "robot": "1114",
+    "pts": 436,
+    "fuel": 436,
+    "launched": 608,
+    "passes": 82,
+    "fouls": []
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 488,
+    "fuel": 488,
+    "launched": 595,
+    "passes": 107,
+    "fouls": []
+   },
+   "audit": [
+    {
+     "robot": "1114",
+     "alliance": "blue",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 99,
+      "trans": 16,
+      "a1": 106,
+      "a2": 114,
+      "end": 88,
+      "inactive": 0
+     },
+     "launched": 608,
+     "passes": 82,
+     "intaked": 605,
+     "unjams": 0,
+     "unsticks": 0,
+     "cycles": 8,
+     "firstScore": 8.3,
+     "fouls": 0,
+     "coll": {
+      "own": 33.1,
+      "mid": 54.9
+     },
+     "took": {
+      "own": 120,
+      "mid": 371,
+      "opp": 0
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 5.5,
+      "staged": 5,
+      "stuck": 2.5,
+      "carryOut": 30.3,
+      "inZoneOff": 14.3,
+      "emptyActive": 2.2
+     },
+     "stuckBy": {
+      "open": 0.7,
+      "depot": 0.9,
+      "wall": 0.2,
+      "hub": 0.3,
+      "tower": 0.1,
+      "skirt": 0.3
+     },
+     "idleBy": {
+      "Aiming": 0.8,
+      "Shooting": 0.3,
+      "Collecting": 4.2,
+      "Feeding its zone": 0.3
+     },
+     "labels": {
+      "Collecting": 68.7,
+      "Returning to score": 9.3,
+      "Aiming": 4.1,
+      "Shooting": 33.5,
+      "Feeding its zone": 19.4,
+      "Staged — waiting for HUB": 5
+     },
+     "stuckEp": []
+    },
+    {
+     "robot": "2910",
+     "alliance": "red",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 113,
+      "trans": 47,
+      "a1": 103,
+      "a2": 105,
+      "end": 104,
+      "inactive": 0
+     },
+     "launched": 595,
+     "passes": 107,
+     "intaked": 600,
+     "unjams": 0,
+     "unsticks": 1,
+     "cycles": 9,
+     "firstScore": 9.7,
+     "fouls": 0,
+     "coll": {
+      "own": 41,
+      "mid": 59.2,
+      "opp": 0.8
+     },
+     "took": {
+      "own": 123,
+      "mid": 355,
+      "opp": 4
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 2.9,
+      "staged": 5.1,
+      "stuck": 4.2,
+      "carryOut": 22.1,
+      "inZoneOff": 7.2,
+      "emptyActive": 4.1
+     },
+     "stuckBy": {
+      "open": 0.5,
+      "skirt": 1,
+      "trench": 0.4,
+      "hub": 0.1,
+      "bump": 0.1,
+      "tower": 1.6,
+      "wall": 0.5,
+      "depot": 0.1
+     },
+     "idleBy": {
+      "Collecting": 2.5,
+      "Feeding its zone": 0.2,
+      "Shooting": 0.2,
+      "Aiming": 0.1
+     },
+     "labels": {
+      "Collecting": 78.6,
+      "Aiming": 15.8,
+      "Shooting": 12.5,
+      "Feeding its zone": 21.7,
+      "Returning to score": 5.6,
+      "Staged — waiting for HUB": 5.1,
+      "Unsticking": 0.7
+     },
+     "stuckEp": [
+      {
+       "t": 47.3,
+       "s": 1.3,
+       "by": "tower",
+       "x": 7.46,
+       "z": 1.09,
+       "label": "Collecting"
+      }
+     ]
+    }
+   ],
+   "s": 263.835
+  },
+  {
+   "a": "1114",
+   "b": "2910",
+   "seed": 4,
+   "ok": {
+    "robot": "2910",
+    "pts": 474,
+    "fuel": 474,
+    "launched": 599,
+    "passes": 105,
+    "fouls": [
+     "G407"
+    ]
+   },
+   "A": {
+    "robot": "1114",
+    "pts": 402,
+    "fuel": 387,
+    "launched": 497,
+    "passes": 38,
+    "fouls": []
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 474,
+    "fuel": 474,
+    "launched": 599,
+    "passes": 105,
+    "fouls": [
+     "G407"
+    ]
+   },
+   "audit": [
+    {
+     "robot": "1114",
+     "alliance": "blue",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 111,
+      "trans": 0,
+      "a1": 55,
+      "a2": 102,
+      "end": 102,
+      "inactive": 0
+     },
+     "launched": 497,
+     "passes": 38,
+     "intaked": 494,
+     "unjams": 0,
+     "unsticks": 0,
+     "cycles": 7,
+     "firstScore": 12.4,
+     "fouls": 0,
+     "coll": {
+      "own": 33.6,
+      "mid": 55.4,
+      "opp": 1.5
+     },
+     "took": {
+      "own": 89,
+      "mid": 282,
+      "opp": 16
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 9.6,
+      "staged": 6.7,
+      "stuck": 3.7,
+      "carryOut": 34.5,
+      "inZoneOff": 15.2,
+      "emptyActive": 1.4
+     },
+     "stuckBy": {
+      "robot": 0.1,
+      "open": 0.6,
+      "depot": 1.6,
+      "skirt": 0.1,
+      "wall": 0.3,
+      "hub": 0.1,
+      "tower": 0.9,
+      "bump": 0.1
+     },
+     "idleBy": {
+      "Returning to score": 1.9,
+      "Aiming": 0.4,
+      "Collecting": 6.8,
+      "Feeding its zone": 0.2,
+      "Shooting": 0.2
+     },
+     "labels": {
+      "Collecting": 82.9,
+      "Returning to score": 11,
+      "Aiming": 3.1,
+      "Shooting": 28.8,
+      "Feeding its zone": 7.4,
+      "Staged — waiting for HUB": 6.7
+     },
+     "stuckEp": []
+    },
+    {
+     "robot": "2910",
+     "alliance": "red",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 111,
+      "trans": 40,
+      "a1": 111,
+      "a2": 108,
+      "end": 88,
+      "inactive": 2
+     },
+     "launched": 599,
+     "passes": 105,
+     "intaked": 608,
+     "unjams": 0,
+     "unsticks": 0,
+     "cycles": 9,
+     "firstScore": 10.2,
+     "fouls": 1,
+     "coll": {
+      "own": 41.1,
+      "mid": 59.6
+     },
+     "took": {
+      "own": 142,
+      "mid": 356,
+      "opp": 0
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 4.1,
+      "staged": 3.8,
+      "stuck": 4.8,
+      "carryOut": 22.9,
+      "inZoneOff": 8.2,
+      "emptyActive": 4
+     },
+     "stuckBy": {
+      "open": 0.6,
+      "trench": 1.2,
+      "robot": 0.1,
+      "skirt": 0.2,
+      "wall": 1.3,
+      "bump": 0.1,
+      "tower": 0.3,
+      "hub": 1,
+      "depot": 0.1
+     },
+     "idleBy": {
+      "Feeding its zone": 0.9,
+      "Collecting": 2.8,
+      "Aiming": 0.5
+     },
+     "labels": {
+      "Collecting": 76.1,
+      "Returning to score": 9.1,
+      "Aiming": 14,
+      "Shooting": 12.4,
+      "Feeding its zone": 24.6,
+      "Staged — waiting for HUB": 3.8
+     },
+     "stuckEp": [
+      {
+       "t": 62.8,
+       "s": 1.1,
+       "by": "trench",
+       "x": 2.86,
+       "z": 3.31,
+       "label": "Feeding its zone"
+      }
+     ]
+    }
+   ],
+   "s": 260.882
+  },
+  {
+   "a": "604",
+   "b": "2910",
+   "seed": 4,
+   "ok": {
+    "robot": "2910",
+    "pts": 548,
+    "fuel": 533,
+    "launched": 625,
+    "passes": 85,
+    "fouls": []
+   },
+   "A": {
+    "robot": "604",
+    "pts": 295,
+    "fuel": 295,
+    "launched": 388,
+    "passes": 67,
+    "fouls": [
+     "G403"
+    ]
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 548,
+    "fuel": 533,
+    "launched": 625,
+    "passes": 85,
+    "fouls": []
+   },
+   "audit": [
+    {
+     "robot": "604",
+     "alliance": "blue",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 74,
+      "trans": 9,
+      "a1": 67,
+      "a2": 87,
+      "end": 45,
+      "inactive": 0
+     },
+     "launched": 388,
+     "passes": 67,
+     "intaked": 501,
+     "unjams": 0,
+     "unsticks": 2,
+     "cycles": 4,
+     "firstScore": 1.2,
+     "fouls": 1,
+     "coll": {
+      "own": 55.3,
+      "mid": 43.3
+     },
+     "took": {
+      "own": 96,
+      "mid": 308,
+      "opp": 0
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 28.3,
+      "staged": 5.1,
+      "stuck": 5.4,
+      "holdIdle": 22,
+      "carryOut": 13.7,
+      "inZoneOff": 14.4
+     },
+     "stuckBy": {
+      "depot": 0.7,
+      "tower": 1.6,
+      "hub": 1.3,
+      "open": 0.3,
+      "wall": 1.3,
+      "skirt": 0.1,
+      "bump": 0.3
+     },
+     "idleBy": {
+      "Unsticking": 0.6,
+      "Shooting while collecting": 1.4,
+      "Collecting": 0.3,
+      "Aiming": 0.3,
+      "Feeding its zone": 2.5,
+      "Shooting": 23.2
+     },
+     "labels": {
+      "Shooting while collecting": 47.7,
+      "Unsticking": 1.4,
+      "Collecting": 28.8,
+      "Returning to score": 5.8,
+      "Aiming": 0.5,
+      "Feeding its zone": 20.8,
+      "Staged — waiting for HUB": 5.1,
+      "Shooting": 29.8
+     },
+     "stuckEp": [
+      {
+       "t": 9.8,
+       "s": 1.3,
+       "by": "hub",
+       "x": -4.76,
+       "z": -1.01,
+       "label": "Shooting while collecting"
+      },
+      {
+       "t": 86.2,
+       "s": 1.3,
+       "by": "tower",
+       "x": -7.35,
+       "z": -0.98,
+       "label": "Shooting while collecting"
+      }
+     ]
+    },
+    {
+     "robot": "2910",
+     "alliance": "red",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 124,
+      "trans": 60,
+      "a1": 123,
+      "a2": 113,
+      "end": 97,
+      "inactive": 1
+     },
+     "launched": 625,
+     "passes": 85,
+     "intaked": 624,
+     "unjams": 0,
+     "unsticks": 1,
+     "cycles": 9,
+     "firstScore": 6.8,
+     "fouls": 0,
+     "coll": {
+      "own": 35.5,
+      "mid": 62.9
+     },
+     "took": {
+      "own": 125,
+      "mid": 394,
+      "opp": 0
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 3.3,
+      "staged": 4.9,
+      "stuck": 4.4,
+      "carryOut": 34.3,
+      "inZoneOff": 14.2,
+      "emptyActive": 5.5
+     },
+     "stuckBy": {
+      "open": 0.6,
+      "trench": 0.3,
+      "skirt": 2.5,
+      "hub": 0.4,
+      "bump": 0.1,
+      "tower": 0.3,
+      "wall": 0.2,
+      "depot": 0.1
+     },
+     "idleBy": {
+      "Feeding its zone": 0.2,
+      "Collecting": 0.3,
+      "Aiming": 2.5,
+      "Shooting": 0.3
+     },
+     "labels": {
+      "Collecting": 71.6,
+      "Aiming": 14.6,
+      "Shooting": 15.1,
+      "Feeding its zone": 26.1,
+      "Returning to score": 7.1,
+      "Staged — waiting for HUB": 4.9,
+      "Unsticking": 0.7
+     },
+     "stuckEp": [
+      {
+       "t": 115.2,
+       "s": 1.3,
+       "by": "skirt",
+       "x": 2.36,
+       "z": -2.89,
+       "label": "Collecting"
+      }
+     ]
+    }
+   ],
+   "s": 253.069
+  },
+  {
+   "a": "604",
+   "b": "2910",
+   "seed": 2,
+   "ok": {
+    "robot": "2910",
+    "pts": 531,
+    "fuel": 516,
+    "launched": 636,
+    "passes": 106,
+    "fouls": []
+   },
+   "A": {
+    "robot": "604",
+    "pts": 342,
+    "fuel": 342,
+    "launched": 468,
+    "passes": 74,
+    "fouls": [
+     "G403"
+    ]
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 531,
+    "fuel": 516,
+    "launched": 636,
+    "passes": 106,
+    "fouls": []
+   },
+   "audit": [
+    {
+     "robot": "604",
+     "alliance": "blue",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 64,
+      "trans": 3,
+      "a1": 74,
+      "a2": 85,
+      "end": 105,
+      "inactive": 0
+     },
+     "launched": 468,
+     "passes": 74,
+     "intaked": 587,
+     "unjams": 0,
+     "unsticks": 3,
+     "cycles": 6,
+     "firstScore": 4.8,
+     "fouls": 1,
+     "coll": {
+      "own": 61.8,
+      "mid": 60.3
+     },
+     "took": {
+      "own": 117,
+      "mid": 387,
+      "opp": 0
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 9.2,
+      "staged": 5.3,
+      "stuck": 9.8,
+      "carryOut": 27.7,
+      "inZoneOff": 12.3
+     },
+     "stuckBy": {
+      "depot": 0.6,
+      "hub": 0.9,
+      "tower": 3.3,
+      "open": 0.3,
+      "wall": 2.5,
+      "skirt": 2.2
+     },
+     "idleBy": {
+      "Shooting while collecting": 2.1,
+      "Feeding its zone": 1.5,
+      "Collecting": 3.5,
+      "Unsticking": 1,
+      "Aiming": 0.3,
+      "Returning to score": 0.3,
+      "Shooting": 0.5
+     },
+     "labels": {
+      "Shooting while collecting": 58.1,
+      "Collecting": 41.9,
+      "Returning to score": 6.6,
+      "Aiming": 0.6,
+      "Unsticking": 2.1,
+      "Feeding its zone": 20.1,
+      "Staged — waiting for HUB": 5.3,
+      "Shooting": 5.2
+     },
+     "stuckEp": [
+      {
+       "t": 19.3,
+       "s": 1.3,
+       "by": "tower",
+       "x": -7.75,
+       "z": 1.3,
+       "label": "Shooting while collecting"
+      },
+      {
+       "t": 49.5,
+       "s": 1.3,
+       "by": "skirt",
+       "x": -3.85,
+       "z": 1.76,
+       "label": "Collecting"
+      },
+      {
+       "t": 130.5,
+       "s": 1.3,
+       "by": "tower",
+       "x": -7.67,
+       "z": 1.15,
+       "label": "Shooting while collecting"
+      }
+     ]
+    },
+    {
+     "robot": "2910",
+     "alliance": "red",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 107,
+      "trans": 59,
+      "a1": 126,
+      "a2": 48,
+      "end": 162,
+      "inactive": 2
+     },
+     "launched": 636,
+     "passes": 106,
+     "intaked": 639,
+     "unjams": 0,
+     "unsticks": 2,
+     "cycles": 9,
+     "firstScore": 8.7,
+     "fouls": 0,
+     "coll": {
+      "own": 43,
+      "mid": 58.7
+     },
+     "took": {
+      "own": 126,
+      "mid": 410,
+      "opp": 0
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 9,
+      "staged": 5.6,
+      "stuck": 6,
+      "carryOut": 25.8,
+      "inZoneOff": 12.4,
+      "emptyActive": 5.8
+     },
+     "stuckBy": {
+      "open": 0.7,
+      "wall": 0.2,
+      "skirt": 0.4,
+      "trench": 0.3,
+      "hub": 0.2,
+      "tower": 4.1,
+      "bump": 0.2,
+      "depot": 0.1
+     },
+     "idleBy": {
+      "Feeding its zone": 2.1,
+      "Collecting": 5.9,
+      "Aiming": 0.3,
+      "Shooting": 0.2,
+      "Unsticking": 0.5
+     },
+     "labels": {
+      "Collecting": 73.2,
+      "Aiming": 13.8,
+      "Shooting": 15.3,
+      "Feeding its zone": 27.1,
+      "Returning to score": 3.6,
+      "Staged — waiting for HUB": 5.6,
+      "Unsticking": 1.4
+     },
+     "stuckEp": [
+      {
+       "t": 55.7,
+       "s": 1.3,
+       "by": "tower",
+       "x": 7.43,
+       "z": 1.07,
+       "label": "Collecting"
+      }
+     ]
+    }
+   ],
+   "s": 265.013
+  },
+  {
+   "a": "6328",
+   "b": "2910",
+   "seed": 1,
+   "ok": {
+    "robot": "2910",
+    "pts": 520,
+    "fuel": 520,
+    "launched": 622,
+    "passes": 101,
+    "fouls": []
+   },
+   "A": {
+    "robot": "6328",
+    "pts": 463,
+    "fuel": 463,
+    "launched": 508,
+    "passes": 35,
+    "fouls": []
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 520,
+    "fuel": 520,
+    "launched": 622,
+    "passes": 101,
+    "fouls": []
+   },
+   "audit": [
+    {
+     "robot": "6328",
+     "alliance": "blue",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 87,
+      "trans": 1,
+      "a1": 99,
+      "a2": 139,
+      "end": 123,
+      "inactive": 0
+     },
+     "launched": 508,
+     "passes": 35,
+     "intaked": 513,
+     "unjams": 0,
+     "unsticks": 3,
+     "cycles": 9,
+     "firstScore": 10,
+     "fouls": 0,
+     "coll": {
+      "own": 34.1,
+      "mid": 56.9
+     },
+     "took": {
+      "own": 76,
+      "mid": 344,
+      "opp": 0
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 10,
+      "staged": 4.4,
+      "stuck": 7.3,
+      "carryOut": 30.9,
+      "inZoneOff": 17.5,
+      "emptyActive": 5.5
+     },
+     "stuckBy": {
+      "open": 0.8,
+      "depot": 2.9,
+      "hub": 0.1,
+      "skirt": 3.2,
+      "wall": 0.3,
+      "trench": 0.1,
+      "tower": 0.1
+     },
+     "idleBy": {
+      "Collecting": 5.4,
+      "Aiming": 0.3,
+      "Shooting": 0.3,
+      "Feeding its zone": 2.1,
+      "Unsticking": 1.4,
+      "Returning to score": 0.5
+     },
+     "labels": {
+      "Collecting": 73,
+      "Returning to score": 12.7,
+      "Aiming": 4.7,
+      "Shooting": 27.3,
+      "Clearing its intake": 1.8,
+      "Unsticking": 2.1,
+      "Staged — waiting for HUB": 4.4,
+      "Feeding its zone": 14
+     },
+     "stuckEp": [
+      {
+       "t": 21.9,
+       "s": 1.4,
+       "by": "depot",
+       "x": -7.52,
+       "z": -1.53,
+       "label": "Collecting"
+      },
+      {
+       "t": 91.1,
+       "s": 1.3,
+       "by": "skirt",
+       "x": -3.83,
+       "z": 1.77,
+       "label": "Feeding its zone"
+      },
+      {
+       "t": 93.6,
+       "s": 1.3,
+       "by": "skirt",
+       "x": -4.26,
+       "z": 1.74,
+       "label": "Feeding its zone"
+      }
+     ]
+    },
+    {
+     "robot": "2910",
+     "alliance": "red",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 113,
+      "trans": 38,
+      "a1": 136,
+      "a2": 113,
+      "end": 101,
+      "inactive": 1
+     },
+     "launched": 622,
+     "passes": 101,
+     "intaked": 621,
+     "unjams": 0,
+     "unsticks": 0,
+     "cycles": 9,
+     "firstScore": 9.4,
+     "fouls": 0,
+     "coll": {
+      "own": 40.5,
+      "mid": 59.9
+     },
+     "took": {
+      "own": 143,
+      "mid": 365,
+      "opp": 0
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 5.6,
+      "staged": 5.1,
+      "stuck": 3.9,
+      "carryOut": 19.1,
+      "inZoneOff": 6.3,
+      "emptyActive": 5.6
+     },
+     "stuckBy": {
+      "open": 0.7,
+      "skirt": 1.4,
+      "hub": 0.3,
+      "wall": 0.3,
+      "tower": 0.4,
+      "trench": 0.6,
+      "depot": 0.2
+     },
+     "idleBy": {
+      "Aiming": 2.1,
+      "Shooting": 0.3,
+      "Feeding its zone": 0.7,
+      "Collecting": 2.6
+     },
+     "labels": {
+      "Collecting": 74.4,
+      "Aiming": 13.7,
+      "Shooting": 15,
+      "Feeding its zone": 26.1,
+      "Returning to score": 5.8,
+      "Staged — waiting for HUB": 5.1
+     },
+     "stuckEp": []
+    }
+   ],
+   "s": 244.146
+  },
+  {
+   "a": "604",
+   "b": "2910",
+   "seed": 1,
+   "ok": {
+    "robot": "2910",
+    "pts": 514,
+    "fuel": 499,
+    "launched": 613,
+    "passes": 103,
+    "fouls": []
+   },
+   "A": {
+    "robot": "604",
+    "pts": 337,
+    "fuel": 337,
+    "launched": 486,
+    "passes": 100,
+    "fouls": [
+     "G403"
+    ]
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 514,
+    "fuel": 499,
+    "launched": 613,
+    "passes": 103,
+    "fouls": []
+   },
+   "audit": [
+    {
+     "robot": "604",
+     "alliance": "blue",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 66,
+      "trans": 10,
+      "a1": 91,
+      "a2": 81,
+      "end": 77,
+      "inactive": 0
+     },
+     "launched": 486,
+     "passes": 100,
+     "intaked": 617,
+     "unjams": 0,
+     "unsticks": 4,
+     "cycles": 4,
+     "firstScore": 1.2,
+     "fouls": 1,
+     "coll": {
+      "own": 68.2,
+      "mid": 56.1,
+      "opp": 5.3
+     },
+     "took": {
+      "own": 109,
+      "mid": 391,
+      "opp": 27
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 11.4,
+      "staged": 5.3,
+      "stuck": 10.3,
+      "holdIdle": 0.1,
+      "carryOut": 24.6,
+      "inZoneOff": 10.5
+     },
+     "stuckBy": {
+      "depot": 1.9,
+      "open": 0.8,
+      "skirt": 2.6,
+      "wall": 0.9,
+      "tower": 2.5,
+      "hub": 1.6
+     },
+     "idleBy": {
+      "Collecting": 1.4,
+      "Feeding its zone": 2.9,
+      "Returning to score": 0.1,
+      "Aiming": 3.2,
+      "Shooting while collecting": 3.7
+     },
+     "labels": {
+      "Shooting while collecting": 63.3,
+      "Collecting": 41.1,
+      "Unsticking": 2.8,
+      "Returning to score": 1.4,
+      "Aiming": 3.5,
+      "Shooting": 0.2,
+      "Feeding its zone": 22.4,
+      "Staged — waiting for HUB": 5.3
+     },
+     "stuckEp": [
+      {
+       "t": 113.1,
+       "s": 1.5,
+       "by": "tower",
+       "x": -7.54,
+       "z": -0.7,
+       "label": "Shooting while collecting"
+      },
+      {
+       "t": 13.1,
+       "s": 1.3,
+       "by": "skirt",
+       "x": -2.58,
+       "z": 3.21,
+       "label": "Collecting"
+      },
+      {
+       "t": 93.7,
+       "s": 1.3,
+       "by": "skirt",
+       "x": -2.59,
+       "z": -3.26,
+       "label": "Feeding its zone"
+      },
+      {
+       "t": 119.6,
+       "s": 1.2,
+       "by": "depot",
+       "x": -7.63,
+       "z": -2.07,
+       "label": "Shooting while collecting"
+      }
+     ]
+    },
+    {
+     "robot": "2910",
+     "alliance": "red",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 108,
+      "trans": 55,
+      "a1": 116,
+      "a2": 96,
+      "end": 108,
+      "inactive": 2
+     },
+     "launched": 613,
+     "passes": 103,
+     "intaked": 608,
+     "unjams": 0,
+     "unsticks": 3,
+     "cycles": 8,
+     "firstScore": 7,
+     "fouls": 0,
+     "coll": {
+      "own": 48.5,
+      "mid": 56.9
+     },
+     "took": {
+      "own": 120,
+      "mid": 386,
+      "opp": 0
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 7.7,
+      "staged": 5.6,
+      "stuck": 6,
+      "carryOut": 25.8,
+      "inZoneOff": 16.7,
+      "emptyActive": 5.8
+     },
+     "stuckBy": {
+      "open": 0.9,
+      "depot": 1.6,
+      "hub": 0.1,
+      "bump": 0.1,
+      "wall": 0.2,
+      "skirt": 1.3,
+      "tower": 0.7,
+      "trench": 1.4
+     },
+     "idleBy": {
+      "Feeding its zone": 4,
+      "Unsticking": 0.7,
+      "Returning to score": 0.4,
+      "Shooting": 0.3,
+      "Collecting": 1.2,
+      "Aiming": 1.2
+     },
+     "labels": {
+      "Collecting": 78.4,
+      "Aiming": 10.2,
+      "Shooting": 13.8,
+      "Feeding its zone": 25,
+      "Returning to score": 5,
+      "Staged — waiting for HUB": 5.6,
+      "Unsticking": 2.1
+     },
+     "stuckEp": [
+      {
+       "t": 88.3,
+       "s": 1.3,
+       "by": "depot",
+       "x": 7.55,
+       "z": 2.59,
+       "label": "Collecting"
+      },
+      {
+       "t": 70.1,
+       "s": 1.3,
+       "by": "trench",
+       "x": 3.55,
+       "z": 3.35,
+       "label": "Feeding its zone"
+      },
+      {
+       "t": 77.6,
+       "s": 1.3,
+       "by": "skirt",
+       "x": -2.49,
+       "z": 3.16,
+       "label": "Collecting"
+      }
+     ]
+    }
+   ],
+   "s": 276.691
+  },
+  {
+   "a": "6328",
+   "b": "2910",
+   "seed": 2,
+   "ok": {
+    "robot": "2910",
+    "pts": 454,
+    "fuel": 454,
+    "launched": 559,
+    "passes": 93,
+    "fouls": []
+   },
+   "A": {
+    "robot": "6328",
+    "pts": 466,
+    "fuel": 466,
+    "launched": 539,
+    "passes": 70,
+    "fouls": []
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 454,
+    "fuel": 454,
+    "launched": 559,
+    "passes": 93,
+    "fouls": []
+   },
+   "audit": [
+    {
+     "robot": "6328",
+     "alliance": "blue",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 81,
+      "trans": 0,
+      "a1": 113,
+      "a2": 155,
+      "end": 105,
+      "inactive": 0
+     },
+     "launched": 539,
+     "passes": 70,
+     "intaked": 543,
+     "unjams": 0,
+     "unsticks": 0,
+     "cycles": 8,
+     "firstScore": 12.5,
+     "fouls": 0,
+     "coll": {
+      "own": 22.1,
+      "mid": 65,
+      "opp": 1.6
+     },
+     "took": {
+      "own": 66,
+      "mid": 387,
+      "opp": 6
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 7.3,
+      "staged": 8.3,
+      "stuck": 2.9,
+      "carryOut": 39.4,
+      "inZoneOff": 7.7,
+      "emptyActive": 2.9
+     },
+     "stuckBy": {
+      "bump": 0.1,
+      "open": 0.7,
+      "wall": 0.2,
+      "depot": 0.2,
+      "tower": 0.1,
+      "trench": 0.1,
+      "skirt": 1.6,
+      "hub": 0.1
+     },
+     "idleBy": {
+      "Collecting": 3.8,
+      "Returning to score": 0.4,
+      "Aiming": 1.2,
+      "Shooting": 1.4,
+      "Feeding its zone": 0.5
+     },
+     "labels": {
+      "Collecting": 66.8,
+      "Returning to score": 11.3,
+      "Aiming": 4.3,
+      "Shooting": 27.3,
+      "Clearing its intake": 1.2,
+      "Feeding its zone": 20.8,
+      "Staged — waiting for HUB": 8.3
+     },
+     "stuckEp": [
+      {
+       "t": 47.2,
+       "s": 1.4,
+       "by": "skirt",
+       "x": -2.75,
+       "z": -1.86,
+       "label": "Feeding its zone"
+      }
+     ]
+    },
+    {
+     "robot": "2910",
+     "alliance": "red",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 142,
+      "trans": 57,
+      "a1": 110,
+      "a2": 60,
+      "end": 72,
+      "inactive": 0
+     },
+     "launched": 559,
+     "passes": 93,
+     "intaked": 567,
+     "unjams": 0,
+     "unsticks": 1,
+     "cycles": 7,
+     "firstScore": 9,
+     "fouls": 0,
+     "coll": {
+      "own": 46.6,
+      "mid": 49.4,
+      "opp": 8.7
+     },
+     "took": {
+      "own": 115,
+      "mid": 322,
+      "opp": 19
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 6.6,
+      "staged": 4.2,
+      "stuck": 5.4,
+      "carryOut": 28,
+      "inZoneOff": 12,
+      "emptyActive": 3.4
+     },
+     "stuckBy": {
+      "hub": 0.1,
+      "skirt": 1.3,
+      "open": 0.4,
+      "bump": 0.2,
+      "robot": 0.1,
+      "wall": 0.6,
+      "tower": 1.1,
+      "depot": 1.6,
+      "trench": 0.1
+     },
+     "idleBy": {
+      "Feeding its zone": 1.7,
+      "Collecting": 2.9,
+      "Aiming": 1.8,
+      "Shooting": 0.1,
+      "Returning to score": 0.2
+     },
+     "labels": {
+      "Collecting": 80.3,
+      "Returning to score": 7.4,
+      "Aiming": 12.3,
+      "Shooting": 11.4,
+      "Feeding its zone": 23.8,
+      "Staged — waiting for HUB": 4.2,
+      "Unsticking": 0.7
+     },
+     "stuckEp": [
+      {
+       "t": 90.9,
+       "s": 1.3,
+       "by": "depot",
+       "x": 7.55,
+       "z": 1.87,
+       "label": "Collecting"
+      }
+     ]
+    }
+   ],
+   "s": 253.523
+  },
+  {
+   "a": "604",
+   "b": "2910",
+   "seed": 3,
+   "ok": {
+    "robot": "2910",
+    "pts": 461,
+    "fuel": 461,
+    "launched": 599,
+    "passes": 105,
+    "fouls": []
+   },
+   "A": {
+    "robot": "604",
+    "pts": 319,
+    "fuel": 319,
+    "launched": 440,
+    "passes": 62,
+    "fouls": []
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 461,
+    "fuel": 461,
+    "launched": 599,
+    "passes": 105,
+    "fouls": []
+   },
+   "audit": [
+    {
+     "robot": "604",
+     "alliance": "blue",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 40,
+      "trans": 6,
+      "a1": 82,
+      "a2": 84,
+      "end": 95,
+      "inactive": 0
+     },
+     "launched": 440,
+     "passes": 62,
+     "intaked": 566,
+     "unjams": 0,
+     "unsticks": 1,
+     "cycles": 4,
+     "firstScore": 1.5,
+     "fouls": 0,
+     "coll": {
+      "own": 60.2,
+      "mid": 67.4
+     },
+     "took": {
+      "own": 112,
+      "mid": 401,
+      "opp": 0
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 1.9,
+      "staged": 4.4,
+      "stuck": 6,
+      "carryOut": 32.4,
+      "inZoneOff": 10.4
+     },
+     "stuckBy": {
+      "open": 0.3,
+      "skirt": 1.8,
+      "wall": 1.3,
+      "bump": 0.2,
+      "hub": 0.3,
+      "tower": 1.6,
+      "robot": 0.1,
+      "depot": 0.7
+     },
+     "idleBy": {
+      "Collecting": 0.8,
+      "Feeding its zone": 0.3,
+      "Aiming": 0.1,
+      "Shooting while collecting": 0.6
+     },
+     "labels": {
+      "Shooting while collecting": 56.6,
+      "Collecting": 51.8,
+      "Shooting": 3.9,
+      "Returning to score": 3.9,
+      "Feeding its zone": 18.5,
+      "Unsticking": 0.7,
+      "Staged — waiting for HUB": 4.4,
+      "Aiming": 0.2
+     },
+     "stuckEp": [
+      {
+       "t": 40.8,
+       "s": 1.3,
+       "by": "skirt",
+       "x": -2.54,
+       "z": 3.18,
+       "label": "Feeding its zone"
+      }
+     ]
+    },
+    {
+     "robot": "2910",
+     "alliance": "red",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 112,
+      "trans": 57,
+      "a1": 123,
+      "a2": 99,
+      "end": 59,
+      "inactive": 1
+     },
+     "launched": 599,
+     "passes": 105,
+     "intaked": 599,
+     "unjams": 0,
+     "unsticks": 1,
+     "cycles": 9,
+     "firstScore": 8.4,
+     "fouls": 0,
+     "coll": {
+      "own": 49,
+      "mid": 51.9
+     },
+     "took": {
+      "own": 145,
+      "mid": 339,
+      "opp": 0
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 4,
+      "staged": 4.8,
+      "stuck": 5.2,
+      "carryOut": 18,
+      "inZoneOff": 13,
+      "emptyActive": 7
+     },
+     "stuckBy": {
+      "hub": 0.4,
+      "open": 0.4,
+      "wall": 0.3,
+      "depot": 1.3,
+      "tower": 2,
+      "bump": 0.1,
+      "trench": 0.2,
+      "skirt": 0.6,
+      "robot": 0.1
+     },
+     "idleBy": {
+      "Feeding its zone": 1.5,
+      "Collecting": 1.2,
+      "Aiming": 1.2,
+      "Shooting": 0.2
+     },
+     "labels": {
+      "Collecting": 75.5,
+      "Returning to score": 6.3,
+      "Aiming": 15.9,
+      "Shooting": 12,
+      "Feeding its zone": 24.8,
+      "Staged — waiting for HUB": 4.8,
+      "Unsticking": 0.7
+     },
+     "stuckEp": [
+      {
+       "t": 37.6,
+       "s": 1.3,
+       "by": "depot",
+       "x": 7.46,
+       "z": 1.66,
+       "label": "Collecting"
+      }
+     ]
+    }
+   ],
+   "s": 290.112
+  },
+  {
+   "a": "6328",
+   "b": "2910",
+   "seed": 3,
+   "ok": {
+    "robot": "2910",
+    "pts": 472,
+    "fuel": 472,
+    "launched": 626,
+    "passes": 139,
+    "fouls": []
+   },
+   "A": {
+    "robot": "6328",
+    "pts": 393,
+    "fuel": 393,
+    "launched": 421,
+    "passes": 26,
+    "fouls": []
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 472,
+    "fuel": 472,
+    "launched": 626,
+    "passes": 139,
+    "fouls": []
+   },
+   "audit": [
+    {
+     "robot": "6328",
+     "alliance": "blue",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 70,
+      "trans": 0,
+      "a1": 92,
+      "a2": 107,
+      "end": 115,
+      "inactive": 0
+     },
+     "launched": 421,
+     "passes": 26,
+     "intaked": 420,
+     "unjams": 0,
+     "unsticks": 1,
+     "cycles": 6,
+     "firstScore": 17.3,
+     "fouls": 0,
+     "coll": {
+      "own": 30,
+      "mid": 62.1,
+      "opp": 6.4
+     },
+     "took": {
+      "own": 68,
+      "mid": 275,
+      "opp": 9
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 11.4,
+      "staged": 6.4,
+      "stuck": 7,
+      "carryOut": 33.9,
+      "inZoneOff": 6.3,
+      "emptyActive": 3.4
+     },
+     "stuckBy": {
+      "open": 0.5,
+      "hub": 1.5,
+      "skirt": 1.6,
+      "wall": 0.7,
+      "depot": 0.3,
+      "tower": 1.8,
+      "trench": 0.5,
+      "bump": 0.2,
+      "robot": 0.1
+     },
+     "idleBy": {
+      "Collecting": 6.6,
+      "Aiming": 1.1,
+      "Shooting": 0.5,
+      "Returning to score": 3.1
+     },
+     "labels": {
+      "Collecting": 87.5,
+      "Unsticking": 0.7,
+      "Returning to score": 8.4,
+      "Aiming": 3.8,
+      "Shooting": 22.8,
+      "Clearing its intake": 1.2,
+      "Feeding its zone": 9.1,
+      "Staged — waiting for HUB": 6.4
+     },
+     "stuckEp": [
+      {
+       "t": 51.9,
+       "s": 1.3,
+       "by": "hub",
+       "x": -2.92,
+       "z": 1.33,
+       "label": "Collecting"
+      },
+      {
+       "t": 8.5,
+       "s": 1.3,
+       "by": "skirt",
+       "x": -2.85,
+       "z": 1.79,
+       "label": "Collecting"
+      },
+      {
+       "t": 101,
+       "s": 1.2,
+       "by": "tower",
+       "x": 6.64,
+       "z": 0.29,
+       "label": "Collecting"
+      }
+     ]
+    },
+    {
+     "robot": "2910",
+     "alliance": "red",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 115,
+      "trans": 56,
+      "a1": 113,
+      "a2": 113,
+      "end": 64,
+      "inactive": 2
+     },
+     "launched": 626,
+     "passes": 139,
+     "intaked": 626,
+     "unjams": 0,
+     "unsticks": 1,
+     "cycles": 9,
+     "firstScore": 9.1,
+     "fouls": 0,
+     "coll": {
+      "own": 43,
+      "mid": 56,
+      "opp": 4.1
+     },
+     "took": {
+      "own": 133,
+      "mid": 376,
+      "opp": 5
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 4.5,
+      "staged": 5.9,
+      "stuck": 4.9,
+      "carryOut": 19.9,
+      "inZoneOff": 6.3,
+      "emptyActive": 5.9
+     },
+     "stuckBy": {
+      "bump": 0.2,
+      "open": 0.6,
+      "skirt": 2.9,
+      "wall": 0.4,
+      "depot": 0.2,
+      "tower": 0.3,
+      "hub": 0.3
+     },
+     "idleBy": {
+      "Feeding its zone": 1.4,
+      "Shooting": 0.3,
+      "Collecting": 0.9,
+      "Unsticking": 0.2,
+      "Aiming": 1.8
+     },
+     "labels": {
+      "Collecting": 77.7,
+      "Returning to score": 4.1,
+      "Aiming": 12.9,
+      "Shooting": 13.9,
+      "Feeding its zone": 24.8,
+      "Staged — waiting for HUB": 5.9,
+      "Unsticking": 0.7
+     },
+     "stuckEp": [
+      {
+       "t": 89.5,
+       "s": 1.3,
+       "by": "skirt",
+       "x": 4.74,
+       "z": 3.21,
+       "label": "Collecting"
+      }
+     ]
+    }
+   ],
+   "s": 251.56
+  },
+  {
+   "a": "6328",
+   "b": "2910",
+   "seed": 4,
+   "ok": {
+    "robot": "2910",
+    "pts": 577,
+    "fuel": 577,
+    "launched": 706,
+    "passes": 118,
+    "fouls": []
+   },
+   "A": {
+    "robot": "6328",
+    "pts": 382,
+    "fuel": 382,
+    "launched": 394,
+    "passes": 4,
+    "fouls": []
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 577,
+    "fuel": 577,
+    "launched": 706,
+    "passes": 118,
+    "fouls": []
+   },
+   "audit": [
+    {
+     "robot": "6328",
+     "alliance": "blue",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 84,
+      "trans": 0,
+      "a1": 73,
+      "a2": 104,
+      "end": 108,
+      "inactive": 0
+     },
+     "launched": 394,
+     "passes": 4,
+     "intaked": 401,
+     "unjams": 0,
+     "unsticks": 0,
+     "cycles": 6,
+     "firstScore": 15.5,
+     "fouls": 0,
+     "coll": {
+      "own": 37.7,
+      "mid": 59
+     },
+     "took": {
+      "own": 71,
+      "mid": 250,
+      "opp": 0
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 15.8,
+      "staged": 6,
+      "stuck": 4.3,
+      "carryOut": 32.1,
+      "inZoneOff": 15.2,
+      "emptyActive": 3.6
+     },
+     "stuckBy": {
+      "skirt": 0.4,
+      "wall": 0.3,
+      "depot": 0.5,
+      "open": 0.3,
+      "hub": 1.7,
+      "bump": 0.3,
+      "tower": 0.2,
+      "trench": 0.5,
+      "robot": 0.1
+     },
+     "idleBy": {
+      "Collecting": 11.4,
+      "Clearing its intake": 0.6,
+      "Returning to score": 2.2,
+      "Aiming": 1.3,
+      "Shooting": 0.4
+     },
+     "labels": {
+      "Collecting": 90.9,
+      "Aiming": 5.1,
+      "Shooting": 22.9,
+      "Clearing its intake": 2.4,
+      "Returning to score": 7.4,
+      "Staged — waiting for HUB": 6,
+      "Feeding its zone": 5.1
+     },
+     "stuckEp": []
+    },
+    {
+     "robot": "2910",
+     "alliance": "red",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 113,
+      "trans": 57,
+      "a1": 161,
+      "a2": 109,
+      "end": 118,
+      "inactive": 1
+     },
+     "launched": 706,
+     "passes": 118,
+     "intaked": 712,
+     "unjams": 0,
+     "unsticks": 1,
+     "cycles": 10,
+     "firstScore": 8.2,
+     "fouls": 0,
+     "coll": {
+      "own": 22.7,
+      "mid": 75.5
+     },
+     "took": {
+      "own": 112,
+      "mid": 491,
+      "opp": 0
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 2.3,
+      "staged": 5.4,
+      "stuck": 3.5,
+      "carryOut": 31.9,
+      "inZoneOff": 7,
+      "emptyActive": 4.2
+     },
+     "stuckBy": {
+      "hub": 1.6,
+      "bump": 0.1,
+      "open": 0.8,
+      "tower": 0.3,
+      "depot": 0.1,
+      "wall": 0.1,
+      "skirt": 0.7
+     },
+     "idleBy": {
+      "Collecting": 1.6,
+      "Shooting": 0.2,
+      "Aiming": 0.5
+     },
+     "labels": {
+      "Collecting": 69.4,
+      "Aiming": 15.5,
+      "Shooting": 16,
+      "Feeding its zone": 28.1,
+      "Returning to score": 4.8,
+      "Staged — waiting for HUB": 5.4,
+      "Unsticking": 0.7
+     },
+     "stuckEp": [
+      {
+       "t": 92.8,
+       "s": 1.3,
+       "by": "hub",
+       "x": 2.58,
+       "z": -1.11,
+       "label": "Collecting"
+      }
+     ]
+    }
+   ],
+   "s": 255.924
+  },
+  {
+   "a": "7769",
+   "b": "2910",
+   "seed": 1,
+   "ok": {
+    "robot": "2910",
+    "pts": 500,
+    "fuel": 500,
+    "launched": 637,
+    "passes": 127,
+    "fouls": []
+   },
+   "A": {
+    "robot": "7769",
+    "pts": 400,
+    "fuel": 400,
+    "launched": 490,
+    "passes": 92,
+    "fouls": []
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 500,
+    "fuel": 500,
+    "launched": 637,
+    "passes": 127,
+    "fouls": []
+   },
+   "audit": [
+    {
+     "robot": "7769",
+     "alliance": "blue",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 79,
+      "trans": 0,
+      "a1": 118,
+      "a2": 104,
+      "end": 83,
+      "inactive": 1
+     },
+     "launched": 490,
+     "passes": 92,
+     "intaked": 489,
+     "unjams": 0,
+     "unsticks": 0,
+     "cycles": 8,
+     "firstScore": 10,
+     "fouls": 0,
+     "coll": {
+      "own": 33.1,
+      "mid": 50.4
+     },
+     "took": {
+      "own": 97,
+      "mid": 335,
+      "opp": 0
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 10.1,
+      "staged": 5,
+      "stuck": 2.2,
+      "carryOut": 22.1,
+      "inZoneOff": 11.6,
+      "emptyActive": 2.1
+     },
+     "stuckBy": {
+      "hub": 0.4,
+      "open": 0.5,
+      "wall": 0.1,
+      "skirt": 0.3,
+      "trench": 0.7,
+      "tower": 0.1,
+      "bump": 0.1
+     },
+     "idleBy": {
+      "Returning to score": 2.1,
+      "Aiming": 2.1,
+      "Feeding its zone": 2.7,
+      "Collecting": 2,
+      "Shooting": 1.2
+     },
+     "labels": {
+      "Collecting": 55.6,
+      "Aiming": 14.1,
+      "Shooting": 27.5,
+      "Returning to score": 10,
+      "Feeding its zone": 27.9,
+      "Staged — waiting for HUB": 5
+     },
+     "stuckEp": []
+    },
+    {
+     "robot": "2910",
+     "alliance": "red",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 111,
+      "trans": 61,
+      "a1": 125,
+      "a2": 50,
+      "end": 141,
+      "inactive": 1
+     },
+     "launched": 637,
+     "passes": 127,
+     "intaked": 641,
+     "unjams": 0,
+     "unsticks": 0,
+     "cycles": 9,
+     "firstScore": 8.1,
+     "fouls": 0,
+     "coll": {
+      "own": 38,
+      "mid": 51,
+      "opp": 2.8
+     },
+     "took": {
+      "own": 115,
+      "mid": 399,
+      "opp": 7
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 4.5,
+      "staged": 5.8,
+      "stuck": 2.2,
+      "carryOut": 19.9,
+      "inZoneOff": 7.9,
+      "emptyActive": 4.7
+     },
+     "stuckBy": {
+      "hub": 0.1,
+      "open": 0.3,
+      "wall": 0.5,
+      "tower": 0.8,
+      "depot": 0.1,
+      "skirt": 0.1,
+      "trench": 0.3
+     },
+     "idleBy": {
+      "Feeding its zone": 0.7,
+      "Collecting": 0.4,
+      "Aiming": 2.8,
+      "Shooting": 0.4,
+      "Returning to score": 0.2
+     },
+     "labels": {
+      "Collecting": 67.1,
+      "Returning to score": 8.9,
+      "Aiming": 18.5,
+      "Shooting": 14.9,
+      "Feeding its zone": 24.8,
+      "Staged — waiting for HUB": 5.8
+     },
+     "stuckEp": []
+    }
+   ],
+   "s": 248.899
+  },
+  {
+   "a": "7769",
+   "b": "2910",
+   "seed": 2,
+   "ok": {
+    "robot": "2910",
+    "pts": 503,
+    "fuel": 503,
+    "launched": 640,
+    "passes": 117,
+    "fouls": []
+   },
+   "A": {
+    "robot": "7769",
+    "pts": 390,
+    "fuel": 390,
+    "launched": 491,
+    "passes": 98,
+    "fouls": []
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 503,
+    "fuel": 503,
+    "launched": 640,
+    "passes": 117,
+    "fouls": []
+   },
+   "audit": [
+    {
+     "robot": "7769",
+     "alliance": "blue",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 56,
+      "trans": 0,
+      "a1": 124,
+      "a2": 93,
+      "end": 104,
+      "inactive": 0
+     },
+     "launched": 491,
+     "passes": 98,
+     "intaked": 487,
+     "unjams": 0,
+     "unsticks": 0,
+     "cycles": 8,
+     "firstScore": 11.6,
+     "fouls": 0,
+     "coll": {
+      "own": 38.2,
+      "mid": 43.4
+     },
+     "took": {
+      "own": 118,
+      "mid": 315,
+      "opp": 0
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 6.8,
+      "staged": 7.1,
+      "stuck": 1.6,
+      "carryOut": 17.4,
+      "inZoneOff": 12.8,
+      "emptyActive": 4
+     },
+     "stuckBy": {
+      "open": 0.3,
+      "skirt": 0.3,
+      "hub": 0.2,
+      "trench": 0.1,
+      "tower": 0.3,
+      "wall": 0.3,
+      "depot": 0.1
+     },
+     "idleBy": {
+      "Aiming": 1.9,
+      "Shooting": 0.7,
+      "Returning to score": 0.4,
+      "Feeding its zone": 1.1,
+      "Collecting": 2.7
+     },
+     "labels": {
+      "Collecting": 59.3,
+      "Returning to score": 7.7,
+      "Aiming": 15.7,
+      "Shooting": 27.8,
+      "Staged — waiting for HUB": 7.1,
+      "Feeding its zone": 22.3
+     },
+     "stuckEp": []
+    },
+    {
+     "robot": "2910",
+     "alliance": "red",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 117,
+      "trans": 59,
+      "a1": 93,
+      "a2": 108,
+      "end": 112,
+      "inactive": 1
+     },
+     "launched": 640,
+     "passes": 117,
+     "intaked": 646,
+     "unjams": 0,
+     "unsticks": 1,
+     "cycles": 9,
+     "firstScore": 8.3,
+     "fouls": 0,
+     "coll": {
+      "own": 37.8,
+      "mid": 60.4
+     },
+     "took": {
+      "own": 101,
+      "mid": 428,
+      "opp": 0
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 6.3,
+      "staged": 6.1,
+      "stuck": 3.9,
+      "carryOut": 23.2,
+      "inZoneOff": 5.2,
+      "emptyActive": 6.3
+     },
+     "stuckBy": {
+      "hub": 0.1,
+      "open": 0.5,
+      "wall": 0.4,
+      "bump": 0.1,
+      "skirt": 1.5,
+      "depot": 0.2,
+      "tower": 0.5,
+      "trench": 0.8
+     },
+     "idleBy": {
+      "Feeding its zone": 0.3,
+      "Unsticking": 0.3,
+      "Collecting": 1.6,
+      "Returning to score": 2.4,
+      "Aiming": 1.6,
+      "Shooting": 0.2
+     },
+     "labels": {
+      "Collecting": 72.7,
+      "Returning to score": 9.8,
+      "Aiming": 11.5,
+      "Shooting": 14.5,
+      "Feeding its zone": 24.8,
+      "Unsticking": 0.7,
+      "Staged — waiting for HUB": 6.1
+     },
+     "stuckEp": [
+      {
+       "t": 28.3,
+       "s": 1.3,
+       "by": "skirt",
+       "x": 2.98,
+       "z": 1.74,
+       "label": "Collecting"
+      }
+     ]
+    }
+   ],
+   "s": 241.608
+  },
+  {
+   "a": "7769",
+   "b": "2910",
+   "seed": 3,
+   "ok": {
+    "robot": "2910",
+    "pts": 478,
+    "fuel": 478,
+    "launched": 581,
+    "passes": 81,
+    "fouls": []
+   },
+   "A": {
+    "robot": "7769",
+    "pts": 382,
+    "fuel": 382,
+    "launched": 537,
+    "passes": 131,
+    "fouls": []
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 478,
+    "fuel": 478,
+    "launched": 581,
+    "passes": 81,
+    "fouls": []
+   },
+   "audit": [
+    {
+     "robot": "7769",
+     "alliance": "blue",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 43,
+      "trans": 0,
+      "a1": 114,
+      "a2": 110,
+      "end": 107,
+      "inactive": 0
+     },
+     "launched": 537,
+     "passes": 131,
+     "intaked": 531,
+     "unjams": 0,
+     "unsticks": 1,
+     "cycles": 8,
+     "firstScore": 10.7,
+     "fouls": 0,
+     "coll": {
+      "own": 35.7,
+      "mid": 48.1
+     },
+     "took": {
+      "own": 142,
+      "mid": 335,
+      "opp": 0
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 4.4,
+      "staged": 5.4,
+      "stuck": 4.7,
+      "carryOut": 16.4,
+      "inZoneOff": 13,
+      "emptyActive": 3.4
+     },
+     "stuckBy": {
+      "open": 0.3,
+      "depot": 1.5,
+      "tower": 2.1,
+      "trench": 0.6,
+      "hub": 0.2,
+      "wall": 0.1,
+      "robot": 0.1
+     },
+     "idleBy": {
+      "Aiming": 1,
+      "Feeding its zone": 1.2,
+      "Returning to score": 0.8,
+      "Collecting": 1.5,
+      "Shooting": 0.1
+     },
+     "labels": {
+      "Collecting": 58.7,
+      "Aiming": 19.7,
+      "Shooting": 25.6,
+      "Unsticking": 0.7,
+      "Feeding its zone": 25.1,
+      "Returning to score": 4.8,
+      "Staged — waiting for HUB": 5.4
+     },
+     "stuckEp": [
+      {
+       "t": 23.7,
+       "s": 1.3,
+       "by": "depot",
+       "x": -7.55,
+       "z": -1.44,
+       "label": "Aiming"
+      },
+      {
+       "t": 120.1,
+       "s": 1,
+       "by": "tower",
+       "x": -6.58,
+       "z": 0.18,
+       "label": "Collecting"
+      }
+     ]
+    },
+    {
+     "robot": "2910",
+     "alliance": "red",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 109,
+      "trans": 56,
+      "a1": 95,
+      "a2": 56,
+      "end": 153,
+      "inactive": 1
+     },
+     "launched": 581,
+     "passes": 81,
+     "intaked": 590,
+     "unjams": 0,
+     "unsticks": 1,
+     "cycles": 8,
+     "firstScore": 8.5,
+     "fouls": 0,
+     "coll": {
+      "own": 48,
+      "mid": 56.1
+     },
+     "took": {
+      "own": 132,
+      "mid": 336,
+      "opp": 0
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 3.6,
+      "staged": 4.9,
+      "stuck": 4.9,
+      "carryOut": 21.7,
+      "inZoneOff": 13.3,
+      "emptyActive": 4.6
+     },
+     "stuckBy": {
+      "open": 0.4,
+      "depot": 3,
+      "skirt": 0.7,
+      "wall": 0.3,
+      "hub": 0.2,
+      "tower": 0.3
+     },
+     "idleBy": {
+      "Feeding its zone": 0.8,
+      "Collecting": 2.3,
+      "Unsticking": 0.3,
+      "Shooting": 0.1,
+      "Aiming": 0.1
+     },
+     "labels": {
+      "Collecting": 75.3,
+      "Returning to score": 5.2,
+      "Aiming": 13.1,
+      "Shooting": 12.6,
+      "Feeding its zone": 28.2,
+      "Staged — waiting for HUB": 4.9,
+      "Unsticking": 0.7
+     },
+     "stuckEp": [
+      {
+       "t": 48.6,
+       "s": 1.3,
+       "by": "depot",
+       "x": 7.55,
+       "z": 2.35,
+       "label": "Collecting"
+      }
+     ]
+    }
+   ],
+   "s": 244.36
+  },
+  {
+   "a": "7769",
+   "b": "2910",
+   "seed": 4,
+   "ok": {
+    "robot": "2910",
+    "pts": 449,
+    "fuel": 449,
+    "launched": 643,
+    "passes": 154,
+    "fouls": []
+   },
+   "A": {
+    "robot": "7769",
+    "pts": 380,
+    "fuel": 380,
+    "launched": 477,
+    "passes": 91,
+    "fouls": []
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 449,
+    "fuel": 449,
+    "launched": 643,
+    "passes": 154,
+    "fouls": []
+   },
+   "audit": [
+    {
+     "robot": "7769",
+     "alliance": "blue",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 54,
+      "trans": 1,
+      "a1": 101,
+      "a2": 108,
+      "end": 104,
+      "inactive": 0
+     },
+     "launched": 477,
+     "passes": 91,
+     "intaked": 485,
+     "unjams": 0,
+     "unsticks": 4,
+     "cycles": 8,
+     "firstScore": 4.1,
+     "fouls": 0,
+     "coll": {
+      "own": 36.5,
+      "mid": 50.9
+     },
+     "took": {
+      "own": 102,
+      "mid": 329,
+      "opp": 0
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 8.7,
+      "staged": 6.9,
+      "stuck": 7.1,
+      "carryOut": 16,
+      "inZoneOff": 9.8,
+      "emptyActive": 4.5
+     },
+     "stuckBy": {
+      "depot": 2.9,
+      "skirt": 3,
+      "wall": 0.1,
+      "open": 0.4,
+      "trench": 0.4,
+      "hub": 0.1,
+      "tower": 0.1
+     },
+     "idleBy": {
+      "Collecting": 2.7,
+      "Aiming": 1.6,
+      "Feeding its zone": 2.3,
+      "Shooting": 1.5,
+      "Unsticking": 0.7
+     },
+     "labels": {
+      "Collecting": 58,
+      "Unsticking": 2.8,
+      "Aiming": 15,
+      "Shooting": 26.7,
+      "Returning to score": 3.2,
+      "Feeding its zone": 27.3,
+      "Staged — waiting for HUB": 6.9
+     },
+     "stuckEp": [
+      {
+       "t": 1.8,
+       "s": 1.3,
+       "by": "depot",
+       "x": -7.59,
+       "z": -1.74,
+       "label": "Collecting"
+      },
+      {
+       "t": 68.5,
+       "s": 1.3,
+       "by": "skirt",
+       "x": -4.67,
+       "z": 3.18,
+       "label": "Collecting"
+      },
+      {
+       "t": 70.7,
+       "s": 1.3,
+       "by": "skirt",
+       "x": -4.65,
+       "z": 3.27,
+       "label": "Collecting"
+      },
+      {
+       "t": 78.7,
+       "s": 1.3,
+       "by": "depot",
+       "x": -7.51,
+       "z": -1.43,
+       "label": "Aiming"
+      }
+     ]
+    },
+    {
+     "robot": "2910",
+     "alliance": "red",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 107,
+      "trans": 59,
+      "a1": 98,
+      "a2": 99,
+      "end": 72,
+      "inactive": 0
+     },
+     "launched": 643,
+     "passes": 154,
+     "intaked": 653,
+     "unjams": 0,
+     "unsticks": 2,
+     "cycles": 9,
+     "firstScore": 6.7,
+     "fouls": 0,
+     "coll": {
+      "own": 39,
+      "mid": 57
+     },
+     "took": {
+      "own": 181,
+      "mid": 362,
+      "opp": 0
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 5.1,
+      "staged": 5.2,
+      "stuck": 6.1,
+      "carryOut": 18.3,
+      "inZoneOff": 5.5,
+      "emptyActive": 6.6
+     },
+     "stuckBy": {
+      "open": 0.8,
+      "wall": 0.2,
+      "depot": 3.6,
+      "hub": 0.5,
+      "tower": 0.7,
+      "skirt": 0.1,
+      "trench": 0.4
+     },
+     "idleBy": {
+      "Aiming": 3.5,
+      "Shooting": 0.2,
+      "Collecting": 0.8,
+      "Unsticking": 0.7
+     },
+     "labels": {
+      "Collecting": 67.7,
+      "Returning to score": 6.5,
+      "Aiming": 17.8,
+      "Shooting": 13,
+      "Staged — waiting for HUB": 5.2,
+      "Feeding its zone": 28.3,
+      "Unsticking": 1.4
+     },
+     "stuckEp": [
+      {
+       "t": 39.8,
+       "s": 1.6,
+       "by": "depot",
+       "x": 7.44,
+       "z": 2.07,
+       "label": "Aiming"
+      },
+      {
+       "t": 37.6,
+       "s": 1.3,
+       "by": "depot",
+       "x": 7.49,
+       "z": 2.01,
+       "label": "Aiming"
+      }
+     ]
+    }
+   ],
+   "s": 239.112
+  },
+  {
+   "a": "2056",
+   "b": "2910",
+   "seed": 3,
+   "ok": {
+    "robot": "2910",
+    "pts": 534,
+    "fuel": 534,
+    "launched": 632,
+    "passes": 94,
+    "fouls": []
+   },
+   "A": {
+    "robot": "2056",
+    "pts": 256,
+    "fuel": 256,
+    "launched": 345,
+    "passes": 55,
+    "fouls": []
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 534,
+    "fuel": 534,
+    "launched": 632,
+    "passes": 94,
+    "fouls": []
+   },
+   "audit": [
+    {
+     "robot": "2056",
+     "alliance": "blue",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 42,
+      "trans": 6,
+      "a1": 31,
+      "a2": 90,
+      "end": 77,
+      "inactive": 2
+     },
+     "launched": 345,
+     "passes": 55,
+     "intaked": 342,
+     "unjams": 0,
+     "unsticks": 3,
+     "cycles": 4,
+     "firstScore": 1.3,
+     "fouls": 0,
+     "coll": {
+      "own": 68.9,
+      "mid": 55.1,
+      "opp": 3.5
+     },
+     "took": {
+      "own": 137,
+      "mid": 159,
+      "opp": 8
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 17.7,
+      "staged": 3,
+      "stuck": 9.2,
+      "carryOut": 1.8,
+      "inZoneOff": 8.2,
+      "emptyActive": 10.5
+     },
+     "stuckBy": {
+      "depot": 4.3,
+      "tower": 1.3,
+      "wall": 0.5,
+      "hub": 0.3,
+      "bump": 0.1,
+      "skirt": 1.7,
+      "open": 0.2,
+      "trench": 0.9
+     },
+     "idleBy": {
+      "Shooting while collecting": 2.5,
+      "Collecting": 13.4,
+      "Returning to score": 1.4,
+      "Feeding its zone": 0.4
+     },
+     "labels": {
+      "Shooting while collecting": 63.9,
+      "Unsticking": 2.1,
+      "Collecting": 42.1,
+      "Shooting": 2.7,
+      "Aiming": 1.1,
+      "Feeding its zone": 20.2,
+      "Returning to score": 4.8,
+      "Staged — waiting for HUB": 3
+     },
+     "stuckEp": [
+      {
+       "t": 3.3,
+       "s": 1.3,
+       "by": "depot",
+       "x": -7.56,
+       "z": -1.98,
+       "label": "Shooting while collecting"
+      },
+      {
+       "t": 56.1,
+       "s": 1.3,
+       "by": "skirt",
+       "x": -2.54,
+       "z": 2.05,
+       "label": "Returning to score"
+      },
+      {
+       "t": 130.5,
+       "s": 1.3,
+       "by": "depot",
+       "x": -7.56,
+       "z": -1.88,
+       "label": "Shooting while collecting"
+      }
+     ]
+    },
+    {
+     "robot": "2910",
+     "alliance": "red",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 117,
+      "trans": 57,
+      "a1": 127,
+      "a2": 95,
+      "end": 124,
+      "inactive": 0
+     },
+     "launched": 632,
+     "passes": 94,
+     "intaked": 639,
+     "unjams": 0,
+     "unsticks": 1,
+     "cycles": 9,
+     "firstScore": 8.5,
+     "fouls": 0,
+     "coll": {
+      "own": 36.3,
+      "mid": 58.9
+     },
+     "took": {
+      "own": 102,
+      "mid": 417,
+      "opp": 0
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 3.7,
+      "staged": 6.1,
+      "stuck": 5,
+      "carryOut": 26.8,
+      "inZoneOff": 10,
+      "emptyActive": 6.9
+     },
+     "stuckBy": {
+      "bump": 0.1,
+      "open": 0.8,
+      "depot": 1.2,
+      "skirt": 1.4,
+      "wall": 0.2,
+      "trench": 0.1,
+      "tower": 1.2,
+      "hub": 0.3
+     },
+     "idleBy": {
+      "Feeding its zone": 1.8,
+      "Unsticking": 0.4,
+      "Collecting": 0.7,
+      "Shooting": 0.4,
+      "Aiming": 0.4
+     },
+     "labels": {
+      "Collecting": 72.1,
+      "Returning to score": 6,
+      "Aiming": 17,
+      "Shooting": 15.8,
+      "Feeding its zone": 22.3,
+      "Unsticking": 0.7,
+      "Staged — waiting for HUB": 6.1
+     },
+     "stuckEp": [
+      {
+       "t": 23.7,
+       "s": 1.3,
+       "by": "skirt",
+       "x": 2.65,
+       "z": 3.11,
+       "label": "Feeding its zone"
+      }
+     ]
+    }
+   ],
+   "s": 145.061
+  },
+  {
+   "a": "2056",
+   "b": "2910",
+   "seed": 1,
+   "ok": {
+    "robot": "2910",
+    "pts": 559,
+    "fuel": 544,
+    "launched": 641,
+    "passes": 89,
+    "fouls": []
+   },
+   "A": {
+    "robot": "2056",
+    "pts": 385,
+    "fuel": 385,
+    "launched": 528,
+    "passes": 92,
+    "fouls": [
+     "G407"
+    ]
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 559,
+    "fuel": 544,
+    "launched": 641,
+    "passes": 89,
+    "fouls": []
+   },
+   "audit": [
+    {
+     "robot": "2056",
+     "alliance": "blue",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 47,
+      "trans": 22,
+      "a1": 85,
+      "a2": 110,
+      "end": 103,
+      "inactive": 2
+     },
+     "launched": 528,
+     "passes": 92,
+     "intaked": 526,
+     "unjams": 0,
+     "unsticks": 2,
+     "cycles": 6,
+     "firstScore": 1.8,
+     "fouls": 1,
+     "coll": {
+      "own": 69.6,
+      "mid": 53.2
+     },
+     "took": {
+      "own": 138,
+      "mid": 335,
+      "opp": 0
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 3.5,
+      "staged": 5.9,
+      "stuck": 6.8,
+      "carryOut": 21.3,
+      "inZoneOff": 12,
+      "emptyActive": 2.4
+     },
+     "stuckBy": {
+      "wall": 1.3,
+      "trench": 1.6,
+      "robot": 0.1,
+      "skirt": 1.7,
+      "depot": 1.3,
+      "open": 0.1,
+      "hub": 0.1,
+      "bump": 0.1,
+      "tower": 0.7
+     },
+     "idleBy": {
+      "Collecting": 0.2,
+      "Shooting while collecting": 2.3,
+      "Returning to score": 0.1,
+      "Feeding its zone": 1,
+      "Aiming": 0.1
+     },
+     "labels": {
+      "Shooting while collecting": 63,
+      "Collecting": 29,
+      "Shooting": 2.4,
+      "Aiming": 3.9,
+      "Returning to score": 4.9,
+      "Feeding its zone": 29.4,
+      "Unsticking": 1.4,
+      "Staged — waiting for HUB": 5.9
+     },
+     "stuckEp": [
+      {
+       "t": 65.4,
+       "s": 1.3,
+       "by": "trench",
+       "x": -4.58,
+       "z": 3.21,
+       "label": "Shooting while collecting"
+      },
+      {
+       "t": 50.8,
+       "s": 1.3,
+       "by": "skirt",
+       "x": 2.53,
+       "z": -3.24,
+       "label": "Collecting"
+      },
+      {
+       "t": 76.4,
+       "s": 1.2,
+       "by": "depot",
+       "x": -7.54,
+       "z": -2.46,
+       "label": "Shooting while collecting"
+      }
+     ]
+    },
+    {
+     "robot": "2910",
+     "alliance": "red",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 106,
+      "trans": 59,
+      "a1": 138,
+      "a2": 104,
+      "end": 125,
+      "inactive": 0
+     },
+     "launched": 641,
+     "passes": 89,
+     "intaked": 652,
+     "unjams": 0,
+     "unsticks": 2,
+     "cycles": 11,
+     "firstScore": 9.1,
+     "fouls": 0,
+     "coll": {
+      "own": 33.9,
+      "mid": 61.9
+     },
+     "took": {
+      "own": 133,
+      "mid": 405,
+      "opp": 0
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 7.1,
+      "staged": 4.1,
+      "stuck": 4.9,
+      "carryOut": 25.4,
+      "inZoneOff": 11,
+      "emptyActive": 6.9
+     },
+     "stuckBy": {
+      "hub": 1.9,
+      "open": 0.7,
+      "trench": 0.2,
+      "robot": 0.2,
+      "skirt": 0.4,
+      "wall": 0.1,
+      "depot": 1.4,
+      "tower": 0.1,
+      "bump": 0.1
+     },
+     "idleBy": {
+      "Feeding its zone": 0.8,
+      "Collecting": 2.8,
+      "Aiming": 2.6,
+      "Shooting": 0.2,
+      "Unsticking": 0.7,
+      "Returning to score": 0.2
+     },
+     "labels": {
+      "Collecting": 67.9,
+      "Aiming": 18.5,
+      "Shooting": 16.1,
+      "Feeding its zone": 26.5,
+      "Returning to score": 5.6,
+      "Staged — waiting for HUB": 4.1,
+      "Unsticking": 1.4
+     },
+     "stuckEp": [
+      {
+       "t": 46.8,
+       "s": 1.4,
+       "by": "depot",
+       "x": 7.55,
+       "z": 1.5,
+       "label": "Collecting"
+      },
+      {
+       "t": 97.3,
+       "s": 1.1,
+       "by": "hub",
+       "x": 2.62,
+       "z": -0.93,
+       "label": "Collecting"
+      }
+     ]
+    }
+   ],
+   "s": 165.52
+  },
+  {
+   "a": "2056",
+   "b": "2910",
+   "seed": 2,
+   "ok": {
+    "robot": "2910",
+    "pts": 399,
+    "fuel": 399,
+    "launched": 571,
+    "passes": 151,
+    "fouls": []
+   },
+   "A": {
+    "robot": "2056",
+    "pts": 393,
+    "fuel": 393,
+    "launched": 574,
+    "passes": 128,
+    "fouls": []
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 399,
+    "fuel": 399,
+    "launched": 571,
+    "passes": 151,
+    "fouls": []
+   },
+   "audit": [
+    {
+     "robot": "2056",
+     "alliance": "blue",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 50,
+      "trans": 28,
+      "a1": 102,
+      "a2": 102,
+      "end": 95,
+      "inactive": 1
+     },
+     "launched": 574,
+     "passes": 128,
+     "intaked": 575,
+     "unjams": 0,
+     "unsticks": 3,
+     "cycles": 8,
+     "firstScore": 1.2,
+     "fouls": 0,
+     "coll": {
+      "own": 66.6,
+      "mid": 58.7
+     },
+     "took": {
+      "own": 169,
+      "mid": 343,
+      "opp": 0
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 3.2,
+      "staged": 5.1,
+      "stuck": 6,
+      "carryOut": 21,
+      "inZoneOff": 7.7,
+      "emptyActive": 3.7
+     },
+     "stuckBy": {
+      "wall": 0.8,
+      "skirt": 0.3,
+      "tower": 0.5,
+      "depot": 2.9,
+      "trench": 1.5,
+      "open": 0.1
+     },
+     "idleBy": {
+      "Collecting": 2.4,
+      "Feeding its zone": 0.2,
+      "Shooting while collecting": 0.3,
+      "Unsticking": 0.3
+     },
+     "labels": {
+      "Shooting while collecting": 61.1,
+      "Collecting": 33.3,
+      "Returning to score": 4.1,
+      "Aiming": 1.8,
+      "Shooting": 3.5,
+      "Staged — waiting for HUB": 5.1,
+      "Feeding its zone": 28.9,
+      "Unsticking": 2.1
+     },
+     "stuckEp": [
+      {
+       "t": 74.6,
+       "s": 1.3,
+       "by": "trench",
+       "x": -4.62,
+       "z": 3.17,
+       "label": "Shooting while collecting"
+      },
+      {
+       "t": 131.5,
+       "s": 1.3,
+       "by": "depot",
+       "x": -7.58,
+       "z": -1.86,
+       "label": "Shooting while collecting"
+      },
+      {
+       "t": 134.3,
+       "s": 1.3,
+       "by": "depot",
+       "x": -7.4,
+       "z": -2.27,
+       "label": "Shooting while collecting"
+      }
+     ]
+    },
+    {
+     "robot": "2910",
+     "alliance": "red",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 116,
+      "trans": 61,
+      "a1": 57,
+      "a2": 42,
+      "end": 111,
+      "inactive": 0
+     },
+     "launched": 571,
+     "passes": 151,
+     "intaked": 569,
+     "unjams": 0,
+     "unsticks": 5,
+     "cycles": 8,
+     "firstScore": 6.9,
+     "fouls": 0,
+     "coll": {
+      "own": 55.1,
+      "mid": 47.6
+     },
+     "took": {
+      "own": 153,
+      "mid": 301,
+      "opp": 0
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 10.2,
+      "staged": 6.5,
+      "stuck": 10.7,
+      "carryOut": 14.9,
+      "inZoneOff": 9.8,
+      "emptyActive": 6.9
+     },
+     "stuckBy": {
+      "hub": 0.2,
+      "open": 0.5,
+      "trench": 4.6,
+      "depot": 3,
+      "tower": 2,
+      "wall": 0.3,
+      "skirt": 0.1,
+      "bump": 0.1
+     },
+     "idleBy": {
+      "Feeding its zone": 2.7,
+      "Unsticking": 1.3,
+      "Shooting": 0.6,
+      "Collecting": 3.2,
+      "Returning to score": 0.2,
+      "Aiming": 2.2
+     },
+     "labels": {
+      "Collecting": 73.3,
+      "Returning to score": 5.6,
+      "Aiming": 12.6,
+      "Shooting": 11.2,
+      "Feeding its zone": 27.4,
+      "Unsticking": 3.5,
+      "Staged — waiting for HUB": 6.5
+     },
+     "stuckEp": [
+      {
+       "t": 101,
+       "s": 1.4,
+       "by": "tower",
+       "x": 7.6,
+       "z": -1.67,
+       "label": "Collecting"
+      },
+      {
+       "t": 16.1,
+       "s": 1.3,
+       "by": "trench",
+       "x": 3.13,
+       "z": 3.35,
+       "label": "Feeding its zone"
+      },
+      {
+       "t": 42.2,
+       "s": 1.3,
+       "by": "depot",
+       "x": 7.55,
+       "z": 1.52,
+       "label": "Collecting"
+      },
+      {
+       "t": 48,
+       "s": 1.3,
+       "by": "depot",
+       "x": 7.55,
+       "z": 2.35,
+       "label": "Collecting"
+      }
+     ]
+    }
+   ],
+   "s": 161.984
+  },
+  {
+   "a": "2056",
+   "b": "2910",
+   "seed": 4,
+   "ok": {
+    "robot": "2910",
+    "pts": 444,
+    "fuel": 444,
+    "launched": 628,
+    "passes": 131,
+    "fouls": []
+   },
+   "A": {
+    "robot": "2056",
+    "pts": 354,
+    "fuel": 354,
+    "launched": 510,
+    "passes": 115,
+    "fouls": []
+   },
+   "B": {
+    "robot": "2910",
+    "pts": 444,
+    "fuel": 444,
+    "launched": 628,
+    "passes": 131,
+    "fouls": []
+   },
+   "audit": [
+    {
+     "robot": "2056",
+     "alliance": "blue",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 61,
+      "trans": 28,
+      "a1": 62,
+      "a2": 86,
+      "end": 98,
+      "inactive": 2
+     },
+     "launched": 510,
+     "passes": 115,
+     "intaked": 530,
+     "unjams": 0,
+     "unsticks": 2,
+     "cycles": 5,
+     "firstScore": 1.3,
+     "fouls": 0,
+     "coll": {
+      "own": 63.8,
+      "mid": 62.9
+     },
+     "took": {
+      "own": 162,
+      "mid": 307,
+      "opp": 0
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 7.6,
+      "staged": 5.6,
+      "stuck": 5.5,
+      "carryOut": 19.8,
+      "inZoneOff": 9.7,
+      "emptyActive": 4.2
+     },
+     "stuckBy": {
+      "wall": 1,
+      "skirt": 3,
+      "hub": 0.1,
+      "open": 0.1,
+      "tower": 1.3,
+      "depot": 0.1,
+      "bump": 0.1
+     },
+     "idleBy": {
+      "Collecting": 6.8,
+      "Shooting while collecting": 0.7,
+      "Feeding its zone": 0.2
+     },
+     "labels": {
+      "Shooting while collecting": 56,
+      "Collecting": 41.9,
+      "Returning to score": 6.3,
+      "Aiming": 0.6,
+      "Unsticking": 1.4,
+      "Feeding its zone": 27.4,
+      "Staged — waiting for HUB": 5.6,
+      "Shooting": 0.7
+     },
+     "stuckEp": [
+      {
+       "t": 29,
+       "s": 1.3,
+       "by": "skirt",
+       "x": -4.84,
+       "z": 3.14,
+       "label": "Shooting while collecting"
+      },
+      {
+       "t": 82.3,
+       "s": 1.3,
+       "by": "tower",
+       "x": -7.73,
+       "z": 1.03,
+       "label": "Shooting while collecting"
+      }
+     ]
+    },
+    {
+     "robot": "2910",
+     "alliance": "red",
+     "station": 2,
+     "driver": "scorer",
+     "pts": {
+      "auto": 113,
+      "trans": 53,
+      "a1": 69,
+      "a2": 61,
+      "end": 136,
+      "inactive": 0
+     },
+     "launched": 628,
+     "passes": 131,
+     "intaked": 633,
+     "unjams": 0,
+     "unsticks": 5,
+     "cycles": 10,
+     "firstScore": 6.3,
+     "fouls": 0,
+     "coll": {
+      "own": 48.3,
+      "mid": 52.4
+     },
+     "took": {
+      "own": 165,
+      "mid": 345,
+      "opp": 0
+     },
+     "sec": {
+      "teleop": 140,
+      "idle": 7.1,
+      "staged": 5.4,
+      "stuck": 9.1,
+      "carryOut": 16.1,
+      "inZoneOff": 8.4,
+      "emptyActive": 6.6
+     },
+     "stuckBy": {
+      "open": 0.5,
+      "depot": 4,
+      "skirt": 1.9,
+      "trench": 2.2,
+      "tower": 0.5,
+      "hub": 0.1
+     },
+     "idleBy": {
+      "Unsticking": 1.5,
+      "Returning to score": 0.1,
+      "Feeding its zone": 1.9,
+      "Shooting": 0.4,
+      "Aiming": 1,
+      "Collecting": 2.3
+     },
+     "labels": {
+      "Collecting": 73.3,
+      "Returning to score": 4.5,
+      "Aiming": 14.8,
+      "Shooting": 13.9,
+      "Unsticking": 3.5,
+      "Feeding its zone": 24.6,
+      "Staged — waiting for HUB": 5.4
+     },
+     "stuckEp": [
+      {
+       "t": 25.1,
+       "s": 1.8,
+       "by": "trench",
+       "x": 3.14,
+       "z": 3.31,
+       "label": "Collecting"
+      },
+      {
+       "t": 9.8,
+       "s": 1.3,
+       "by": "depot",
+       "x": 7.54,
+       "z": 1.86,
+       "label": "Aiming"
+      },
+      {
+       "t": 56,
+       "s": 1.3,
+       "by": "depot",
+       "x": 7.53,
+       "z": 1.86,
+       "label": "Collecting"
+      },
+      {
+       "t": 92.5,
+       "s": 1.3,
+       "by": "depot",
+       "x": 7.55,
+       "z": 1.51,
+       "label": "Collecting"
+      }
+     ]
+    }
+   ],
+   "s": 153.912
+  }
+ ]
+}
