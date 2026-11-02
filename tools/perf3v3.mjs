@@ -54,7 +54,7 @@ globalThis.SIM_SEED = seed;
 const game = createGame(world, { climber: 'none', preload: 8, hp: 'auto', ...settings });
 const m = game.match;
 let step = 0;
-const t0 = performance.now();
+const t0 = performance.now(), cpu0 = process.cpuUsage();
 const maxSteps = Math.min(30000, Math.round(secs / PHYSICS_DT));
 let frameMs = 0;
 while (!m.over && step < maxSteps) {
@@ -72,12 +72,13 @@ while (!m.over && step < maxSteps) {
     hashes.push(H.toString(16).padStart(8, '0'));
   }
 }
-const wall = performance.now() - t0;
+const wall = performance.now() - t0, cpuU = process.cpuUsage(cpu0), cpu = (cpuU.user + cpuU.system) / 1000;
 Math.random = realRandom;
 await new Promise((r) => setTimeout(r, 50)); // (the last GC entries)
 const simS = step * PHYSICS_DT;
 const physRobots = game.robots.filter((r) => r.phys).map((r) => r.cfg.key);
 console.log(`${label} seed ${seed}: ${simS.toFixed(1)} s simulated in ${(wall / 1000).toFixed(1)} s wall: ${(wall / simS).toFixed(0)} ms per sim s, real-time factor ${(simS * 1000 / wall).toFixed(2)}x, ${(wall / step).toFixed(2)} ms/step (${(2 * wall / step).toFixed(2)} ms per 60 fps frame of 2 steps)`);
+console.log(`CPU time: ${(cpu / simS).toFixed(0)} ms per sim s (wall is noisy on a shared machine; CPU time less so)`);
 console.log(`physical robots: ${physRobots.join(' ')}; GC: ${gcs.n} pauses, ${(gcs.ms / simS).toFixed(1)} ms per sim s (${gcs.major} major)`);
 console.log(`score: blue ${m.total(BLUE)} red ${m.total(RED)}; shots ${game.robots.map((r) => r.cfg.key + ':' + r.stats.shots + '/' + r.stats.intaked).join(' ')}`);
 if (flag('hash')) {
