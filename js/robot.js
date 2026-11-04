@@ -1272,7 +1272,13 @@ export class Robot {
             // chassis heading controller: time-optimal profile (no overshoot) + feed-forward on
             // how fast the aim direction moves while driving (smooth, as the aim is: AIM_VEL_TAU)
             const d = this.cfg.drive;
-            const ff = this._lastPsi !== undefined ? clamp(wrapAngle(sol.psi - this._lastPsi) / dt, -3, 3) : 0;
+            // (the feed-forward is how fast the line to the target turns as the robot drives, from
+            // its smoothed velocity: d/dt atan2(-dz, dx) = (dx vz - dz vx) / r^2. Taken as the step-
+            // to-step change of the aim instead, every jump of the pose estimate (a vision update
+            // moving it a few cm) read as a turn rate of up to 3 rad/s, and the loop swung the chassis
+            // back and forth ~15 times a second through a dump (2910's, resetting to each frame))
+            const rx = tgt.x - this.pos.x, rz = tgt.z - this.pos.z, r2 = Math.max(0.25, rx * rx + rz * rz);
+            const ff = clamp((rx * lv.z - rz * lv.x) / r2, -3, 3);
             const a = Math.abs(aimErr);
             // (near the aim, linear at AIM_GAIN: the profile, slowing at 70% of what the tires turn
             // it at, takes over from 1.4 maxAlpha / AIM_GAIN^2, 16 deg)
