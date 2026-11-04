@@ -194,7 +194,7 @@ export class Robot {
       .setFriction(0.05).setFrictionCombineRule(RAPIER.CoefficientCombineRule.Min)
       .setRestitution(0.1)
       .setCollisionGroups(robotGroups);
-    world.createCollider(bumper, this.body);
+    this.bumperCollider = world.createCollider(bumper, this.body);
     const sL = cfg.frame.length / 2, sW = cfg.frame.width / 2;
     // the frame and superstructure above the bumpers: solid to the field and to other robots (a
     // robot coming down off a BUMP onto another lands on it, not through it); level robots only
@@ -280,12 +280,12 @@ export class Robot {
           .setCollisionGroups(0),
         this.body,
       );
-      // what of it meets the field's walls: its twin, slick against them as the bumpers are (the
-      // Min rule: it slides along a wall rather than dragging on it), so that FUEL still meet the
+      // what of it meets the field's walls: its twin, slick against them (the Min rule, 0.1: it
+      // slides along a wall rather than dragging on it; as an intake arm's), so that FUEL still meet the
       // box itself at its own friction (FUEL take the Average rule: the Min rule on the box itself
       // would make it slicker to FUEL too)
       this.hopperWall = world.createCollider(
-        shape.setMass(0).setDensity(0).setFriction(0.05).setFrictionCombineRule(RAPIER.CoefficientCombineRule.Min),
+        shape.setMass(0).setDensity(0).setFriction(0.1).setFrictionCombineRule(RAPIER.CoefficientCombineRule.Min),
         this.body,
       );
     }
@@ -341,9 +341,12 @@ export class Robot {
       this.armGroups = ic.fold.yields ? intakeGroups & ~GROUP.TRENCH_ARM : intakeGroups;
       this.armCollider = world.createCollider(
         RAPIER.ColliderDesc.convexHull(new Float32Array(pts)).setTranslation(ic.fold.pivot[0], ic.fold.pivot[1], 0)
-          // (slick against walls and robots as the bumpers are, the Min rule: an arm deployed against a
-          // wall slides along it; it meets no FUEL, those meet its mechanism's own surfaces)
-          .setDensity(0).setFriction(0.05).setFrictionCombineRule(RAPIER.CoefficientCombineRule.Min)
+          // (slick against walls and robots, the Min rule: an arm deployed against a wall slides
+          // along it; 0.1, not the bumpers' 0.05: an arm reaching the wall higher up than a bumper
+          // does, 8793's, slid up it as the drive shoved it in, and the robot stood up on its tail
+          // against the wall, 22 cm up; tools/depot-test.mjs 2.5. It meets no FUEL, those meet its
+          // mechanism's own surfaces)
+          .setDensity(0).setFriction(0.1).setFrictionCombineRule(RAPIER.CoefficientCombineRule.Min)
           .setRestitution(0.05).setCollisionGroups(this.armGroups),
         this.body,
       );
@@ -354,8 +357,8 @@ export class Robot {
       // sliding hopper section's collider it stands in for (its side panels and front plate are
       // the hopper's front; without that 581 took 10% less down the NEUTRAL ZONE's FUEL line,
       // tools/intake-test.mjs 1.5 --along, over 16 runs)
-      // (the field's walls it meets through its twin, slick against them as the bumpers are, the Min
-      // rule, so that FUEL still meet it at its own friction: FUEL take the Average rule)
+      // (the field's walls it meets through its twin, slick against them, the Min rule, 0.1 as an
+      // intake arm's, so that FUEL still meet it at its own friction: FUEL take the Average rule)
       this.slideGroups = groups(GROUP.INTAKE, GROUP.ROBOT | GROUP.INTAKE | GROUP.BALL);
       this.slideWallGroups = groups(GROUP.INTAKE, GROUP.STATIC | GROUP.ROBOT_BARRIER);
       const pts = [];
@@ -368,7 +371,7 @@ export class Robot {
       );
       this.armWall = world.createCollider(
         RAPIER.ColliderDesc.convexHull(new Float32Array(pts)).setTranslation(ic.slide.back[0], ic.slide.back[1], 0)
-          .setDensity(0).setFriction(0.05).setFrictionCombineRule(RAPIER.CoefficientCombineRule.Min)
+          .setDensity(0).setFriction(0.1).setFrictionCombineRule(RAPIER.CoefficientCombineRule.Min)
           .setRestitution(0.05).setCollisionGroups(0),
         this.body,
       );
@@ -623,6 +626,7 @@ export class Robot {
       tvx = this.cmd.vx;
       tvz = this.cmd.vz;
       tw = this.cmd.omega;
+      [tvx, tvz] = this._alongWalls(tvx, tvz);
       if (this.climbState === 'aligning') {
         const a = this._alignCommand();
         tvx = a.vx; tvz = a.vz; tw = a.omega;
@@ -663,6 +667,42 @@ export class Robot {
     this.swerve.step(this.body, yaw, tvx, tvz, tw, down, dt);
     if (this.phys) this.phys.preStep(dt, this.lastT);
     this._guideCaptured(dt);
+  }
+
+  // Driver assist (playability; many real swerve teams' drive code does the same): a command
+  // pushing into a wall the robot is touching (its bumpers, frame, intake or hopper against the
+  // field's walls, the HUB, a TOWER upright...) has the part of it that goes into the wall taken
+  // out (all but a gentle 0.05 m/s that keeps it against the wall), so that its wheels point along
+  // the wall instead of into it. Pointed into a wall and sliding along it, a wheel's tire scrubs
+  // sideways: the sim's tires hold sideways as a friction circle (drivetrain.js), and that took
+  // nearly all the grip the motors didn't, so a robot shoved diagonally into the guardrail at full
+  // stick crept along it at 4-6% of the command's part along it (tools/walldrive.mjs). A command
+  // mostly into the wall (within 15 degrees of square to it) is left alone, to push on it. Only the
+  // driver's and the AI's drive commands (this.cmd), not the climb's alignment.
+  _alongWalls(vx, vz) {
+    const sp = Math.hypot(vx, vz);
+    if (sp < 0.05) return [vx, vz];
+    const w = this.physics.world, fixed = this.physics.fixedBody, walls = [];
+    const WALL = GROUP.STATIC | GROUP.ROBOT_BARRIER;
+    for (const c of [this.bumperCollider, this.frameCollider, this.armWall ?? this.armCollider, this.hopperWall]) {
+      if (!c || !c.collisionGroups()) continue;
+      w.contactPairsWith(c, (o) => {
+        if (o.parent() !== fixed || !((o.collisionGroups() >>> 16) & WALL)) return;
+        w.contactPair(c, o, (m, flipped) => {
+          if (!m.numContacts() || m.contactDist(0) > 0.02) return;
+          const n = m.normal(), k = flipped ? -1 : 1, h = Math.hypot(n.x, n.z);
+          if (h < 0.7) return; // (a floor, a ledge it's on: not a wall)
+          walls.push([(k * n.x) / h, (k * n.z) / h]);
+        });
+      });
+    }
+    for (const [nx, nz] of walls) {
+      const into = vx * nx + vz * nz;
+      // (into it, and not mostly square to it: cos 15deg)
+      if (into <= 0.05 || into > 0.966 * Math.hypot(vx, vz)) continue;
+      vx -= (into - 0.05) * nx; vz -= (into - 0.05) * nz;
+    }
+    return [vx, vz];
   }
 
   // Which wheels touch the floor: a short ray down from each wheel's center finds the carpet,
