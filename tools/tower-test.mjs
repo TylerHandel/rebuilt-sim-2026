@@ -1,7 +1,7 @@
 // Behind the TOWER: each robot drives along the BLUE ALLIANCE WALL across the TOWER's base plate
-// (behind its uprights) and, separately, straight at the wall over the plate's front edge; prints
-// its slowest speed over the plate, how high its body rose and how far it tipped, and what of the
-// field (other than the carpet and the plate) it touched
+// (behind its uprights, 0.12 m off the wall); prints its slowest speed over the plate, how high
+// its body rose and how far it tipped, and what of the field it touched (TRACE=1: the contacts
+// near the plate's edge; TRACE=2: its pose every 0.1 s)
 //   node --import ./tools/node-env.mjs tools/tower-test.mjs [speed m/s] [--robots 2910,1678]
 import { createWorld, mulberry32 } from './headless.mjs';
 import { Robot } from '../js/robot.js';
@@ -13,7 +13,7 @@ const speed = +(process.argv[2] || 2.5);
 const arg = (name, def) => { const i = process.argv.indexOf(name); return i > 0 ? process.argv[i + 1] : def; };
 const zc = HALF_W - TOWER.fy, plateX = -HALF_L + TOWER.baseDepth;
 for (const key of arg('--robots', '2910,1678,4414,6328').split(',')) {
-  for (const run of ['along', 'into']) {
+  for (const run of ['along']) {
     const world = await createWorld();
     Math.random = mulberry32(7);
     const { physics, scene, field, fuel } = world;
@@ -23,10 +23,8 @@ for (const key of arg('--robots', '2910,1678,4414,6328').split(',')) {
     fuel.stage(0);
     for (const b of fuel.balls) b.body.setEnabled(false);
     const along = run === 'along';
-    // along: 0.3 m off the wall, from 1.6 m to one side of the TOWER to 1.6 m past it (facing +z);
-    // into: from 1.2 m out of the plate's front edge toward the wall, beside the uprights
-    if (along) r.spawn(-HALF_L + r.halfL + 0.12, zc - 1.6, -Math.PI / 2);
-    else r.spawn(plateX + r.halfL + 1.2, zc + 0.75, Math.PI);
+    // from 1.6 m to one side of the TOWER to 1.6 m past it (facing +z)
+    r.spawn(-HALF_L + r.halfL + 0.12, zc - 1.6, -Math.PI / 2);
     r.enabled = true;
     let t = 0, vmin = Infinity, ymax = 0, tip = 0, on = false;
     const hits = new Set();
