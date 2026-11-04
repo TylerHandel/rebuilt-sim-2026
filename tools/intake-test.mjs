@@ -8,6 +8,7 @@
 // of the NEUTRAL ZONE's FUEL (twice the FUEL to fill from); --teleop: with the current limits
 // their teleopInit sets (as most intaking is); --offset d starts it d m to the side (another run through the same FUEL); --settle holds still for s with the intake down first (an arm that takes a while to come down,
 // 8793's, would otherwise land on the FUEL); the times and counts are from when it starts driving
+// LIFTLOG=1 (1678): the count every half second with how far up its lid is (0-1)
 // INTAKELOG=1 (4414): its primary roller's and kick wheel's speed, current and what loads them
 // (tools/intakewatch4414.mjs); =2 each quarter second too
 // --contacts: loose FUEL against the robot's own simplified colliders (bumpers, frame, hopper box,
@@ -89,7 +90,7 @@ for (const key of arg('--robots', ROBOT_ORDER.join(',')).split(',')) {
       counts.push(r.stored.length);
       if (r.full && !wasFull) fulls.push({ t: t - t0, n: r.stored.length, i: counts.length - 1, by: r.phys?.fullWatch?.by });
       wasFull = r.full;
-      if ((i + 1) % Math.round(0.5 / PHYSICS_DT) === 0) curve.push(r.stored.length);
+      if ((i + 1) % Math.round(0.5 / PHYSICS_DT) === 0) curve.push(process.env.LIFTLOG && r.phys?.liftNow ? `${r.stored.length}/${r.phys.liftNow().toFixed(2)}` : r.stored.length);
     }
     // (held a quarter second, not a FUEL bobbing over the line for a step)
     const held = counts.map((_, i) => Math.min(...counts.slice(i, i + Math.round(0.25 / PHYSICS_DT))));

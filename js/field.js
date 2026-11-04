@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import {
   IN, FIELD_L, FIELD_W, HALF_L, HALF_W, BLUE, RED, HUB, BUMP, TRENCH, TOWER, DEPOT, OUTPOST,
   GUARDRAIL_H, DS_BASE_H, DS_GLASS_H, ALLIANCE_WALL_H, ALLIANCE_ZONE_DEPTH, FUEL, GROUP, groups,
-  trenchArmParts, DS_SPLIT_FY,
+  trenchArmParts, DS_SPLIT_FY, APRILTAGS, TAG_SIZE,
 } from './constants.js';
 import { mulQuat, yawQuat } from './physics.js';
 
@@ -35,7 +35,6 @@ function initMaterials() {
   mats.net = new THREE.MeshStandardMaterial({
     map: makeNetTexture(), color: 0xffffff, transparent: true, roughness: 1, side: THREE.DoubleSide, depthWrite: false,
   });
-  mats.tag = new THREE.MeshStandardMaterial({ map: makeTagTexture(), roughness: 0.6 });
   for (const a of [BLUE, RED]) {
     mats[a] = new THREE.MeshStandardMaterial({ color: ALLIANCE_COLOR[a], roughness: 0.55, metalness: 0.1 });
     mats[a + 'Tower'] = new THREE.MeshStandardMaterial({ color: ALLIANCE_COLOR[a], roughness: 0.4, metalness: 0.3 });
@@ -68,16 +67,33 @@ function makeNetTexture() {
   return t;
 }
 
-function makeTagTexture() {
-  const c = document.createElement('canvas');
-  c.width = c.height = 64;
+// The AprilTag 36h11 family's codes for IDs 1-32 (the 2026 field's), from the AprilTag library
+// (AprilRobotics/apriltag tag36h11.c, BSD 2-clause, (C) 2013-2016 The Regents of The University of
+// Michigan), and where each of a code's 36 bits goes in the tag's 6x6 data cells (its bit_x and
+// bit_y, from the most significant bit; a 1 is white) inside the black border, in the white margin:
+// 10 cells across, the black square (8 cells) TAG_SIZE
+const TAG36H11 = [
+  0xdda664ca7, 0xdc4a1c821, 0xe17b470e9, 0xef91d01b1, 0xf429cdd73, 0x5da29225, 0x1106cba43, 0x223bed79d,
+  0x21f51213c, 0x33eb19ca6, 0x3f76eb0f8, 0x469a97414, 0x45dcfe0b0, 0x4a6465f72, 0x51801db96, 0x5eb946b4e,
+  0x68a7cc2ec, 0x6f0ba2652, 0x78765559d, 0x87b83d129, 0x86cc4a5c5, 0x8b64df90f, 0x9c577b611, 0xa3810f2f5,
+  0xaf4d75b83, 0xb59a03fef, 0xbb1096f85, 0xd1b92fc76, 0xd0dd509d2, 0xe2cfda160, 0x2ff497c63, 0x47240671b,
+];
+const TAG_BIT_X = [1, 2, 3, 4, 5, 2, 3, 4, 3, 6, 6, 6, 6, 6, 5, 5, 5, 4, 6, 5, 4, 3, 2, 5, 4, 3, 4, 1, 1, 1, 1, 1, 2, 2, 2, 3];
+const TAG_BIT_Y = [1, 1, 1, 1, 1, 2, 2, 2, 3, 1, 2, 3, 4, 5, 2, 3, 4, 3, 6, 6, 6, 6, 6, 5, 5, 5, 4, 6, 5, 4, 3, 2, 5, 4, 3, 4];
+// tag id's image, upright (as the field has them), 10 cells across (8 px each)
+function makeTagTexture(id) {
+  const P = 8, c = document.createElement('canvas');
+  c.width = c.height = 10 * P;
   const g = c.getContext('2d');
   g.fillStyle = '#fff';
-  g.fillRect(0, 0, 64, 64);
+  g.fillRect(0, 0, 10 * P, 10 * P);
   g.fillStyle = '#000';
-  g.fillRect(6, 6, 52, 52);
+  g.fillRect(P, P, 8 * P, 8 * P);
   g.fillStyle = '#fff';
-  for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) if ((i * 7 + j * 3 + i * j) % 3 === 0) g.fillRect(14 + i * 9, 14 + j * 9, 9, 9);
+  const code = TAG36H11[id - 1];
+  for (let i = 0; i < 36; i++) {
+    if (Math.floor(code / 2 ** (35 - i)) % 2) g.fillRect((TAG_BIT_X[i] + 1) * P, (TAG_BIT_Y[i] + 1) * P, P, P);
+  }
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
   t.magFilter = THREE.NearestFilter;
@@ -129,6 +145,55 @@ export class Field {
     this.wallSpans = [];
     for (const a of [BLUE, RED]) this._buildSide(a);
     this._buildArena();
+    this._buildTags();
+  }
+
+  // The AprilTags, each its own 36h11 image (makeTagTexture), where the field has them (constants.js
+  // APRILTAGS, WPILib's poses: the HUB's, the TRENCH mounts', the TOWER's and OUTPOST's). In their own
+  // group, not the field's: a field CAD that loads hides the drawn field, but not these, and they're
+  // brought out in front of its surfaces (fitTags)
+  _buildTags() {
+    this.tagGroup = new THREE.Group();
+    this.scene.add(this.tagGroup);
+    this.tags = [];
+    const size = (TAG_SIZE * 10) / 8; // (the white margin round the black square)
+    const geo = new THREE.PlaneGeometry(size, size);
+    for (const [id, fx, fy, h, deg] of APRILTAGS) {
+      const a = (deg * Math.PI) / 180, n = new THREE.Vector3(Math.cos(a), 0, -Math.sin(a));
+      const m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ map: makeTagTexture(id), roughness: 0.6 }));
+      const at = new THREE.Vector3(fx - HALF_L, h, HALF_W - fy);
+      m.position.copy(at).addScaledVector(n, 0.003);
+      m.rotation.y = Math.PI / 2 + a; // (a plane faces +z: turned to face n)
+      m.userData.tag = { id, at, n };
+      this.tagGroup.add(m);
+      this.tags.push(m);
+    }
+    this.fitTags(this.group);
+  }
+
+  // Bring each tag out in front of whatever of root (the drawn field, or the field CAD) covers it
+  // where its pose has it: a surface up to 8 cm in front of the pose (a wall drawn thicker than the
+  // field's, a CAD panel), not clear or hidden ones; 3 mm out from it
+  fitTags(root) {
+    root.updateMatrixWorld(true);
+    const meshes = [];
+    root.traverse((o) => {
+      if (!o.isMesh || this.tags.includes(o)) return;
+      for (let p = o; p; p = p.parent) if (!p.visible) return;
+      const mat = Array.isArray(o.material) ? o.material[0] : o.material;
+      if (mat && mat.transparent && mat.opacity < 0.5) return;
+      meshes.push(o);
+    });
+    const ray = new THREE.Raycaster();
+    ray.layers.enableAll();
+    for (const t of this.tags) {
+      const { at, n } = t.userData.tag, from = at.clone().addScaledVector(n, 0.08);
+      ray.set(from, n.clone().negate());
+      ray.far = 0.08 + 0.002;
+      const hit = ray.intersectObjects(meshes, false)[0];
+      const out = Math.max(t.position.clone().sub(at).dot(n) - 0.003, hit ? 0.08 - hit.distance : 0);
+      t.position.copy(at).addScaledVector(n, out + 0.003);
+    }
   }
 
   // ------------------------------------------------------------------ helpers
@@ -369,13 +434,6 @@ export class Field {
         b.position.y = 0.12;
         hub.add(b);
       }
-      // AprilTags on the hub faces
-      for (const [px, pz, ry] of [[-hs - 0.004, -0.18, -Math.PI / 2], [-hs - 0.004, 0.18, -Math.PI / 2], [hs + 0.004, -0.18, Math.PI / 2], [hs + 0.004, 0.18, Math.PI / 2], [0.18, hs + 0.004, 0], [-0.18, -hs - 0.004, Math.PI]]) {
-        const tag = new THREE.Mesh(new THREE.PlaneGeometry(0.2, 0.2), mats.tag);
-        tag.position.set(px, 1.124, pz);
-        tag.rotation.y = ry;
-        hub.add(tag);
-      }
       // exit opening in the NEUTRAL ZONE face, with the white HDPE ramp lip FUEL rolls off
       const exH = HUB.exitTop - HUB.exitHeight;
       box(0.1, 0.012, HUB.exitWidth, mats.white, hs + 0.04, HUB.exitHeight - 0.006, 0, hub, false);
@@ -615,13 +673,6 @@ export class Field {
       const tagZ = zg(TRENCH.tagIn), tagH = TRENCH.height - TRENCH.armTop;
       box(TRENCH.tagThick, tagH, TRENCH.tagWidth, mats.alu, hx, TRENCH.armTop + tagH / 2, tagZ, grp);
       boxC(hx, TRENCH.armTop + tagH / 2, tagZ, TRENCH.tagThick / 2, tagH / 2, TRENCH.tagWidth / 2, { restitution: 0.4, groups: P.trenchArmGroups });
-      // AprilTags on the mount
-      for (const sx of [-1, 1]) {
-        const tag = new THREE.Mesh(new THREE.PlaneGeometry(0.2, 0.2), mats.tag);
-        tag.position.set(hx + sx * (TRENCH.tagThick / 2 + 0.003), TRENCH.tagY, tagZ);
-        tag.rotation.y = sx * Math.PI / 2;
-        grp.add(tag);
-      }
     }
 
     // ================================================================ ALLIANCE WALL
@@ -662,13 +713,6 @@ export class Field {
         banner.position.set(wallX + 0.002, 1.45, zc);
         banner.rotation.y = Math.PI / 2;
         grp.add(banner);
-        // AprilTags 31 on the TOWER's middle and 32 17in toward fy+ (FE-2026 sheet 11), 21.75in up
-        for (const dz of [0, -TOWER.tagStep]) {
-          const tag = new THREE.Mesh(new THREE.PlaneGeometry(0.2, 0.2), mats.tag);
-          tag.position.set(wallX + 0.003, 0.5525, towerZc + dz);
-          tag.rotation.y = Math.PI / 2;
-          grp.add(tag);
-        }
       }
     }
 
@@ -784,13 +828,6 @@ export class Field {
       // robot-only barrier across the base opening (FUEL passes, ROBOTS cannot enter)
       const bp = T(wallX + 0.01, zc);
       P.box(bp.x, 0.3, bp.z, 0.01, 0.3, baseHalf, { groups: groups(GROUP.ROBOT_BARRIER, GROUP.ROBOT | GROUP.WHEEL | GROUP.INTAKE) });
-      // AprilTags 29 on the OUTPOST's middle and 30 17in toward fy+ (FE-2026 sheet 11), 21.75in up
-      for (const dz of [0, -OUTPOST.tagStep]) {
-        const tag = new THREE.Mesh(new THREE.PlaneGeometry(0.2, 0.2), mats.tag);
-        tag.position.set(wallX + 0.003, 0.5525, zc + dz);
-        tag.rotation.y = Math.PI / 2;
-        grp.add(tag);
-      }
       // CORRAL behind the base opening: its border from the back of the wall to 37.58in behind the
       // wall's face, and the ramp in it down from the base opening's lip
       const cx0 = wx - wallT / 2, cx1 = wallX - OUTPOST.corralD;

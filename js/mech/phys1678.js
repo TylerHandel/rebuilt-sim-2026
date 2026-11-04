@@ -15,11 +15,13 @@
 //     intaking, the feeder runs back at 4 V (holding FUEL off the drum) and the arm goes limp.
 //   the hood stows (17.5 deg) whenever it isn't shooting.
 // And what a driver of it does: contractHopper when FUEL are left out over the intake while it
-// fires (not while it intakes), and the lid (their climber) up while it shoots, down for a TRENCH.
+// fires (not while it intakes), and the lid (their climber) up once the hopper's full under it
+// (the lower stage can't take more; playability: the team's raise it to intake and shoot, and
+// their autos early), down for a TRENCH.
 // The extension rides out and in with the intake arm (a pin in a slot); the lid can't
 // come down onto FUEL.
 import { Mechanism } from './mechanism.js';
-import { PhysicalRobot } from './physical.js';
+import { PhysicalRobot, FullWatch } from './physical.js';
 import {
   build1678, wheels1678, pathSurfaces1678, placeIntake, placeHood, placeNet, intakeRot, slotExt, slotRate, SLOT, hoodRot, hoodElevation, shotFor,
   INTAKE, SHOOTER, TUNNEL, RANGES, PRELOAD, PIVOT, DRUM,
@@ -127,6 +129,7 @@ export class Physical1678 extends PhysicalRobot {
     this.firing = false; this.verifiedT = 0; this.firingT = 0;
     this.seq = null; this.contractCool = 0; this.tucked = true; this.nearTrench = false;
     this.hopperT = 0; this.tunnelT = 0;
+    this.expanded = false; // (the lid's been raised: the hopper was full under it)
     for (const tr of [this.t.intake, this.t.floor, this.t.tunnel, this.t.feederT, this.t.shooter]) { tr.omega = 0; tr.cmd = null; }
     this.t.tunnel.vel = null;
     for (const s of this.t.idlers) s.omega = 0;
@@ -162,6 +165,8 @@ export class Physical1678 extends PhysicalRobot {
     this.hoodDeg = this.hoodSet[0];
     // the lid on the climber: up (once the intake's been down), down for a TRENCH, but never onto
     // the FUEL under it
+    // (back down for good once the load's well under the lid: shot, or spilled)
+    if (this.expanded && this.loadTop() < (r.cfg.bay.top ?? 0) - R) this.expanded = false;
     this.lift += clamp(this.liftScale() * (r.cfg.bay.lift?.h ?? 0) - this.lift, -LID_SPEED.down * dt, LID_SPEED.up * dt);
     // pose the moving parts
     // the extension where the arm's pin puts it, and how it moves as the arm turns (its mass felt
@@ -325,8 +330,19 @@ export class Physical1678 extends PhysicalRobot {
   extNow() { return slotExt(this.armDeg); }
   // how far up the lid is now (0-1 of its travel), as the climber has it
   liftNow() { const h = this.r.cfg.bay.lift?.h; return h ? clamp(this.lift / h, 0, 1) : 0; }
-  // how far up the lid wants to be (0-1 of its travel): up while it intakes and while it shoots
-  // (the team) and in AUTO (their autos expand it early in the first path); otherwise down as far
+  // full yet (js/mech/physical.js)? With the lid down, a full hopper is the lower stage's: the lid
+  // goes up instead (expanded), and it takes on (the watch starts over)
+  watchFull(dt, intaking) {
+    const full = super.watchFull(dt, intaking);
+    if (!full || this.expanded || this.tucked || !this.r.cfg.bay.lift?.h || this.liftNow() > 0.5) return full;
+    this.expanded = true;
+    this.fullWatch = new FullWatch();
+    return (this.full = false);
+  }
+  // how far up the lid wants to be (0-1 of its travel): up once the hopper's been full under it
+  // (watchFull: playability, the lower stage can't take more; the team's raise it whenever they
+  // intake or shoot, and their autos early in the first path), until the load's well under it
+  // again; otherwise down as far
   // as the FUEL under it allow (never onto them; the climber holds it where it is: FUEL can't
   // push it up), and down for a TRENCH. But only if that gets it under the arm: with more in it
   // than packs down under a TRENCH it stays up, and it goes over the BUMP instead (the team; the
@@ -336,7 +352,7 @@ export class Physical1678 extends PhysicalRobot {
     if (!h) return 0;
     const now = this.liftNow(), onLoad = clamp((this.loadTop() - 0.01 - bay.top) / h, 0, 1);
     const fits = bay.top + h * onLoad + 0.01 <= TRENCH.clearHeight - 0.005;
-    const up = !this.tucked && (this.wasIntaking || this.wasShooting || r.match?.isAuto) && !(this.nearTrench && fits);
+    const up = !this.tucked && this.expanded && !(this.nearTrench && fits);
     return up ? 1 : fits ? Math.min(now, onLoad) : now;
   }
   // their isNearingTrench: under one, or within 1.5 m of one and driving toward it

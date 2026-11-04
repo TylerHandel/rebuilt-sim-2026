@@ -56,7 +56,9 @@ export async function loadCadModels(scene, field) {
       scene.add(obj);
       loaded.push(e.file);
       // a whole-field model replaces the drawn field (the carpet, bleachers, HUMAN PLAYERS, HUB lights and OUTPOST doors stay)
-      if (e.kind === 'field') hideDrawnField(field.group);
+      // (the AprilTags aren't the drawn field's: they stay, brought out in front of the CAD's panels
+      // where those stand in front of the tags' poses, js/field.js fitTags)
+      if (e.kind === 'field') { hideDrawnField(field.group); field.fitTags?.(obj); }
     } catch (err) {
       console.warn('CAD model failed to load:', e.file, err);
     }
