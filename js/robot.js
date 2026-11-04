@@ -280,6 +280,14 @@ export class Robot {
           .setCollisionGroups(0),
         this.body,
       );
+      // what of it meets the field's walls: its twin, slick against them as the bumpers are (the
+      // Min rule: it slides along a wall rather than dragging on it), so that FUEL still meet the
+      // box itself at its own friction (FUEL take the Average rule: the Min rule on the box itself
+      // would make it slicker to FUEL too)
+      this.hopperWall = world.createCollider(
+        shape.setMass(0).setDensity(0).setFriction(0.05).setFrictionCombineRule(RAPIER.CoefficientCombineRule.Min),
+        this.body,
+      );
     }
     // What sticks up out of the top is solid too, where it really is (no invisible slabs): 1678's
     // lid and 8793's folding intake arm (rigid: they stop the robot at a TRENCH arm), and the FUEL
@@ -333,7 +341,10 @@ export class Robot {
       this.armGroups = ic.fold.yields ? intakeGroups & ~GROUP.TRENCH_ARM : intakeGroups;
       this.armCollider = world.createCollider(
         RAPIER.ColliderDesc.convexHull(new Float32Array(pts)).setTranslation(ic.fold.pivot[0], ic.fold.pivot[1], 0)
-          .setDensity(0).setFriction(0.1).setRestitution(0.05).setCollisionGroups(this.armGroups),
+          // (slick against walls and robots as the bumpers are, the Min rule: an arm deployed against a
+          // wall slides along it; it meets no FUEL, those meet its mechanism's own surfaces)
+          .setDensity(0).setFriction(0.05).setFrictionCombineRule(RAPIER.CoefficientCombineRule.Min)
+          .setRestitution(0.05).setCollisionGroups(this.armGroups),
         this.body,
       );
     } else if (ic.slide) {
@@ -343,7 +354,10 @@ export class Robot {
       // sliding hopper section's collider it stands in for (its side panels and front plate are
       // the hopper's front; without that 581 took 10% less down the NEUTRAL ZONE's FUEL line,
       // tools/intake-test.mjs 1.5 --along, over 16 runs)
-      this.slideGroups = groups(GROUP.INTAKE, GROUP.STATIC | GROUP.ROBOT | GROUP.INTAKE | GROUP.ROBOT_BARRIER | GROUP.BALL);
+      // (the field's walls it meets through its twin, slick against them as the bumpers are, the Min
+      // rule, so that FUEL still meet it at its own friction: FUEL take the Average rule)
+      this.slideGroups = groups(GROUP.INTAKE, GROUP.ROBOT | GROUP.INTAKE | GROUP.BALL);
+      this.slideWallGroups = groups(GROUP.INTAKE, GROUP.STATIC | GROUP.ROBOT_BARRIER);
       const pts = [];
       for (const [x, y, hw = ic.slide.hw] of ic.slide.hull) for (const z of [-hw, hw]) pts.push(x, y, z);
       this.armCollider = world.createCollider(
@@ -352,12 +366,20 @@ export class Robot {
           .setMass(0.5).setFriction(0.1).setRestitution(0.05).setCollisionGroups(0),
         this.body,
       );
+      this.armWall = world.createCollider(
+        RAPIER.ColliderDesc.convexHull(new Float32Array(pts)).setTranslation(ic.slide.back[0], ic.slide.back[1], 0)
+          .setDensity(0).setFriction(0.05).setFrictionCombineRule(RAPIER.CoefficientCombineRule.Min)
+          .setRestitution(0.05).setCollisionGroups(0),
+        this.body,
+      );
     } else {
       this.intakeBlock = { hx: ic.reach / 2 + 0.02, y0: 0.03, y1: 0.19 };
       this.armCollider = world.createCollider(
         RAPIER.ColliderDesc.cuboid(this.intakeBlock.hx, (this.intakeBlock.y1 - this.intakeBlock.y0) / 2, ic.width / 2)
           .setTranslation(this.halfL - this.intakeBlock.hx, (this.intakeBlock.y0 + this.intakeBlock.y1) / 2, 0)
-          .setDensity(0).setFriction(0.1).setRestitution(0.05).setCollisionGroups(0),
+          // (slick against walls and robots as the bumpers are, the Min rule; it meets no FUEL)
+          .setDensity(0).setFriction(0.05).setFrictionCombineRule(RAPIER.CoefficientCombineRule.Min)
+          .setRestitution(0.05).setCollisionGroups(0),
         this.body,
       );
     }
@@ -571,13 +593,15 @@ export class Robot {
     const out = this.hopperDeploy * st.extLen;
     const fx = this.cfg.frame.length / 2 - st.extLen / 2 + out;
     this.hopperCollider.setTranslationWrtParent({ x: fx, y: this.hopperY, z: 0 });
+    this.hopperWall.setTranslationWrtParent({ x: fx, y: this.hopperY, z: 0 });
     // solid to the field and to robots once it's out (out against a wall, it pushes the robot back)
     // (a box from its CAD, storage.box, is a physical robot's: what FUEL meet of it is its ball
     // path's surfaces, js/mech/physical.js, as for its arm's collider; 604 takes as many either
     // way, tools/intake-test.mjs 1.5 --along --settle 1)
     const ball = st.box ? 0 : GROUP.BALL;
-    const g = this.hopperDeploy > 0.05 ? groups(GROUP.ROBOT, ball | GROUP.ROBOT | GROUP.ROBOT_BARRIER | GROUP.STATIC | GROUP.INTAKE) : 0;
-    this.hopperCollider.setCollisionGroups(g);
+    const isOut = this.hopperDeploy > 0.05;
+    this.hopperCollider.setCollisionGroups(isOut ? groups(GROUP.ROBOT, ball | GROUP.ROBOT | GROUP.INTAKE) : 0);
+    this.hopperWall.setCollisionGroups(isOut ? groups(GROUP.ROBOT, GROUP.ROBOT_BARRIER | GROUP.STATIC) : 0);
   }
 
   // ------------------------------------------------------------------ fixed-step control (before world.step)
@@ -845,7 +869,9 @@ export class Robot {
     } else if (ic.slide) {
       const k = 1 - this.intakeDeploy, [bx, by] = ic.slide.back;
       this.armCollider.setTranslationWrtParent({ x: k * bx, y: k * by, z: 0 });
+      this.armWall.setTranslationWrtParent({ x: k * bx, y: k * by, z: 0 });
       this.armCollider.setCollisionGroups(this.intakeDeploy > 0.05 ? this.slideGroups : 0);
+      this.armWall.setCollisionGroups(this.intakeDeploy > 0.05 ? this.slideWallGroups : 0);
     } else {
       // the block slides out from inside the bumper to the roller as the intake deploys
       // (ic.front: where its front really is, down, from the CAD)

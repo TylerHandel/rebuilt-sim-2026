@@ -299,6 +299,21 @@ export class Field {
       for (let i = 0; i < pts.length; i += 3) out.push(s * pts[i], pts[i + 1], s * pts[i + 2]);
       return P.hull(out, opts);
     };
+    // A low floor feature's ramp for the wheels only (playability over the exact edge): a frustum from
+    // its footprint grown by out at the carpet to its top inset by inset, so a wheel meets a slope
+    // rather than a square edge (the rigid wheel colliders have no tire to squash over one, and a
+    // driven tire's grip on the edge, which climbs it, they don't have either: frictionless); FUEL and
+    // bumpers still meet the square box (P.terrainNoWheelGroups)
+    // (its slope carried on 1 cm under the carpet: a hull's bottom edge on the carpet is a corner to
+    // the wheel's speculative contacts, Rapier's, which met it at 30-40 degrees a step or two before
+    // the wheel reached the slope and kicked a robot at 2.5 m/s 5 cm up)
+    const rampC = (cx, cz, hx, h, hz, out, inset, opts = {}) => {
+      const pts = [], sink = 0.01;
+      for (const [y, d] of [[-sink, out + (sink * (out + inset)) / h], [h, -inset]]) {
+        for (const sx of [-1, 1]) for (const sz of [-1, 1]) pts.push(cx + sx * (hx + d), y, cz + sz * (hz + d));
+      }
+      return hullC(pts, { friction: 0, restitution: 0, ...opts, groups: P.wheelRampGroups });
+    };
 
     const wallX = -HALF_L;
     const zOf = (fy) => HALF_W - fy;
@@ -661,7 +676,12 @@ export class Field {
     {
       const baseX = wallX + TOWER.baseDepth / 2;
       box(TOWER.baseDepth, TOWER.baseThick, TOWER.baseWidth, mats.black, baseX, TOWER.baseThick / 2, towerZc, grp);
-      boxC(baseX, TOWER.baseThick / 2, towerZc, TOWER.baseDepth / 2, TOWER.baseThick / 2, TOWER.baseWidth / 2, { friction: 0.8, groups: P.terrainGroups });
+      boxC(baseX, TOWER.baseThick / 2, towerZc, TOWER.baseDepth / 2, TOWER.baseThick / 2, TOWER.baseWidth / 2, { friction: 0.8, groups: P.terrainNoWheelGroups });
+      // (its edges to the wheels a 4.5-degree ramp, from 8 cm out to 1 cm in: the plate's square
+      // 7 mm edge bounced a robot driving along the wall behind the TOWER 5 cm up and tipped it 11
+      // degrees at 2.5 m/s, turning it into an upright, where it stuck; now it rises the plate's
+      // 7 mm and goes on at 2.5 m/s, tools/tower-test.mjs)
+      rampC(baseX, towerZc, TOWER.baseDepth / 2, TOWER.baseThick, TOWER.baseWidth / 2, 0.08, 0.01);
       const ux = wallX + TOWER.uprightFx;
       const half = TOWER.uprightGap / 2 + TOWER.uprightThick / 2;
       const tmat = mats[alliance + 'Tower'];
@@ -722,7 +742,11 @@ export class Field {
       ];
       for (const [x, z, w, d] of bars) {
         box(w, bh, d, col, x, bh / 2, z, grp);
-        boxC(x, bh / 2, z, w / 2, bh / 2, d / 2, { friction: 0.6, groups: P.terrainGroups });
+        boxC(x, bh / 2, z, w / 2, bh / 2, d / 2, { friction: 0.6, groups: P.terrainNoWheelGroups });
+        // (to the wheels a 30-degree ramp, from 4 cm out to 1 cm in on each side: a robot slowed by
+        // the DEPOT's FUEL in its intake stopped with its front wheels against the bar's square
+        // edge, 4414 and 6328 at 0.6 m/s; tools/depot-test.mjs)
+        rampC(x, z, w / 2, bh, d / 2, 0.04, 0.01);
       }
     }
 

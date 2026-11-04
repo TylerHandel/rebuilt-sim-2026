@@ -16,6 +16,10 @@ export class Physics {
     this.fixedBody = this.world.createRigidBody(RAPIER.RigidBodyDesc.fixed());
     this.staticGroups = groups(GROUP.STATIC, GROUP.BALL | GROUP.HELD | GROUP.ROBOT | GROUP.WHEEL | GROUP.INTAKE);
     this.terrainGroups = groups(GROUP.TERRAIN, GROUP.BALL | GROUP.HELD | GROUP.ROBOT | GROUP.WHEEL);
+    // (a low floor feature whose wheels' side is its own ramped twin, field.js rampC: as terrain, but
+    // not to the wheels; and the twin, only to the wheels)
+    this.terrainNoWheelGroups = groups(GROUP.TERRAIN, GROUP.BALL | GROUP.HELD | GROUP.ROBOT);
+    this.wheelRampGroups = groups(GROUP.TERRAIN, GROUP.WHEEL);
     // (the TRENCH arms: as static, but a member of their own group, which an intake arm the TRENCH
     // pushes down on its pivot leaves out: GROUP.TRENCH_ARM)
     this.trenchArmGroups = groups(GROUP.TRENCH_ARM, GROUP.BALL | GROUP.HELD | GROUP.ROBOT | GROUP.WHEEL | GROUP.INTAKE);
