@@ -33,6 +33,7 @@
         "Grommet",
         "ZIP TYE"
       ],
+      "skipBox": [[0.06, 0.12, 0.17, 0.33, -0.21, -0.15], [0.06, 0.12, 0.17, 0.33, 0.15, 0.21]],
       "smooth": true,
       "ratio": 0.06,
       "error": 0.006
@@ -166,7 +167,9 @@
       ],
       "onlyName": [
         "RB-70-FOREHEAD",
-        "WCP-0972"
+        "WCP-0972",
+        "^Part 1(-Mirrored)?$",
+        "1/2. Rounded Hex \\(7\\.75"
       ],
       "skipBox": [
         [
@@ -208,7 +211,9 @@
       ],
       "onlyName": [
         "RB-70-FOREHEAD",
-        "WCP-0972"
+        "WCP-0972",
+        "^Part 1(-Mirrored)?$",
+        "1/2. Rounded Hex \\(7\\.75"
       ],
       "skipBox": [
         [
