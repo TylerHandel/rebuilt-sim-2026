@@ -707,6 +707,20 @@ function cadSwerve(root, cfg, team, { upright = false, look = null, at = null } 
       root.add(fixed);
     }
     if (!fixed || !steer || !wheels) return;
+    // (the CAD's wheels come out light grey or white where their parts carry no color: the tread
+    // is black rubber; metal hubs keep theirs)
+    const tread = new Map();
+    wheels.traverse((o) => {
+      if (!o.isMesh) return;
+      o.material = [].concat(o.material).map((m) => {
+        if (!m?.color || (m.metalness ?? 0) > 0.5) return m;
+        const c = m.color, lum = 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
+        if (lum < 0.45) return m;
+        if (!tread.has(m)) { const t = m.clone(); t.color.setHex(0x1b1c1e); t.roughness = 0.9; t.metalness = 0; tread.set(m, t); }
+        return tread.get(m);
+      });
+      if (o.material.length === 1) o.material = o.material[0];
+    });
     const S = cornerTris(steer), W = cornerTris(wheels);
     const Y = new THREE.Vector3(0, 1, 0);
     for (const md of mods) {
