@@ -95,7 +95,8 @@ const _q = new THREE.Quaternion(), _v = new THREE.Vector3(), _v2 = new THREE.Vec
 // most of a turn to the same bearing the other way round, not shooting the whole way. Not shooting,
 // it moves over to the way round nearest the middle once it's within UNWIND of a stop, so the next
 // shot starts with room both ways.
-const UNWIND = 30 * DEG, HOLD = 60 * DEG;
+const TENV = globalThis.process?.env ?? {};
+const UNWIND = Number(TENV.TURRET_UNWIND ?? 30) * DEG, HOLD = Number(TENV.TURRET_HOLD ?? 60) * DEG, TURRET_ASSIST = Number(TENV.TURRET_ASSIST ?? 1) > 0;
 export function turretGoal(rel, cur, lim, shooting) {
   const b = cur + wrapAngle(rel - cur); // (the target's bearing the way round it's turned now)
   const cands = [rel, rel + 2 * Math.PI, rel - 2 * Math.PI].filter((a) => Math.abs(a) <= lim);
@@ -109,7 +110,7 @@ export function turretGoal(rel, cur, lim, shooting) {
   }
   if (!cands.length) return { goal: clamp(rel, -lim, lim), over: 0, reach: false };
   const mid = cands.reduce((a, c) => (Math.abs(c) < Math.abs(a) ? c : a));
-  const goal = Math.abs(b) < lim - UNWIND ? b : mid;
+  const goal = Math.abs(b) <= lim && Math.abs(b) < lim - UNWIND ? b : mid;
   return { goal, over: 0, reach: true };
 }
 
@@ -1387,7 +1388,7 @@ export class Robot {
           const cur = this.turretYaw - mid;
           const { goal, over } = turretGoal(rel, cur, lim, wantShoot);
           // (held at a stop while it shoots: the chassis turns the rest, on its heading loop)
-          if (over && wantShoot) {
+          if (over && wantShoot && TURRET_ASSIST) {
             const d = this.cfg.drive, a = Math.abs(over);
             this.aimOverride = Math.sign(over) * Math.min(d.maxOmega, Math.sqrt(2 * 0.7 * d.maxAlpha * a), AIM_GAIN * a);
           }
