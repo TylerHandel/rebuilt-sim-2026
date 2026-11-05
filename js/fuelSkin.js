@@ -114,15 +114,39 @@ float fNoise(vec3 x) {
   return mix(mix(mix(fHash(i), fHash(i + vec3(1, 0, 0)), f.x), mix(fHash(i + vec3(0, 1, 0)), fHash(i + vec3(1, 1, 0)), f.x), f.y),
              mix(mix(fHash(i + vec3(0, 0, 1)), fHash(i + vec3(1, 0, 1)), f.x), mix(fHash(i + vec3(0, 1, 1)), fHash(i + vec3(1, 1, 1)), f.x), f.y), f.z);
 }
-// a bump of height h (m) on the view-space normal N (screen-space derivatives)
-vec3 fBump(vec3 N, float h) {
+// open-cell foam: distances to the nearest two cell centers (F1, F2) of a jittered 3D grid, and
+// the unit vectors from those centers to x (the gradients of F1 and F2)
+vec2 fCell(vec3 x, out vec3 g1, out vec3 g2) {
+  vec3 i = floor(x), f = fract(x), r1 = vec3(1.0), r2 = vec3(1.0);
+  float d1 = 8.0, d2 = 8.0;
+  for (int z = -1; z <= 1; z++) for (int y = -1; y <= 1; y++) for (int w = -1; w <= 1; w++) {
+    vec3 g = vec3(float(w), float(y), float(z));
+    vec3 r = f - g - vec3(fHash(i + g), fHash(i + g + 19.1), fHash(i + g + 47.3)) * 0.85;
+    float d = dot(r, r);
+    if (d < d1) { d2 = d1; r2 = r1; d1 = d; r1 = r; } else if (d < d2) { d2 = d; r2 = r; }
+  }
+  g1 = normalize(r1); g2 = normalize(r2);
+  return sqrt(vec2(d1, d2));
+}
+// a pore's depth (0 on the struts between cells, 1 at a cell's middle: rounded bowls) at x * k,
+// and its gradient in x (analytic, so the bump is smooth per pixel, not per 2x2 quad)
+float fPore(vec3 x, float k, out vec3 grad) {
+  vec3 g1, g2;
+  vec2 c = fCell(x * k, g1, g2);
+  float s = clamp((c.y - c.x) / 0.5, 0.0, 1.0), t = s * s * (3.0 - 2.0 * s);
+  float dt = s > 0.0 && s < 1.0 ? 6.0 * s * (1.0 - s) / 0.5 : 0.0;
+  grad = (2.0 - 2.0 * t) * dt * (g2 - g1) * k;
+  return t * (2.0 - t);
+}
+// a bump on the view-space normal N from the height's screen derivatives (m per pixel)
+vec3 fBumpD(vec3 N, float hx, float hy) {
   vec3 p = -vViewPosition, sx = dFdx(p), sy = dFdy(p);
   vec3 r1 = cross(sy, N), r2 = cross(N, sx);
   float det = dot(sx, r1);
-  return normalize(abs(det) * N - sign(det) * (dFdx(h) * r1 + dFdy(h) * r2));
+  return normalize(abs(det) * N - sign(det) * (hx * r1 + hy * r2));
 }`)
       .replace('#include <map_fragment>', `#include <map_fragment>
-float fDm = 0.0, fHgt = 0.0, fCr = 0.0;
+float fDm = 0.0, fHgt = 0.0, fCr = 0.0; vec3 fGrd = vec3(0.0);
 if (vFDmg.x > 0.001) {
   // (where: a broad noise; the ragged edge: a finer one on top)
   vec3 o = normalize(vFObj), q = o * 2.2 + vFDmg.y * vec3(71.3, 37.9, 53.1);
@@ -133,13 +157,26 @@ if (vFDmg.x > 0.001) {
   // the torn-out chunk (broken): its ragged rim
   if (vFC.w < 1.5) fCr = smoothstep(-0.015, 0.015, dot(o, vFC.xyz) - vFC.w + 0.07 * (nz - 0.5));
   float foam = max(fDm, fCr);
-  // open cells (~3 mm), and the skin's thickness at the patch's edge (the foam ~1.5 mm under it)
-  // (each scale faded out where a pixel spans more than half a cell: no sparkle from afar)
+  // torn foam: a ragged surface (lumps ~6 mm and ~2 mm) of fine open cells (pores ~0.6 mm and
+  // ~0.3 mm, bowls between thin struts: bumped, and darkened in their depths); the skin's
+  // thickness at the patch's edge (the foam ~1.5 mm under it). Each scale fades out before its
+  // cells get smaller than ~3 pixels (no grain or sparkle from afar): the pores only show close up.
   float px = length(fwidth(o));
-  float c1 = clamp(1.5 - px * 60.0, 0.0, 1.0), c2 = clamp(1.5 - px * 140.0, 0.0, 1.0);
-  float cells = 0.5 + (fNoise(o * 30.0 + vFDmg.y * 13.0) - 0.5) * 0.7 * c1 + (fNoise(o * 70.0) - 0.5) * 0.3 * c2;
-  fHgt = -0.0015 * foam + 0.0009 * cells * foam;
-  vec3 foamCol = vec3(0.54, 0.45, 0.09) * (0.78 + 0.4 * cells) * (1.0 - 0.3 * fCr);
+  float c0 = clamp(2.0 - px * 60.0, 0.0, 1.0), c0b = clamp(2.0 - px * 200.0, 0.0, 1.0);
+  float c1 = clamp(2.0 - px * 330.0, 0.0, 1.0), c2 = clamp(2.0 - px * 720.0, 0.0, 1.0);
+  vec3 fo = o + vFDmg.y * vec3(3.7, 1.3, 2.9);
+  float lump = (fNoise(fo * 11.0) - 0.5) * c0 + 0.45 * (fNoise(fo * 36.0 + 3.1) - 0.5) * c0b;
+  float pore = 0.0, pore2 = 0.0;
+  vec3 gp = vec3(0.0), gp2 = vec3(0.0);
+  if (foam > 0.0 && c1 > 0.0) {
+    pore = fPore(fo, 120.0, gp) * c1;
+    if (c2 > 0.0) pore2 = fPore(fo + 0.13, 250.0, gp2) * c2;
+  }
+  // (pores too small to draw still darken the foam by their average)
+  float cav = clamp(0.5 * mix(0.55, pore, c1) + 0.25 * mix(0.55, pore2, c2) - 0.4 * lump, 0.0, 1.0);
+  fHgt = foam * (-0.0015 + 0.001 * lump);
+  fGrd = -foam * (0.00025 * c1 * gp + 0.0001 * c2 * gp2);
+  vec3 foamCol = vec3(0.56, 0.47, 0.10) * (1.05 - 0.45 * cav) * (1.0 - 0.3 * fCr);
   // (a pale rim of stretched skin round each tear)
   float rim = smoothstep(-0.045, -aa, e) * (1.0 - fDm);
   diffuseColor.rgb = mix(diffuseColor.rgb, mix(diffuseColor.rgb, vec3(0.85, 0.78, 0.42), 0.45), rim);
@@ -151,7 +188,8 @@ roughnessFactor = mix(roughnessFactor, 0.93, fDm);`)
       .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
 if (vFDmg.x > 0.001) {
   if (fCr > 0.0) normal = normalize(mix(normal, normalize(cross(dFdx(vViewPosition), dFdy(vViewPosition))), fCr));
-  normal = fBump(normal, fHgt);
+  vec3 fo3 = normalize(vFObj);
+  normal = fBumpD(normal, dFdx(fHgt) + dot(fGrd, dFdx(fo3)), dFdy(fHgt) + dot(fGrd, dFdy(fo3)));
 }`)
       .replace('#include <lights_physical_fragment>', `#include <lights_physical_fragment>
 #ifdef USE_CLEARCOAT
