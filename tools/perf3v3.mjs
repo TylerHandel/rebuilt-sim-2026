@@ -48,7 +48,6 @@ const gcs = { n: 0, ms: 0, major: 0 };
 const obs = new PerformanceObserver((list) => { for (const e of list.getEntries()) { gcs.n++; gcs.ms += e.duration; if (e.detail?.kind === 4 || e.kind === 4) gcs.major++; } });
 obs.observe({ entryTypes: ['gc'] });
 
-if (flag('damage')) { globalThis.__dmgLog = []; globalThis.__hitLog = []; }
 const prof = flag('noprof') ? null : new Profiler().install();
 const realRandom = Math.random;
 const world = await createWorld();
@@ -88,7 +87,6 @@ if (flag('damage')) {
   const c = world.fuel.damageCounts(), e = damageStats.events, r = (x) => x.toFixed(2);
   const hist = [0.02, 0.05, 0.1, 0.2, 0.35, 0.5, 0.75, 1, 1.5].map((x) => `>${x}:${world.fuel.balls.filter((b) => b.dmg > x).length}`).join(' ');
   console.log(`damage: ${c.scuffed} scuffed (>0.1), ${c.torn} torn (>0.5), ${c.broken} broken; max ${r(c.max)}; ${hist}`);
-  if (arg('dmglog')) writeFileSync(arg('dmglog'), JSON.stringify({ mech: globalThis.__dmgLog.filter((x) => x[1] > 0 || x[2] > 0 || x[3] > 50), hit: globalThis.__hitLog }));
   console.log(`  by cause (total, events): hit ${r(damageStats.hit)}/${e.hit} nip ${r(damageStats.nip)}/${e.nip} rub ${r(damageStats.rub)}/${e.rub} squeeze ${r(damageStats.sq)}/${e.sq}`);
 }
 if (flag('hash')) {

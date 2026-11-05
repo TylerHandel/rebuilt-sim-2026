@@ -236,16 +236,16 @@ export class PhysicalRobot {
     this.path.step(dt, near.map((b) => b.body), [...owned].map((b) => b.body), skip);
     if (this.shooter) this.shooter.step(dt, sb);
     this._squash(near);
-    this._wear(near, dt);
+    this._wear(near);
   }
 
   // what its mechanisms did to the skins of the FUEL they touched (drawn wear only: fuelDamage.js);
   // those FUEL's change of velocity this step is the mechanisms', not an impact (fuel.js postStep)
-  _wear(near, dt) {
+  _wear(near) {
     for (const b of near) b.mechTouched = true;
     for (const m of [this.path, this.shooter]) {
       if (!m || !m.wear.size) continue;
-      for (const b of near) { const w = m.wear.get(b.body); if (w) mechDamage(b, w, dt); }
+      for (const b of near) { const w = m.wear.get(b.body); if (w) mechDamage(b, w); }
     }
   }
 

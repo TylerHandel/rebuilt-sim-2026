@@ -4,27 +4,31 @@
 // each mechanism contact's squeeze, friction and slip, js/mech/mechanism.js) and never calls the
 // physics engine or Math.random, so play stays bit-identical (tools/samecheck.mjs).
 //
-// Calibrated on headless matches (tools/perf3v3.mjs --damage) so that a full match leaves a few
-// dozen FUEL scuffed (over 0.1), a handful badly torn and only a rare one broken: the ones a
-// shooter has squeezed and spun many times, crushed in a mechanism, or slammed at speed.
+// Calibrated on the two full 3 v 3s of tools/samecheck.mjs (tools/perf3v3.mjs --damage prints the
+// counts): 45 and 67 FUEL scuffed (over 0.1), 19 and 8 clearly (over 0.2), 11 and 1 torn open
+// (over 0.5), 1 and 0 broken. Mostly the shooters' work (rubbing, then the nip), so the FUEL shot
+// most show it; what a step of each cause measured there is noted with its threshold (median /
+// 99th / 99.99th percentile / most).
 export const DAMAGE = {
-  // a free FUEL's change of velocity in one physics step beyond what gravity gives (m/s): bounces
-  // off the carpet from a high shot are ~6-8 m/s and do nothing; a shot driven straight into a wall,
-  // the HUB or a robot changes by 10-16 m/s. d += hitK (dv - hitV)^2
-  hitV: 10, hitK: 0.0025,
-  // a wheel or a mechanism surface first meeting a FUEL (m/s of the surfaces' relative speed):
-  // intake rollers meet them at ~3-8 m/s and do nothing; a shooter's flywheel at 12-30 m/s scuffs a
-  // little every shot. d += nipK (v - nipV)^2
-  nipV: 12, nipK: 0.00012,
-  // rubbing: friction work (J) in a contact slipping hard, above rubP W (a wheel spinning on a
-  // FUEL it can't move: a flywheel's nip, an intake roller on a jammed or full load).
-  // d += rubK (J over rubP x time)
-  rubP: 60, rubK: 0.0012,
-  // squeeze: a contact pressing harder than sqF N (a shooter's nip presses ~100-400 N, a FUEL
-  // wedged in a mechanism or crushed against a robot's frame more). d += sqK (F / sqF - 1) per s
-  sqF: 700, sqK: 0.6,
-  // the most a single step can add (one violent event: no ball goes from new to shredded at once)
-  stepMax: 0.25,
+  // a free FUEL's change of velocity in one physics step beyond what gravity gives (m/s; 4.5 / 10.5
+  // / 12.5 / 12.9: bounces off the carpet are ~4-8; a fast shot into the HUB, a wall or a robot
+  // 10-13). d += hitK (dv - hitV)^2
+  hitV: 9, hitK: 0.004,
+  // a wheel or a mechanism surface first meeting a FUEL, their surfaces' relative speed (m/s; 1.3 /
+  // 11.3 / 19 / 21.5): intake rollers meet them at a few m/s and do nothing, a shooter's flywheel
+  // at 12-21 scuffs a little each shot. d += nipK (v - nipV)^2
+  nipV: 12, nipK: 0.0006,
+  // rubbing: the friction's work in a contact still slipping after the solve, beyond rubPower W of
+  // it (mechanism.js: a flywheel spinning over a FUEL it hasn't got up to speed, an intake roller
+  // or a belt on a load that can't move), each step's over rubE J (0.35 / 4.4 / 10-18 / 76):
+  // d += rubK (J - rubE)^1.5
+  rubPower: 60, rubE: 0.5, rubK: 0.0006,
+  // squeeze: a contact pressing harder than sqF N (40 / 210 / 550-800 / 8,100: a shooter's nip
+  // presses ~100-300, a FUEL wedged in a mechanism or crushed against a frame up to thousands).
+  // d += sqK (F / sqF - 1)^2 each step
+  sqF: 300, sqK: 0.03,
+  // the most one step can add: one violent event tears it open, a crush that lasts breaks it
+  stepMax: 0.5,
   // a chunk torn out from here (the drawn hole grows on to 2 x broken)
   broken: 1,
   max: 2,
@@ -45,17 +49,15 @@ export function addDamage(b, d, cause) {
 
 // a free FUEL's velocity change dv (m/s) over one step
 export function impactDamage(b, dv) {
-  if (globalThis.__hitLog && dv > 3) globalThis.__hitLog.push([b.id, dv]);
   if (dv > DAMAGE.hitV) addDamage(b, DAMAGE.hitK * (dv - DAMAGE.hitV) ** 2, 'hit');
 }
 
-// one step's mechanism wear on FUEL b: w = { rub: friction work beyond rubP (J), nip: fastest
-// first-contact relative speed (m/s), sq: firmest squeeze (N) }, dt the step
-export function mechDamage(b, w, dt) {
-  if (globalThis.__dmgLog && (w.rub > 0 || w.nip > 0 || w.sq > 50)) globalThis.__dmgLog.push([b.id, w.rub, w.nip, w.sq]);
+// one step's mechanism wear on FUEL b: w = { rub: friction work beyond rubPower (J), nip: fastest
+// first-contact relative speed (m/s), sq: firmest squeeze (N) }
+export function mechDamage(b, w) {
   if (w.nip > DAMAGE.nipV) addDamage(b, DAMAGE.nipK * (w.nip - DAMAGE.nipV) ** 2, 'nip');
-  if (w.rub > 0) addDamage(b, DAMAGE.rubK * w.rub, 'rub');
-  if (w.sq > DAMAGE.sqF) addDamage(b, DAMAGE.sqK * (w.sq / DAMAGE.sqF - 1) * dt, 'sq');
+  if (w.rub > DAMAGE.rubE) addDamage(b, DAMAGE.rubK * (w.rub - DAMAGE.rubE) ** 1.5, 'rub');
+  if (w.sq > DAMAGE.sqF) addDamage(b, DAMAGE.sqK * (w.sq / DAMAGE.sqF - 1) ** 2, 'sq');
 }
 
 // each FUEL's fixed pattern of where its skin gives first (0..1, from its id: no Math.random)

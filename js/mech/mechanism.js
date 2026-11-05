@@ -989,7 +989,7 @@ export class Mechanism {
       }
     }
     // wear (read only): the friction's work where the surfaces still slip after the solve, beyond
-    // DAMAGE.rubP of power; the firmest squeeze; the relative speed where a wheel first meets a FUEL
+    // DAMAGE.rubPower of power; the firmest squeeze; the relative speed where a wheel first meets a FUEL
     if (wear) for (const ct of C) {
       if (ct.st2 || !(ct.lamN > 0)) continue;
       relVel(ct);
@@ -999,7 +999,7 @@ export class Mechanism {
       const b = ct.st.b, wh = ct.W1.wh;
       let w = wear.get(b);
       if (!w) wear.set(b, (w = { rub: 0, nip: 0, sq: 0 }));
-      const E = Math.sqrt(fi) * slip - DAMAGE.rubP * h;
+      const E = Math.sqrt(fi) * slip - DAMAGE.rubPower * h;
       if (E > 0) w.rub += E;
       if (ct.lamN / h > w.sq) w.sq = ct.lamN / h;
       let t = tNow.get(b);
