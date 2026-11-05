@@ -30,6 +30,7 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
 import { setPolyGlass, setMetalEnv } from './robotModels.js';
 import { setSurfaceDetail } from './surfaces.js';
+import { setSpinBlur } from './spinBlur.js';
 
 // scale: render resolution (x the screen's, capped at maxDpr device pixels per CSS pixel)
 // aa: 'none' | 'fxaa' | 'msaa' (the canvas's own, or the composer's 4x target) | 'smaa' | 'ssaa'
@@ -42,17 +43,17 @@ import { setSurfaceDetail } from './surfaces.js';
 // with stands on both sides, 3 a fuller crowd)
 // adds: one line for the menu's list, what it adds over the preset below it
 export const PRESETS = {
-  potato: { name: 'Lowest', adds: 'Half resolution · no shadows · simple drawn robots and field (fastest)', scale: 0.5, maxDpr: 1, aa: 'none', shadow: 0, soft: 'basic', ao: 0, bloom: false, env: 0, detail: 0, fuelSeg: 8, aniso: 1, cad: false, venue: 0,
+  potato: { name: 'Lowest', adds: 'Half resolution · no shadows · simple drawn robots and field (fastest)', scale: 0.5, maxDpr: 1, aa: 'none', shadow: 0, soft: 'basic', ao: 0, bloom: false, env: 0, detail: 0, fuelSeg: 8, aniso: 1, cad: false, venue: 0, spinBlur: 0,
     desc: 'Half resolution, no shadows, simple FUEL and the drawn robots and field instead of the CAD models (the CAD part takes effect after a reload). For old or school laptops.' },
-  low: { name: 'Low', adds: 'Adds the CAD robots and field, shadows, arena lighting, FXAA edges, a small venue · 75% resolution', scale: 0.75, maxDpr: 1, aa: 'fxaa', shadow: 1024, soft: 'pcf', ao: 0, bloom: false, env: 0.5, detail: 1, fuelSeg: 12, aniso: 2, cad: true, venue: 1,
-    desc: '75% resolution, small shadow map, NVIDIA FXAA for the edges, the arena\'s lighting and small surface textures.' },
-  medium: { name: 'Medium', adds: 'Adds full resolution, multisampled edges, bigger shadows, reflections, a gym with stands on both sides', scale: 1, maxDpr: 1.5, aa: 'msaa', shadow: 2048, soft: 'pcf', ao: 0, bloom: false, env: 0.5, detail: 1, fuelSeg: 16, aniso: 4, cad: true, venue: 2,
+  low: { name: 'Low', adds: 'Adds the CAD robots and field, shadows, arena lighting, FXAA edges, a small venue, blur on fast-spinning parts · 75% resolution', scale: 0.75, maxDpr: 1, aa: 'fxaa', shadow: 1024, soft: 'pcf', ao: 0, bloom: false, env: 0.5, detail: 1, fuelSeg: 12, aniso: 2, cad: true, venue: 1, spinBlur: 1,
+    desc: '75% resolution, small shadow map, NVIDIA FXAA for the edges, the arena\'s lighting, small surface textures and motion blur on fast-spinning parts.' },
+  medium: { name: 'Medium', adds: 'Adds full resolution, multisampled edges, bigger shadows, reflections, a gym with stands on both sides', scale: 1, maxDpr: 1.5, aa: 'msaa', shadow: 2048, soft: 'pcf', ao: 0, bloom: false, env: 0.5, detail: 1, fuelSeg: 16, aniso: 4, cad: true, venue: 2, spinBlur: 1,
     desc: 'Full resolution, multisampled edges, medium shadows, the arena\'s lighting and reflections. For integrated graphics.' },
-  high: { name: 'High', adds: 'Adds sharpness on high-DPI screens, soft shadows, glowing lights (bloom), full textures, a fuller crowd', scale: 1, maxDpr: 2, aa: 'msaa', shadow: 4096, soft: 'pcfsoft', ao: 0, bloom: true, env: 0.55, detail: 2, fuelSeg: 16, aniso: 8, cad: true, venue: 3,
+  high: { name: 'High', adds: 'Adds sharpness on high-DPI screens, soft shadows, glowing lights (bloom), full textures, a fuller crowd, finer spinning-part blur', scale: 1, maxDpr: 2, aa: 'msaa', shadow: 4096, soft: 'pcfsoft', ao: 0, bloom: true, env: 0.55, detail: 2, fuelSeg: 16, aniso: 8, cad: true, venue: 3, spinBlur: 2,
     desc: 'Sharp on high-DPI screens, big soft shadows, glowing HUB lights (bloom), full-size surface textures.' },
-  ultra: { name: 'Ultra', adds: 'Adds contact-hardening shadows, ambient occlusion, rounder FUEL', scale: 1, maxDpr: 2, aa: 'msaa', shadow: 4096, soft: 'pcss', ao: 1, bloom: true, env: 0.55, detail: 2, fuelSeg: 20, aniso: 16, cad: true, venue: 3,
+  ultra: { name: 'Ultra', adds: 'Adds contact-hardening shadows, ambient occlusion, rounder FUEL', scale: 1, maxDpr: 2, aa: 'msaa', shadow: 4096, soft: 'pcss', ao: 1, bloom: true, env: 0.55, detail: 2, fuelSeg: 20, aniso: 16, cad: true, venue: 3, spinBlur: 2,
     desc: 'High, plus NVIDIA PCSS contact-hardening soft shadows and HBAO+-style ambient occlusion (GTAO). For a gaming GPU (GeForce RTX).' },
-  max: { name: 'Max', adds: 'Adds 4x supersampling, 8K shadows, top-quality occlusion (very heavy)', scale: 1, maxDpr: 2, aa: 'ssaa', shadow: 8192, soft: 'pcss', ao: 2, bloom: true, env: 0.55, detail: 2, fuelSeg: 28, aniso: 16, cad: true, venue: 3,
+  max: { name: 'Max', adds: 'Adds 4x supersampling, 8K shadows, top-quality occlusion (very heavy)', scale: 1, maxDpr: 2, aa: 'ssaa', shadow: 8192, soft: 'pcss', ao: 2, bloom: true, env: 0.55, detail: 2, fuelSeg: 28, aniso: 16, cad: true, venue: 3, spinBlur: 2,
     desc: 'Everything on: 4x supersampling, an 8K PCSS shadow map, full-quality ambient occlusion, rounder FUEL. Overkill on purpose: an RTX 4080/4090 or better.' },
 };
 export const PRESET_ORDER = ['potato', 'low', 'medium', 'high', 'ultra', 'max'];
@@ -218,6 +219,8 @@ export class Graphics {
     window.__gfxNoCad = !p.cad;
     // the venue round the field (js/venue.js), built for this preset
     if (this.venue) this.venue.setLevel(new URLSearchParams(location.search).has('novenue') ? 0 : p.venue);
+    // fast-spinning parts drawn motion-blurred (js/spinBlur.js; no extra pass)
+    setSpinBlur(p.spinBlur);
     this.refresh();
     this._buildComposer();
   }
