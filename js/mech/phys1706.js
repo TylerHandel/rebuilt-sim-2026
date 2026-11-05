@@ -8,7 +8,11 @@
 //     it stalls against a load that won't squeeze any further (its X60 at its 80 A), and holds
 //     there. Shooting and not intaking, its rollers run while it folds, until it's at 30 deg (what a
 //     driver does, emulated: the FUEL in its mouth go up the sloped plate instead of wedging there,
-//     which their thread says the plate is for).
+//     which their thread says the plate is for). If that fold stalls short of in against FUEL wedged
+//     at the sloped plate's lip with some still out front, it swings the intake back out and in again
+//     (ROCK). Shooting while it intakes, the FUEL it takes in pile up in the box out over the arm,
+//     where nothing but the arm folding in moves them on to the bowls: with a few out there it pulls
+//     the intake in part way and lets it back out (PUMP).
 //   - shooting (held: the AI's shot; out of its zone, a pass): each turret aims itself: the
 //     robot's turret model turns it to the heading this gives, and it fires when it's there. Its
 //     shot is the sim's shot table for the distance from its exit to the HUB's center (or the pass
@@ -38,6 +42,14 @@ const DEG = Math.PI / 180, TAU = 2 * Math.PI, R = FUEL.radius;
 // the spindexers' and kickers' setpoints while a turret is ready (estimates: their code isn't public)
 export const SPIN_RPS = Number(globalThis.process?.env?.SPIN_RPS ?? 12);
 export const KICK_RPM = Number(globalThis.process?.env?.KICK_RPM ?? 3000);
+// What its driver does with the intake while it shoots (estimates: their code isn't public; postStep).
+// Shooting while it intakes, the pump: with n or more FUEL out in the box, the intake pulled in to deg
+// (its rollers running) and let back out, at most every gap s, each pull given up after max s
+const penv = (k, d) => Number(globalThis.process?.env?.[k] ?? d);
+export const PUMP = { n: penv('PUMP_N', 4), deg: penv('PUMP_DEG', 30), gap: penv('PUMP_GAP', 1.5), max: penv('PUMP_MAX', 0.8) };
+// Shooting, not intaking, the fold stalled (stall s) with FUEL still out front: the intake swung back
+// out to deg and folded in again, each swing given up after max s, at most every gap s
+export const ROCK = { deg: penv('ROCK_DEG', 70), stall: penv('ROCK_STALL', 0.3), gap: penv('ROCK_GAP', 0.5), max: penv('ROCK_MAX', 0.6) };
 // Its shots, as the bench measures them (tools/mechlab1706.mjs shooter with MAP=1, and calibrate:
 // FUEL fed by the kicker into the turret's wheels at hood swings and accelerator speeds, and the
 // sim's table's rows tuned the way a team tunes its table): where the FUEL leaves (its turret's
@@ -131,6 +143,7 @@ export class Physical1706 extends PhysicalRobot {
     super.reset();
     // folded in at the start (inside the frame, as it starts its matches)
     this.armDeg = 0; this.armSet = [0, 0]; this.armGoal = 0;
+    this.pump = null; this.pumpEnd = -Infinity; this.stallT = 0; this.rock = null; this.rockEnd = -Infinity;
     this.hood = [0, 0]; this.hoodSet = [[0, 0], [0, 0]]; this.hoodGoal = [0, 0];
     this.phi = [0, 0];
     this.aimPsis = [null, null]; this.want = [null, null]; this.readyT = [false, false];
@@ -229,12 +242,31 @@ export class Physical1706 extends PhysicalRobot {
     this.account(t, mode);
     // ---- the intake
     const intaking = on && !!r.cmd.intake, unjam = on && !!outtake;
-    this.armGoal = intaking || unjam ? INTAKE.out : 0;
-    const armReady = Math.abs(this.armDeg - INTAKE.out) < INTAKE.tol;
+    const shooting = on && feeding && !!r.shot && !unjam;
+    // (what its driver does, emulated: shooting while it intakes, the FUEL it takes in pile up in the
+    // box out over the arm, which has no floor: they rest on the arm, below the sloped plate's top,
+    // and only the arm folding in pushes them up it into the bowls (their thread: the plate is for
+    // pulling the intake in). With PUMP.n or more out there it pulls the intake in to PUMP.deg, its
+    // rollers running, and lets it back out: at most every PUMP.gap s)
+    if (this.pump && (!shooting || !intaking || this.armDeg < PUMP.deg + 2 || t - this.pump > PUMP.max)) { this.pump = null; this.pumpEnd = t; }
+    if (!this.pump && shooting && intaking && this.armDeg > INTAKE.out - INTAKE.tol && t - this.pumpEnd > PUMP.gap && this._boxCount() >= PUMP.n) this.pump = t;
+    // (and shooting, not intaking: the fold stalled short of in against FUEL wedged between the box's
+    // front wall and the sloped plate's lip, with some still out on the shelf or in the box, it swings
+    // the intake back out to ROCK.deg and folds it in again, its rollers running)
+    const P = this.t.pivot;
+    this.stallT = shooting && !intaking && !this.rock && this.armDeg > 8 && Math.abs(P.omega) < 0.5 ? this.stallT + dt : 0;
+    if (this.rock && (!shooting || intaking || (this.rock.out && this.armDeg > ROCK.deg - 3) || t - this.rock.t > ROCK.max)) {
+      if (this.rock.out && shooting && !intaking) this.rock = { t, out: false };
+      else { this.rock = null; this.rockEnd = t; }
+    }
+    if (this.rock && !this.rock.out && this.armDeg < 31) { this.rock = null; this.rockEnd = t; }
+    if (!this.rock && this.stallT > ROCK.stall && t - this.rockEnd > ROCK.gap && this._frontCount() > 0) { this.rock = { t, out: true }; this.stallT = 0; }
+    this.armGoal = this.pump ? 0 : this.rock?.out ? ROCK.deg : intaking || unjam ? INTAKE.out : 0;
+    const armReady = !this.pump && Math.abs(this.armDeg - INTAKE.out) < INTAKE.tol;
     // (what its driver does, emulated: shooting and not intaking, the intake folds in with its rollers
     // running until it's most of the way in (30 deg), pushing what's in its mouth up the sloped plate
-    // and sweeping the box back, so the load comes back over the bowls' rims)
-    const sweep = on && feeding && !!r.shot && !intaking && this.armDeg > 30;
+    // and sweeping the box back, so the load comes back over the bowls' rims; and pumping, likewise)
+    const sweep = shooting && (!intaking || this.pump) && (this.armDeg > 30 || !!this.rock);
     T.intake.cmd = !on ? 0 : unjam ? -0.5 : (intaking && armReady) || sweep ? 1 : null;
 
     // ---- the turrets: aiming and spinning up while the robot has a shot (r.shot: its target)
@@ -274,6 +306,10 @@ export class Physical1706 extends PhysicalRobot {
     r.hoodDeg = elevationAt(this.hood[k]);
   }
 
+  // how many FUEL it holds out in the hopper box, past the frame's front (over the arm)
+  _boxCount() { let n = 0; for (const b of this.held) if (this._local(b.pos)[0] > HALF_L) n++; return n; }
+  // how many it holds out front of the bowls: on the shelf or in the box
+  _frontCount() { let n = 0; for (const b of this.held) if (this._local(b.pos)[0] > 0.24) n++; return n; }
   // how far the hopper box is out (m), for drawing it
   extNow() { return this.ext; }
   // the arm's turn from its CAD pose (rad), for drawing it
