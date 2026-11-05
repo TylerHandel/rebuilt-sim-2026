@@ -25,7 +25,7 @@ import { fuelTexture, squashable } from './fuelSkin.js';
 import { ALUMINUM_COLORS } from './aluminumColors.js';
 import { chain8793, chain4414, chain1690 } from './echainModel.js';
 import { detail, clearSheet, sheetOn, orangePeel } from './surfaces.js';
-import { toCreasedNormals } from 'three/addons/utils/BufferGeometryUtils.js';
+import { mergeVertices, toCreasedNormals } from 'three/addons/utils/BufferGeometryUtils.js';
 
 export const BUMP_Y0 = BUMPER_Y0, BUMP_Y1 = BUMPER_Y1;
 const lerp = THREE.MathUtils.lerp;
@@ -659,7 +659,9 @@ function cadPart(parent, file, onLoad, look = null) {
           // a part exported without normals (6328's, 971's): smooth across its curved faces and
           // sharp at its edges (creased at 35 deg); flat-shaded if that fails
           let g = null;
-          try { g = toCreasedNormals(o.geometry, 35 * Math.PI / 180); } catch { g = null; }
+          // (toCreasedNormals un-indexes it, three vertices a triangle: merged back where position and
+          // normal agree, 6328's body is ~280k vertices instead of ~490k; the 77k it ships with have no normals)
+          try { g = toCreasedNormals(o.geometry, 35 * Math.PI / 180); g = mergeVertices(g, 1e-5); } catch { g = null; }
           if (g) { o.geometry.dispose(); o.geometry = g; } else o.material = flatOf(o.material);
         }
       });
