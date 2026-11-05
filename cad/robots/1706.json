@@ -289,6 +289,7 @@
       "smooth": true,
       "ratio": 0.25,
       "error": 0.0015
-    }
+    },
+    { "out": "cad/robots/1706-swerve.glb", "include": ["A-RB-10-CHASSIS"], "onlyName": ["Block Thrifty Swerve"], "skipCyl": [[0.254, 0.3048, 0.064, -0.02, 0.088], [0.254, -0.3048, 0.064, -0.02, 0.088], [-0.254, 0.3048, 0.064, -0.02, 0.088], [-0.254, -0.3048, 0.064, -0.02, 0.088]], "like": {"glb":"r1706.glb","node":"A-RB-00-FUJIWHARA <1>"}, "ratio": 0.2, "error": 0.004 }
   ]
 }

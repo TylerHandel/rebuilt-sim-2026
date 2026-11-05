@@ -330,16 +330,19 @@ function kraken(parent, x, y, z, small = false, axis = 'y') {
   return g;
 }
 
-// MK5n-style swerve module: square top plate, two motors on top, 4in wheel underneath
-function swerveModule(parent, x, z) {
+// A drawn swerve module: an SDS MK5n's proportions (their CAD): the motors hang under the top
+// plate beside the wheel, nothing of it over 0.165 m, so none of it comes up through a hopper's
+// floor. upright: a WCP X2's, its motors standing on the top plate (1114's), up to 0.245 m.
+function swerveModule(parent, x, z, upright = false) {
   const g = new THREE.Group();
   g.position.set(x, 0, z);
   parent.add(g);
-  rbx(0.118, 0.008, 0.118, 0.004, M.anodBlack, g, 0, 0.158, 0);
-  cylY(0.056, 0.035, M.aluDark, g, 0, 0.135, 0, 28); // steering bearing housing
-  kraken(g, -0.028, 0.2, 0.028);
-  kraken(g, 0.028, 0.2, -0.028);
-  bx(0.028, 0.012, 0.028, M.red, g, 0.035, 0.168, 0.035); // CANcoder
+  rbx(0.118, 0.008, 0.118, 0.004, M.anodBlack, g, 0, 0.15, 0);
+  cylY(0.056, 0.035, M.aluDark, g, 0, 0.128, 0, 28); // steering bearing housing
+  const my = upright ? 0.19 : 0.1;
+  kraken(g, -0.028, my, 0.028);
+  kraken(g, 0.028, my, -0.028);
+  bx(0.028, 0.012, 0.028, M.red, g, 0.035, 0.16, 0.035); // CANcoder
   return moduleWheel(g);
 }
 
@@ -517,11 +520,13 @@ function addBumpers(root, cfg, alliance, chamferBack = 0) {
 // frame tubes, bellypan and swerve modules (frame: false when the team's CAD brings its own frame)
 // (inverted modules, cfg.drive.inverted: made like WCP's X2i, the motors under their plates; the
 // bellypan and the cross tubes clear of them, and at a chamfered corner the module's plate is the
-// corner: no tube along the cut)
-function addDrivebase(root, cfg, chamferBack = 0, frame = true) {
+// corner: no tube along the cut). mods: modules made already (cadSwerve's), to draw just the frame
+// (no more objects made than for drawn modules: their ids draw on Math.random, which the headless
+// matches seed)
+function addDrivebase(root, cfg, chamferBack = 0, frame = true, mods = null) {
   const L = cfg.frame.length, W = cfg.frame.width, ch = cfg.frame.chamfer || 0, inv = !!cfg.drive?.inverted;
   const pts = modulePoints(cfg);
-  const modules = pts.map(([x, z]) => {
+  const modules = mods || pts.map(([x, z]) => {
     if (!inv) return swerveModule(root, x, z);
     const sx = Math.sign(x), sz = Math.sign(z), ex = L / 2 - Math.abs(x), ez = W / 2 - Math.abs(z);
     return invertedModule(root, x, z, sx, sz, ex, ez, sx < 0 && ch ? ex + ez - ch : Infinity);
@@ -642,9 +647,17 @@ function flatOf(mat) {
 // browser only; the drawn part stays until (and unless) the CAD arrives. look(m): a robot's own
 // material for one of the GLB's (by its color), or null to draw it the usual way.
 function cadPart(parent, file, onLoad, look = null) {
-  if (typeof window === 'undefined' || window.__gfxNoCad) return; // (the Lowest graphics: drawn models only)
+  cadLoad(file, look).then((scene) => {
+    if (!scene) return;
+    parent.add(scene);
+    onLoad(scene);
+  }).catch((err) => console.warn('robot CAD part failed to load:', file, err));
+}
+// (the loaded scene, its materials set as cadPart's; null where CAD isn't loaded)
+function cadLoad(file, look = null) {
+  if (typeof window === 'undefined' || window.__gfxNoCad) return Promise.resolve(null); // (the Lowest graphics: drawn models only)
   const team = file.match(/(\d+)-/)?.[1];
-  import('three/addons/loaders/GLTFLoader.js')
+  return import('three/addons/loaders/GLTFLoader.js')
     .then(({ GLTFLoader }) => new GLTFLoader().loadAsync('cad/' + file))
     .then((gltf) => {
       gltf.scene.traverse((o) => {
@@ -666,10 +679,110 @@ function cadPart(parent, file, onLoad, look = null) {
           if (g) { o.geometry.dispose(); o.geometry = g; } else o.material = flatOf(o.material);
         }
       });
-      parent.add(gltf.scene);
-      onLoad(gltf.scene);
-    })
-    .catch((err) => console.warn('robot CAD part failed to load:', file, err));
+      return gltf.scene;
+    });
+}
+
+// A robot's own swerve modules, from its CAD (tools/extract-parts.mjs, cad/robots/<team>.json):
+// <team>-swerve.glb is what's fixed of its four modules (plates, motors, encoders, as built),
+// <team>-steer.glb what turns about each one's steering axis (the fork or turret, the rotation
+// gear) and <team>-wheels.glb the wheels, all in the model frame, posed as in the CAD. Each corner's
+// steering axis is the middle of its turning part, its wheel's axle the wheel's narrowest
+// horizontal direction through its middle; the CAD's own steering angle is undone, so robot.js
+// steers it (pivot.rotation.y, 0: rolling along +x) and spins its wheel (wheel.rotation.y, about
+// the axle) as it does the drawn ones. Until they load (and at the Lowest graphics, and headless)
+// the drawn module (upright: a WCP X2's motors on its top plate). Visual only: the physics' wheels
+// are at modulePoints. at: [x, z], the front right steering axis (mirrored to the others), for a
+// CAD whose modules are each one solid (1706's): its <team>-swerve.glb has them less what turns
+// (tools/extract-parts.mjs "skipCyl"), and the drawn fork and wheel turn in their place.
+function cadSwerve(root, cfg, team, { upright = false, look = null, at = null } = {}) {
+  const mods = modulePoints(cfg).map(([x, z]) => swerveModule(root, x, z, upright));
+  Promise.all((at ? ['swerve'] : ['swerve', 'steer', 'wheels']).map((k) => cadLoad(`robots/${team}-${k}.glb`, look))).then(([fixed, steer, wheels]) => {
+    if (fixed && at) {
+      for (const md of mods) {
+        const g = md.pivot.parent;
+        for (const o of g.children) if (o !== md.pivot) o.visible = false;
+        g.position.set(Math.sign(g.position.x) * at[0], 0, Math.sign(g.position.z) * at[1]);
+      }
+      root.add(fixed);
+    }
+    if (!fixed || !steer || !wheels) return;
+    const S = cornerTris(steer), W = cornerTris(wheels);
+    const Y = new THREE.Vector3(0, 1, 0);
+    for (const md of mods) {
+      const g = md.pivot.parent, q = (g.position.x > 0 ? 2 : 0) + (g.position.z > 0 ? 1 : 0), w = W[q], st = S[q];
+      if (!w) continue;
+      g.traverse((o) => { if (o.isMesh) o.visible = false; });
+      // the wheel's axle: the narrowest way across it, level
+      const P = w.points;
+      let best = Infinity, d = null;
+      for (let i = 0; i < 180; i++) {
+        const a = (i * Math.PI) / 180, ex = Math.cos(a), ez = Math.sin(a);
+        let lo = Infinity, hi = -Infinity;
+        for (let k = 0; k < P.length; k += 3) { const t = P[k] * ex + P[k + 2] * ez; if (t < lo) lo = t; if (t > hi) hi = t; }
+        if (hi - lo < best) { best = hi - lo; d = [ex, ez]; }
+      }
+      const mid = (arr, f) => { let lo = Infinity, hi = -Infinity; for (let k = 0; k < arr.length; k += 3) { const t = f(arr, k); if (t < lo) lo = t; if (t > hi) hi = t; } return (lo + hi) / 2; };
+      // the steering axis: the turning part's middle; the wheel's middle (on its axle)
+      const pts = st ? st.points : P, ax = mid(pts, (a, k) => a[k]), az = mid(pts, (a, k) => a[k + 2]);
+      const along = mid(P, (a, k) => a[k] * d[0] + a[k + 2] * d[1]), across = mid(P, (a, k) => -a[k] * d[1] + a[k + 2] * d[0]);
+      const cx = along * d[0] - across * d[1], cz = along * d[1] + across * d[0], cy = mid(P, (a, k) => a[k + 1]);
+      const a0 = Math.atan2(d[0], d[1]); // the CAD's steering angle: Ry(a0) takes +z (the drawn axle) to its axle
+      g.position.set(ax, 0, az);
+      // the CAD's pose undone: back round the steering axis by a0
+      const undo = new THREE.Matrix4().makeRotationY(-a0).multiply(new THREE.Matrix4().makeTranslation(-ax, 0, -az));
+      if (st) md.pivot.add(holder(st.meshes, undo));
+      const axle = md.wheel.parent; // (the drawn wheel's group on its axle; md.wheel turns in it about its y)
+      axle.position.set(cx - ax, cy, cz - az).applyAxisAngle(Y, -a0);
+      axle.updateMatrix();
+      const rest = new THREE.Matrix4().multiplyMatrices(axle.matrix, new THREE.Matrix4().makeRotationX(Math.PI / 2));
+      md.wheel.add(holder(w.meshes, rest.invert().multiply(undo)));
+    }
+    root.add(fixed);
+  }).catch((err) => console.warn('robot CAD swerve failed to load:', team, err));
+  return mods;
+}
+// a loaded scene's triangles by the corner they're at (index: 2 when x > 0, + 1 when z > 0), as
+// meshes sharing its vertices (each placed as its part is in the scene), and their corners
+function cornerTris(scene) {
+  scene.updateMatrixWorld(true);
+  const out = [], v = new THREE.Vector3();
+  scene.traverse((o) => {
+    if (!o.isMesh) return;
+    const g = o.geometry, pos = g.attributes.position;
+    const idx = g.index ? g.index.array : Array.from({ length: pos.count }, (_, i) => i);
+    const by = [[], [], [], []], pts = [[], [], [], []];
+    for (let i = 0; i < idx.length; i += 3) {
+      let cx = 0, cz = 0;
+      const c = [];
+      for (let j = 0; j < 3; j++) { v.fromBufferAttribute(pos, idx[i + j]).applyMatrix4(o.matrixWorld); cx += v.x; cz += v.z; c.push(v.x, v.y, v.z); }
+      const q = (cx > 0 ? 2 : 0) + (cz > 0 ? 1 : 0);
+      by[q].push(idx[i], idx[i + 1], idx[i + 2]);
+      for (const x of c) pts[q].push(x);
+    }
+    by.forEach((list, q) => {
+      if (!list.length) return;
+      const geo = new THREE.BufferGeometry();
+      for (const k in g.attributes) geo.setAttribute(k, g.attributes[k]);
+      geo.setIndex(list);
+      const m = new THREE.Mesh(geo, o.material);
+      m.castShadow = o.castShadow;
+      m.receiveShadow = o.receiveShadow;
+      m.matrixAutoUpdate = false;
+      m.matrix.copy(o.matrixWorld);
+      out[q] ||= { meshes: [], points: [] };
+      out[q].meshes.push(m);
+      for (const x of pts[q]) out[q].points.push(x);
+    });
+  });
+  return out;
+}
+// a group holding meshes, placed by a matrix
+function holder(meshes, matrix) {
+  const h = new THREE.Group();
+  matrix.decompose(h.position, h.quaternion, h.scale);
+  for (const m of meshes) h.add(m);
+  return h;
 }
 
 // A CAD export sometimes merges a part into the wrong moving group (a hopper bracket into the
@@ -777,7 +890,7 @@ function build2910(cfg, alliance) {
   const root = new THREE.Group();
   const L = cfg.frame.length, W = cfg.frame.width, H = cfg.height;
   addBumpers(root, cfg, alliance);
-  const modules = addDrivebase(root, cfg);
+  const modules = addDrivebase(root, cfg, 0, true, cadSwerve(root, cfg, '2910'));
   // the battery lies flat on the bellypan at the front, under the hopper's floor (their CAD)
   rbx(0.167, 0.076, 0.18, 0.006, M.battery, root, 0.222, 0.078, 0);
   const plate = std(0x8f949c, 0.35, 0.85);
@@ -1970,7 +2083,7 @@ function build8793(cfg, alliance) {
   const root = new THREE.Group();
   const L = cfg.frame.length, W = cfg.frame.width, fold = cfg.intake.fold;
   addBumpers(root, cfg, alliance);
-  const modules = addDrivebase(root, cfg, 0, false);
+  const modules = cadSwerve(root, cfg, '8793');
   const orange = std(cfg.colors.accent, 0.45, 0.35);
   const plate = std(0x2a2c31, 0.5, 0.6);
   const drawn = new THREE.Group();
@@ -2116,7 +2229,7 @@ function build971(cfg, alliance) {
   const L = cfg.frame.length, W = cfg.frame.width, bay = cfg.bay, sh = cfg.shooter;
   const extLen = cfg.storage.extLen;
   addBumpers(root, cfg, alliance);
-  const modules = addDrivebase(root, cfg, 0, false);
+  const modules = cadSwerve(root, cfg, '971');
   const blackAl = std(0x2a2e35, 0.42, 0.55);
   const top = bay.top, hw = bay.hw + 0.005;
   // drawn stand-ins until the CAD arrives
@@ -2194,7 +2307,7 @@ function build1678(cfg, alliance) {
   const L = cfg.frame.length, W = cfg.frame.width, bay = cfg.bay, sh = cfg.shooter;
   const extLen = cfg.storage.extLen;
   addBumpers(root, cfg, alliance);
-  const modules = addDrivebase(root, cfg, 0, false);
+  const modules = cadSwerve(root, cfg, '1678');
   const blackAl = std(0x23262b, 0.42, 0.55);
   const lime = std(cfg.colors.accent, 0.5, 0.2);
   const drawn = new THREE.Group();
@@ -2852,7 +2965,7 @@ function build3928(cfg, alliance) {
   const L = cfg.frame.length, W = cfg.frame.width, bay = cfg.bay, rs = bay.rotor, sh = cfg.shooter;
   const extLen = cfg.storage.extLen;
   addBumpers(root, cfg, alliance);
-  const modules = addDrivebase(root, cfg, 0, false);
+  const modules = cadSwerve(root, cfg, '3928');
   const orange = std(cfg.colors.accent, 0.5, 0.2), dark = std(cfg.colors.frame, 0.45, 0.5);
   const sheet = std(0xc4c8cd, 0.45, 0.6, { side: THREE.DoubleSide });
   const drawn = new THREE.Group();
@@ -2928,7 +3041,7 @@ function build341(cfg, alliance) {
   const root = new THREE.Group();
   const L = cfg.frame.length, W = cfg.frame.width, bay = cfg.bay, sh = cfg.shooter, fold = cfg.intake.fold;
   addBumpers(root, cfg, alliance);
-  const modules = addDrivebase(root, cfg, 0, false);
+  const modules = cadSwerve(root, cfg, '341');
   const blue = std(cfg.colors.accent, 0.5, 0.2), yellow = std(cfg.colors.trim, 0.5, 0.15);
   const drawn = new THREE.Group();
   root.add(drawn);
@@ -3020,7 +3133,7 @@ function build4930(cfg, alliance) {
   const root = new THREE.Group();
   const L = cfg.frame.length, W = cfg.frame.width, bay = cfg.bay, sh = cfg.shooter, fold = cfg.intake.fold;
   addBumpers(root, cfg, alliance);
-  const modules = addDrivebase(root, cfg, 0, false);
+  const modules = cadSwerve(root, cfg, '4930');
   const green = std(cfg.colors.accent, 0.55, 0.1), pink = std(cfg.colors.trim, 0.5, 0.15);
   const drawn = new THREE.Group();
   root.add(drawn);
@@ -3103,7 +3216,7 @@ function build1706(cfg, alliance) {
   const L = cfg.frame.length, W = cfg.frame.width, bay = cfg.bay, sh = cfg.shooter;
   const extLen = cfg.storage.extLen;
   addBumpers(root, cfg, alliance);
-  const modules = addDrivebase(root, cfg, 0, false);
+  const modules = cadSwerve(root, cfg, '1706', { at: [0.254, 0.3048] });
   const blue = std(cfg.colors.accent, 0.5, 0.2);
   const drawn = new THREE.Group();
   root.add(drawn);
@@ -3201,7 +3314,7 @@ function build581(cfg, alliance) {
   const L = cfg.frame.length, W = cfg.frame.width, bay = cfg.bay, sh = cfg.shooter;
   const extLen = cfg.storage.extLen;
   addBumpers(root, cfg, alliance);
-  const modules = addDrivebase(root, cfg, 0, false);
+  const modules = cadSwerve(root, cfg, '581');
   const red = std(cfg.colors.accent, 0.5, 0.2);
   // drawn stand-ins until the CAD loads
   const drawn = new THREE.Group();
@@ -3286,7 +3399,7 @@ function build1114(cfg, alliance) {
   const L = cfg.frame.length, bay = cfg.bay, sh = cfg.shooter;
   const extLen = cfg.storage.extLen;
   addBumpers(root, cfg, alliance);
-  const modules = addDrivebase(root, cfg, 0, false);
+  const modules = cadSwerve(root, cfg, '1114', { upright: true });
   const red = std(cfg.colors.accent, 0.5, 0.2);
   // drawn stand-ins until the CAD loads
   const drawn = new THREE.Group();
@@ -3391,7 +3504,7 @@ function build604(cfg, alliance) {
   const root = new THREE.Group();
   const extLen = cfg.storage.extLen;
   addBumpers(root, cfg, alliance);
-  const modules = addDrivebase(root, cfg, 0, false);
+  const modules = cadSwerve(root, cfg, '604');
   const gold = std(cfg.colors.accent, 0.55, 0.1), coro = std(cfg.colors.trim, 0.8, 0.05), ply = std(0xd9c08a, 0.85, 0.0);
   // drawn stand-ins until the CAD loads
   const drawn = new THREE.Group();
@@ -3521,7 +3634,7 @@ function look6328(m, intake = false) {
 
 // From their AdvantageScope model (Mechanical-Advantage/RobotCode2026Public ascope_assets/Robot_Darwin,
 // a glTF export of their Onshape assembly), split by tools/extract-parts.mjs (cad/robots/6328.json):
-// the body (drivetrain without the swerve modules the game draws, the Superdexer roller floor, the
+// the body (drivetrain without its swerve modules, cadSwerve's, the Superdexer roller floor, the
 // full-width launcher and the intake's fixed pivot gearbox), the intake arm (its side plates and
 // motors; origin on its pivot, exported folded up), the hopper's sliding front (front wall and
 // dynamic walls, exported in) and the hood (origin on the drum's axle, exported at their 10 deg).
@@ -3532,7 +3645,7 @@ function build6328(cfg, alliance) {
   const root = new THREE.Group();
   const L = cfg.frame.length, W = cfg.frame.width, bay = cfg.bay;
   addBumpers(root, cfg, alliance);
-  const modules = addDrivebase(root, cfg, 0, false);
+  const modules = cadSwerve(root, cfg, '6328', { look: look6328 });
   const blue = C6328.blue, black = C6328.black, roller = C6328.rubber;
   const drawn = new THREE.Group();
   root.add(drawn);
@@ -3756,8 +3869,8 @@ function build2056(cfg, alliance) {
 
 // ============================================================ 7769 The CREW, CHUNK
 // From their public Onshape CAD ("Full Robot", assembly "Chunk", a STEP translation), split by
-// tools/extract-parts.mjs (cad/robots/7769.json): the body (drivetrain without the swerve modules and
-// bumpers the game draws, the belt floor, the ramp, feeder and shooter, the stationary hopper sides,
+// tools/extract-parts.mjs (cad/robots/7769.json): the body (drivetrain without the swerve modules (cadSwerve's) and
+// the bumpers the game draws, the belt floor, the ramp, feeder and shooter, the stationary hopper sides,
 // the climber's tube), the intake that slides out on its racks with the hopper's front and moving
 // sides (exported out), the kick bar on its arms (origin on their pin) and the adjustable hood (origin
 // on the shooter wheels' shaft, exported down). The slide's travel is an estimate (js/mech/r7769.js
@@ -3767,7 +3880,7 @@ function build7769(cfg, alliance) {
   const root = new THREE.Group();
   const D = R7769, I = D.INTAKE, K = D.KICK, N = D.NET, A = D.AXLE;
   addBumpers(root, cfg, alliance);
-  const modules = addDrivebase(root, cfg, 0, false);
+  const modules = cadSwerve(root, cfg, '7769');
   const blue = std(cfg.colors.accent, 0.45, 0.3), dark = std(0x2a2c31, 0.6, 0.3);
   // drawn stand-ins until the CAD loads
   const drawn = new THREE.Group();

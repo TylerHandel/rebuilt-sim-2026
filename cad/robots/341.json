@@ -253,6 +253,9 @@
       ],
       "ratio": 0.06,
       "error": 0.006
-    }
+    },
+    { "out": "cad/robots/341-swerve.glb", "include": ["(Low) WCP Swerve X2i"], "exclude": ["^Wheel Module SwerveX2","spacer","bearing","standoff","Grommet","bushing","snapring","magnet"], "like": {"glb":"r341.glb","node":"Miss Daisy XXIV"}, "ratio": 0.04, "error": 0.012 },
+    { "out": "cad/robots/341-steer.glb", "include": ["Wheel Module SwerveX2"], "exclude": ["^Wheel Assembly SwerveX2","spacer","bearing","standoff","Grommet","bushing","snapring","magnet"], "like": {"glb":"r341.glb","node":"Miss Daisy XXIV"}, "ratio": 0.05, "error": 0.012 },
+    { "out": "cad/robots/341-wheels.glb", "include": ["Wheel Assembly SwerveX2"], "exclude": ["spacer","bearing","standoff","Grommet","bushing","snapring","magnet"], "like": {"glb":"r341.glb","node":"Miss Daisy XXIV"}, "ratio": 0.1, "error": 0.004 }
   ]
 }

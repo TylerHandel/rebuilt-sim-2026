@@ -183,6 +183,9 @@
           1
         ]
       ]
-    }
+    },
+    { "out": "cad/robots/1114-swerve.glb", "include": ["SwerveX2"], "exclude": ["^Wheel Module SwerveX2","spacer","bearing","standoff","Grommet","bushing","snapring","magnet"], "ratio": 0.04, "error": 0.012 },
+    { "out": "cad/robots/1114-steer.glb", "include": ["Wheel Module SwerveX2"], "exclude": ["^Wheel Assembly SwerveX2","spacer","bearing","standoff","Grommet","bushing","snapring","magnet"], "ratio": 0.05, "error": 0.012 },
+    { "out": "cad/robots/1114-wheels.glb", "include": ["Wheel Assembly SwerveX2"], "exclude": ["spacer","bearing","standoff","Grommet","bushing","snapring","magnet"], "ratio": 0.1, "error": 0.004 }
   ]
 }
