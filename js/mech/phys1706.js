@@ -10,9 +10,8 @@
 //     driver does, emulated: the FUEL in its mouth go up the sloped plate instead of wedging there,
 //     which their thread says the plate is for). If that fold stalls short of in against FUEL wedged
 //     at the sloped plate's lip with some still out front, it swings the intake back out and in again
-//     (ROCK). Shooting while it intakes, the FUEL it takes in pile up in the box out over the arm,
-//     where nothing but the arm folding in moves them on to the bowls: with a few out there it pulls
-//     the intake in part way and lets it back out (PUMP).
+//     (ROCK, off by default). Shooting while it intakes, the intake stays out: no compacting then
+//     (the user; PUMP, pulling it in part way and back out, is off by default).
 //   - shooting (held: the AI's shot; out of its zone, a pass): each turret aims itself: the
 //     robot's turret model turns it to the heading this gives, and it fires when it's there. Its
 //     shot is the sim's shot table for the distance from its exit to the HUB's center (or the pass
@@ -43,13 +42,16 @@ const DEG = Math.PI / 180, TAU = 2 * Math.PI, R = FUEL.radius;
 export const SPIN_RPS = Number(globalThis.process?.env?.SPIN_RPS ?? 12);
 export const KICK_RPM = Number(globalThis.process?.env?.KICK_RPM ?? 3000);
 // What its driver does with the intake while it shoots (estimates: their code isn't public; postStep).
-// Shooting while it intakes, the pump: with n or more FUEL out in the box, the intake pulled in to deg
-// (its rollers running) and let back out, at most every gap s, each pull given up after max s
+// Shooting while it intakes, the intake stays out (the user: it doesn't compact then); shooting and
+// not intaking, it folds in at once and stays folding. Off by default, for trying (PUMP_N=4,
+// ROCK_STALL=0.3): the pump, with n or more FUEL out in the box, the intake pulled in to deg (its
+// rollers running) and let back out, at most every gap s, each pull given up after max s
 const penv = (k, d) => Number(globalThis.process?.env?.[k] ?? d);
-export const PUMP = { n: penv('PUMP_N', 4), deg: penv('PUMP_DEG', 30), gap: penv('PUMP_GAP', 1.5), max: penv('PUMP_MAX', 0.8) };
-// Shooting, not intaking, the fold stalled (stall s) with FUEL still out front: the intake swung back
-// out to deg and folded in again, each swing given up after max s, at most every gap s
-export const ROCK = { deg: penv('ROCK_DEG', 70), stall: penv('ROCK_STALL', 0.3), gap: penv('ROCK_GAP', 0.5), max: penv('ROCK_MAX', 0.6) };
+export const FOLD_TO_SHOOT = penv('FOLD_TO_SHOOT', 1) > 0;
+export const PUMP = { n: penv('PUMP_N', Infinity), deg: penv('PUMP_DEG', 30), gap: penv('PUMP_GAP', 1.5), max: penv('PUMP_MAX', 0.8) };
+// and the rock: shooting, not intaking, the fold stalled (stall s) with FUEL still out front, the
+// intake swung back out to deg and folded in again, each swing given up after max s, at most every gap s
+export const ROCK = { deg: penv('ROCK_DEG', 70), stall: penv('ROCK_STALL', Infinity), gap: penv('ROCK_GAP', 0.5), max: penv('ROCK_MAX', 0.6) };
 // Its shots, as the bench measures them (tools/mechlab1706.mjs shooter with MAP=1, and calibrate:
 // FUEL fed by the kicker into the turret's wheels at hood swings and accelerator speeds, and the
 // sim's table's rows tuned the way a team tunes its table): where the FUEL leaves (its turret's
@@ -134,6 +136,9 @@ export class Physical1706 extends PhysicalRobot {
     // (the AI keeps its intake up on the way in to score, and so lets it fold over the load as
     // it shoots: js/opponent.js _shotHold)
     this.shotHold = false;
+    // (and lets go of its intake whenever it shoots, so the intake folds in at once and feeds the
+    // bowls: js/opponent.js; the user)
+    this.foldToShoot = FOLD_TO_SHOOT;
     this.ownsHood = true;
     this.ownsFlywheel = true;
     this.reset();

@@ -210,6 +210,9 @@ export class OpponentAI {
     // a physical robot whose ball path can lock up where its code can't see it (341's zipper):
     // nothing coming out, its driver lets go of the trigger for a moment and presses it again
     if (r.phys?.letGo?.()) { cmd.shoot = false; cmd.pass = false; }
+    // one whose intake folds in to feed its shots (1706: the user, its intake compacts as soon as
+    // it shoots): it doesn't intake while it shoots
+    if (r.phys?.foldToShoot && cmd.shoot) cmd.intake = false;
 
     // stuck detection (pushing against another robot isn't being stuck)
     const want = Math.hypot(cmd.vx, cmd.vz), have = Math.hypot(r.vel.x, r.vel.z);
