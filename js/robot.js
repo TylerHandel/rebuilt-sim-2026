@@ -89,6 +89,30 @@ let robotCount = 0;
 
 const _q = new THREE.Quaternion(), _v = new THREE.Vector3(), _v2 = new THREE.Vector3();
 
+// Where a turret goes (rad from the middle of its travel, hard stops at +-lim): rel, the target's
+// bearing from that middle; cur, where it is. While it shoots it stays on the side it's on: past a
+// stop (up to HOLD past it) it holds there and says how far over (over: the chassis turns the rest) instead of unwinding
+// most of a turn to the same bearing the other way round, not shooting the whole way. Not shooting,
+// it moves over to the way round nearest the middle once it's within UNWIND of a stop, so the next
+// shot starts with room both ways.
+const UNWIND = 30 * DEG, HOLD = 60 * DEG;
+export function turretGoal(rel, cur, lim, shooting) {
+  const b = cur + wrapAngle(rel - cur); // (the target's bearing the way round it's turned now)
+  const cands = [rel, rel + 2 * Math.PI, rel - 2 * Math.PI].filter((a) => Math.abs(a) <= lim);
+  if (shooting) {
+    if (Math.abs(b) <= lim) return { goal: b, over: 0, reach: true };
+    // (just past the stop: hold and let the chassis turn; far past it, as when the target jumps,
+    // the turret's quicker the other way round)
+    const g = clamp(b, -lim, lim);
+    if (Math.abs(b - g) < HOLD || !cands.length) return { goal: g, over: b - g, reach: false };
+    return { goal: cands.reduce((a, c) => (Math.abs(c - cur) < Math.abs(a - cur) ? c : a)), over: 0, reach: true };
+  }
+  if (!cands.length) return { goal: clamp(rel, -lim, lim), over: 0, reach: false };
+  const mid = cands.reduce((a, c) => (Math.abs(c) < Math.abs(a) ? c : a));
+  const goal = Math.abs(b) < lim - UNWIND ? b : mid;
+  return { goal, over: 0, reach: true };
+}
+
 export class Robot {
   constructor({ cfg, alliance, physics, scene, field, fuel, match, climber }) {
     this.cfg = cfg;
@@ -1359,10 +1383,14 @@ export class Robot {
           // (a physical robot that aims its own way, 341's, says where: phys.aimPsi)
           const psi = this.phys?.aimPsi ?? sol.psi;
           const rel = wrapAngle(psi - this.yaw - mid);
-          // choose the equivalent angle closest to the current turret position within limits
-          const cands = [rel, rel + 2 * Math.PI, rel - 2 * Math.PI].filter((a) => Math.abs(a) <= lim);
+          // (which way round: turretGoal, staying on its side while it shoots)
           const cur = this.turretYaw - mid;
-          const goal = cands.length ? cands.reduce((a, b) => (Math.abs(b - cur) < Math.abs(a - cur) ? b : a)) : clamp(rel, -lim, lim);
+          const { goal, over } = turretGoal(rel, cur, lim, wantShoot);
+          // (held at a stop while it shoots: the chassis turns the rest, on its heading loop)
+          if (over && wantShoot) {
+            const d = this.cfg.drive, a = Math.abs(over);
+            this.aimOverride = Math.sign(over) * Math.min(d.maxOmega, Math.sqrt(2 * 0.7 * d.maxAlpha * a), AIM_GAIN * a);
+          }
           // (a physical robot's turret on its motor, against its energy chain: phys.turretStep)
           this.turretYaw = this.turretYaws[0] = this.phys?.turretStep
             ? this.phys.turretStep(mid + cur, mid + goal, dt, t)
@@ -1498,11 +1526,12 @@ export class Robot {
           // (a physical robot that aims each turret its own way, 1706's, says where: phys.aimPsis)
           const psi = this.phys?.aimPsis?.[i] ?? sol.psi;
           const rel = wrapAngle(psi - this.yaw - mid);
-          const cands = [rel, rel + 2 * Math.PI, rel - 2 * Math.PI].filter((a) => Math.abs(a) <= lim);
           const cur = this.turretYaws[i] - mid;
-          const goal = cands.length ? cands.reduce((a, b) => (Math.abs(b - cur) < Math.abs(a - cur) ? b : a)) : clamp(rel, -lim, lim);
+          // (which way round: turretGoal, staying on its side while it shoots)
+          const { goal, reach, over } = turretGoal(rel, cur, lim, wantShoot);
+          const cands = reach ? [goal] : [];
           this.turretYaws[i] = mid + approach(cur, goal, sh.turretRate * DEG * dt);
-          const o = rel - clamp(rel, margin - lim, lim - margin);
+          const o = over || rel - clamp(rel, margin - lim, lim - margin);
           if (Math.abs(o) < Math.abs(need)) need = o;
           if (cands.length) {
             anyReach = true;
