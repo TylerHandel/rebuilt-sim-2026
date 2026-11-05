@@ -26,6 +26,7 @@ import { ALUMINUM_COLORS } from './aluminumColors.js';
 import { chain8793, chain4414, chain1690 } from './echainModel.js';
 import { detail, clearSheet, sheetOn, orangePeel } from './surfaces.js';
 import { mergeVertices, toCreasedNormals } from 'three/addons/utils/BufferGeometryUtils.js';
+import { addLeds } from './leds.js';
 
 export const BUMP_Y0 = BUMPER_Y0, BUMP_Y1 = BUMPER_Y1;
 const lerp = THREE.MathUtils.lerp;
@@ -3844,6 +3845,8 @@ export function buildRobotModel(cfg, alliance) {
   m.root.traverse((o) => {
     if (o.isMesh && o.material !== M.poly && o.material !== M.polyTint) o.castShadow = true;
   });
+  // the team's LED strips (js/leds.js: drawn from the robot's state each frame, no shadow)
+  addLeds(m, cfg);
   return m;
 }
 

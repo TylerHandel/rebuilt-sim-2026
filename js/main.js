@@ -23,6 +23,7 @@ import { StaticMerger } from './merge.js';
 import { SimThread } from './simThread.js';
 import { loadWear, saveWear, clearWear, wearOf } from './wearStore.js';
 import { BLUE, RED, PHYSICS_DT, other } from './constants.js';
+import { updateLeds } from './leds.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -465,6 +466,7 @@ function tick(dt, render) {
   if (threaded && ui.screen !== 'hud') thread.run(false);
   if (game) {
     if (threaded) { for (const r of game.robots) if (r._vis) r.applyVisual(r._vis, dt); } else for (const r of game.robots) r.update(dt);
+    for (const r of game.robots) updateLeds(r, game.match, performance.now() / 1000);
     for (const a of [BLUE, RED]) field.setHubLights(a, game.match.hubLightMode(a), performance.now() / 1000);
     if (ui.screen === 'hud') ui.updateHUD(game);
     // shot preview
