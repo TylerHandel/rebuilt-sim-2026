@@ -8,7 +8,8 @@
 //
 // Where the strips are and what they show come from each team's public code and photos of the
 // 2026 robot (the URLs are with each team below; the photos were only looked at, to place the
-// strips). A team whose code and photos show no LED strips has none here: 2910, 341, 581, 604,
+// strips). A team whose code and photos show no LED strips has none here: 2910, 341, 581, 604, 6328
+// (its code drives 40, but the user saw none on the robot),
 // 4414, 1706 (and the robots not asked about: 971, 4946, 3928, 4930).
 //
 // Robot frame: x forward (the intake end), y up, z across; meters.
@@ -30,16 +31,17 @@ export const LED_LAYOUT = {
   // disabled, as their code has it).
   1114: { n: 60, runs: [{ path: [[-0.296, 0.40, -0.285], [-0.296, 0.69, -0.285], [-0.296, 0.69, 0.285], [-0.296, 0.40, 0.285]], n: 60, i0: 0, dot: 0.45 }] },
   // 1678 Citrus Circuits: a CANdle's own 8 LEDs, then a 12-LED back strip and 5-LED side strips
-  // (LEDsConstants: NUM_BACK_STRIP, NUM_SIDE_STRIPS; github.com/frc1678/C2026-Public). Not visible
-  // in the published photos (thebluealliance.com/team/1678/2026), so placed by their names: the
-  // back strip across the top of the back, a side strip at the back of each side (the same 5
-  // indices on both). (The CANdle itself sits with the electronics: not drawn.)
+  // (LEDsConstants: NUM_BACK_STRIP, NUM_SIDE_STRIPS; github.com/frc1678/C2026-Public). Mounted
+  // (the user) vertically along the climber's elevator: up the outside of each side's fixed outer
+  // tube (js/robotModels.js build1678), the back strip's 12 then a side strip's 5 above them, both
+  // sides alike. (The CANdle itself sits with the electronics: not drawn.)
   1678: {
     n: 17,
     runs: [
-      { path: [[-0.352, 0.505, -0.1], [-0.352, 0.505, 0.1]], n: 12, i0: 0 },
-      { path: [[-0.30, 0.43, -0.352], [-0.30, 0.515, -0.352]], n: 5, i0: 12 },
-      { path: [[-0.30, 0.43, 0.352], [-0.30, 0.515, 0.352]], n: 5, i0: 12 },
+      { path: [[-0.02, 0.15, -0.330], [-0.02, 0.15 + 12 / 60, -0.330]], n: 12, i0: 0 },
+      { path: [[-0.02, 0.15 + 12 / 60, -0.330], [-0.02, 0.15 + 17 / 60, -0.330]], n: 5, i0: 12 },
+      { path: [[-0.02, 0.15, 0.330], [-0.02, 0.15 + 12 / 60, 0.330]], n: 12, i0: 0 },
+      { path: [[-0.02, 0.15 + 12 / 60, 0.330], [-0.02, 0.15 + 17 / 60, 0.330]], n: 5, i0: 12 },
     ],
   },
   // 1690 Orbit: no public 2026 code. Photos (thebluealliance.com/team/1690/2026: imgur jJiksKT,
@@ -50,31 +52,20 @@ export const LED_LAYOUT = {
   // glow round the top of the turret, behind its Limelight; drawn as a ring there (a ring: it
   // reads the same however the turret turns). Their colors aren't public: the default scheme.
   2056: { n: 36, runs: [{ arc: { c: [-0.1334, 0.1841], r: 0.125, y: 0.55, a0: 0, a1: 350 }, n: 36, i0: 0, dot: 1 }] },
-  // 6328 Mechanical Advantage: 40 LEDs, one section (LedConstants.length, Leds.java;
-  // github.com/Mechanical-Advantage/RobotCode2026Public). Where they're mounted isn't shown in the
-  // published photos (thebluealliance.com/team/6328/2026) or said in their build thread
-  // (chiefdelphi.com/t/509595): assumed here, two 20-LED runs up the back corners.
-  6328: {
-    n: 40,
-    runs: [
-      { path: [[-0.33, 0.21, -0.345], [-0.33, 0.54, -0.345]], n: 20, i0: 0 },
-      { path: [[-0.33, 0.54, 0.345], [-0.33, 0.21, 0.345]], n: 20, i0: 20 },
-    ],
-  },
   // 7769 Chunk: no public 2026 code. A photo (thebluealliance.com/team/7769/2026: imgur pAzO1fI)
   // shows a short bright blue block low on a corner by the electronics (a CANdle-sized light, not
   // a strip): drawn as 8 LEDs there. Their colors aren't public: the default scheme.
   7769: { n: 8, runs: [{ path: [[-0.31, 0.18, 0.35], [-0.31, 0.26, 0.35]], n: 8, i0: 0, pitch: 0.01 }] },
   // 8793 Pumpkin Bots: a CANdle (its own 8 LEDs, seen lit blue in a photo at the front right:
   // thebluealliance.com/team/8793/2026, imgur vhB9Gr5), then a 60-LED strip (LEDSubsystem.java:
-  // LED_END = 7 + LED_COUNT = 67; github.com/Pumpkin-Bots/2026_Robot). The strip's place isn't
-  // shown in the photos: assumed along both side rails, 30 each.
+  // LED_END = 7 + LED_COUNT = 67; github.com/Pumpkin-Bots/2026_Robot), mounted (the user) round
+  // the turret's cable-chain track: on the outside of its outer wall (js/echain.js TRACK8793:
+  // 8.0in from the turret's axis, the wall from 0.318 to 0.343 m up), all the way round.
   8793: {
     n: 68,
     runs: [
       { path: [[0.27, 0.215, -0.24], [0.27, 0.215, -0.17]], n: 8, i0: 0, pitch: 0.008 },
-      { path: [[-0.25, 0.175, 0.33], [0.25, 0.175, 0.33]], n: 30, i0: 8 },
-      { path: [[0.25, 0.175, -0.33], [-0.25, 0.175, -0.33]], n: 30, i0: 38 },
+      { arc: { c: [-0.127, 0], r: 8.0 * 0.0254 + 0.004, y: 0.331, a0: 0, a1: 354 }, n: 60, i0: 8, dot: 0.6 },
     ],
   },
 };
@@ -229,30 +220,10 @@ const hsv = (h) => { // full saturation and value, h in [0, 1)
 };
 const blink = (t, period) => (t % period) < period / 2; // on for the first half of each period
 
-// 6328's wave (Leds.java: a sine across the strip, sharpened by waveExponent, moving with time)
-function wave6328(set, n, c1, c2, cycle, duration, t) {
-  let x = (1 - ((t % duration) / duration)) * 2 * Math.PI;
-  const dx = (2 * Math.PI) / cycle;
-  for (let i = n - 1; i >= 0; i--) {
-    x += dx;
-    const sn = Math.sin(x);
-    const ratio = (Math.sign(sn) * Math.pow(Math.abs(sn), 0.4) + 1) / 2;
-    set(i, mix(c1, c2, ratio));
-  }
-}
 
 // each team's own scheme where their code is public; a default for the rest
 const SCHEMES = {
-  // Leds.java (6328): disabled, a slow alliance-color wave; auto, a fast gold/dark blue wave; in
-  // teleop, a fast white/alliance wave in a hub shift's last 5 s, else green/white while in
-  // launching tolerance, else off (LedConstants: waves 15 LEDs / 2 s disabled, 25 LEDs / 0.25 s)
-  6328(s, set, n, t) {
-    if (!s.enabled) return wave6328(set, n, ally(s), C.off, 15, 2, t);
-    if (s.auto) return wave6328(set, n, C.gold, C.darkBlue, 25, 0.25, t);
-    if (s.hubNext !== null && s.hubNext <= 5) return wave6328(set, n, C.white, ally(s), 25, 0.25, t);
-    if (s.wantShoot && s.ready) return wave6328(set, n, C.green, C.white, 25, 0.25, t);
-    for (let i = 0; i < n; i++) set(i, C.off);
-  },
+
   // LEDSubsystem.java (8793): auto, purple breathing; disabled, orange breathing (1 Hz, down to
   // 5%); teleop, solid green while their HUB is active, red while not; in the 5 s before it
   // changes (and the match's last 10 s) a checkerboard of 10-LED blocks swapping with yellow,
