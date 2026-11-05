@@ -30,6 +30,7 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
 import { setPolyGlass, setMetalEnv } from './robotModels.js';
 import { setSurfaceDetail } from './surfaces.js';
+import { setSpinBlur } from './spinBlur.js';
 
 // scale: render resolution (x the screen's, capped at maxDpr device pixels per CSS pixel)
 // aa: 'none' | 'fxaa' | 'msaa' (the canvas's own, or the composer's 4x target) | 'smaa' | 'ssaa'
@@ -39,17 +40,17 @@ import { setSurfaceDetail } from './surfaces.js';
 // 1 small, 2 full)
 // fuelSeg: FUEL sphere segments; aniso: texture filtering; cad: load the CAD models
 export const PRESETS = {
-  potato: { name: 'Lowest', scale: 0.5, maxDpr: 1, aa: 'none', shadow: 0, soft: 'basic', ao: 0, bloom: false, env: 0, detail: 0, fuelSeg: 8, aniso: 1, cad: false,
+  potato: { name: 'Lowest', scale: 0.5, maxDpr: 1, aa: 'none', shadow: 0, soft: 'basic', ao: 0, bloom: false, env: 0, detail: 0, fuelSeg: 8, aniso: 1, cad: false, spinBlur: 0,
     desc: 'Half resolution, no shadows, simple FUEL and the drawn robots and field instead of the CAD models (the CAD part takes effect after a reload). For old or school laptops.' },
-  low: { name: 'Low', scale: 0.75, maxDpr: 1, aa: 'fxaa', shadow: 1024, soft: 'pcf', ao: 0, bloom: false, env: 0.5, detail: 1, fuelSeg: 12, aniso: 2, cad: true,
-    desc: '75% resolution, small shadow map, NVIDIA FXAA for the edges, the arena\'s lighting and small surface textures.' },
-  medium: { name: 'Medium', scale: 1, maxDpr: 1.5, aa: 'msaa', shadow: 2048, soft: 'pcf', ao: 0, bloom: false, env: 0.5, detail: 1, fuelSeg: 16, aniso: 4, cad: true,
+  low: { name: 'Low', scale: 0.75, maxDpr: 1, aa: 'fxaa', shadow: 1024, soft: 'pcf', ao: 0, bloom: false, env: 0.5, detail: 1, fuelSeg: 12, aniso: 2, cad: true, spinBlur: 1,
+    desc: '75% resolution, small shadow map, NVIDIA FXAA for the edges, the arena\'s lighting, small surface textures and motion blur on fast-spinning parts.' },
+  medium: { name: 'Medium', scale: 1, maxDpr: 1.5, aa: 'msaa', shadow: 2048, soft: 'pcf', ao: 0, bloom: false, env: 0.5, detail: 1, fuelSeg: 16, aniso: 4, cad: true, spinBlur: 1,
     desc: 'Full resolution, multisampled edges, medium shadows, the arena\'s lighting and reflections. For integrated graphics.' },
-  high: { name: 'High', scale: 1, maxDpr: 2, aa: 'msaa', shadow: 4096, soft: 'pcfsoft', ao: 0, bloom: true, env: 0.55, detail: 2, fuelSeg: 16, aniso: 8, cad: true,
+  high: { name: 'High', scale: 1, maxDpr: 2, aa: 'msaa', shadow: 4096, soft: 'pcfsoft', ao: 0, bloom: true, env: 0.55, detail: 2, fuelSeg: 16, aniso: 8, cad: true, spinBlur: 2,
     desc: 'Sharp on high-DPI screens, big soft shadows, glowing HUB lights (bloom), full-size surface textures.' },
-  ultra: { name: 'Ultra', scale: 1, maxDpr: 2, aa: 'msaa', shadow: 4096, soft: 'pcss', ao: 1, bloom: true, env: 0.55, detail: 2, fuelSeg: 20, aniso: 16, cad: true,
+  ultra: { name: 'Ultra', scale: 1, maxDpr: 2, aa: 'msaa', shadow: 4096, soft: 'pcss', ao: 1, bloom: true, env: 0.55, detail: 2, fuelSeg: 20, aniso: 16, cad: true, spinBlur: 2,
     desc: 'High, plus NVIDIA PCSS contact-hardening soft shadows and HBAO+-style ambient occlusion (GTAO). For a gaming GPU (GeForce RTX).' },
-  max: { name: 'Max', scale: 1, maxDpr: 2, aa: 'ssaa', shadow: 8192, soft: 'pcss', ao: 2, bloom: true, env: 0.55, detail: 2, fuelSeg: 28, aniso: 16, cad: true,
+  max: { name: 'Max', scale: 1, maxDpr: 2, aa: 'ssaa', shadow: 8192, soft: 'pcss', ao: 2, bloom: true, env: 0.55, detail: 2, fuelSeg: 28, aniso: 16, cad: true, spinBlur: 2,
     desc: 'Everything on: 4x supersampling, an 8K PCSS shadow map, full-quality ambient occlusion, rounder FUEL. Overkill on purpose: an RTX 4080/4090 or better.' },
 };
 export const PRESET_ORDER = ['potato', 'low', 'medium', 'high', 'ultra', 'max'];
@@ -211,6 +212,8 @@ export class Graphics {
     }
     // robots built from here on skip their CAD parts on Lowest (window.__gfxNoCad, robotModels.js)
     window.__gfxNoCad = !p.cad;
+    // fast-spinning parts drawn motion-blurred (js/spinBlur.js; no extra pass)
+    setSpinBlur(p.spinBlur);
     this.refresh();
     this._buildComposer();
   }

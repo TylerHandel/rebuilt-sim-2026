@@ -27,6 +27,7 @@ import { Physical6328 } from './mech/phys6328.js';
 const PHYSICAL = { 8793: Physical8793, 2910: Physical2910, 1678: Physical1678, 341: Physical341, 581: Physical581, 604: Physical604, 4414: Physical4414, 1114: Physical1114, 1706: Physical1706, 1690: Physical1690, 6328: Physical6328 };
 import { clamp, wrapAngle, approach, approachAngle, gauss, DEG, rand } from './util.js';
 import { wearSlot } from './fuelDamage.js';
+import { spinBlurBegin, spinBlurEnd } from './spinBlur.js';
 PHYSICAL[2056] = Physical2056; // (2056's physical mechanisms: js/mech/phys2056.js)
 PHYSICAL[7769] = Physical7769; // (7769's physical mechanisms: js/mech/phys7769.js)
 
@@ -1791,7 +1792,8 @@ export class Robot {
     for (const a of tc) a.needsUpdate = true;
     m.storedMesh.count = n;
     m.storedMesh.instanceMatrix.needsUpdate = true;
-    // mechanisms
+    // mechanisms (what spins fast is drawn motion-blurred: js/spinBlur.js)
+    spinBlurBegin();
     m.anim(vs.anim, dt);
     // swerve module steering to match the motion
     const c = Math.cos(vs.yaw), sn = Math.sin(vs.yaw), lv = { x: vs.vel[0] * c - vs.vel[1] * sn, z: vs.vel[0] * sn + vs.vel[1] * c };
@@ -1802,6 +1804,7 @@ export class Robot {
       if (Math.hypot(vx, vz) > 0.05) mod.pivot.rotation.y = -Math.atan2(vz, vx);
       mod.wheel.rotation.y -= Math.hypot(vx, vz) * dt / WHEEL_R;
     }
+    spinBlurEnd(m, v);
     if (m.climber) {
       m.climber.hook.position.y = 0.55 + (vs.climbState === 'aligning' ? 0.25 : vs.climbState !== 'none' ? Math.max(0, 0.25 - vs.climbLift) : 0);
     }
