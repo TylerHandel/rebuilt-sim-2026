@@ -21,6 +21,7 @@ import { FrameStats } from './perf.js';
 import { Profiler } from './profiler.js';
 import { StaticMerger } from './merge.js';
 import { SimThread } from './simThread.js';
+import { loadWear, saveWear, clearWear, wearOf } from './wearStore.js';
 import { BLUE, RED, PHYSICS_DT, other } from './constants.js';
 
 const $ = (id) => document.getElementById(id);
@@ -278,6 +279,10 @@ function matchSettings() {
 
 function startMatch() {
   const { eff, cand, training, role } = matchSettings();
+  // FUEL wear: carried on from the last match (or the saved one when the page has just opened),
+  // or new FUEL (js/wearStore.js)
+  if (settings.fuelWear === 'fresh') { fuel.carryWear = null; clearWear(); }
+  else { fuel.carryWear = game ? wearOf(fuel.dmgAttr.array) : loadWear(); if (fuel.carryWear) saveWear(fuel.carryWear); }
   game = createGame(world, eff, { onEvent, prev: game });
   for (const r of game.robots) merger.track(r.visual);
   game.input = input;
@@ -294,7 +299,7 @@ function startMatch() {
     threaded = true;
     thread.start().then(() => {
       if (game !== g) return;
-      try { thread.begin(eff, { role, defenseTarget: game.defenseTarget }); } catch (e) { threaded = false; ui.toast('Physics thread: ' + e.message + ' (running with the drawing)', 'foul'); }
+      try { thread.begin(eff, { role, defenseTarget: game.defenseTarget }, fuel.carryWear); } catch (e) { threaded = false; ui.toast('Physics thread: ' + e.message + ' (running with the drawing)', 'foul'); }
     }).catch((e) => { if (game === g) { threaded = false; ui.toast('Physics thread: ' + e.message + ' (running with the drawing)', 'foul'); } });
   }
   game.recorder = !threaded && game.you && game.you.human ? new DrivingRecorder(game) : null;
@@ -543,3 +548,8 @@ window.__sim = {
 
 // ?cover: the cover-art renderer (stages a shot, renders it on this computer's GPU, exports a PNG)
 if (new URLSearchParams(location.search).has('cover')) import('./cover.js').then((m) => m.startCover(window.__sim));
+
+// (the FUEL's wear saved every few seconds and when the page closes, so it's there next time)
+const keepWear = () => { if (game && settings.fuelWear !== 'fresh') saveWear(wearOf(fuel.dmgAttr.array)); };
+setInterval(keepWear, 5000);
+addEventListener('pagehide', keepWear);

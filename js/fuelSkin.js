@@ -35,11 +35,11 @@ export function fuelTexture() {
   return (skin = t);
 }
 
-// The skin's material: real FUEL are molded foam with a smooth, glossy, vivid yellow skin (a
-// clearcoat over the color, the arena's lights and reflections in it); the open-cell foam shows
-// only where the skin is torn (squashable's damage)
+// The skin's material: real FUEL are molded foam with a smooth, vivid yellow skin that's only
+// slightly reflective (a thin, soft clearcoat: a dull sheen of the arena's lights, no mirror
+// highlights); the open-cell foam shows only where the skin is torn (squashable's damage)
 export function fuelMaterial() {
-  const m = new THREE.MeshPhysicalMaterial({ map: fuelTexture(), roughness: 0.42, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.08 });
+  const m = new THREE.MeshPhysicalMaterial({ map: fuelTexture(), roughness: 0.55, metalness: 0, clearcoat: 0.25, clearcoatRoughness: 0.4 });
   // (the shadow map from its front faces: from its back faces (three.js's default), the carpet
   // under it, looked up a normal bias above itself, is inside the ball and in front of its far
   // side, so the spot it touches came out lit inside a ring of shadow)

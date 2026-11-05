@@ -46,9 +46,9 @@ export class SimThread {
   }
 
   // a match: settings as createGame takes them (plain data), extra: fields set on the worker's game
-  begin(settings, extra = {}) {
+  begin(settings, extra = {}, wear = null) {
     this.snap = null; this.prev = null; this.cur = null;
-    this.worker.postMessage({ type: 'start', settings, extra, storage: storage() });
+    this.worker.postMessage({ type: 'start', settings, extra, storage: storage(), wear: wear ? Array.from(wear) : null });
   }
   run(on) { if (this.worker && on !== this.on) { this.on = on; this.worker.postMessage({ type: 'run', on }); } }
   input(msg) { if (this.worker) this.worker.postMessage({ type: 'input', ...msg }); }

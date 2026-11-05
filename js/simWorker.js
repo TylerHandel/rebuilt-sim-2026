@@ -104,6 +104,7 @@ async function handle(msg) {
     postMessage({ type: 'ready' });
   } else if (msg.type === 'start') {
     if (msg.storage) setStorage(msg.storage);
+    world.fuel.carryWear = msg.wear ? Float32Array.from(msg.wear) : null; // (the page's FUEL wear)
     game = createGame(world, msg.settings, { onEvent: (type, d) => events.push([type, plain(d)]), prev: game });
     Object.assign(game, msg.extra || {});
     acc = 0; last = performance.now();

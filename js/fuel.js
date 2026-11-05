@@ -37,6 +37,7 @@ export class FuelManager {
     const sk = squashable(geo, mat, FUEL.total, R, true);
     this.touch = sk.touch;
     this.dmgAttr = sk.dmg;
+    this.carryWear = null; // (each FUEL's wear to start the next match with, by id: js/wearStore.js; none: new FUEL)
     this.squashed = new Set();
     this.mesh = new THREE.InstancedMesh(geo, mat, FUEL.total);
     this.mesh.castShadow = true;
@@ -82,7 +83,7 @@ export class FuelManager {
   // preload: FUEL preloaded in the player's robot (0..8). Remaining FUEL goes to the NEUTRAL ZONE.
   stage(preload) {
     this.outQueue = [];
-    for (const b of this.balls) { this._disable(b, 'off'); b.captor = null; b.hop = null; b.dmg = 0; b.dmgDirty = true; }
+    for (const b of this.balls) { this._disable(b, 'off'); b.captor = null; b.hop = null; b.dmg = this.carryWear?.[b.id] || 0; b.dmgDirty = true; }
     let i = 0;
     const next = () => this.balls[i++];
     const neutralCount = Math.min(FUEL.neutralMax, FUEL.total - 2 * FUEL.perDepot - 2 * FUEL.perChute - preload);
