@@ -24,6 +24,8 @@ import * as R7769 from './mech/r7769.js';
 import { fuelTexture, squashable } from './fuelSkin.js';
 import { ALUMINUM_COLORS } from './aluminumColors.js';
 import { chain8793, chain4414, chain1690 } from './echainModel.js';
+import { detail, clearSheet, sheetOn, orangePeel } from './surfaces.js';
+import { toCreasedNormals } from 'three/addons/utils/BufferGeometryUtils.js';
 
 export const BUMP_Y0 = BUMPER_Y0, BUMP_Y1 = BUMPER_Y1;
 const lerp = THREE.MathUtils.lerp;
@@ -32,29 +34,31 @@ const lerp = THREE.MathUtils.lerp;
 function std(color, rough = 0.55, metal = 0.2, extra = {}) {
   return new THREE.MeshStandardMaterial({ color, roughness: rough, metalness: metal, ...extra });
 }
-// Polycarbonate. On the lower presets a see-through tint (alpha blended, which also fades its
-// reflections); on High and up (setPolyGlass) clear sheet: transmissive, polycarbonate's index
-// of refraction, glossy, reflecting the environment at full strength. glass: its color then
-// (what it lets through).
+// Polycarbonate. On Lowest a see-through tint (alpha blended, which also fades its reflections);
+// from Low up (setPolyGlass) clear sheet: still alpha blended (transmission would draw the scene a
+// second time) but glossy, its reflections of the arena added at full strength and more of its
+// tint toward the edges (js/surfaces.js clearSheet). glass: its color then (a little of it shows).
 const POLY_MATS = [];
-let polyGlass = null; // the environment map while clear sheet is on
+let polyGlass = null, envGain = 1; // the environment map while clear sheet is on, and its strength
 function polyMat(alpha, glass) {
-  const m = new THREE.MeshPhysicalMaterial({ ...alpha, transparent: true, depthWrite: false, side: THREE.DoubleSide });
+  const m = clearSheet(new THREE.MeshPhysicalMaterial({ ...alpha, transparent: true, depthWrite: false, side: THREE.DoubleSide }));
   m.userData.poly = { alpha, glass };
   POLY_MATS.push(m);
-  if (polyGlass) applyPoly(m, polyGlass);
+  applyPoly(m, polyGlass);
   return m;
 }
 function applyPoly(m, env) {
   const { alpha, glass, seen = 0 } = m.userData.poly;
   if (env) {
-    // (seen: how much of its own tint shows, the rest let through)
-    Object.assign(m, { color: new THREE.Color(glass), opacity: 1, transparent: false, depthWrite: true, transmission: 1 - seen, ior: 1.585, thickness: 0.003, roughness: 0.02,
-      specularIntensity: 1, clearcoat: 0, envMap: env, envMapIntensity: 0.3 });
+    // (seen: how much more of its own tint shows, for the big field panels)
+    const c = new THREE.Color(alpha.color).lerp(new THREE.Color(glass), 0.5);
+    Object.assign(m, { color: c, opacity: Math.min(0.6, alpha.opacity * 0.7 + seen * 0.25), transparent: true, depthWrite: false, transmission: 0, roughness: Math.min(alpha.roughness, 0.08),
+      specularIntensity: 1, clearcoat: 0, envMap: env, envMapIntensity: 0.8 * envGain });
   } else {
     Object.assign(m, { color: new THREE.Color(alpha.color), opacity: alpha.opacity, transparent: true, depthWrite: false, transmission: 0, roughness: alpha.roughness,
       clearcoat: 0, envMap: null, envMapIntensity: 1 });
   }
+  sheetOn(m, !!env);
   m.needsUpdate = true;
 }
 // another model's polycarbonate (the field's CAD panels) in on the same, as a new material to use
@@ -62,15 +66,31 @@ function applyPoly(m, env) {
 // with seen of the tint showing, so big panels stay visible
 export function registerPoly(src, glass = 0xf4f8fc, seen = 0) {
   const alpha = { color: src.color.getHex(), opacity: src.opacity, roughness: src.roughness ?? 0.1 };
-  const m = new THREE.MeshPhysicalMaterial({ ...alpha, transparent: true, depthWrite: false, side: src.side ?? THREE.DoubleSide });
+  const m = clearSheet(new THREE.MeshPhysicalMaterial({ ...alpha, transparent: true, depthWrite: false, side: src.side ?? THREE.DoubleSide }));
   m.userData.poly = { alpha, glass, seen };
   POLY_MATS.push(m);
-  if (polyGlass) applyPoly(m, polyGlass);
+  applyPoly(m, polyGlass);
   return m;
 }
-// clear sheet on (with the scene's environment map for its reflections) or off
-export function setPolyGlass(env) {
+// clear sheet on (with the scene's environment map for its reflections, at gain) or off
+const SHEETS = [];
+// another clear material in on the sheet look (the Driver Station glass), its reflections at k
+export function registerSheet(m, k = 0.5) {
+  clearSheet(m);
+  SHEETS.push([m, k]);
+  applySheet(m, k);
+  return m;
+}
+function applySheet(m, k) {
+  sheetOn(m, !!polyGlass);
+  m.envMap = polyGlass;
+  m.envMapIntensity = k * envGain;
+  m.needsUpdate = true;
+}
+export function setPolyGlass(env, gain = 1) {
   polyGlass = env || null;
+  envGain = gain;
+  for (const [m, k] of SHEETS) applySheet(m, k);
   for (const m of POLY_MATS) applyPoly(m, polyGlass);
 }
 
@@ -82,11 +102,13 @@ const ALU_MATS = [];
 let metalEnv = null;
 function applyMetal(m) {
   m.envMap = metalEnv;
-  m.envMapIntensity = metalEnv ? m.userData.alu.env : 1;
+  m.envMapIntensity = metalEnv ? m.userData.alu.env * envGain : 1;
   m.needsUpdate = true;
 }
-function brushed(m, env) {
+// grain: how much of the brushing shows (anodizing's dyed oxide mutes it)
+function brushed(m, env, grain = 1) {
   m.userData.alu = { env };
+  const G = grain.toFixed(2);
   m.onBeforeCompile = (sh) => {
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vAluP;\nvarying vec3 vAluN;')
@@ -108,10 +130,10 @@ float aluGrain() {
   float fw = fwidth(line);
   return mix(0.5, g, clamp(1.5 - fw, 0.0, 1.0));
 }`)
-      .replace('#include <color_fragment>', '#include <color_fragment>\n  float aluG = aluGrain();\n  diffuseColor.rgb *= 0.93 + 0.14 * aluG;')
-      .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\n  roughnessFactor = clamp(roughnessFactor + (aluG - 0.5) * 0.2, 0.05, 1.0);');
+      .replace('#include <color_fragment>', `#include <color_fragment>\n  float aluG = aluGrain();\n  diffuseColor.rgb *= 1.0 + ${G} * (0.14 * aluG - 0.07);`)
+      .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>\n  roughnessFactor = clamp(roughnessFactor + (aluG - 0.5) * 0.2 * ${G}, 0.05, 1.0);`);
   };
-  m.customProgramCacheKey = () => 'alu';
+  m.customProgramCacheKey = () => 'alu' + G;
   ALU_MATS.push(m);
   applyMetal(m);
   return m;
@@ -119,15 +141,16 @@ float aluGrain() {
 // powder-coated aluminum (the field's HUB frames): its paint's color under a glossy coat, no
 // grain, reflecting the environment through the coat on the presets with reflections
 export function powderCoat(color) {
-  const m = new THREE.MeshPhysicalMaterial({ color, roughness: 0.5, metalness: 0, clearcoat: 0.6, clearcoatRoughness: 0.28 });
+  const m = orangePeel(new THREE.MeshPhysicalMaterial({ color, roughness: 0.5, metalness: 0, clearcoat: 0.6, clearcoatRoughness: 0.28 }));
   m.userData.alu = { env: 0.45 };
   ALU_MATS.push(m);
   applyMetal(m);
   return m;
 }
-// the environment to reflect (High and up), or none
-export function setMetalEnv(env) {
+// the environment to reflect (Low and up), or none (gain: its strength)
+export function setMetalEnv(env, gain = 1) {
   metalEnv = env || null;
+  envGain = gain;
   for (const m of ALU_MATS) applyMetal(m);
 }
 const ALU_CACHE = new Map();
@@ -136,7 +159,7 @@ function aluMat(hex, finish) {
   if (!ALU_CACHE.has(k)) {
     ALU_CACHE.set(k, finish === 'raw'
       ? brushed(new THREE.MeshStandardMaterial({ color: 0xc3c7cc, roughness: 0.36, metalness: 0.9 }), 0.6)
-      : brushed(new THREE.MeshStandardMaterial({ color: hex, roughness: 0.42, metalness: 0.7 }), 0.35));
+      : brushed(new THREE.MeshStandardMaterial({ color: hex, roughness: 0.46, metalness: 0.7 }), 0.35, 0.45));
   }
   return ALU_CACHE.get(k);
 }
@@ -456,7 +479,11 @@ function addBumpers(root, cfg, alliance, chamferBack = 0) {
   geo.rotateX(-Math.PI / 2);
   geo.translate(0, BUMP_Y0 + bevel, 0);
   geo.computeVertexNormals();
-  const fabric = std(ALLIANCE_COLOR_CSS[alliance], 0.88, 0.0);
+  // nylon bumper fabric: its weave (a normal map, 4 cm a tile; the geometry's texture coordinates are
+  // in meters) and the soft sheen of cloth in the alliance color
+  const col = new THREE.Color(ALLIANCE_COLOR_CSS[alliance]);
+  const fabric = detail(new THREE.MeshPhysicalMaterial({ color: col, roughness: 0.88, metalness: 0, sheen: 0.4, sheenRoughness: 0.5, sheenColor: col.clone().lerp(new THREE.Color(0xffffff), 0.15) }),
+    'weave', { repeat: [25, 25], normalScale: 0.6 });
   const ring = mesh(geo, fabric, root, 0, 0, 0);
   ring.name = 'bumper';
   // team numbers on each straight side
@@ -628,7 +655,13 @@ function cadPart(parent, file, onLoad, look = null) {
         if (own) { o.material = own; if (own.transparent || own.userData.poly) o.castShadow = false; }
         else if (m.transparent || m.name === 'poly') { o.material = M.poly; o.castShadow = false; }
         else o.material = cadMaterial(team, m);
-        if (!o.geometry.attributes.normal) o.material = flatOf(o.material);
+        if (!o.geometry.attributes.normal) {
+          // a part exported without normals (6328's, 971's): smooth across its curved faces and
+          // sharp at its edges (creased at 35 deg); flat-shaded if that fails
+          let g = null;
+          try { g = toCreasedNormals(o.geometry, 35 * Math.PI / 180); } catch { g = null; }
+          if (g) { o.geometry.dispose(); o.geometry = g; } else o.material = flatOf(o.material);
+        }
       });
       parent.add(gltf.scene);
       onLoad(gltf.scene);

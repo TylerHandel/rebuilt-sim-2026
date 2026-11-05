@@ -5,6 +5,7 @@ import {
   trenchArmParts, DS_SPLIT_FY, APRILTAGS, TAG_SIZE,
 } from './constants.js';
 import { mulQuat, yawQuat } from './physics.js';
+import { detail } from './surfaces.js';
 
 export const ALLIANCE_COLOR = { blue: 0x1f5fe0, red: 0xd92b2b };
 export const ALLIANCE_COLOR_CSS = { blue: '#2f6ff0', red: '#e03434' };
@@ -252,7 +253,10 @@ export class Field {
 
     const carpet = new THREE.Mesh(
       new THREE.PlaneGeometry(FIELD_L, FIELD_W),
-      new THREE.MeshStandardMaterial({ map: this._carpetTexture(), roughness: 0.95, metalness: 0 }),
+      // (its tufted pile: a normal map 16 cm a tile, and a roughness mottle on a 1.37 m tile that
+      // never lines up with it, so no repeat shows: js/surfaces.js, from Low up)
+      detail(new THREE.MeshStandardMaterial({ map: this._carpetTexture(), roughness: 0.95, metalness: 0 }), 'carpet',
+        { repeat: [FIELD_L / 0.16, FIELD_W / 0.16], roughRepeat: [FIELD_L / 1.37, FIELD_W / 1.37], normalScale: 0.55 }),
     );
     carpet.rotation.x = -Math.PI / 2;
     carpet.receiveShadow = true;

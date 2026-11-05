@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import { RAPIER } from './physics.js';
 import { FUEL, HUB, HALF_L, HALF_W, BLUE, RED, GROUP, groups, PHYSICS_DT } from './constants.js';
 import { Field } from './field.js';
+import { detail } from './surfaces.js';
 import { rand, clamp } from './util.js';
 import { fuelTexture, squashable } from './fuelSkin.js';
 import { magnus } from './ballistics.js';
@@ -29,7 +30,8 @@ export class FuelManager {
     this.chute = { blue: [], red: [] };
 
     const geo = new THREE.SphereGeometry(R, 16, 12);
-    const mat = new THREE.MeshStandardMaterial({ map: fuelTexture(), roughness: 0.72, metalness: 0 });
+    // (its foam's fine pits, a normal map tiled round the sphere: js/surfaces.js, from Low up)
+    const mat = detail(new THREE.MeshStandardMaterial({ map: fuelTexture(), roughness: 0.72, metalness: 0 }), 'foam', { repeat: [6, 3], normalScale: 0.35 });
     // (FUEL a physical robot's mechanisms press are drawn flattened there: b.squash, physical.js)
     this.touch = squashable(geo, mat, FUEL.total, R);
     this.squashed = new Set();

@@ -27,25 +27,29 @@ import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
 import { FXAAShader } from 'three/addons/shaders/FXAAShader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
 import { setPolyGlass, setMetalEnv } from './robotModels.js';
+import { setSurfaceDetail } from './surfaces.js';
 
 // scale: render resolution (x the screen's, capped at maxDpr device pixels per CSS pixel)
 // aa: 'none' | 'fxaa' | 'msaa' (the canvas's own, or the composer's 4x target) | 'smaa' | 'ssaa'
 // shadow: shadow map size (0: none), soft: 'basic' | 'pcf' | 'pcfsoft' | 'pcss'
-// ao: 0 off, 1 GTAO, 2 GTAO high quality; bloom; env: image-based reflections (intensity)
+// ao: 0 off, 1 GTAO, 2 GTAO high quality; bloom; env: the arena's image-based lighting and
+// reflections (intensity; 0: the plain lights alone); detail: surface maps (js/surfaces.js: 0 none,
+// 1 small, 2 full)
 // fuelSeg: FUEL sphere segments; aniso: texture filtering; cad: load the CAD models
 export const PRESETS = {
-  potato: { name: 'Lowest', scale: 0.5, maxDpr: 1, aa: 'none', shadow: 0, soft: 'basic', ao: 0, bloom: false, env: 0, fuelSeg: 8, aniso: 1, cad: false,
+  potato: { name: 'Lowest', scale: 0.5, maxDpr: 1, aa: 'none', shadow: 0, soft: 'basic', ao: 0, bloom: false, env: 0, detail: 0, fuelSeg: 8, aniso: 1, cad: false,
     desc: 'Half resolution, no shadows, simple FUEL and the drawn robots and field instead of the CAD models (the CAD part takes effect after a reload). For old or school laptops.' },
-  low: { name: 'Low', scale: 0.75, maxDpr: 1, aa: 'fxaa', shadow: 1024, soft: 'pcf', ao: 0, bloom: false, env: 0, fuelSeg: 12, aniso: 2, cad: true,
-    desc: '75% resolution, small shadow map, NVIDIA FXAA for the edges.' },
-  medium: { name: 'Medium', scale: 1, maxDpr: 1.5, aa: 'msaa', shadow: 2048, soft: 'pcf', ao: 0, bloom: false, env: 0, fuelSeg: 16, aniso: 4, cad: true,
-    desc: 'Full resolution, multisampled edges, medium shadows. For integrated graphics.' },
-  high: { name: 'High', scale: 1, maxDpr: 2, aa: 'msaa', shadow: 4096, soft: 'pcfsoft', ao: 0, bloom: true, env: 0.12, fuelSeg: 16, aniso: 8, cad: true,
+  low: { name: 'Low', scale: 0.75, maxDpr: 1, aa: 'fxaa', shadow: 1024, soft: 'pcf', ao: 0, bloom: false, env: 0.5, detail: 1, fuelSeg: 12, aniso: 2, cad: true,
+    desc: '75% resolution, small shadow map, NVIDIA FXAA for the edges, the arena\'s lighting and small surface textures.' },
+  medium: { name: 'Medium', scale: 1, maxDpr: 1.5, aa: 'msaa', shadow: 2048, soft: 'pcf', ao: 0, bloom: false, env: 0.5, detail: 1, fuelSeg: 16, aniso: 4, cad: true,
+    desc: 'Full resolution, multisampled edges, medium shadows, the arena\'s lighting and reflections. For integrated graphics.' },
+  high: { name: 'High', scale: 1, maxDpr: 2, aa: 'msaa', shadow: 4096, soft: 'pcfsoft', ao: 0, bloom: true, env: 0.55, detail: 2, fuelSeg: 16, aniso: 8, cad: true,
     desc: 'Sharp on high-DPI screens, big soft shadows, glowing HUB lights (bloom), reflections on the metal and clear, glossy polycarbonate.' },
-  ultra: { name: 'Ultra', scale: 1, maxDpr: 2, aa: 'msaa', shadow: 4096, soft: 'pcss', ao: 1, bloom: true, env: 0.15, fuelSeg: 20, aniso: 16, cad: true,
+  ultra: { name: 'Ultra', scale: 1, maxDpr: 2, aa: 'msaa', shadow: 4096, soft: 'pcss', ao: 1, bloom: true, env: 0.55, detail: 2, fuelSeg: 20, aniso: 16, cad: true,
     desc: 'High, plus NVIDIA PCSS contact-hardening soft shadows and HBAO+-style ambient occlusion (GTAO). For a gaming GPU (GeForce RTX).' },
-  max: { name: 'Max', scale: 1, maxDpr: 2, aa: 'ssaa', shadow: 8192, soft: 'pcss', ao: 2, bloom: true, env: 0.18, fuelSeg: 28, aniso: 16, cad: true,
+  max: { name: 'Max', scale: 1, maxDpr: 2, aa: 'ssaa', shadow: 8192, soft: 'pcss', ao: 2, bloom: true, env: 0.55, detail: 2, fuelSeg: 28, aniso: 16, cad: true,
     desc: 'Everything on: 4x supersampling, an 8K PCSS shadow map, full-quality ambient occlusion, rounder FUEL. Overkill on purpose: an RTX 4080/4090 or better.' },
 };
 export const PRESET_ORDER = ['potato', 'low', 'medium', 'high', 'ultra', 'max'];
@@ -137,8 +141,11 @@ function patchPCSS() {
 // ------------------------------------------------------------------ the graphics system
 export class Graphics {
   // sun: the shadow-casting light; shadowBox: its shadow camera's half sizes (m) and depth range
-  constructor({ renderer, scene, camera, sun, fuel, field }) {
-    Object.assign(this, { renderer, scene, camera, sun, fuel, field });
+  // lights: { hemi, fill }, the scene's other lights (balanced with the arena's environment)
+  constructor({ renderer, scene, camera, sun, fuel, field, lights = {} }) {
+    Object.assign(this, { renderer, scene, camera, sun, fuel, field, lights });
+    // the lights as main.js set them up: Lowest keeps them as they are
+    this.base = { sun: [sun.color.clone(), sun.intensity, sun.position.clone()], hemi: lights.hemi && [lights.hemi.intensity], fill: lights.fill && [lights.fill.intensity], exposure: renderer.toneMappingExposure };
     this.gpu = detectGPU(renderer);
     this.key = null;
     this.composer = null;
@@ -189,20 +196,10 @@ export class Graphics {
       for (const m of Array.isArray(o.material) ? o.material : [o.material]) this._material(m, defs);
     });
     this.pcssDefs = defs;
-    // image-based reflections (aluminum, polycarbonate, bumpers)
-    if (p.env > 0) {
-      if (!this.envTex) {
-        const pm = new THREE.PMREMGenerator(r);
-        this.envTex = pm.fromScene(new RoomEnvironment(), 0.04).texture;
-        pm.dispose();
-      }
-      this.scene.environment = this.envTex;
-      this.scene.environmentIntensity = p.env;
-    } else this.scene.environment = null;
-    // polycarbonate: clear, glossy sheet where there are reflections (High and up), a light tint below
-    setPolyGlass(p.env > 0 ? this.envTex : null);
-    // aluminum on the robots: reflecting it as aluminum does there
-    setMetalEnv(p.env > 0 ? this.envTex : null);
+    // the arena's image-based lighting and reflections, and the lights balanced for it
+    this._env();
+    // surface detail (carpet, fabric, foam, diamond plate, powder coat: js/surfaces.js)
+    setSurfaceDetail(p.detail, Math.min(p.aniso, r.capabilities.getMaxAnisotropy()));
     // FUEL: rounder on the higher presets
     if (this.fuel && this.fuel.mesh) {
       const R = this.fuel.mesh.geometry.parameters.radius;
@@ -213,6 +210,73 @@ export class Graphics {
     window.__gfxNoCad = !p.cad;
     this.refresh();
     this._buildComposer();
+  }
+
+  // The arena: an indoor venue's light (a CC0 HDRI of a gym under rows of fluorescent tubes,
+  // assets/hdri: see its README) for the image-based lighting and every reflection, from Low up.
+  // Its floor half is darkened and grayed (a dark venue round the field, not the gym's blue floor);
+  // it isn't shown as the background (the dark backdrop stays). Until it loads, or if it can't,
+  // three.js's RoomEnvironment stands in. Then the lights: a bright, slightly cool key from almost
+  // overhead (the one that casts the shadows), the sky light and the fill turned down, the rest of
+  // the fill coming from the environment.
+  _env() {
+    const p = this.p, b = this.base, sun = this.sun, { hemi, fill } = this.lights;
+    const on = p.env > 0;
+    if (on && !this.envTex) this._loadEnv();
+    const tex = on ? this.envTex : null;
+    this.scene.environment = tex;
+    this.scene.environmentIntensity = p.env * (this.envGain ?? 1);
+    // polycarbonate and the metals: their own reflections of it (js/robotModels.js)
+    setPolyGlass(tex, this.envGain ?? 1);
+    setMetalEnv(tex, this.envGain ?? 1);
+    if (on) {
+      sun.color.set(0xf1f5ff);
+      sun.intensity = 2.3;
+      sun.position.set(-1.5, 20, 3.5);
+      if (hemi) hemi.intensity = 0.5;
+      if (fill) fill.intensity = 0.22;
+    } else {
+      sun.color.copy(b.sun[0]);
+      sun.intensity = b.sun[1];
+      sun.position.copy(b.sun[2]);
+      if (hemi) hemi.intensity = b.hemi[0];
+      if (fill) fill.intensity = b.fill[0];
+    }
+  }
+
+  _loadEnv() {
+    if (this._envLoading) return;
+    this._envLoading = true;
+    const r = this.renderer;
+    // (the stand-in right away)
+    const pm = new THREE.PMREMGenerator(r);
+    this.envTex = pm.fromScene(new RoomEnvironment(), 0.04).texture;
+    this.envGain = 0.3; // (RoomEnvironment is brighter than the arena)
+    pm.dispose();
+    new RGBELoader().setDataType(THREE.FloatType).loadAsync('assets/hdri/crossfit_gym_1k.hdr').then((eq) => {
+      const { width: w, height: h, data: d } = eq.image;
+      // the lower half (below the horizon): a dark, gray venue floor, fading in over a few rows
+      for (let y = 0; y < h; y++) {
+        const below = Math.min(1, Math.max(0, (y - h * 0.5) / (h * 0.06))); // (row 0 is the top)
+        if (below <= 0) continue;
+        const k = 1 - 0.8 * below;
+        for (let x = 0; x < w; x++) {
+          const i = 4 * (y * w + x), l = 0.3 * d[i] + 0.55 * d[i + 1] + 0.15 * d[i + 2];
+          for (let c = 0; c < 3; c++) d[i + c] = (d[i + c] + (l - d[i + c]) * below) * k;
+        }
+      }
+      eq.mapping = THREE.EquirectangularReflectionMapping;
+      eq.needsUpdate = true;
+      const pm2 = new THREE.PMREMGenerator(r);
+      const env = pm2.fromEquirectangular(eq).texture;
+      pm2.dispose();
+      eq.dispose();
+      const old = this.envTex;
+      this.envTex = env;
+      this.envGain = 1;
+      if (this.p) this._env();
+      old?.dispose();
+    }).catch((err) => console.warn('arena lighting failed to load (the room environment stands in):', err));
   }
 
   // new materials (robots built after the preset was set, CAD that loads later) get the current shadow code

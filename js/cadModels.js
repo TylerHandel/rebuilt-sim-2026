@@ -3,7 +3,9 @@
 // built from the game manual dimensions. See cad/README.md.
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { registerPoly, powderCoat } from './robotModels.js';
+import { registerPoly, powderCoat, registerSheet } from './robotModels.js';
+import { diamondPlate } from './surfaces.js';
+import { HALF_L, DS_BASE_H } from './constants.js';
 import { driverStationGlass } from './field.js';
 
 const D = Math.PI / 180;
@@ -39,6 +41,7 @@ export async function loadCadModels(scene, field) {
             // the ALLIANCE WALL's glass: clear on every preset, so the field reads through it from
             // the Driver Station (not the HUB's sheet), and it casts no shadow on the carpet
             o.material = driverStationGlass();
+            if (!SHEET.has(o.material)) { SHEET.add(o.material); registerSheet(o.material, 0.12); }
             o.castShadow = false;
           } else if (o.material && o.material.transparent && o.material.opacity < 0.7) {
             tintClear(o.material);
@@ -48,6 +51,12 @@ export async function loadCadModels(scene, field) {
               if (!POLY.has(o.material)) POLY.set(o.material, registerPoly(o.material, 0xd3e0ea, 0.2));
               o.material = POLY.get(o.material);
             }
+          } else if (o.material && e.kind === 'field' && isWallWhite(o.material)) {
+            // the alliance walls' lower panels (in the CAD's white, merged with the field's other
+            // white parts): diamond plate, where a face stands on an alliance wall below the glass
+            if (!WALL.has(o.material)) WALL.set(o.material, diamondPlate(o.material,
+              `abs(w.x) > ${(HALF_L - 0.12).toFixed(3)} && w.y < ${(DS_BASE_H + 0.005).toFixed(3)} && abs(wn.x) > 0.9`));
+            o.material = WALL.get(o.material);
           } else if (o.material && e.kind === 'field' && isFieldAluminum(o.material)) {
             o.material = FIELD_ALU.get(o.material.color.getHex()) ?? FIELD_ALU.set(o.material.color.getHex(), powderCoat(o.material.color.getHex())).get(o.material.color.getHex());
           }
@@ -68,10 +77,17 @@ export async function loadCadModels(scene, field) {
 
 // The field's aluminum: the color (230, 230, 230) most of whose parts are aluminum in the field's
 // Onshape bill of materials (107 of 123: the HUB's frames), powder-coated
-const POLY = new Map(), FIELD_ALU = new Map();
+const POLY = new Map(), FIELD_ALU = new Map(), SHEET = new Set();
 // the field CAD's alliance wall glass (the Driver Stations' panels, round to the OUTPOST): one
 // merged part for both ends
 const DS_GLASS = /Outpost_Exchange_Border/;
+const WALL = new Map();
+// the field CAD's white (sRGB 244: Onshape's 230, 230, 230 in linear), its alliance walls among it
+function isWallWhite(m) {
+  if (!m.color || m.transparent) return false;
+  const c = m.color.getHex(), r = (c >> 16) & 255, g = (c >> 8) & 255, b = c & 255;
+  return Math.abs(r - 244) <= 2 && Math.abs(g - 244) <= 2 && Math.abs(b - 244) <= 2;
+}
 function isFieldAluminum(m) {
   if (!m.color || m.transparent) return false;
   const c = m.color.getHex(), r = (c >> 16) & 255, g = (c >> 8) & 255, b = c & 255;

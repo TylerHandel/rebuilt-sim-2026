@@ -42,7 +42,9 @@ scene.background = new THREE.Color(0x0b0d12);
 scene.fog = new THREE.Fog(0x0b0d12, 28, 70);
 const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.05, 200);
 
-scene.add(new THREE.HemisphereLight(0xdfe8ff, 0x30333a, 1.1));
+// (the lights for Lowest; from Low up js/graphics.js balances them with the arena's environment)
+const hemi = new THREE.HemisphereLight(0xdfe8ff, 0x30333a, 1.1);
+scene.add(hemi);
 const sun = new THREE.DirectionalLight(0xffffff, 2.1);
 sun.position.set(-3, 18, 7);
 sun.castShadow = true;
@@ -93,7 +95,7 @@ const cutaway = new WallCutaway(renderer, field);
 cutaway.register(field.group);
 const fuel = new FuelManager(physics, scene, field);
 // graphics presets (js/graphics.js); the Lowest one leaves the field CAD out
-gfx = new Graphics({ renderer, scene, camera, sun, fuel, field });
+gfx = new Graphics({ renderer, scene, camera, sun, fuel, field, lights: { hemi, fill } });
 {
   const k = storedPreset();
   if (PRESETS[k === 'auto' ? detectGPU(renderer).preset : k]?.cad !== false) {
