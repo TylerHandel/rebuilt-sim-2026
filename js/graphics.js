@@ -38,18 +38,19 @@ import { setSurfaceDetail } from './surfaces.js';
 // reflections (intensity; 0: the plain lights alone); detail: surface maps (js/surfaces.js: 0 none,
 // 1 small, 2 full)
 // fuelSeg: FUEL sphere segments; aniso: texture filtering; cad: load the CAD models
+// adds: one line for the menu's list, what it adds over the preset below it
 export const PRESETS = {
-  potato: { name: 'Lowest', scale: 0.5, maxDpr: 1, aa: 'none', shadow: 0, soft: 'basic', ao: 0, bloom: false, env: 0, detail: 0, fuelSeg: 8, aniso: 1, cad: false,
+  potato: { name: 'Lowest', adds: 'Half resolution · no shadows · simple drawn robots and field (fastest)', scale: 0.5, maxDpr: 1, aa: 'none', shadow: 0, soft: 'basic', ao: 0, bloom: false, env: 0, detail: 0, fuelSeg: 8, aniso: 1, cad: false,
     desc: 'Half resolution, no shadows, simple FUEL and the drawn robots and field instead of the CAD models (the CAD part takes effect after a reload). For old or school laptops.' },
-  low: { name: 'Low', scale: 0.75, maxDpr: 1, aa: 'fxaa', shadow: 1024, soft: 'pcf', ao: 0, bloom: false, env: 0.5, detail: 1, fuelSeg: 12, aniso: 2, cad: true,
+  low: { name: 'Low', adds: 'Adds the CAD robots and field, shadows, arena lighting, FXAA edges · 75% resolution', scale: 0.75, maxDpr: 1, aa: 'fxaa', shadow: 1024, soft: 'pcf', ao: 0, bloom: false, env: 0.5, detail: 1, fuelSeg: 12, aniso: 2, cad: true,
     desc: '75% resolution, small shadow map, NVIDIA FXAA for the edges, the arena\'s lighting and small surface textures.' },
-  medium: { name: 'Medium', scale: 1, maxDpr: 1.5, aa: 'msaa', shadow: 2048, soft: 'pcf', ao: 0, bloom: false, env: 0.5, detail: 1, fuelSeg: 16, aniso: 4, cad: true,
+  medium: { name: 'Medium', adds: 'Adds full resolution, multisampled edges, bigger shadows, reflections', scale: 1, maxDpr: 1.5, aa: 'msaa', shadow: 2048, soft: 'pcf', ao: 0, bloom: false, env: 0.5, detail: 1, fuelSeg: 16, aniso: 4, cad: true,
     desc: 'Full resolution, multisampled edges, medium shadows, the arena\'s lighting and reflections. For integrated graphics.' },
-  high: { name: 'High', scale: 1, maxDpr: 2, aa: 'msaa', shadow: 4096, soft: 'pcfsoft', ao: 0, bloom: true, env: 0.55, detail: 2, fuelSeg: 16, aniso: 8, cad: true,
+  high: { name: 'High', adds: 'Adds sharpness on high-DPI screens, soft shadows, glowing lights (bloom), full textures', scale: 1, maxDpr: 2, aa: 'msaa', shadow: 4096, soft: 'pcfsoft', ao: 0, bloom: true, env: 0.55, detail: 2, fuelSeg: 16, aniso: 8, cad: true,
     desc: 'Sharp on high-DPI screens, big soft shadows, glowing HUB lights (bloom), full-size surface textures.' },
-  ultra: { name: 'Ultra', scale: 1, maxDpr: 2, aa: 'msaa', shadow: 4096, soft: 'pcss', ao: 1, bloom: true, env: 0.55, detail: 2, fuelSeg: 20, aniso: 16, cad: true,
+  ultra: { name: 'Ultra', adds: 'Adds contact-hardening shadows, ambient occlusion, rounder FUEL', scale: 1, maxDpr: 2, aa: 'msaa', shadow: 4096, soft: 'pcss', ao: 1, bloom: true, env: 0.55, detail: 2, fuelSeg: 20, aniso: 16, cad: true,
     desc: 'High, plus NVIDIA PCSS contact-hardening soft shadows and HBAO+-style ambient occlusion (GTAO). For a gaming GPU (GeForce RTX).' },
-  max: { name: 'Max', scale: 1, maxDpr: 2, aa: 'ssaa', shadow: 8192, soft: 'pcss', ao: 2, bloom: true, env: 0.55, detail: 2, fuelSeg: 28, aniso: 16, cad: true,
+  max: { name: 'Max', adds: 'Adds 4x supersampling, 8K shadows, top-quality occlusion (very heavy)', scale: 1, maxDpr: 2, aa: 'ssaa', shadow: 8192, soft: 'pcss', ao: 2, bloom: true, env: 0.55, detail: 2, fuelSeg: 28, aniso: 16, cad: true,
     desc: 'Everything on: 4x supersampling, an 8K PCSS shadow map, full-quality ambient occlusion, rounder FUEL. Overkill on purpose: an RTX 4080/4090 or better.' },
 };
 export const PRESET_ORDER = ['potato', 'low', 'medium', 'high', 'ultra', 'max'];
@@ -160,10 +161,12 @@ export class Graphics {
   resolve(key) { return key === 'auto' || !PRESETS[key] ? this.gpu.preset : key; }
 
   // switch to a preset (key: one of PRESETS or 'auto'); dynamic: dynamic resolution on
-  apply(key, { dynamic = false } = {}) {
+  // scale: the render resolution (x the screen's) instead of the preset's, or 0 for the preset's
+  apply(key, { dynamic = false, scale = 0 } = {}) {
     const k = this.resolve(key);
     const p = PRESETS[k];
-    const changed = k !== this.key;
+    const changed = k !== this.key || (scale || 0) !== (this.userScale || 0);
+    this.userScale = scale || 0;
     this.key = k;
     this.p = p;
     this.dynamic = dynamic;
@@ -318,7 +321,7 @@ export class Graphics {
 
   _pixelRatio() {
     const dpr = Math.min(window.devicePixelRatio || 1, this.p.maxDpr);
-    return Math.max(0.35, dpr * this.p.scale * this.dynScale);
+    return Math.max(0.35, dpr * (this.userScale || this.p.scale) * this.dynScale);
   }
 
   _buildComposer() {

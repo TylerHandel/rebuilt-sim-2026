@@ -21,6 +21,7 @@ import { FrameStats } from './perf.js';
 import { Profiler } from './profiler.js';
 import { StaticMerger } from './merge.js';
 import { SimThread } from './simThread.js';
+import { Rumble } from './rumble.js';
 import { loadWear, saveWear, clearWear, wearOf } from './wearStore.js';
 import { BLUE, RED, PHYSICS_DT, other } from './constants.js';
 
@@ -105,6 +106,7 @@ gfx = new Graphics({ renderer, scene, camera, sun, fuel, field, lights: { hemi, 
 }
 fuel.stage(8);
 const input = new Input();
+const rumble = new Rumble();
 
 // the neural-network driver, reloaded after every match so a running training session's
 // latest network is picked up without refreshing the page
@@ -123,7 +125,7 @@ async function loadNN() {
 const rig = new CameraRig(camera);
 const settings = loadSettings();
 const applyGraphics = () => {
-  gfx.apply(settings.graphics, { dynamic: settings.dynRes === 'on' });
+  gfx.apply(settings.graphics, { dynamic: settings.dynRes === 'on', scale: +settings.renderScale || 0 });
   $('fps').classList.toggle('hidden', settings.fps !== 'on');
 };
 setGraphicsInfo((k) => gfx.describe(k));
@@ -488,6 +490,8 @@ function tick(dt, render) {
   }
   if (!threaded) fuel.sync();
   sound.update(game, camera, !!game && ui.screen === 'hud', dt);
+  rumble.on = settings.rumble !== 'off';
+  rumble.update(game?.you?.human ? game.you.robot : null, !!game && ui.screen === 'hud' && !hold);
 
   if (ui.screen === 'menu' || ui.screen === 'editor') {
     // slow orbit behind the menu

@@ -25,7 +25,7 @@ export const DEFAULT_SETTINGS = {
   hp: 'manual', climber: 'none', camera: 'driver', preview: 'on',
   opponent: 'scorer', oppRobot: '4414', oppSkill: 'regional', customSide: 'drawn',
   driver: 'human', driverSkill: 'trained', mode: 'normal', role: 'score', nnNet: 'auto', sound: 'medium',
-  graphics: 'auto', dynRes: 'off', fps: 'off', physThread: 'main', fuelWear: 'keep',
+  graphics: 'auto', renderScale: 'preset', dynRes: 'off', fps: 'off', physThread: 'main', fuelWear: 'keep', rumble: 'on',
 };
 
 export function loadSettings() {
@@ -105,10 +105,13 @@ const OPT = {
       : 'No networks yet: train one (nn-train-gpu.bat) or share one (nn-share.bat).';
   }),
   sound: opt('sound', 'Sound', [['off', 'Off'], ['low', 'Low'], ['medium', 'Medium'], ['high', 'High']], 'Robots, FUEL, the field\'s match cues and the crowd (it cheers when a volley of FUEL scores).'),
-  graphics: opt('graphics', 'Graphics', () => [['auto', 'Auto'], ...PRESET_ORDER.map((k) => [k, PRESETS[k].name])], (s) => graphicsInfo(s.graphics)),
+  graphics: opt('graphics', 'Graphics', () => [['auto', 'Auto', 'Picks a preset from your GPU'], ...PRESET_ORDER.map((k) => [k, PRESETS[k].name, PRESETS[k].adds])], (s) => graphicsInfo(s.graphics)),
+  renderScale: opt('renderScale', 'Render scale', [['preset', 'Preset\'s', 'What the graphics preset uses'], ['0.5', '50%', 'Much faster, soft'], ['0.67', '67%', 'Faster, a little soft'], ['0.75', '75%'], ['0.85', '85%'], ['1', '100%', 'Full resolution']],
+    'How many pixels the 3D view is drawn with, x your screen\'s (the browser scales it up to fit). Lower is faster when the graphics card is the limit (turning toward the field drops the frame rate), and keeps every other effect of the preset. The UI stays sharp.'),
   fuelWear: opt('fuelWear', 'FUEL wear', [['keep', 'Kept between matches'], ['fresh', 'New FUEL each match']], 'Kept: FUEL stay scuffed and torn from one match to the next (saved in this browser), as at an event. New: every match starts with fresh FUEL (choosing it clears the saved wear).'),
   physThread: opt('physThread', 'Physics thread', [['main', 'With the drawing'], ['worker', 'Separate']], 'Separate: the match (physics, every robot\'s mechanisms, the AIs) runs on a thread of its own while the page draws, so a 3v3 of physical robots keeps 60 fps on a desktop CPU. Needs the game served by serve.py (start.bat / start.command). Training mode, a neural-net driver and recording your driving for the AI run with the drawing.'),
   dynRes: opt('dynRes', 'Dynamic resolution', [['off', 'Off'], ['on', 'On']], 'Drops the render resolution (down to half) while the game can\'t keep up 60 fps, and brings it back when it can: DLSS\'s idea, render fewer pixels when the GPU is behind (the browser scales the frame up; DLSS itself needs a native app).'),
+  rumble: opt('rumble', 'Controller rumble', [['on', 'On'], ['off', 'Off']], 'Your controller shakes with what your robot feels: bumper hits (harder the bigger the hit), each shot, each FUEL taken in, and a soft hum while driving. Needs a controller and browser with rumble (Chrome and Edge with an Xbox controller).'),
   fps: opt('fps', 'Show FPS', [['off', 'Off'], ['on', 'On']], 'Frame rate, preset and render resolution in the corner.'),
   preview: opt('preview', 'Shot preview line', [['on', 'On'], ['off', 'Off']], 'While you hold shoot, a line shows where the shot goes (green once it will score).'),
 };
@@ -200,8 +203,8 @@ const PAGES = {
   settings: () => [
     sec('Your robot'), o('hp'), o('climber'),
     sec('View'), o('camera'), o('preview'),
-    sec('Graphics'), o('graphics'), o('dynRes'), o('fps'), o('physThread'), o('fuelWear'),
-    sec('Sound'), o('sound'),
+    sec('Graphics'), o('graphics'), o('renderScale'), o('dynRes'), o('fps'), o('physThread'), o('fuelWear'),
+    sec('Sound'), o('sound'), o('rumble'),
     btn('LOAD REAL MATCH SOUNDS…', 'loadSounds', { half: true, secondary: true, desc: 'Pick your own recordings of the field\'s match cues, like the official ones installed with the FRC Game Tools / Driver Station (search its install folder for .wav files), or the static/audio folder of Team 254\'s Cheesy Arena. They\'re matched by file name (start / teleop or resume / shift / endgame or warning; there\'s no end-of-match sound) and stay in this browser only.' }),
     btn('USE BUILT-IN SOUNDS', 'clearSounds', { half: true, secondary: true, desc: 'Go back to the built-in match cues.' }),
     BACK(),
@@ -452,7 +455,10 @@ export class UI {
       document.addEventListener('pointerdown', this._popAway, true);
     }
     const vals = it.opt.values(this.s), cur = it.opt.get(this.s);
-    el.innerHTML = vals.map((v, j) => `<div class="pi ${j === this.pop.sel ? 'sel' : ''} ${v[0] === cur ? 'cur' : ''}" data-j="${j}">${v[1]}</div>`).join('');
+    // (a value's third entry: a line on what it does, under its name)
+    const notes = vals.some((v) => v[2]);
+    el.classList.toggle('notes', notes);
+    el.innerHTML = vals.map((v, j) => `<div class="pi ${j === this.pop.sel ? 'sel' : ''} ${v[0] === cur ? 'cur' : ''}" data-j="${j}">${v[1]}${v[2] ? `<small>${v[2]}</small>` : ''}</div>`).join('');
     for (const p of el.querySelectorAll('[data-j]')) {
       p.onmouseenter = () => { this.pop.sel = +p.dataset.j; for (const q of el.children) q.classList.toggle('sel', q === p); };
       p.onclick = () => { this._closePop(); this._setOpt(it, +p.dataset.j); };
@@ -461,9 +467,11 @@ export class UI {
     const a = anchor.getBoundingClientRect();
     el.style.left = `${Math.max(8, Math.min(a.left, innerWidth - Math.max(a.width, 220) - 8))}px`;
     el.style.minWidth = `${Math.max(a.width, 220)}px`;
+    el.style.maxWidth = notes ? `${Math.min(440, innerWidth - 16)}px` : '';
+    if (notes) el.style.left = `${Math.max(8, Math.min(a.left, innerWidth - Math.min(440, innerWidth - 16) - 8))}px`;
     const below = innerHeight - a.bottom - 12, above = a.top - 12;
     const up = below < 220 && above > below;
-    el.style.maxHeight = `${Math.min(360, up ? above : below)}px`;
+    el.style.maxHeight = `${Math.min(notes ? 480 : 360, up ? above : below)}px`;
     el.style.top = up ? '' : `${a.bottom + 4}px`;
     el.style.bottom = up ? `${innerHeight - a.top + 4}px` : '';
     const sel = el.children[this.pop.sel];
