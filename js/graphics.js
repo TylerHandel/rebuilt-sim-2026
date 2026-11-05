@@ -198,7 +198,7 @@ export class Graphics {
     this.pcssDefs = defs;
     // the arena's image-based lighting and reflections, and the lights balanced for it
     this._env();
-    // surface detail (carpet, fabric, foam, diamond plate, powder coat: js/surfaces.js)
+    // surface detail (carpet, fabric, diamond plate, powder coat: js/surfaces.js)
     setSurfaceDetail(p.detail, Math.min(p.aniso, r.capabilities.getMaxAnisotropy()));
     // FUEL: rounder on the higher presets
     if (this.fuel && this.fuel.mesh) {

@@ -134,9 +134,12 @@ if (vFDmg.x > 0.001) {
   if (vFC.w < 1.5) fCr = smoothstep(-0.015, 0.015, dot(o, vFC.xyz) - vFC.w + 0.07 * (nz - 0.5));
   float foam = max(fDm, fCr);
   // open cells (~3 mm), and the skin's thickness at the patch's edge (the foam ~1.5 mm under it)
-  float cells = fNoise(o * 30.0 + vFDmg.y * 13.0) * 0.7 + fNoise(o * 70.0) * 0.3;
+  // (each scale faded out where a pixel spans more than half a cell: no sparkle from afar)
+  float px = length(fwidth(o));
+  float c1 = clamp(1.5 - px * 60.0, 0.0, 1.0), c2 = clamp(1.5 - px * 140.0, 0.0, 1.0);
+  float cells = 0.5 + (fNoise(o * 30.0 + vFDmg.y * 13.0) - 0.5) * 0.7 * c1 + (fNoise(o * 70.0) - 0.5) * 0.3 * c2;
   fHgt = -0.0015 * foam + 0.0009 * cells * foam;
-  vec3 foamCol = vec3(0.50, 0.43, 0.12) * (0.78 + 0.4 * cells) * (1.0 - 0.3 * fCr);
+  vec3 foamCol = vec3(0.54, 0.45, 0.09) * (0.78 + 0.4 * cells) * (1.0 - 0.3 * fCr);
   // (a pale rim of stretched skin round each tear)
   float rim = smoothstep(-0.045, -aa, e) * (1.0 - fDm);
   diffuseColor.rgb = mix(diffuseColor.rgb, mix(diffuseColor.rgb, vec3(0.85, 0.78, 0.42), 0.45), rim);

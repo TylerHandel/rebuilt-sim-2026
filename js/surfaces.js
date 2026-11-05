@@ -1,5 +1,5 @@
 // Surface detail: small procedural maps (drawn once on a canvas, seamless, tiled at real scale)
-// and a few cheap shader touches, so the field and robots read as carpet, fabric, foam, metal and
+// and a few cheap shader touches, so the field and robots read as carpet, fabric, metal and
 // sheet instead of flat colors. Nothing here adds a render pass: a normal map and a roughness map
 // on a material it already draws, or a few lines in its shader.
 //   setSurfaceDetail(level, aniso): 0 = none (Lowest: the flat look), 1 = small maps (Low,
@@ -58,19 +58,6 @@ const HEIGHT = {
     }
     return h;
   },
-  // closed-cell foam (FUEL): shallow pits, a few dozen per tile, on a faint grain
-  foam(S) {
-    const h = new Float32Array(S * S).fill(1), P = 70;
-    for (let k = 0; k < P; k++) {
-      const cx = hash2(k, 1, 21) * S, cy = hash2(k, 2, 21) * S, r = (0.012 + 0.02 * hash2(k, 3, 21)) * S, d = 0.25 + 0.35 * hash2(k, 4, 21);
-      for (let y = Math.floor(cy - r); y <= cy + r; y++) for (let x = Math.floor(cx - r); x <= cx + r; x++) {
-        const q = ((x - cx) ** 2 + (y - cy) ** 2) / (r * r);
-        if (q < 1) { const i = ((y % S) + S) % S * S + ((x % S) + S) % S; h[i] = Math.min(h[i], 1 - d * (1 - q) ** 2); }
-      }
-    }
-    for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) h[y * S + x] += 0.08 * fbm(x / S, y / S, 32, 2, 9);
-    return h;
-  },
 };
 
 // a normal map from a wrapping height field (strength: slope per texel scale)
@@ -113,7 +100,6 @@ function finish(t) {
 const KINDS = {
   carpet: { size: [0, 256, 512], strength: 2.6, rough: [0.72, 1.0, 6, 31] },
   weave: { size: [0, 128, 256], strength: 1.6 },
-  foam: { size: [0, 128, 256], strength: 2.5 },
 };
 const CACHE = new Map();
 function maps(kind, level) {
