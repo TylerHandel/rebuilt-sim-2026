@@ -45,7 +45,7 @@ export async function loadCadModels(scene, field) {
             o.castShadow = false;
           } else if (o.material && o.material.transparent && o.material.opacity < 0.7) {
             tintClear(o.material);
-            // (polycarbonate, not the HUB's black net: glossy sheet on High and up, a fifth of its
+            // (polycarbonate, not the HUB's black net: glossy clear sheet from Low up, more of its
             // light blue-gray showing so the HUB's big panels read)
             if (o.material.color.getHSL({}).l > 0.4) {
               if (!POLY.has(o.material)) POLY.set(o.material, registerPoly(o.material, 0xd3e0ea, 0.2));

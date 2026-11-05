@@ -111,7 +111,7 @@ function finish(t) {
 
 // the maps by kind and level (cached): size, how steep, and the roughness mottle where there is one
 const KINDS = {
-  carpet: { size: [0, 256, 512], strength: 2.2, rough: [0.82, 1.0, 6, 31] },
+  carpet: { size: [0, 256, 512], strength: 2.6, rough: [0.72, 1.0, 6, 31] },
   weave: { size: [0, 128, 256], strength: 1.6 },
   foam: { size: [0, 128, 256], strength: 2.5 },
 };
@@ -134,14 +134,14 @@ let LEVEL = 0, ANISO = 1;
 // normal map's), roughRepeat: the roughness map's (a different, non-multiple scale, so the two
 // never line up into a visible repeat); normalScale: how deep
 export function detail(m, kind, { repeat = [1, 1], roughRepeat = null, normalScale = 1 } = {}) {
-  REG.push({ m, kind, repeat, roughRepeat, normalScale, rough0: m.roughness });
-  if (LEVEL) applyDetail(REG[REG.length - 1]);
+  REG.push({ m, kind, repeat, roughRepeat, normalScale, rough0: m.roughness, sheen0: m.sheen ?? 0 });
+  applyDetail(REG[REG.length - 1]);
   return m;
 }
 function applyDetail(e) {
   const { m, kind } = e;
   if (!LEVEL) {
-    m.normalMap = null; m.roughnessMap = null; m.roughness = e.rough0;
+    m.normalMap = null; m.roughnessMap = null; m.roughness = e.rough0; if (e.sheen0) m.sheen = 0; // (a cloth sheen with the detail only)
   } else {
     const t = maps(kind, LEVEL);
     // (each material its own texture objects over the shared image: its own repeat)
@@ -154,6 +154,7 @@ function applyDetail(e) {
     };
     m.normalMap = own(t.normal, e.repeat, 'nTex');
     m.normalScale.set(e.normalScale, e.normalScale);
+    if (e.sheen0) m.sheen = e.sheen0;
     if (t.rough && e.roughRepeat) { m.roughnessMap = own(t.rough, e.roughRepeat, 'rTex'); m.roughness = 1; }
   }
   m.needsUpdate = true;
@@ -292,7 +293,7 @@ export function clearSheet(m) {
     vec3 dif = reflectedLight.directDiffuse + reflectedLight.indirectDiffuse;
     vec3 spc = reflectedLight.directSpecular + reflectedLight.indirectSpecular;
     // (clear sheet scatters little of the light that crosses it: its own color mostly dims what's behind)
-    gl_FragColor = vec4((dif * a * 0.35 + spc) / max(a, 0.002), a);
+    gl_FragColor = vec4((dif * a * 0.25 + spc) / max(a, 0.002), a);
   }
 #else
   #include <opaque_fragment>

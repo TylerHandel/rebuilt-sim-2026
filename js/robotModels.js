@@ -52,7 +52,7 @@ function applyPoly(m, env) {
   if (env) {
     // (seen: how much more of its own tint shows, for the big field panels)
     const c = new THREE.Color(alpha.color).lerp(new THREE.Color(glass), 0.5);
-    Object.assign(m, { color: c, opacity: Math.min(0.6, alpha.opacity * 0.7 + seen * 0.25), transparent: true, depthWrite: false, transmission: 0, roughness: Math.min(alpha.roughness, 0.08),
+    Object.assign(m, { color: c, opacity: Math.min(0.5, alpha.opacity * 0.4 + seen * 0.3), transparent: true, depthWrite: false, transmission: 0, roughness: Math.min(alpha.roughness, 0.08),
       specularIntensity: 1, clearcoat: 0, envMap: env, envMapIntensity: 0.8 * envGain });
   } else {
     Object.assign(m, { color: new THREE.Color(alpha.color), opacity: alpha.opacity, transparent: true, depthWrite: false, transmission: 0, roughness: alpha.roughness,
@@ -251,7 +251,7 @@ const M = {
   hubGrey: std(0x6b7078, 0.4, 0.7),
   kraken: std(0x22252b, 0.35, 0.6),
   krakenRing: std(0xc9ccd2, 0.3, 0.9),
-  // polycarbonate: lightly tinted so you can tell it's there (clear, see polyMat, on High and up)
+  // polycarbonate: lightly tinted so you can tell it's there (clear sheet from Low up, see polyMat)
   poly: polyMat({ color: 0xa9c4dd, opacity: 0.26, roughness: 0.05 }, 0xf4f8fc),
   polyTint: polyMat({ color: 0x8aa3bb, opacity: 0.32, roughness: 0.08 }, 0xe2ebf3),
   compliant: std(0x2b2b2e, 0.9, 0.0),

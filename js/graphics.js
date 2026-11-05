@@ -46,7 +46,7 @@ export const PRESETS = {
   medium: { name: 'Medium', scale: 1, maxDpr: 1.5, aa: 'msaa', shadow: 2048, soft: 'pcf', ao: 0, bloom: false, env: 0.5, detail: 1, fuelSeg: 16, aniso: 4, cad: true,
     desc: 'Full resolution, multisampled edges, medium shadows, the arena\'s lighting and reflections. For integrated graphics.' },
   high: { name: 'High', scale: 1, maxDpr: 2, aa: 'msaa', shadow: 4096, soft: 'pcfsoft', ao: 0, bloom: true, env: 0.55, detail: 2, fuelSeg: 16, aniso: 8, cad: true,
-    desc: 'Sharp on high-DPI screens, big soft shadows, glowing HUB lights (bloom), reflections on the metal and clear, glossy polycarbonate.' },
+    desc: 'Sharp on high-DPI screens, big soft shadows, glowing HUB lights (bloom), full-size surface textures.' },
   ultra: { name: 'Ultra', scale: 1, maxDpr: 2, aa: 'msaa', shadow: 4096, soft: 'pcss', ao: 1, bloom: true, env: 0.55, detail: 2, fuelSeg: 20, aniso: 16, cad: true,
     desc: 'High, plus NVIDIA PCSS contact-hardening soft shadows and HBAO+-style ambient occlusion (GTAO). For a gaming GPU (GeForce RTX).' },
   max: { name: 'Max', scale: 1, maxDpr: 2, aa: 'ssaa', shadow: 8192, soft: 'pcss', ao: 2, bloom: true, env: 0.55, detail: 2, fuelSeg: 28, aniso: 16, cad: true,
@@ -255,14 +255,14 @@ export class Graphics {
     pm.dispose();
     new RGBELoader().setDataType(THREE.FloatType).loadAsync('assets/hdri/crossfit_gym_1k.hdr').then((eq) => {
       const { width: w, height: h, data: d } = eq.image;
-      // the lower half (below the horizon): a dark, gray venue floor, fading in over a few rows
+      // its colors half grayed (a neutral venue light, not the gym's red girders), and the lower
+      // half (below the horizon) a dark, gray venue floor, fading in over a few rows
       for (let y = 0; y < h; y++) {
         const below = Math.min(1, Math.max(0, (y - h * 0.5) / (h * 0.06))); // (row 0 is the top)
-        if (below <= 0) continue;
-        const k = 1 - 0.8 * below;
+        const gray = 0.5 + 0.5 * below, k = 1 - 0.8 * below;
         for (let x = 0; x < w; x++) {
           const i = 4 * (y * w + x), l = 0.3 * d[i] + 0.55 * d[i + 1] + 0.15 * d[i + 2];
-          for (let c = 0; c < 3; c++) d[i + c] = (d[i + c] + (l - d[i + c]) * below) * k;
+          for (let c = 0; c < 3; c++) d[i + c] = (d[i + c] + (l - d[i + c]) * gray) * k;
         }
       }
       eq.mapping = THREE.EquirectangularReflectionMapping;

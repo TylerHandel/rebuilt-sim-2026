@@ -25,8 +25,8 @@ function initMaterials() {
   });
   // the ALLIANCE WALL's glass (the Driver Stations', drawn and CAD): the drivers look through it
   // all match, so clearer than the HUB's panels on every preset: barely tinted, perfectly smooth,
-  // alpha blended (never the clear sheet's transmission, which washes the field out behind it
-  // on High and up), just enough showing for its edges and a glint of reflection
+  // alpha blended, just enough showing for its edges and a glint of reflection (from Low up the
+  // faintest reflections of the clear sheet: js/cadModels.js, js/surfaces.js clearSheet)
   mats.dsGlass = new THREE.MeshPhysicalMaterial({
     color: 0xeef4fa, transparent: true, opacity: 0.035, roughness: 0, metalness: 0, depthWrite: false, side: THREE.DoubleSide,
   });
@@ -256,7 +256,7 @@ export class Field {
       // (its tufted pile: a normal map 16 cm a tile, and a roughness mottle on a 1.37 m tile that
       // never lines up with it, so no repeat shows: js/surfaces.js, from Low up)
       detail(new THREE.MeshStandardMaterial({ map: this._carpetTexture(), roughness: 0.95, metalness: 0 }), 'carpet',
-        { repeat: [FIELD_L / 0.16, FIELD_W / 0.16], roughRepeat: [FIELD_L / 1.37, FIELD_W / 1.37], normalScale: 0.55 }),
+        { repeat: [FIELD_L / 0.16, FIELD_W / 0.16], roughRepeat: [FIELD_L / 1.37, FIELD_W / 1.37], normalScale: 1 }),
     );
     carpet.rotation.x = -Math.PI / 2;
     carpet.receiveShadow = true;
