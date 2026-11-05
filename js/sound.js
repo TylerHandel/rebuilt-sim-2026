@@ -73,8 +73,6 @@ export class Sound {
     this.units = new Map();   // robot -> its looping voices
     this.balls = new Map();   // FUEL -> last vertical speed
     this.game = null;
-    this.recent = [];         // [time, alliance, points] for volley detection
-    this.lastCheer = -99;
     this.cues = 'cheesy';
     this.bouncesThisFrame = 0;
     const start = () => this._start();
@@ -272,11 +270,12 @@ export class Sound {
     this.crowdV.g.gain.setTargetAtTime(on ? 0.3 : 0.12, this.ctx.currentTime, 0.8);
   }
 
-  // every frame. active: a match is on screen and running (not paused)
-  update(game, camera, active, dt) {
+  // every frame. active: a match is on screen and running (not paused); cheer: this frame's
+  // volley, if one just went in (CheerWatch, below: the venue's crowd cheers it too)
+  update(game, camera, active, dt, cheer = null) {
     if (!this.ctx) return;
     const now = this.ctx.currentTime;
-    if (game !== this.game) { this._stopVoices(); this.balls.clear(); this.game = game; this.prev = null; this.recent = []; this.lastCheer = -99; }
+    if (game !== this.game) { this._stopVoices(); this.balls.clear(); this.game = game; this.prev = null; }
     if (!this.ready) return;
     this._crowd(!!game && active);
     // the listener is the camera
@@ -392,22 +391,38 @@ export class Sound {
     const sh = ph === 'teleop' ? m.shiftIndex() : -1;
     if (prev && prev.shift >= 0 && sh > prev.shift && sh <= 4) this.play('shift', { gain: 0.7 });
     if (prev && ph === 'teleop' && prev.phase === 'teleop' && prev.left > TIMING.endgame && TIMING.teleop - m.phaseTime <= TIMING.endgame) this.play('endgame', { gain: 0.7 });
-    // ---- the crowd cheers a volley: lots of FUEL in a HUB in a short time
-    const tot = { blue: m.total('blue'), red: m.total('red') }, gt = m.t; // match time: a pause doesn't count
-    if (prev) {
+    // ---- the crowd cheers a volley
+    if (cheer) this.play(cheer.burst >= 16 ? 'cheer-big' : 'cheer', { gain: 0.33 + Math.min(0.2, cheer.burst / 80) });
+    this.prev = { phase: ph, shift: sh, left: m.phase === 'teleop' ? TIMING.teleop - m.phaseTime : 999 };
+    void dt;
+  }
+}
+
+// A volley: lots of FUEL in a HUB in a short time (8 or more in 2 s of match time; a pause doesn't
+// count), at most one every 9 s. update() every frame returns { burst, blue, red } (the points in
+// it, and each alliance's) on the frame one goes in, else null. The sound's cheer and the venue's
+// crowd (js/venue.js) both follow it.
+export class CheerWatch {
+  constructor() { this.game = null; }
+
+  update(game) {
+    if (game !== this.game) { this.game = game; this.prev = null; this.recent = []; this.lastCheer = -99; }
+    if (!game) return null;
+    const m = game.match, tot = { blue: m.total('blue'), red: m.total('red') }, gt = m.t;
+    if (this.prev) {
       for (const a of ['blue', 'red']) {
-        const d = tot[a] - prev.tot[a];
-        if (d > 0) this.recent.push([gt, d]);
+        const d = tot[a] - this.prev[a];
+        if (d > 0) this.recent.push([gt, d, a]);
       }
     }
+    this.prev = tot;
     this.recent = this.recent.filter(([t]) => gt - t < 2);
     const burst = this.recent.reduce((s, [, d]) => s + d, 0);
-    if (burst >= 8 && gt - this.lastCheer > 9) {
-      this.lastCheer = gt;
-      this.recent = [];
-      this.play(burst >= 16 ? 'cheer-big' : 'cheer', { gain: 0.33 + Math.min(0.2, burst / 80) });
-    }
-    this.prev = { phase: ph, shift: sh, left: m.phase === 'teleop' ? TIMING.teleop - m.phaseTime : 999, tot };
-    void dt;
+    if (burst < 8 || gt - this.lastCheer <= 9) return null;
+    const out = { burst, blue: 0, red: 0 };
+    for (const [, d, a] of this.recent) out[a] += d;
+    this.lastCheer = gt;
+    this.recent = [];
+    return out;
   }
 }

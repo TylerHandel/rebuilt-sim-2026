@@ -145,7 +145,7 @@ export class Field {
     this._buildGuardrails();
     this.wallSpans = [];
     for (const a of [BLUE, RED]) this._buildSide(a);
-    this._buildArena();
+    // (the arena round it, the stands and the crowd: js/venue.js, drawn only)
     this._buildTags();
   }
 
@@ -927,19 +927,6 @@ export class Field {
         intoField: s, // +x direction multiplier into the field
       };
     }
-  }
-
-  // ------------------------------------------------------------------ arena dressing
-  _buildArena() {
-    // bleachers / backdrop blocks for depth cues
-    const standMat = new THREE.MeshStandardMaterial({ color: 0x1a1d24, roughness: 1 });
-    for (const s of [1, -1]) {
-      for (let i = 0; i < 4; i++) {
-        box(FIELD_L + 8, 0.6, 1.2, standMat, 0, 0.3 + i * 0.6, s * (HALF_W + 3.2 + i * 1.2), this.group, false).userData.keepWithCad = true;
-      }
-    }
-    // scoring table
-    box(4, 0.8, 0.8, new THREE.MeshStandardMaterial({ color: 0x33363d, roughness: 0.8 }), 0, 0.4, HALF_W + 1.4, this.group);
   }
 
   // --------------------------------------------------------------- staging positions
