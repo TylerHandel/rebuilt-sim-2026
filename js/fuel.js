@@ -8,7 +8,7 @@ import { FUEL, HUB, HALF_L, HALF_W, BLUE, RED, GROUP, groups, PHYSICS_DT } from 
 import { Field } from './field.js';
 import { rand, clamp } from './util.js';
 import { fuelMaterial, squashable, contactShadows } from './fuelSkin.js';
-import { impactDamage, damageSeed } from './fuelDamage.js';
+import { impactDamage, wearSlot } from './fuelDamage.js';
 import { magnus } from './ballistics.js';
 
 const R = FUEL.radius;
@@ -33,7 +33,8 @@ export class FuelManager {
     // (its glossy skin, and the foam under it where it's worn through: fuelSkin.js)
     const mat = fuelMaterial();
     // (FUEL a physical robot's mechanisms press are drawn flattened there: b.squash, physical.js;
-    // each one's wear, b.dmg, drawn as torn patches: dmg [damage, seed] per instance)
+    // each one's wear, b.dmg, drawn as torn patches where it was worn: dmg [damage, x, y, z] per
+    // instance, fuelDamage.js wearSlot)
     const sk = squashable(geo, mat, FUEL.total, R, true);
     this.touch = sk.touch;
     this.dmgAttr = sk.dmg;
@@ -75,15 +76,22 @@ export class FuelManager {
         inFlight: false, launch: null, hubFresh: false, ignoreUntil: 0, ignoring: false, held: false, inCorral: null, inHub: null, hubT: 0,
         dmg: 0, dmgDirty: false, mechTouched: false,
       });
-      this.dmgAttr.array[2 * i + 1] = damageSeed(i);
     }
+  }
+
+  // FUEL b's wear from the last match (this.carryWear: [damage, x, y, z] by id), or none
+  _carry(b) {
+    const c = this.carryWear, i = 4 * b.id;
+    b.dmg = c?.[i] || 0;
+    b.wv = b.dmg > 0 ? [c[i + 1] * b.dmg, c[i + 2] * b.dmg, c[i + 3] * b.dmg, b.dmg] : null;
+    b.dmgDirty = true;
   }
 
   // ------------------------------------------------------------------ staging
   // preload: FUEL preloaded in the player's robot (0..8). Remaining FUEL goes to the NEUTRAL ZONE.
   stage(preload) {
     this.outQueue = [];
-    for (const b of this.balls) { this._disable(b, 'off'); b.captor = null; b.hop = null; b.dmg = this.carryWear?.[b.id] || 0; b.dmgDirty = true; }
+    for (const b of this.balls) { this._disable(b, 'off'); b.captor = null; b.hop = null; this._carry(b); }
     let i = 0;
     const next = () => this.balls[i++];
     const neutralCount = Math.min(FUEL.neutralMax, FUEL.total - 2 * FUEL.perDepot - 2 * FUEL.perChute - preload);
@@ -257,7 +265,7 @@ export class FuelManager {
       // (a hard knock wears its skin: drawn only, fuelDamage.js. Not one a robot's mechanisms or
       // intake moved this step: they set its velocity, and wear it themselves)
       if (b.mechTouched) b.mechTouched = false;
-      else if (!b.held && !b.captor) impactDamage(b, Math.hypot(v.x - ex, v.y - ey, v.z - ez));
+      else if (!b.held && !b.captor) impactDamage(b, v.x - ex, v.y - ey, v.z - ez);
       if (b.inFlight || b.hubFresh) {
         // detect contact with anything: velocity deviating from free flight
         const dev = Math.hypot(v.x - ex, v.y - ey, v.z - ez);
@@ -441,7 +449,7 @@ export class FuelManager {
     // wear (b.dmg): only the ones that changed
     const da = this.dmgAttr.array;
     let dd = false;
-    for (const b of this.balls) if (b.dmgDirty) { da[2 * b.id] = b.dmg; b.dmgDirty = false; dd = true; }
+    for (const b of this.balls) if (b.dmgDirty) { wearSlot(b, da, 4 * b.id); b.dmgDirty = false; dd = true; }
     if (dd) this.dmgAttr.needsUpdate = true;
     // FUEL waiting in the OUTPOST CHUTES
     for (const a of [BLUE, RED]) {

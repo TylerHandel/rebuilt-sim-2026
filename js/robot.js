@@ -26,7 +26,7 @@ import { Physical1690 } from './mech/phys1690.js';
 import { Physical6328 } from './mech/phys6328.js';
 const PHYSICAL = { 8793: Physical8793, 2910: Physical2910, 1678: Physical1678, 341: Physical341, 581: Physical581, 604: Physical604, 4414: Physical4414, 1114: Physical1114, 1706: Physical1706, 1690: Physical1690, 6328: Physical6328 };
 import { clamp, wrapAngle, approach, approachAngle, gauss, DEG, rand } from './util.js';
-import { damageSeed } from './fuelDamage.js';
+import { wearSlot } from './fuelDamage.js';
 PHYSICAL[2056] = Physical2056; // (2056's physical mechanisms: js/mech/phys2056.js)
 PHYSICAL[7769] = Physical7769; // (7769's physical mechanisms: js/mech/phys7769.js)
 
@@ -1724,9 +1724,9 @@ export class Robot {
     const list = this.hopper.list;
     const n = Math.min(list.length, this.model.storedMesh.instanceMatrix.count);
     const at = new Float64Array(3 * n), k = new Uint8Array(n), patches = new Float32Array(16 * n), one = this._touch || (this._touch = new Float32Array(16));
-    const dmg = new Float32Array(2 * n); // (each one's wear, drawn: js/fuelDamage.js)
+    const dmg = new Float32Array(4 * n); // (each one's wear, drawn: js/fuelDamage.js)
     for (let i = 0; i < n; i++) {
-      dmg[2 * i] = list[i].b.dmg || 0; dmg[2 * i + 1] = damageSeed(list[i].b.id);
+      wearSlot(list[i].b, dmg, 4 * i);
       k[i] = this.hopper.touchPatches(list[i], one);
       patches.set(one.subarray(0, 4 * Math.min(4, k[i])), 16 * i);
       at[3 * i] = list[i].p.x; at[3 * i + 1] = list[i].p.y; at[3 * i + 2] = list[i].p.z;

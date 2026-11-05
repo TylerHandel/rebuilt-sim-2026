@@ -3840,7 +3840,7 @@ export function buildRobotModel(cfg, alliance) {
   m.root.add(inst);
   m.storedMesh = inst;
   m.storedTouch = touch;
-  m.storedDmg = dmg; // (each one's wear: [damage, seed], js/fuelDamage.js)
+  m.storedDmg = dmg; // (each one's wear: [damage + 4 x seed, x, y, z], js/fuelDamage.js wearSlot)
   m.root.traverse((o) => {
     if (o.isMesh && o.material !== M.poly && o.material !== M.polyTint) o.castShadow = true;
   });

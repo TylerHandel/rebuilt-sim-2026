@@ -998,7 +998,9 @@ export class Mechanism {
       for (const f of ct.fric) fi += f.lam * f.lam;
       const b = ct.st.b, wh = ct.W1.wh;
       let w = wear.get(b);
-      if (!w) wear.set(b, (w = { rub: 0, nip: 0, sq: 0 }));
+      if (!w) wear.set(b, (w = { rub: 0, nip: 0, sq: 0, x: 0, y: 0, z: 0 }));
+      const rb = ct.rb;
+      w.x += rb[0] * ct.lamN; w.y += rb[1] * ct.lamN; w.z += rb[2] * ct.lamN;
       const E = Math.sqrt(fi) * slip - DAMAGE.rubPower * h;
       if (E > 0) w.rub += E;
       if (ct.lamN / h > w.sq) w.sq = ct.lamN / h;

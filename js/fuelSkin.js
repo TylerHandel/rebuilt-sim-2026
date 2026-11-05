@@ -53,9 +53,9 @@ export function fuelMaterial() {
 // widens the harder it's pressed (a smooth minimum of the sphere and the contact plane). Adds the
 // attributes to geo (n instances, each with no patch: a plane beyond the ball) and the squash to
 // mat; returns { touch: the four attributes, dmg }.
-// damage: also each instance's wear (dmg: [damage, seed], js/fuelDamage.js): patches of torn skin
+// damage: also each instance's wear (dmg: [damage + 4 x seed, x, y, z], js/fuelDamage.js wearSlot): patches of torn skin
 // where a noise over the ball (in its own frame, so they turn with it) is over a level that falls
-// as the damage grows, each with a torn edge (a lip, the skin's thickness, and a pale rim of
+// as the damage grows, on the side it was worn, each with a torn edge (a lip, the skin's thickness, and a pale rim of
 // stretched skin); inside, the foam: grayer, duller yellow, rough, no clearcoat, pitted with open
 // cells. Past DAMAGE.broken a chunk is torn out: a cap of the ball pushed in to a ragged bowl.
 export function squashable(geo, mat, n, r, damage = false) {
@@ -68,26 +68,37 @@ export function squashable(geo, mat, n, r, damage = false) {
   });
   let dmg = null;
   if (damage) {
-    dmg = new THREE.InstancedBufferAttribute(new Float32Array(2 * n), 2);
+    dmg = new THREE.InstancedBufferAttribute(new Float32Array(4 * n), 4);
     dmg.setUsage(THREE.DynamicDrawUsage);
     geo.setAttribute('fdmg', dmg);
   }
   const R = r.toFixed(4), B = BROKEN.toFixed(2);
-  const crater = `vFObj = position / ${R}; vFDmg = fdmg; vFC = vec4(0.0, 1.0, 0.0, 2.0);
-if (fdmg.x >= ${B}) {
-  // the torn-out chunk: a cap round a direction of its own, wider the worse it is
-  vec3 cd = normalize(vec3(fract(fdmg.y * 113.7), fract(fdmg.y * 57.3 + 0.31), fract(fdmg.y * 211.9 + 0.67)) - 0.5 + 1e-3);
-  float kb = clamp(fdmg.x / ${B} - 1.0, 0.0, 1.0);
+  const crater = `float fk = floor(fdmg.x / 4.0), fd = fdmg.x - 4.0 * fk;
+vFObj = position / ${R}; vFDmg = vec2(fd, (fk + 0.5) / 256.0); vFW = fdmg.yzw; vFC = vec4(0.0, 1.0, 0.0, 2.0);
+if (fd >= ${B}) {
+  // the torn-out chunk: a cap round where it was worn (or, worn all over, a direction of its own),
+  // wider the worse it is
+  vec3 cd = length(fdmg.yzw) > 0.2 ? normalize(fdmg.yzw)
+    : normalize(vec3(fract(vFDmg.y * 113.7), fract(vFDmg.y * 57.3 + 0.31), fract(vFDmg.y * 211.9 + 0.67)) - 0.5 + 1e-3);
+  float kb = clamp(fd / ${B} - 1.0, 0.0, 1.0);
   float ca = mix(0.78, 0.5, kb);
   vFC = vec4(cd, ca);
   float u = clamp((dot(normalize(position), cd) - ca) / (1.0 - ca), 0.0, 1.0);
-  sqP *= 1.0 - mix(0.3, 0.45, kb) * sqrt(u);
+  float A = mix(0.3, 0.45, kb);
+  sqP *= 1.0 - A * sqrt(u);
+  if (u > 0.0) {
+    // (the bowl's own normal: r(t) = 1 - A sqrt(u) round cd, n ~ r o - dr/dt t^)
+    vec3 on = normalize(position);
+    float ct = dot(on, cd), st = sqrt(max(1.0 - ct * ct, 1e-6));
+    float drdt = A * 0.5 * st / ((1.0 - ca) * sqrt(max(u, 0.02)));
+    objectNormal = normalize((1.0 - A * sqrt(u)) * on - drdt * (ct * on - cd) / st);
+  }
 }`;
   mat.onBeforeCompile = (sh) => {
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', `#include <common>
 attribute vec4 touch0; attribute vec4 touch1; attribute vec4 touch2; attribute vec4 touch3;
-${damage ? 'attribute vec2 fdmg; varying vec3 vFObj; varying vec2 vFDmg; varying vec4 vFC;' : ''}
+${damage ? 'attribute vec4 fdmg; varying vec3 vFObj; varying vec2 vFDmg; varying vec3 vFW; varying vec4 vFC;' : ''}
 void squash(vec4 c, inout vec3 p, inout vec3 nrm) {
   float k = 0.01 + 1.2 * max(0.0, ${R} - c.w); // blend band: wider for a deeper squash
   float h = dot(p, c.xyz);
@@ -107,7 +118,7 @@ squash(touch2, sqP, objectNormal); squash(touch3, sqP, objectNormal);`)
     if (!damage) return;
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <common>', `#include <common>
-varying vec3 vFObj; varying vec2 vFDmg; varying vec4 vFC;
+varying vec3 vFObj; varying vec2 vFDmg; varying vec3 vFW; varying vec4 vFC;
 float fHash(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
 float fNoise(vec3 x) {
   vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f);
@@ -152,6 +163,10 @@ if (vFDmg.x > 0.001) {
   vec3 o = normalize(vFObj), q = o * 2.2 + vFDmg.y * vec3(71.3, 37.9, 53.1);
   float nz = 0.72 * fNoise(q) + 0.2 * fNoise(q * 3.1 + 5.1) + 0.08 * fNoise(q * 9.0 + 9.7);
   float thr = 0.84 - 0.36 * sqrt(min(vFDmg.x, 1.0)) - 0.06 * max(vFDmg.x - 1.0, 0.0);
+  // only on the side it was worn: as much higher away from there as the wear is in one place (a
+  // FUEL knocked about from all sides wears all over)
+  float wc = min(length(vFW), 1.0);
+  if (wc > 0.0) thr += wc * (0.42 * (0.5 - 0.5 * dot(o, vFW / max(length(vFW), 1e-4))) - 0.06);
   float aa = fwidth(nz) + 0.002, e = nz - thr;
   fDm = smoothstep(-aa, aa, e);
   // the torn-out chunk (broken): its ragged rim
@@ -176,10 +191,10 @@ if (vFDmg.x > 0.001) {
   float cav = clamp(0.5 * mix(0.55, pore, c1) + 0.25 * mix(0.55, pore2, c2) - 0.4 * lump, 0.0, 1.0);
   fHgt = foam * (-0.0015 + 0.001 * lump);
   fGrd = -foam * (0.00025 * c1 * gp + 0.0001 * c2 * gp2);
-  vec3 foamCol = vec3(0.56, 0.47, 0.10) * (1.05 - 0.45 * cav) * (1.0 - 0.3 * fCr);
+  vec3 foamCol = vec3(0.43, 0.36, 0.08) * (1.05 - 0.45 * cav) * (1.0 - 0.3 * fCr);
   // (a pale rim of stretched skin round each tear)
-  float rim = smoothstep(-0.045, -aa, e) * (1.0 - fDm);
-  diffuseColor.rgb = mix(diffuseColor.rgb, mix(diffuseColor.rgb, vec3(0.85, 0.78, 0.42), 0.45), rim);
+  float rim = smoothstep(-0.015, -aa, e) * (1.0 - fDm);
+  diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(1.0, 0.97, 0.8), 0.6 * rim);
   diffuseColor.rgb = mix(diffuseColor.rgb, foamCol, foam);
   fDm = foam;
 }`)
@@ -187,7 +202,6 @@ if (vFDmg.x > 0.001) {
 roughnessFactor = mix(roughnessFactor, 0.93, fDm);`)
       .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
 if (vFDmg.x > 0.001) {
-  if (fCr > 0.0) normal = normalize(mix(normal, normalize(cross(dFdx(vViewPosition), dFdy(vViewPosition))), fCr));
   vec3 fo3 = normalize(vFObj);
   normal = fBumpD(normal, dFdx(fHgt) + dot(fGrd, dFdx(fo3)), dFdy(fHgt) + dot(fGrd, dFdy(fo3)));
 }`)
