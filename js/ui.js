@@ -25,7 +25,7 @@ export const DEFAULT_SETTINGS = {
   hp: 'manual', climber: 'none', camera: 'driver', preview: 'on',
   opponent: 'scorer', oppRobot: '4414', oppSkill: 'regional', customSide: 'drawn',
   driver: 'human', driverSkill: 'trained', mode: 'normal', role: 'score', nnNet: 'auto', sound: 'medium',
-  graphics: 'auto', renderScale: 'preset', dynRes: 'off', fps: 'off', physThread: 'main', fuelWear: 'keep', rumble: 'on',
+  graphics: 'auto', renderScale: 'preset', dynRes: 'off', fps: 'off', physThread: 'main', fuelWear: 'keep', rumble: 'on', matchCues: 'cheesy',
 };
 
 export function loadSettings() {
@@ -111,6 +111,7 @@ const OPT = {
   fuelWear: opt('fuelWear', 'FUEL wear', [['keep', 'Kept between matches'], ['fresh', 'New FUEL each match']], 'Kept: FUEL stay scuffed and torn from one match to the next (saved in this browser), as at an event. New: every match starts with fresh FUEL (choosing it clears the saved wear).'),
   physThread: opt('physThread', 'Physics thread', [['main', 'With the drawing'], ['worker', 'Separate']], 'Separate: the match (physics, every robot\'s mechanisms, the AIs) runs on a thread of its own while the page draws, so a 3v3 of physical robots keeps 60 fps on a desktop CPU. Needs the game served by serve.py (start.bat / start.command). Training mode, a neural-net driver and recording your driving for the AI run with the drawing.'),
   dynRes: opt('dynRes', 'Dynamic resolution', [['off', 'Off'], ['on', 'On']], 'Drops the render resolution (down to half) while the game can\'t keep up 60 fps, and brings it back when it can: DLSS\'s idea, render fewer pixels when the GPU is behind (the browser scales the frame up; DLSS itself needs a native app).'),
+  matchCues: opt('matchCues', 'Match cues', [['cheesy', 'Real field (Cheesy Arena)'], ['builtin', 'Built-in']], 'The match start, TELEOP start, HUB shift change and endgame warning. Real field: the field\'s own sounds as Team 254\'s open-source Cheesy Arena field software publishes them, loaded from its GitHub (github.com/Team254/cheesy-arena) when the game starts; offline, the built-in ones. Sounds you load yourself win over both.'),
   rumble: opt('rumble', 'Controller rumble', [['on', 'On'], ['off', 'Off']], 'Your controller shakes with what your robot feels: bumper hits (harder the bigger the hit), each shot, each FUEL taken in, and a soft hum while driving. Needs a controller and browser with rumble (Chrome and Edge with an Xbox controller).'),
   fps: opt('fps', 'Show FPS', [['off', 'Off'], ['on', 'On']], 'Frame rate, preset and render resolution in the corner.'),
   preview: opt('preview', 'Shot preview line', [['on', 'On'], ['off', 'Off']], 'While you hold shoot, a line shows where the shot goes (green once it will score).'),
@@ -204,9 +205,9 @@ const PAGES = {
     sec('Your robot'), o('hp'), o('climber'),
     sec('View'), o('camera'), o('preview'),
     sec('Graphics'), o('graphics'), o('renderScale'), o('dynRes'), o('fps'), o('physThread'), o('fuelWear'),
-    sec('Sound'), o('sound'), o('rumble'),
-    btn('LOAD REAL MATCH SOUNDS…', 'loadSounds', { half: true, secondary: true, desc: 'Pick your own recordings of the field\'s match cues, like the official ones installed with the FRC Game Tools / Driver Station (search its install folder for .wav files), or the static/audio folder of Team 254\'s Cheesy Arena. They\'re matched by file name (start / teleop or resume / shift / endgame or warning; there\'s no end-of-match sound) and stay in this browser only.' }),
-    btn('USE BUILT-IN SOUNDS', 'clearSounds', { half: true, secondary: true, desc: 'Go back to the built-in match cues.' }),
+    sec('Sound'), o('sound'), o('matchCues'), o('rumble'),
+    btn('LOAD YOUR OWN MATCH SOUNDS…', 'loadSounds', { half: true, secondary: true, desc: 'Pick your own recordings of the field\'s match cues, like the ones installed with the FRC Game Tools / Driver Station (search its install folder for .wav files). They\'re matched by file name (start / teleop or resume / shift / endgame or warning; there\'s no end-of-match sound) and stay in this browser only.' }),
+    btn('FORGET MY LOADED SOUNDS', 'clearSounds', { half: true, secondary: true, desc: 'Drop the match cues you loaded; the Match cues setting decides again.' }),
     BACK(),
   ],
 };

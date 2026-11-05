@@ -133,6 +133,7 @@ applyGraphics();
 loadNN().then(() => { if (ui.screen === 'menu') ui.renderMenu(); });
 const sound = new Sound();
 sound.setLevel(settings.sound);
+sound.setCues(settings.matchCues);
 const world = { physics, scene, field, fuel };
 
 // shot preview line
@@ -160,7 +161,7 @@ const ui = new UI(settings, {
   onRestart: () => startMatch(),
   onMenu: () => ui.show('menu'),
   onNNChange: () => loadNN(),
-  onSettings: () => { sound.setLevel(settings.sound); applyGraphics(); },
+  onSettings: () => { sound.setLevel(settings.sound); sound.setCues(settings.matchCues); applyGraphics(); },
   loadSounds: () => {
     const inp = document.createElement('input');
     inp.type = 'file';
@@ -173,7 +174,7 @@ const ui = new UI(settings, {
     };
     inp.click();
   },
-  clearSounds: () => sound.clearCustom().then(() => ui.toast('Built-in match sounds', 'info')),
+  clearSounds: () => sound.clearCustom().then(() => ui.toast(settings.matchCues === 'cheesy' ? 'Match cues: the real field\'s (Cheesy Arena)' : 'Built-in match cues', 'info')),
 });
 ui.editor = new AutoEditor({
   settings, field,

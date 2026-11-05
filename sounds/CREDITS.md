@@ -22,3 +22,10 @@ They were trimmed, filtered, normalized and looped for the game.
 | cheer.mp3 | crowd cheering a volley | [Heavy Cheering from Students in a School Auditorium](https://freesound.org/s/852097/) by ElevatorFan2020 |
 | cheer-big.mp3 | crowd cheering a big volley | [AF Crowd Cheer Natural Ending](https://freesound.org/s/678541/) by mglennsound |
 | crowd.mp3 | the crowd's murmur (ten overlapping layers, so no single voice stands out) | [crowd int medium murmur convention space](https://freesound.org/s/451600/) and [crowd int large heavy active walla](https://freesound.org/s/629872/) by kyles, [Ambience: Convention Crowd](https://freesound.org/s/494492/) by Sheyvan |
+
+## Match cues: the real field's (Settings → Match cues → Real field)
+
+Not in this project: loaded at run time from Team 254's open-source Cheesy Arena field software,
+which publishes the field's match cues in its repository (static/audio: start, resume,
+shift_change, warning), pinned to one commit: https://github.com/Team254/cheesy-arena. The sounds
+belong to their owners; this project never copies or hosts them. Offline, the built-in cues above play.

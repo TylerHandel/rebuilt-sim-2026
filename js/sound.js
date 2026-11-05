@@ -30,6 +30,11 @@ export function cueFor(name) {
   if (/start|auto|charge|begin/.test(n)) return 'match-start';
   return null;
 }
+// the real field's match cues as Team 254's Cheesy Arena (open-source field software) publishes them
+// in its GitHub repository, loaded from there at run time (never copied into this project), pinned
+// to one commit so they don't change under us: https://github.com/Team254/cheesy-arena (static/audio)
+const CHEESY = 'https://raw.githubusercontent.com/Team254/cheesy-arena/248d9de497e701223e2cdbc986a19bbfea054c21/static/audio/';
+const CHEESY_CUES = { 'match-start': 'start', 'teleop-start': 'resume', shift: 'shift_change', endgame: 'warning' };
 const DB = 'rebuiltSim.sounds';
 function idb() {
   return new Promise((res, rej) => {
@@ -70,6 +75,7 @@ export class Sound {
     this.game = null;
     this.recent = [];         // [time, alliance, points] for volley detection
     this.lastCheer = -99;
+    this.cues = 'cheesy';
     this.bouncesThisFrame = 0;
     const start = () => this._start();
     for (const ev of ['pointerdown', 'keydown', 'touchstart']) window.addEventListener(ev, start, { once: false, passive: true });
@@ -104,24 +110,41 @@ export class Sound {
     this.wet.gain.value = 0.9;
     this.reverb.connect(this.wet);
     this.wet.connect(this.limiter);
-    this.custom = {};
-    const own = idbAll().catch(() => ({}));
+    // each sound from the first of: your own loaded cue, Cheesy Arena's (if chosen), ours
+    this.custom = {}; this.ownBuf = {}; this.cheesyBuf = {}; this.base = {};
     for (const f of FILES) {
-      fetch(`sounds/${f}.${WAV.has(f) ? 'wav' : 'mp3'}?v=${SOUND_V}`).then((r) => r.arrayBuffer()).then((a) => this.ctx.decodeAudioData(a)).then(async (b) => {
-        const mine = (await own)[f];
-        if (mine) {
-          try { this.buf[f] = await this.ctx.decodeAudioData(mine.slice(0)); this.custom[f] = true; return; } catch { /* fall back to ours */ }
-        }
-        this.buf[f] = b;
-      }).catch(() => {});
+      fetch(`sounds/${f}.${WAV.has(f) ? 'wav' : 'mp3'}?v=${SOUND_V}`).then((r) => r.arrayBuffer()).then((a) => this.ctx.decodeAudioData(a)).then((b) => { this.base[f] = b; this._pick(f); }).catch(() => {});
     }
-    // loaded cues the game has no sound of its own for (the shift change)
-    own.then(async (mine) => {
+    idbAll().catch(() => ({})).then(async (mine) => {
       for (const cue of CUES) {
-        if (FILES.includes(cue) || !mine[cue]) continue;
-        try { this.buf[cue] = await this.ctx.decodeAudioData(mine[cue].slice(0)); this.custom[cue] = true; } catch { /* */ }
+        if (!mine[cue]) continue;
+        try { this.ownBuf[cue] = await this.ctx.decodeAudioData(mine[cue].slice(0)); this._pick(cue); } catch { /* */ }
       }
     });
+    this._cheesy();
+  }
+
+  _pick(name) {
+    const b = this.ownBuf[name] || (this.cues === 'cheesy' && this.cheesyBuf[name]) || this.base[name];
+    if (b) this.buf[name] = b; else delete this.buf[name];
+    this.custom[name] = !!this.ownBuf[name];
+  }
+
+  // where the match cues come from: 'cheesy' (Cheesy Arena's, from its GitHub) or 'builtin'
+  setCues(src) {
+    this.cues = src;
+    if (this.ctx) this._cheesy();
+  }
+
+  _cheesy() {
+    if (this.cues === 'cheesy' && !this._cheesyLoading) {
+      this._cheesyLoading = true;
+      for (const [cue, file] of Object.entries(CHEESY_CUES)) {
+        fetch(CHEESY + file + '.wav').then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(r.status))).then((a) => this.ctx.decodeAudioData(a))
+          .then((b) => { this.cheesyBuf[cue] = b; this._pick(cue); }).catch(() => { /* offline or moved: ours */ });
+      }
+    }
+    for (const cue of CUES) this._pick(cue);
   }
 
   // files: File objects picked by the player. Returns [cue name, file name] for each one used.
@@ -138,18 +161,14 @@ export class Sound {
     }
     if (!used.length) return used;
     await idbPut(got);
-    for (const [cue, data] of Object.entries(got)) { this.buf[cue] = await this.ctx.decodeAudioData(data.slice(0)); this.custom[cue] = true; }
+    for (const [cue, data] of Object.entries(got)) { this.ownBuf[cue] = await this.ctx.decodeAudioData(data.slice(0)); this._pick(cue); }
     return used;
   }
 
   async clearCustom() {
     await idbPut({}, true);
-    for (const cue of Object.keys(this.custom || {})) {
-      delete this.buf[cue];
-      if (!FILES.includes(cue)) continue;
-      try { this.buf[cue] = await this.ctx.decodeAudioData(await (await fetch(`sounds/${cue}.mp3?v=${SOUND_V}`)).arrayBuffer()); } catch { /* */ }
-    }
-    this.custom = {};
+    this.ownBuf = {};
+    for (const cue of CUES) this._pick(cue);
   }
 
   // an impulse response for a large hall: a few early reflections, then a dark, decaying tail
