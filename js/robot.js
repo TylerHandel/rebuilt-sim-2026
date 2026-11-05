@@ -96,7 +96,12 @@ const _q = new THREE.Quaternion(), _v = new THREE.Vector3(), _v2 = new THREE.Vec
 // it moves over to the way round nearest the middle once it's within UNWIND of a stop, so the next
 // shot starts with room both ways.
 const TENV = globalThis.process?.env ?? {};
-const UNWIND = Number(TENV.TURRET_UNWIND ?? 30) * DEG, HOLD = Number(TENV.TURRET_HOLD ?? 60) * DEG, TURRET_ASSIST = Number(TENV.TURRET_ASSIST ?? 1) > 0;
+// (off by default: in matches, 4414, 2056 and 8793 against 2910, champs, seeds 1-2, holding at a
+// stop while shooting launched less than swinging round (4414 901 -> 728-808, 2056 632 -> 483-520,
+// 8793 435 -> 320-423 FUEL a match, with or without the chassis turning), and unwinding toward the
+// middle between shots alone came out even (563/415/189 points from 558/428/195): the turret swings
+// to the nearest way round, as before. TURRET_HOLD=60 TURRET_UNWIND=30 to try them)
+const UNWIND = Number(TENV.TURRET_UNWIND ?? -1) * DEG, HOLD = Number(TENV.TURRET_HOLD ?? 0) * DEG, TURRET_ASSIST = Number(TENV.TURRET_ASSIST ?? 1) > 0;
 export function turretGoal(rel, cur, lim, shooting) {
   const b = cur + wrapAngle(rel - cur); // (the target's bearing the way round it's turned now)
   const cands = [rel, rel + 2 * Math.PI, rel - 2 * Math.PI].filter((a) => Math.abs(a) <= lim);
