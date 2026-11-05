@@ -60,12 +60,13 @@ export const LED_LAYOUT = {
   // thebluealliance.com/team/8793/2026, imgur vhB9Gr5), then a 60-LED strip (LEDSubsystem.java:
   // LED_END = 7 + LED_COUNT = 67; github.com/Pumpkin-Bots/2026_Robot), mounted (the user) round
   // the turret's cable-chain track: on the outside of its outer wall (js/echain.js TRACK8793:
-  // 8.0in from the turret's axis, the wall from 0.318 to 0.343 m up), all the way round.
+  // 8.0in from the turret's axis, the wall from 0.318 to 0.343 m up), from the camera mount at the
+  // back right round the front to the one at the back left (the user).
   8793: {
     n: 68,
     runs: [
       { path: [[0.27, 0.215, -0.24], [0.27, 0.215, -0.17]], n: 8, i0: 0, pitch: 0.008 },
-      { arc: { c: [-0.127, 0], r: 8.0 * 0.0254 + 0.004, y: 0.331, a0: 0, a1: 354 }, n: 60, i0: 8, dot: 0.6 },
+      { arc: { c: [-0.127, 0], r: 8.0 * 0.0254 + 0.008, y: 0.331, a0: -150, a1: 150 }, n: 60, i0: 8, dot: 0.8 },
     ],
   },
 };

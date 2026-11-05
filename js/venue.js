@@ -536,7 +536,9 @@ export class Venue {
 
   // every frame: the time, the cheering dying down, your own drive team hidden from the Driver
   // Station camera, and the screens a few times a second
-  update(dt, game, camera, live) {
+  // cut: the alliance wall's fade (js/wallCutaway.js: { fade 0..1, side }): the drive teams behind
+  // that wall go with it, so they don't hide your robot and the FUEL either
+  update(dt, game, camera, live, cut = null) {
     if (this.level <= 0) return;
     const u = this.uniforms;
     this.t += dt;
@@ -552,11 +554,14 @@ export class Venue {
       if (d <= 0) u.uCheerR.value = 1;
     }
     this._phase = ph;
-    // the people right at the camera (your drive team, at the Driver Station view) aren't drawn
+    // the people right at the camera (your drive team, at the Driver Station view) aren't drawn,
+    // nor those behind an alliance wall while it's faded out
     if (this.standingMesh) {
       let dirty = false;
+      const cutting = cut && cut.fade > 0.3;
       this.standing.forEach((p, i) => {
-        const hide = p.pos.distanceToSquared(camera.position) < 1.1 * 1.1;
+        const hide = p.pos.distanceToSquared(camera.position) < 1.1 * 1.1
+          || (cutting && p.pos.x * cut.side > HALF_L - 0.3 && Math.abs(p.pos.z) < HALF_W + 0.5);
         if (hide === p.hidden) return;
         p.hidden = hide;
         this.standingMesh.setMatrixAt(i, hide ? ZERO : p.m);

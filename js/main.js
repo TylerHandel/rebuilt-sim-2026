@@ -513,8 +513,8 @@ function tick(dt, render) {
   } else {
     rig.update(dt, game ? game.robot : null);
   }
-  venue.update(dt, game, camera, !!game && ui.screen === 'hud' && !game.match.over);
   cutaway.update(camera, ui.screen === 'menu' || ui.screen === 'editor' ? null : game?.robot, dt);
+  venue.update(dt, game, camera, !!game && ui.screen === 'hud' && !game.match.over, { fade: cutaway.fade, side: cutaway.uniforms.uCutSide.value });
   if (render) {
     // (materials that appeared since: a new match's robots, CAD parts that just loaded)
     gfxRefreshT -= dt;
