@@ -37,19 +37,21 @@ import { setSurfaceDetail } from './surfaces.js';
 // ao: 0 off, 1 GTAO, 2 GTAO high quality; bloom; env: the arena's image-based lighting and
 // reflections (intensity; 0: the plain lights alone); detail: surface maps (js/surfaces.js: 0 none,
 // 1 small, 2 full)
-// fuelSeg: FUEL sphere segments; aniso: texture filtering; cad: load the CAD models
+// fuelSeg: FUEL sphere segments; aniso: texture filtering; cad: load the CAD models; venue: how much
+// of the arena round the field is drawn (js/venue.js: 0 a few blocks, 1 a small venue, 2 a gym
+// with stands on both sides, 3 a fuller crowd)
 export const PRESETS = {
-  potato: { name: 'Lowest', scale: 0.5, maxDpr: 1, aa: 'none', shadow: 0, soft: 'basic', ao: 0, bloom: false, env: 0, detail: 0, fuelSeg: 8, aniso: 1, cad: false,
+  potato: { name: 'Lowest', scale: 0.5, maxDpr: 1, aa: 'none', shadow: 0, soft: 'basic', ao: 0, bloom: false, env: 0, detail: 0, fuelSeg: 8, aniso: 1, cad: false, venue: 0,
     desc: 'Half resolution, no shadows, simple FUEL and the drawn robots and field instead of the CAD models (the CAD part takes effect after a reload). For old or school laptops.' },
-  low: { name: 'Low', scale: 0.75, maxDpr: 1, aa: 'fxaa', shadow: 1024, soft: 'pcf', ao: 0, bloom: false, env: 0.5, detail: 1, fuelSeg: 12, aniso: 2, cad: true,
+  low: { name: 'Low', scale: 0.75, maxDpr: 1, aa: 'fxaa', shadow: 1024, soft: 'pcf', ao: 0, bloom: false, env: 0.5, detail: 1, fuelSeg: 12, aniso: 2, cad: true, venue: 1,
     desc: '75% resolution, small shadow map, NVIDIA FXAA for the edges, the arena\'s lighting and small surface textures.' },
-  medium: { name: 'Medium', scale: 1, maxDpr: 1.5, aa: 'msaa', shadow: 2048, soft: 'pcf', ao: 0, bloom: false, env: 0.5, detail: 1, fuelSeg: 16, aniso: 4, cad: true,
+  medium: { name: 'Medium', scale: 1, maxDpr: 1.5, aa: 'msaa', shadow: 2048, soft: 'pcf', ao: 0, bloom: false, env: 0.5, detail: 1, fuelSeg: 16, aniso: 4, cad: true, venue: 2,
     desc: 'Full resolution, multisampled edges, medium shadows, the arena\'s lighting and reflections. For integrated graphics.' },
-  high: { name: 'High', scale: 1, maxDpr: 2, aa: 'msaa', shadow: 4096, soft: 'pcfsoft', ao: 0, bloom: true, env: 0.55, detail: 2, fuelSeg: 16, aniso: 8, cad: true,
+  high: { name: 'High', scale: 1, maxDpr: 2, aa: 'msaa', shadow: 4096, soft: 'pcfsoft', ao: 0, bloom: true, env: 0.55, detail: 2, fuelSeg: 16, aniso: 8, cad: true, venue: 3,
     desc: 'Sharp on high-DPI screens, big soft shadows, glowing HUB lights (bloom), full-size surface textures.' },
-  ultra: { name: 'Ultra', scale: 1, maxDpr: 2, aa: 'msaa', shadow: 4096, soft: 'pcss', ao: 1, bloom: true, env: 0.55, detail: 2, fuelSeg: 20, aniso: 16, cad: true,
+  ultra: { name: 'Ultra', scale: 1, maxDpr: 2, aa: 'msaa', shadow: 4096, soft: 'pcss', ao: 1, bloom: true, env: 0.55, detail: 2, fuelSeg: 20, aniso: 16, cad: true, venue: 3,
     desc: 'High, plus NVIDIA PCSS contact-hardening soft shadows and HBAO+-style ambient occlusion (GTAO). For a gaming GPU (GeForce RTX).' },
-  max: { name: 'Max', scale: 1, maxDpr: 2, aa: 'ssaa', shadow: 8192, soft: 'pcss', ao: 2, bloom: true, env: 0.55, detail: 2, fuelSeg: 28, aniso: 16, cad: true,
+  max: { name: 'Max', scale: 1, maxDpr: 2, aa: 'ssaa', shadow: 8192, soft: 'pcss', ao: 2, bloom: true, env: 0.55, detail: 2, fuelSeg: 28, aniso: 16, cad: true, venue: 3,
     desc: 'Everything on: 4x supersampling, an 8K PCSS shadow map, full-quality ambient occlusion, rounder FUEL. Overkill on purpose: an RTX 4080/4090 or better.' },
 };
 export const PRESET_ORDER = ['potato', 'low', 'medium', 'high', 'ultra', 'max'];
@@ -142,8 +144,8 @@ function patchPCSS() {
 export class Graphics {
   // sun: the shadow-casting light; shadowBox: its shadow camera's half sizes (m) and depth range
   // lights: { hemi, fill }, the scene's other lights (balanced with the arena's environment)
-  constructor({ renderer, scene, camera, sun, fuel, field, lights = {} }) {
-    Object.assign(this, { renderer, scene, camera, sun, fuel, field, lights });
+  constructor({ renderer, scene, camera, sun, fuel, field, venue = null, lights = {} }) {
+    Object.assign(this, { renderer, scene, camera, sun, fuel, field, venue, lights });
     // the lights as main.js set them up: Lowest keeps them as they are
     this.base = { sun: [sun.color.clone(), sun.intensity, sun.position.clone()], hemi: lights.hemi && [lights.hemi.intensity], fill: lights.fill && [lights.fill.intensity], exposure: renderer.toneMappingExposure };
     this.gpu = detectGPU(renderer);
@@ -211,6 +213,8 @@ export class Graphics {
     }
     // robots built from here on skip their CAD parts on Lowest (window.__gfxNoCad, robotModels.js)
     window.__gfxNoCad = !p.cad;
+    // the venue round the field (js/venue.js), built for this preset
+    if (this.venue) this.venue.setLevel(new URLSearchParams(location.search).has('novenue') ? 0 : p.venue);
     this.refresh();
     this._buildComposer();
   }
@@ -417,8 +421,13 @@ export class Graphics {
       // the glow, on black, without fog
       const s = this.scene, bg = s.background, fog = s.fog;
       s.background = null; s.fog = null;
+      // (the venue left out of it: the field's lights are never behind it, and the crowd is a lot
+      // to draw again; its own lights stay in, outside venue.body)
+      const vb = this.venue && this.venue.body;
+      if (vb) vb.visible = false;
       const gc = this.glow.composer;
       gc.render(dt);
+      if (vb) vb.visible = true;
       this.glow.mix.material.uniforms.tGlow.value = gc.readBuffer.texture;
       s.background = bg; s.fog = fog;
     }

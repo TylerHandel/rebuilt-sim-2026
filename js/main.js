@@ -10,7 +10,8 @@ import { Learner, DrivingRecorder } from './learning.js';
 import { NNRecorder } from './nn/recorder.js';
 import { Policy } from './nn/policy.js';
 import { refreshLibrary, resolveNet, netUrl } from './nn/library.js';
-import { Sound } from './sound.js';
+import { Sound, CheerWatch } from './sound.js';
+import { Venue } from './venue.js';
 import { TuningScreen } from './tuning.js';
 import { loadCadModels } from './cadModels.js';
 import { Input } from './input.js';
@@ -96,7 +97,9 @@ const cutaway = new WallCutaway(renderer, field);
 cutaway.register(field.group);
 const fuel = new FuelManager(physics, scene, field);
 // graphics presets (js/graphics.js); the Lowest one leaves the field CAD out
-gfx = new Graphics({ renderer, scene, camera, sun, fuel, field, lights: { hemi, fill } });
+// the arena round the field: stands, crowd, trusses, screens (js/venue.js; drawn only)
+const venue = new Venue(scene);
+gfx = new Graphics({ renderer, scene, camera, sun, fuel, field, venue, lights: { hemi, fill } });
 {
   const k = storedPreset();
   if (PRESETS[k === 'auto' ? detectGPU(renderer).preset : k]?.cad !== false) {
@@ -130,6 +133,7 @@ setGraphicsInfo((k) => gfx.describe(k));
 applyGraphics();
 loadNN().then(() => { if (ui.screen === 'menu') ui.renderMenu(); });
 const sound = new Sound();
+const cheers = new CheerWatch(); // (a volley: the sound's cheer and the crowd's)
 sound.setLevel(settings.sound);
 const world = { physics, scene, field, fuel };
 
@@ -487,7 +491,9 @@ function tick(dt, render) {
     for (const a of [BLUE, RED]) field.setHubLights(a, 'active', performance.now() / 1000);
   }
   if (!threaded) fuel.sync();
-  sound.update(game, camera, !!game && ui.screen === 'hud', dt);
+  const cheer = cheers.update(game);
+  sound.update(game, camera, !!game && ui.screen === 'hud', dt, cheer);
+  if (cheer) venue.cheer(cheer);
 
   if (ui.screen === 'menu' || ui.screen === 'editor') {
     // slow orbit behind the menu
@@ -500,6 +506,7 @@ function tick(dt, render) {
   } else {
     rig.update(dt, game ? game.robot : null);
   }
+  venue.update(dt, game, camera, !!game && ui.screen === 'hud' && !game.match.over);
   cutaway.update(camera, ui.screen === 'menu' || ui.screen === 'editor' ? null : game?.robot, dt);
   if (render) {
     // (materials that appeared since: a new match's robots, CAD parts that just loaded)
@@ -529,7 +536,7 @@ requestAnimationFrame(frame);
 
 // debugging / test handle: __sim.advance(seconds) steps the game without animation frames
 window.__sim = {
-  get game() { return game; }, learner, fuel, field, physics, settings, THREE, renderer, scene, camera, gfx, ui, rig, startMatch, sound, stats, merger, thread, get threaded() { return threaded; },
+  get game() { return game; }, learner, venue, fuel, field, physics, settings, THREE, renderer, scene, camera, gfx, ui, rig, startMatch, sound, stats, merger, thread, get threaded() { return threaded; },
   setInput(v) { debugInput = v; },
   // test hook: let an AI drive the player's robot (same as the "Your robot" menu option)
   autopilot(strategy = 'scorer', skill = 'champs') {
