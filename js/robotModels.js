@@ -3078,6 +3078,26 @@ const INTAKE_1706 = { pivot: [0.262, 0.168], origin: [0.149, 0.127], swing: -113
 // where the CAD's shooters fire as exported (the right one, the left: their shots' headings, out over
 // their 3in accelerator wheels; tools/path-mesh-1706.py)
 const TURRET_1706_YAW = [160.2 * Math.PI / 180, 152.0 * Math.PI / 180];
+// a spindexer's printed cone (their CAD's "Part 1", sliced; the CAD's own mesh is in
+// 1706-spin-a/-b.glb and its collision surface in js/mech/path1706.js): it rides its hex shaft 5 cm
+// over the disc, 42 mm round from 0.212 to 0.241 m up, then tapering to a 10 mm point at 0.314 m;
+// three ribs stand 9 mm proud at its foot (5 mm by 0.30 m, where they end) and wind 66 deg round it
+// over those 9 cm (a 0.46 m lead: right-handed on the right spindexer, left-handed on the left, its
+// mirror), so as it turns the way it feeds (SPIN_DIR) their leading faces push FUEL down into the
+// ring. side: 1 the right one (z < 0), -1 the left.
+function cone1706(parent, mat, side) {
+  const prof = [[0.0005, 0.212], [0.042, 0.212], [0.042, 0.241], [0.010, 0.313], [0.0005, 0.314]];
+  mesh(new THREE.LatheGeometry(prof.map(([r, y]) => new THREE.Vector2(r, y)), 24), mat, parent, 0, 0, 0);
+  for (let k = 0; k < 3; k++) {
+    const pts = [];
+    for (let y = 0.213; y <= 0.3001; y += 0.0087) {
+      const a = (93 - 790 * (y - 0.213) + 120 * k) * Math.PI / 180;
+      const R = (y < 0.241 ? 0.051 : 0.051 - (0.029 / 0.059) * (y - 0.241)) - 0.0045;
+      pts.push(new THREE.Vector3(R * Math.cos(a), y, side * R * Math.sin(a)));
+    }
+    mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 16, 0.0045, 6), mat, parent, 0, 0, 0);
+  }
+}
 function build1706(cfg, alliance) {
   const root = new THREE.Group();
   const L = cfg.frame.length, W = cfg.frame.width, bay = cfg.bay, sh = cfg.shooter;
@@ -3096,12 +3116,16 @@ function build1706(cfg, alliance) {
   box.add(boxDrawn);
   polyWall(boxDrawn, 2 * bay.hw, bay.top - 0.22, bay.x1, 0.22 + (bay.top - 0.22) / 2, 0, Math.PI / 2);
   // the spindexers
-  const spins = bay.rotors.map((r) => {
+  // the spindexers (drawn until 1706-spin-a/-b.glb load: the disc, its hex shaft and the cone)
+  const spins = bay.rotors.map((r, i) => {
     const g = new THREE.Group();
     g.position.set(r.x, 0, r.z);
     root.add(g);
-    const d = mesh(new THREE.CylinderGeometry(r.r, r.r, 0.004, 32), M.anodBlack, g, 0, r.y, 0);
-    cylY(0.05, 0.1, blue, g, 0, r.y + 0.1, 0, 16);
+    const d = new THREE.Group();
+    g.add(d);
+    mesh(new THREE.CylinderGeometry(r.r, r.r, 0.004, 32), M.anodBlack, d, 0, r.y, 0);
+    cylY(0.007, 0.12, M.alu, d, 0, r.y + 0.06, 0, 6);
+    cone1706(d, blue, i ? -1 : 1);
     return { g, d, r };
   });
   // the intake arm, folded up inside the hopper
