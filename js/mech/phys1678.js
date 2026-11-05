@@ -31,6 +31,11 @@ import { Field } from '../field.js';
 import { FUEL, FIELD_L, HALF_L, TRENCH, fw } from '../constants.js';
 import { underTrench, TRENCH_OPENINGS } from '../nav.js';
 
+// the lid goes up while intaking once it holds LID_N FUEL (the lower stage takes ~57; driving
+// down the NEUTRAL ZONE's line its intake slowed from ~40, tools/intake-test.mjs with LIFTLOG=1),
+// and back down once it holds a few fewer and the load's LID_DOWN FUEL radii under the lower
+// stage's top (shot or spilled)
+const LID_N = 40, LID_DOWN = 3;
 const DEG = Math.PI / 180, R = FUEL.radius, FT = 0.3048;
 const HALF = 0.343; // its frame (27in square)
 // their intake pivot's position loop (Slot2: V per degree of arm, kS, kG) and hood's profile
@@ -166,7 +171,7 @@ export class Physical1678 extends PhysicalRobot {
     // the lid on the climber: up (once the intake's been down), down for a TRENCH, but never onto
     // the FUEL under it
     // (back down for good once the load's well under the lid: shot, or spilled)
-    if (this.expanded && this.loadTop() < (r.cfg.bay.top ?? 0) - R) this.expanded = false;
+    if (this.expanded && this.held.length < LID_N - 6 && this.loadTop() < (r.cfg.bay.top ?? 0) - LID_DOWN * R) this.expanded = false;
     this.lift += clamp(this.liftScale() * (r.cfg.bay.lift?.h ?? 0) - this.lift, -LID_SPEED.down * dt, LID_SPEED.up * dt);
     // pose the moving parts
     // the extension where the arm's pin puts it, and how it moves as the arm turns (its mass felt
@@ -333,6 +338,10 @@ export class Physical1678 extends PhysicalRobot {
   // full yet (js/mech/physical.js)? With the lid down, a full hopper is the lower stage's: the lid
   // goes up instead (expanded), and it takes on (the watch starts over)
   watchFull(dt, intaking) {
+    // (up a little before it's full: once it holds LID_N while intaking, before the pile against the
+    // lid starts slowing the intake down; the load's top isn't a guide, FUEL coming in bounce high)
+    const lid = this.r.cfg.bay.lift?.h;
+    if (intaking && lid && !this.expanded && !this.tucked && this.held.length >= LID_N) this.expanded = true;
     const full = super.watchFull(dt, intaking);
     if (!full || this.expanded || this.tucked || !this.r.cfg.bay.lift?.h || this.liftNow() > 0.5) return full;
     this.expanded = true;
