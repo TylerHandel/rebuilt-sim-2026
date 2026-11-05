@@ -1,7 +1,8 @@
 // Where a headless match's time goes, and a fingerprint of how it played (for checking that a
 // speed-up changed nothing).
 //   node --import ./tools/node-env.mjs tools/perf3v3.mjs [--3v3 2910,1678,4414:6328,7769,1690]
-//        [--1v1 2910:4414] [--seed 1] [--secs 160] [--noprof] [--hash] [--top 40] [--json out.json]
+//        [--1v1 2910:4414] [--seed 1] [--secs 160] [--noprof] [--hash] [--damage] [--top 40] [--json out.json]
+// --damage: how worn the FUEL are at the end (js/fuelDamage.js: drawn only), and by what
 // --secs: match time to play (the whole match, 160 s with the pre-match, by default)
 // --noprof: no per-part timers (the plain speed); --hash: print a hash of every robot's and FUEL's
 // state every 0.5 s of the match (bit-identical runs print the same hashes) and the scores.
@@ -13,6 +14,7 @@ import { createWorld, mulberry32 } from './headless.mjs';
 import { createGame, stepGame, frameGame } from '../js/game.js';
 import { PHYSICS_DT, BLUE, RED } from '../js/constants.js';
 import { Profiler } from '../js/profiler.js';
+import { damageStats } from '../js/fuelDamage.js';
 
 const args = process.argv.slice(2);
 const arg = (k, d) => { const i = args.indexOf('--' + k); return i >= 0 ? args[i + 1] : d; };
@@ -46,6 +48,7 @@ const gcs = { n: 0, ms: 0, major: 0 };
 const obs = new PerformanceObserver((list) => { for (const e of list.getEntries()) { gcs.n++; gcs.ms += e.duration; if (e.detail?.kind === 4 || e.kind === 4) gcs.major++; } });
 obs.observe({ entryTypes: ['gc'] });
 
+if (flag('damage')) { globalThis.__dmgLog = []; globalThis.__hitLog = []; }
 const prof = flag('noprof') ? null : new Profiler().install();
 const realRandom = Math.random;
 const world = await createWorld();
@@ -81,6 +84,13 @@ console.log(`${label} seed ${seed}: ${simS.toFixed(1)} s simulated in ${(wall / 
 console.log(`CPU time: ${(cpu / simS).toFixed(0)} ms per sim s (wall is noisy on a shared machine; CPU time less so)`);
 console.log(`physical robots: ${physRobots.join(' ')}; GC: ${gcs.n} pauses, ${(gcs.ms / simS).toFixed(1)} ms per sim s (${gcs.major} major)`);
 console.log(`score: blue ${m.total(BLUE)} red ${m.total(RED)}; shots ${game.robots.map((r) => r.cfg.key + ':' + r.stats.shots + '/' + r.stats.intaked).join(' ')}`);
+if (flag('damage')) {
+  const c = world.fuel.damageCounts(), e = damageStats.events, r = (x) => x.toFixed(2);
+  const hist = [0.02, 0.05, 0.1, 0.2, 0.35, 0.5, 0.75, 1, 1.5].map((x) => `>${x}:${world.fuel.balls.filter((b) => b.dmg > x).length}`).join(' ');
+  console.log(`damage: ${c.scuffed} scuffed (>0.1), ${c.torn} torn (>0.5), ${c.broken} broken; max ${r(c.max)}; ${hist}`);
+  if (arg('dmglog')) writeFileSync(arg('dmglog'), JSON.stringify({ mech: globalThis.__dmgLog.filter((x) => x[1] > 0 || x[2] > 0 || x[3] > 50), hit: globalThis.__hitLog }));
+  console.log(`  by cause (total, events): hit ${r(damageStats.hit)}/${e.hit} nip ${r(damageStats.nip)}/${e.nip} rub ${r(damageStats.rub)}/${e.rub} squeeze ${r(damageStats.sq)}/${e.sq}`);
+}
 if (flag('hash')) {
   console.log(`hash: ${hashes[hashes.length - 1]} (${hashes.length} samples)`);
   if (arg('hashfile')) writeFileSync(arg('hashfile'), hashes.join('\n') + '\n');

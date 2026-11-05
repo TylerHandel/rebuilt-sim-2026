@@ -203,8 +203,11 @@ export class Graphics {
     // FUEL: rounder on the higher presets
     if (this.fuel && this.fuel.mesh) {
       const R = this.fuel.mesh.geometry.parameters.radius;
-      this.fuel.mesh.geometry.dispose();
-      this.fuel.mesh.geometry = new THREE.SphereGeometry(R, p.fuelSeg, Math.round(p.fuelSeg * 0.75));
+      const old = this.fuel.mesh.geometry, geo = new THREE.SphereGeometry(R, p.fuelSeg, Math.round(p.fuelSeg * 0.75));
+      // (the per-FUEL attributes carry over: the squash patches, the wear)
+      for (const [k, a] of Object.entries(old.attributes)) if (a.isInstancedBufferAttribute) geo.setAttribute(k, a);
+      old.dispose();
+      this.fuel.mesh.geometry = geo;
     }
     // robots built from here on skip their CAD parts on Lowest (window.__gfxNoCad, robotModels.js)
     window.__gfxNoCad = !p.cad;

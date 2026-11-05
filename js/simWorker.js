@@ -55,12 +55,12 @@ function snapshot() {
     match: plain(m),
     robots: game.units.map((u) => ({ r: { ...plain(u.robot), storedN: u.robot.stored.length }, vis: u.robot.visualState(true), ai: u.ai ? { label: u.ai.label } : null })),
     hps: { [BLUE]: plain(game.hps[BLUE]), [RED]: plain(game.hps[RED]) },
-    fuel: { inst: f.mesh.instanceMatrix.array.slice(), touch: f.touch.map((a) => a.array.slice()), chute: { [BLUE]: f.chute[BLUE].length, [RED]: f.chute[RED].length } },
+    fuel: { inst: f.mesh.instanceMatrix.array.slice(), touch: f.touch.map((a) => a.array.slice()), dmg: f.dmgAttr.array.slice(), chute: { [BLUE]: f.chute[BLUE].length, [RED]: f.chute[RED].length } },
     cost: { msPerStep: cost.steps ? cost.ms / cost.steps : 0, stepsPerS: (1000 * cost.steps) / Math.max(1, performance.now() - cost.t0) },
   };
   events = [];
   if (performance.now() - cost.t0 > 1000) { cost.ms = 0; cost.steps = 0; cost.t0 = performance.now(); }
-  postMessage(snap, [snap.fuel.inst.buffer, ...snap.fuel.touch.map((a) => a.buffer)]);
+  postMessage(snap, [snap.fuel.inst.buffer, snap.fuel.dmg.buffer, ...snap.fuel.touch.map((a) => a.buffer)]);
 }
 
 // two steps at a time against the clock (at most 8 a turn: a slower machine plays slower)

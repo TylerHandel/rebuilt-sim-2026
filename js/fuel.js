@@ -6,9 +6,9 @@ import * as THREE from 'three';
 import { RAPIER } from './physics.js';
 import { FUEL, HUB, HALF_L, HALF_W, BLUE, RED, GROUP, groups, PHYSICS_DT } from './constants.js';
 import { Field } from './field.js';
-import { detail } from './surfaces.js';
 import { rand, clamp } from './util.js';
-import { fuelTexture, squashable } from './fuelSkin.js';
+import { fuelMaterial, squashable, contactShadows } from './fuelSkin.js';
+import { impactDamage, damageSeed } from './fuelDamage.js';
 import { magnus } from './ballistics.js';
 
 const R = FUEL.radius;
@@ -30,10 +30,13 @@ export class FuelManager {
     this.chute = { blue: [], red: [] };
 
     const geo = new THREE.SphereGeometry(R, 16, 12);
-    // (its foam's fine pits, a normal map tiled round the sphere: js/surfaces.js, from Low up)
-    const mat = detail(new THREE.MeshStandardMaterial({ map: fuelTexture(), roughness: 0.72, metalness: 0 }), 'foam', { repeat: [6, 3], normalScale: 0.35 });
-    // (FUEL a physical robot's mechanisms press are drawn flattened there: b.squash, physical.js)
-    this.touch = squashable(geo, mat, FUEL.total, R);
+    // (its glossy skin, and the foam under it where it's worn through: fuelSkin.js)
+    const mat = fuelMaterial();
+    // (FUEL a physical robot's mechanisms press are drawn flattened there: b.squash, physical.js;
+    // each one's wear, b.dmg, drawn as torn patches: dmg [damage, seed] per instance)
+    const sk = squashable(geo, mat, FUEL.total, R, true);
+    this.touch = sk.touch;
+    this.dmgAttr = sk.dmg;
     this.squashed = new Set();
     this.mesh = new THREE.InstancedMesh(geo, mat, FUEL.total);
     this.mesh.castShadow = true;
@@ -41,6 +44,10 @@ export class FuelManager {
     this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.mesh.frustumCulled = false;
     scene.add(this.mesh);
+    // a soft dark spot on the carpet under each FUEL near it (fuelSkin.js contactShadows): one
+    // draw call for all of them
+    this.blobs = contactShadows(FUEL.total, R);
+    scene.add(this.blobs);
 
     const { world } = physics;
     for (let i = 0; i < FUEL.total; i++) {
@@ -65,7 +72,9 @@ export class FuelManager {
         pos: new THREE.Vector3(0, -10, 0), quat: new THREE.Quaternion(),
         prevVel: { x: 0, y: 0, z: 0 },
         inFlight: false, launch: null, hubFresh: false, ignoreUntil: 0, ignoring: false, held: false, inCorral: null, inHub: null, hubT: 0,
+        dmg: 0, dmgDirty: false, mechTouched: false,
       });
+      this.dmgAttr.array[2 * i + 1] = damageSeed(i);
     }
   }
 
@@ -73,7 +82,7 @@ export class FuelManager {
   // preload: FUEL preloaded in the player's robot (0..8). Remaining FUEL goes to the NEUTRAL ZONE.
   stage(preload) {
     this.outQueue = [];
-    for (const b of this.balls) { this._disable(b, 'off'); b.captor = null; b.hop = null; }
+    for (const b of this.balls) { this._disable(b, 'off'); b.captor = null; b.hop = null; b.dmg = 0; b.dmgDirty = true; }
     let i = 0;
     const next = () => this.balls[i++];
     const neutralCount = Math.min(FUEL.neutralMax, FUEL.total - 2 * FUEL.perDepot - 2 * FUEL.perChute - preload);
@@ -243,9 +252,13 @@ export class FuelManager {
       const p = body.translation();
       b.pos.set(p.x, p.y, p.z);
       const v = body.linvel();
+      const ex = b.prevVel.x, ey = b.prevVel.y - 9.81 * dt, ez = b.prevVel.z;
+      // (a hard knock wears its skin: drawn only, fuelDamage.js. Not one a robot's mechanisms or
+      // intake moved this step: they set its velocity, and wear it themselves)
+      if (b.mechTouched) b.mechTouched = false;
+      else if (!b.held && !b.captor) impactDamage(b, Math.hypot(v.x - ex, v.y - ey, v.z - ez));
       if (b.inFlight || b.hubFresh) {
         // detect contact with anything: velocity deviating from free flight
-        const ex = b.prevVel.x, ey = b.prevVel.y - 9.81 * dt, ez = b.prevVel.z;
         const dev = Math.hypot(v.x - ex, v.y - ey, v.z - ez);
         const sp = Math.hypot(v.x, v.y, v.z);
         if (dev > 0.35 + 0.03 * sp * sp * dt * 60 || p.y < R + 0.015) {
@@ -424,6 +437,11 @@ export class FuelManager {
       dirty = true;
     }
     if (dirty) for (const a of tc) a.needsUpdate = true;
+    // wear (b.dmg): only the ones that changed
+    const da = this.dmgAttr.array;
+    let dd = false;
+    for (const b of this.balls) if (b.dmgDirty) { da[2 * b.id] = b.dmg; b.dmgDirty = false; dd = true; }
+    if (dd) this.dmgAttr.needsUpdate = true;
     // FUEL waiting in the OUTPOST CHUTES
     for (const a of [BLUE, RED]) {
       const slots = this.field.outposts[a].chuteSlots;
@@ -436,6 +454,23 @@ export class FuelManager {
       }
     }
     mesh.instanceMatrix.needsUpdate = true;
+  }
+
+  // the contact shadows from where the FUEL are drawn (after sync, or the physics thread's state)
+  drawShadows() {
+    this.blobs.place(this.mesh.instanceMatrix.array);
+  }
+
+  // how many are worn (b.dmg over 0.1), badly (over 0.5) and broken
+  damageCounts() {
+    const c = { scuffed: 0, torn: 0, broken: 0, max: 0 };
+    for (const b of this.balls) {
+      if (b.dmg > 0.1) c.scuffed++;
+      if (b.dmg > 0.5) c.torn++;
+      if (b.dmg >= 1) c.broken++;
+      c.max = Math.max(c.max, b.dmg);
+    }
+    return c;
   }
 
   counts() {

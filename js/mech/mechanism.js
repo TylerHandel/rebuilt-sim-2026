@@ -33,6 +33,7 @@
 //     the pivot's motor and the arm's weight let it.
 import { FUEL } from '../constants.js';
 import { MOTORS } from '../drivetrain.js';
+import { DAMAGE } from '../fuelDamage.js';
 
 const R = FUEL.radius, MB = FUEL.mass, TAU = 2 * Math.PI;
 const IB = 0.4 * MB * R * R;         // solid foam sphere
@@ -624,6 +625,10 @@ export class Mechanism {
     this.gShare = (substeps + 1) / (2 * substeps);
     this.contacts = [];  // last step's, for drawing and tests
     this.dents = [];     // its last substep's, every one (step)
+    // what each FUEL's skin went through this step, for drawing its wear (js/fuelDamage.js; read
+    // only: nothing here changes the solve): body -> { rub, nip, sq }, and which wheels each touched
+    this.wear = new Map();
+    this._tNow = new Map();
     this.V = 12;
   }
 
@@ -644,6 +649,7 @@ export class Mechanism {
   // of the shooter's sub-steps, not once a step after it's sunk into it
   step(dt, balls, together = null, skip = null) {
     this.together = together ? new Set(together) : null;
+    this.wear.clear();
     this.skip = skip;
     if (this.tally) this.tally.step = new Map();
     // the motors: through the whole step at once, or (sub-stepped) through each sub-step before its
@@ -890,6 +896,8 @@ export class Mechanism {
     const twist = TWIST_ENV === 'all' || (TWIST_ENV !== '0' && this.sub > 1);
     for (const ct of C) prepare(ct, h, fr, reaction);
     const tally = this.tally;
+    // (wear: each contact's relative surface speed as it comes in, and who touched what last time)
+    const wear = this.wear, tPrev = this._tNow, tNow = (this._tNow = new Map());
     // relative velocity of the ball's surface over the wheel's at the contact, into RV
     const relVel = (ct) => {
       const st = ct.st, v = st.v, w = st.w, rb = ct.rb;
@@ -909,6 +917,7 @@ export class Mechanism {
       RV[0] = r0; RV[1] = r1; RV[2] = r2;
     };
     const along = (u) => RV[0] * u[0] + RV[1] * u[1] + RV[2] * u[2];
+    if (wear) for (const ct of C) if (!ct.st2) { relVel(ct); ct.rv0 = Math.hypot(RV[0], RV[1], RV[2]); }
     // an impulse lam along direction D (D.u, and its fixed parts: prepare)
     const apply = (ct, D, lam) => {
       const st = ct.st, u = D.u, cb = D.cb, kv = lam / MB, kw = lam / IB;
@@ -978,6 +987,25 @@ export class Mechanism {
           }
         }
       }
+    }
+    // wear (read only): the friction's work where the surfaces still slip after the solve, beyond
+    // DAMAGE.rubP of power; the firmest squeeze; the relative speed where a wheel first meets a FUEL
+    if (wear) for (const ct of C) {
+      if (ct.st2 || !(ct.lamN > 0)) continue;
+      relVel(ct);
+      const vn = along(ct.n), slip = Math.sqrt(Math.max(0, RV[0] * RV[0] + RV[1] * RV[1] + RV[2] * RV[2] - vn * vn));
+      let fi = 0;
+      for (const f of ct.fric) fi += f.lam * f.lam;
+      const b = ct.st.b, wh = ct.W1.wh;
+      let w = wear.get(b);
+      if (!w) wear.set(b, (w = { rub: 0, nip: 0, sq: 0 }));
+      const E = Math.sqrt(fi) * slip - DAMAGE.rubP * h;
+      if (E > 0) w.rub += E;
+      if (ct.lamN / h > w.sq) w.sq = ct.lamN / h;
+      let t = tNow.get(b);
+      if (!t) tNow.set(b, (t = new Set()));
+      t.add(wh);
+      if (!tPrev.get(b)?.has(wh) && ct.rv0 > w.nip) w.nip = ct.rv0;
     }
   }
 }

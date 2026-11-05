@@ -21,7 +21,7 @@ import { INTAKE as INTAKE_6328, WALLS as WALLS_6328, NET as NET_6328, KICK as KI
 import { SHOOTER as S341, hoodRot as hoodRot341, hoodElevation as hoodElevation341 } from './mech/r341.js';
 import * as R2056 from './mech/r2056.js';
 import * as R7769 from './mech/r7769.js';
-import { fuelTexture, squashable } from './fuelSkin.js';
+import { fuelMaterial, squashable } from './fuelSkin.js';
 import { ALUMINUM_COLORS } from './aluminumColors.js';
 import { chain8793, chain4414, chain1690 } from './echainModel.js';
 import { detail, clearSheet, sheetOn, orangePeel } from './surfaces.js';
@@ -3830,8 +3830,8 @@ export function buildRobotModel(cfg, alliance) {
   const geo = new THREE.SphereGeometry(r, 32, 22);
   // squeezed FUEL flattens where it's pressed (Hopper.touchPatches; fuelSkin.js squashable)
   const MAX = 260; // room for whatever the hopper holds
-  const mat = new THREE.MeshStandardMaterial({ map: fuelTexture(), roughness: 0.72 });
-  const touch = squashable(geo, mat, MAX, r);
+  const mat = fuelMaterial();
+  const { touch, dmg } = squashable(geo, mat, MAX, r, true);
   const inst = new THREE.InstancedMesh(geo, mat, MAX);
   inst.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   inst.frustumCulled = false;
@@ -3840,6 +3840,7 @@ export function buildRobotModel(cfg, alliance) {
   m.root.add(inst);
   m.storedMesh = inst;
   m.storedTouch = touch;
+  m.storedDmg = dmg; // (each one's wear: [damage, seed], js/fuelDamage.js)
   m.root.traverse((o) => {
     if (o.isMesh && o.material !== M.poly && o.material !== M.polyTint) o.castShadow = true;
   });

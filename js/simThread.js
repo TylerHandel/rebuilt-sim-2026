@@ -77,6 +77,7 @@ export class SimThread {
     fuel.mesh.instanceMatrix.array.set(s.fuel.inst);
     fuel.mesh.instanceMatrix.needsUpdate = true;
     fuel.touch.forEach((a, j) => { a.array.set(s.fuel.touch[j]); a.needsUpdate = true; });
+    fuel.dmgAttr.array.set(s.fuel.dmg); fuel.dmgAttr.needsUpdate = true;
     for (const a of [BLUE, RED]) if (fuel.chute[a].length !== s.fuel.chute[a]) fuel.chute[a] = new Array(s.fuel.chute[a]).fill(null);
     for (const [type, d] of s.events) onEvent(type, d);
     return true;

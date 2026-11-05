@@ -505,6 +505,7 @@ function tick(dt, render) {
     const timing = settings.fps === 'on';
     if (timing) stats.gpuBegin();
     merger.update(dt);
+    fuel.drawShadows();
     if (PROF) { renderer.info.reset(); drawn.passes = 0; drawn.shadow = 0; }
     gfx.render(dt);
     if (timing) stats.gpuEnd();
