@@ -10,7 +10,10 @@
 // on the way down (dropped with their subtrees). Small hardware is always dropped. Optional
 // filters on what's left: "skipBox" drops parts whose center (model frame) is in one of the
 // boxes [x0, x1, y0, y1, z0, z1]; "onlyName" / "onlyBox" keep just the parts under a node
-// matching one of the regexes or centered in one of the boxes. "glass": regexes for parts that are
+// matching one of the regexes or centered in one of the boxes. "skipCyl": [[x, z, r, y0, y1], ...]
+// drops the triangles (not whole parts) centered within r of the vertical line at (x, z) between
+// heights y0 and y1 (model frame): what turns of a swerve module that's one solid with its plates
+// (1706's). "glass": regexes for parts that are
 // polycarbonate but aren't see-through in the CAD (they get a clear material named "poly").
 // "like": { "glb": ref.glb, "node": "name" } keeps only the parts that match (by name and
 // position, within 5 mm) a part under that node in another export of the same robot, and
@@ -53,8 +56,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const [src, recipePath] = process.argv.slice(2);
-if (!recipePath) { console.log('usage: node tools/extract-parts.mjs robot.glb recipe.json [--retag]'); process.exit(1); }
+if (!recipePath) { console.log('usage: node tools/extract-parts.mjs robot.glb recipe.json [--retag] [--only regex]'); process.exit(1); }
 const RETAG = process.argv.includes('--retag');
+// --only regex: make just the outputs whose "out" matches (the swerve modules' three, say)
+const ONLY = process.argv.includes('--only') ? new RegExp(process.argv[process.argv.indexOf('--only') + 1]) : null;
 const recipe = JSON.parse(fs.readFileSync(recipePath, 'utf8'));
 const HW = /screw|\bnut\b|washer|\brivets?\b|shcs|bhcs|fhcs|rivnut|insert|retaining|zip tie|^9\d{4}a|^fuel\b|reference cube|origin cube/i;
 const io = new NodeIO().registerExtensions(ALL_EXTENSIONS);
@@ -269,6 +274,7 @@ const toSRGB = (c) => Math.round(255 * (c <= 0.0031308 ? 12.92 * c : 1.055 * c *
 const log = [];
 
 for (const part of recipe.parts) {
+  if (ONLY && !ONLY.test(part.out)) continue;
   // (a part's own "src": another file next to the source, as 6328's AdvantageScope model ships its
   // moving parts in model_0.glb..model_3.glb)
   const doc = await io.read(part.src ? path.resolve(path.dirname(src), part.src) : src);
@@ -379,6 +385,33 @@ for (const part of recipe.parts) {
   const pivot = doc.createNode('pivot').setMatrix([...M, -o[0], -o[1], -o[2], 1]);
   for (const c of [...scene.listChildren()]) { scene.removeChild(c); pivot.addChild(c); }
   scene.addChild(pivot);
+  if (part.skipCyl) {
+    // (an instance of a part shares its mesh with the others: each gets its own to cut)
+    const cut = new Set();
+    for (const n of root.listNodes()) {
+      let mesh = n.getMesh();
+      if (!mesh) continue;
+      if (cut.has(mesh)) {
+        const own = doc.createMesh(mesh.getName());
+        for (const p of mesh.listPrimitives()) own.addPrimitive(p.clone());
+        n.setMesh(own);
+        mesh = own;
+      }
+      cut.add(mesh);
+      const W = n.getWorldMatrix(), e = [0, 0, 0];
+      for (const p of mesh.listPrimitives()) {
+        const pos = p.getAttribute('POSITION'), idx = p.getIndices();
+        if (!idx) continue;
+        const kept = [];
+        for (let k = 0; k < idx.getCount(); k += 3) {
+          const t = [idx.getScalar(k), idx.getScalar(k + 1), idx.getScalar(k + 2)], c = [0, 0, 0];
+          for (const i of t) { pos.getElement(i, e); for (let r = 0; r < 3; r++) c[r] += (W[r] * e[0] + W[4 + r] * e[1] + W[8 + r] * e[2] + W[12 + r]) / 3; }
+          if (!part.skipCyl.some(([x, z, r, y0, y1]) => Math.hypot(c[0] - x, c[2] - z) < r && c[1] > y0 && c[1] < y1)) kept.push(...t);
+        }
+        p.setIndices(doc.createAccessor().setType('SCALAR').setArray(new Uint32Array(kept)).setBuffer(idx.getBuffer()));
+      }
+    }
+  }
   if (part.smooth) {
     // light: hard edges keep their split normals, so the simplifier leaves them alone
     await doc.transform(prune(), dedup(), weld(), flatten(), join({ keepNamed: false }), simplify({ simplifier: MeshoptSimplifier, ratio: part.ratio ?? 0.5, error: part.error ?? 0.001 }), prune());

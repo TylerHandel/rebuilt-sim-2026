@@ -68,6 +68,9 @@
       "smooth": true,
       "ratio": 0.08,
       "error": 0.005
-    }
+    },
+    { "out": "cad/robots/4930-swerve.glb", "include": ["SDS MK4i","SDS MK4n"], "exclude": ["^MK4 Line Turret Assembly","spacer","bearing","standoff","Grommet","bushing","snapring","magnet"], "like": {"glb":"r4930.glb","node":"Final Final Robotassembly"}, "origin": [-0.3555,-0.145,0.381], "ratio": 0.06, "error": 0.006 },
+    { "out": "cad/robots/4930-steer.glb", "include": ["MK4 Line Turret Assembly"], "exclude": ["^Wheel, SDS","^Tread, Black","spacer","bearing","standoff","Grommet","bushing","snapring","magnet"], "like": {"glb":"r4930.glb","node":"Final Final Robotassembly"}, "origin": [-0.3555,-0.145,0.381], "ratio": 0.1, "error": 0.004 },
+    { "out": "cad/robots/4930-wheels.glb", "include": ["MK4 Line Turret Assembly"], "onlyName": ["^Wheel, SDS","^Tread, Black"], "exclude": ["spacer","bearing","standoff","Grommet","bushing","snapring","magnet"], "like": {"glb":"r4930.glb","node":"Final Final Robotassembly"}, "origin": [-0.3555,-0.145,0.381], "smooth": true, "ratio": 0.15, "error": 0.0012 }
   ]
 }

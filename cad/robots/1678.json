@@ -230,6 +230,9 @@
       "smooth": true,
       "ratio": 0.2,
       "error": 0.002
-    }
+    },
+    { "out": "cad/robots/1678-swerve.glb", "include": ["SDS MK5n"], "exclude": ["^SDS MK5 Turret Assembly","spacer","bearing","standoff","Grommet","bushing","snapring","magnet"], "like": {"glb":"r1678.glb","node":"1678-26c-0000"}, "ratio": 0.06, "error": 0.006 },
+    { "out": "cad/robots/1678-steer.glb", "include": ["SDS MK5 Turret Assembly"], "exclude": ["^SDS MK5 Molded Wheel","spacer","bearing","standoff","Grommet","bushing","snapring","magnet"], "like": {"glb":"r1678.glb","node":"1678-26c-0000"}, "ratio": 0.1, "error": 0.004 },
+    { "out": "cad/robots/1678-wheels.glb", "include": ["SDS MK5 Molded Wheel"], "exclude": ["spacer","bearing","standoff","Grommet","bushing","snapring","magnet"], "like": {"glb":"r1678.glb","node":"1678-26c-0000"}, "smooth": true, "ratio": 0.15, "error": 0.0012 }
   ]
 }
