@@ -88,6 +88,8 @@ export function createGame(world, settings, { onEvent = () => {}, prev = null } 
     robot.loadFuel(pre.slice(k, k + e.preload));
     k += e.preload;
     const auto = new AutoRunner(robot, e.auto, e.startKey || e.start, e.alliance, custom, e.plan);
+    // (a robot you drive: its mechanisms don't do what an AI's emulated driver would, js/mech)
+    robot.humanDriven = e.driver === 'human';
     return { robot, auto, ai: null, entry: e, human: e.driver === 'human', external: e.driver === 'external' };
   });
   const robots = units.map((u) => u.robot);

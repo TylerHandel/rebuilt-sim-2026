@@ -259,7 +259,7 @@ export class Physical6328 extends PhysicalRobot {
     if (this.slamGoal !== 'RETRACT_SLOW' || this.armDeg > this.armHi + 1) { this.armHi = this.armDeg; this.armHiT = t; }
     const stalled = t - this.armHiT > 0.5;
     // (not in AUTO: no driver then, their own AUTO runs it)
-    if (!auto && this.launching && (this.armDeg > INTAKE.up - 3 || stalled) && t - this.lastShotT > 0.75 && this.held.length > 0) {
+    if (!auto && !r.humanDriven && this.launching && (this.armDeg > INTAKE.up - 3 || stalled) && t - this.lastShotT > 0.75 && this.held.length > 0) {
       this.launchT = 0; this.slamGoal = 'DEPLOY'; this.lastShotT = t;
     }
     if (!held && this.wasHeld) { this.slamGoal = 'DEPLOY'; if (!this.launching) this.kickBackT = Math.max(this.kickBackT, 0); }
@@ -273,7 +273,9 @@ export class Physical6328 extends PhysicalRobot {
     const caught = intaking && !this.launching && this.armDeg > INTAKE.down + CAUGHT.deg
       && [...this.owned].some((b) => { const [x, y] = this._local(b.pos); return underRamp(x, y, this.armDeg); });
     this.caughtT = caught ? this.caughtT + dt : 0;
-    if (!auto && this.caughtT > CAUGHT.t && t >= this.clearUntil) { this.clearUntil = t + CAUGHT.clear; this.caughtT = 0; r.stats.clears = (r.stats.clears || 0) + 1; }
+    // (not for you: driving it yourself, you decide; a FUEL left on the folded arm after a compaction
+    // caught it again each time it came down, so it looped lifting and dropping while you intaked)
+    if (!auto && !r.humanDriven && this.caughtT > CAUGHT.t && t >= this.clearUntil) { this.clearUntil = t + CAUGHT.clear; this.caughtT = 0; r.stats.clears = (r.stats.clears || 0) + 1; }
     // ---- the slam and the intake roller
     let roller = 0;
     if (intaking) { this.slamGoal = 'DEPLOY'; roller = 13; }

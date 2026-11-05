@@ -13,7 +13,7 @@
 //     70% of the shot for where it is (an estimate), otherwise at 1500 RPM. Under a TRENCH the hood
 //     is down.
 //   the "Truffle Shuffle" (the team: "jostling the intake in and out would help keep fuel from
-//     becoming jammed in the hopper"): while it shoots (intaking or not) the slide runs in and out
+//     becoming jammed in the hopper"): while it shoots (not while it intakes too: the user) the slide runs in and out
 //     between all the way out and SHUFFLE.depth in, every SHUFFLE.period, its roller running
 //     (estimates), the hopper's front pushing the load back onto the belts as it comes in.
 //   eject: the roller, floor and feeder reversed.
@@ -178,13 +178,13 @@ export class Physical7769 extends PhysicalRobot {
     this.shootT = shooting ? this.shootT + dt : 0;
     // the floor and feeder: 12 V while it shoots
     let floor = this.feed ? 1 : 0, feed = this.feed ? 1 : 0, roller = 0;
-    // the intake: out and running while intaking; shuffling while it shoots (intaking or not: the
-    // roller runs through it, carrying what's in its mouth in); out stays out; stowed when told to
+    // the intake: out and running while intaking (shooting too: no shuffle then, the user); shuffling
+    // while it shoots and doesn't intake (the roller runs through it, carrying what's in its mouth in); out stays out; stowed when told to
     // (not deployed from in under a TRENCH, or about to go in, while the robot's turned across it:
     // 1 m long with it out, it wedges between the TRENCH and the wall turning there; an estimate of
     // what its driver does)
     const skewed = underTrench(r.pos.x, r.pos.z, 0.9) && Math.abs(Math.sin(r.yaw)) > 0.25 && this.ext < 0.05;
-    if (shooting && this.ext > 0.05 && this.shootT > SHUFFLE.delay) { this.slideGoal = shuffleGoal(this.shootT); roller = 12; }
+    if (shooting && !intaking && this.ext > 0.05 && this.shootT > SHUFFLE.delay) { this.slideGoal = shuffleGoal(this.shootT); roller = 12; }
     else if (intaking) { if (!skewed) this.slideGoal = SLIDE.out; roller = this.ext > 0.2 ? 12 : 0; }
     else if (r.cmd.stow) this.slideGoal = 0;
     else if (this.slideGoal !== null && this.slideGoal < SLIDE.out && this.slideGoal > 0) this.slideGoal = SLIDE.out;
