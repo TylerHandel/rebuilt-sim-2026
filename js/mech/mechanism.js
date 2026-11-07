@@ -471,18 +471,15 @@ export class Surface {
     const [ex, ey, ez] = this.axes;
     return add(add(mul(ex, v[0]), mul(ey, v[1])), mul(ez, v[2]));
   }
-  // where a FUEL at p (the surface's coordinates) touches it: [{ depth, n (out of the surface,
-  // toward the FUEL) }], one per face it's against (neighboring triangles of one face, and a thin
-  // plate's far side, merged into the deepest). (The mechanism also passes the FUEL itself, its
-  // body: a surface that remembers which side of it each FUEL is on uses it; a mesh doesn't)
-  touches(p) {
-    const px = p[0], py = p[1], pz = p[2], r = R;
-    if (px < this.lo[0] || px > this.hi[0] || py < this.lo[1] || py > this.hi[1] || pz < this.lo[2] || pz > this.hi[2] || !this.nodeA.length) return NONE;
-    const cell = this.cell, T = this.tri, P = this.plane, B = this.box, q = this.q, g0 = this.g0, gn = this.gn;
-    const NB = this.nodeBox, NA = this.nodeA, NBn = this.nodeB, leafTri = this.leafTri, cell0 = this.cell0;
-    // (the grid's cells the FUEL's box covers: where each face found falls in the grid's order)
-    const i0 = Math.max(0, Math.floor((px - r) / cell) - g0[0]), j0 = Math.max(0, Math.floor((py - r) / cell) - g0[1]), k0 = Math.max(0, Math.floor((pz - r) / cell) - g0[2]);
-    let nh = 0;
+  // the triangles whose bounds reach within R + NEAR_M of (px, py, pz), from the tree, in a list
+  // ({ t, n }); kept for who (a FUEL's body) and handed back while it stays within NEAR_M of where
+  // they were found (every triangle its box can reach is among them then)
+  _near(px, py, pz, who) {
+    let c = who !== undefined ? (this._nearOf ??= new Map()).get(who) : undefined;
+    if (c && Math.abs(px - c.x) <= NEAR_M && Math.abs(py - c.y) <= NEAR_M && Math.abs(pz - c.z) <= NEAR_M) return c;
+    if (!c) { c = { x: 0, y: 0, z: 0, t: new Int32Array(16), n: 0 }; if (who !== undefined) this._nearOf.set(who, c); }
+    c.x = px; c.y = py; c.z = pz; c.n = 0;
+    const r = R + NEAR_M + 1e-9, NB = this.nodeBox, NA = this.nodeA, NBn = this.nodeB, leafTri = this.leafTri, B = this.box;
     const stack = STACK;
     let sp = 0;
     stack[sp++] = 0;
@@ -492,7 +489,34 @@ export class Surface {
       const nb = NBn[id];
       if (nb >= 0) { stack[sp++] = nb; stack[sp++] = NA[id]; continue; }
       for (let m = NA[id], e = m - 1 - nb; m < e; m++) {
-        const t = leafTri[m];
+        const t = leafTri[m], o = t * 6;
+        if (px + r < B[o] || px - r > B[o + 3] || py + r < B[o + 1] || py - r > B[o + 4] || pz + r < B[o + 2] || pz - r > B[o + 5]) continue;
+        if (c.n === c.t.length) { const g = new Int32Array(c.t.length * 2); g.set(c.t); c.t = g; }
+        c.t[c.n++] = t;
+      }
+    }
+    return c;
+  }
+  // where a FUEL at p (the surface's coordinates) touches it: [{ depth, n (out of the surface,
+  // toward the FUEL) }], one per face it's against (neighboring triangles of one face, and a thin
+  // plate's far side, merged into the deepest). (The mechanism also passes the FUEL itself, its
+  // body: a surface that remembers which side of it each FUEL is on uses it; a mesh doesn't)
+  touches(p, who) {
+    const px = p[0], py = p[1], pz = p[2], r = R;
+    if (px < this.lo[0] || px > this.hi[0] || py < this.lo[1] || py > this.hi[1] || pz < this.lo[2] || pz > this.hi[2] || !this.nodeA.length) return NONE;
+    const cell = this.cell, T = this.tri, P = this.plane, B = this.box, q = this.q, g0 = this.g0, gn = this.gn;
+    const cell0 = this.cell0;
+    // (the grid's cells the FUEL's box covers: where each face found falls in the grid's order)
+    const i0 = Math.max(0, Math.floor((px - r) / cell) - g0[0]), j0 = Math.max(0, Math.floor((py - r) / cell) - g0[1]), k0 = Math.max(0, Math.floor((pz - r) / cell) - g0[2]);
+    let nh = 0;
+    // The triangles near this FUEL: the tree's, for a box a margin bigger than the FUEL's, kept
+    // for that FUEL (who) until it's moved the margin on this surface; each step the exact
+    // tests below run on them. The faces found are put in the grid's order (their keys) as they
+    // come, so the same faces come out in the same order whichever way they were found.
+    const near = this._near(px, py, pz, who);
+    for (let m = 0, e = near.n, L = near.t; m < e; m++) {
+      {
+        const t = L[m];
         const o = t * 6;
         if (px + r < B[o] || px - r > B[o + 3] || py + r < B[o + 1] || py - r > B[o + 4] || pz + r < B[o + 2] || pz - r > B[o + 5]) continue;
         const sd = P[t * 4] * px + P[t * 4 + 1] * py + P[t * 4 + 2] * pz - P[t * 4 + 3];
@@ -532,6 +556,8 @@ export class Surface {
 }
 // (touches' scratch: the tree walk's stack, and the faces found, in the grid's order)
 const STACK = new Int32Array(256);
+// (how far a FUEL can move on a surface before the triangles kept near it are looked up again: m)
+const NEAR_M = 0.008;
 let HK = new Float64Array(64), HD = new Float64Array(64), HN = new Float64Array(192);
 function growHits() {
   const k = new Float64Array(HK.length * 2), d = new Float64Array(HK.length * 2), nn = new Float64Array(HK.length * 6);
@@ -603,6 +629,32 @@ export class Block extends Surface {
   }
 }
 
+
+// Each surface's bounds (its own, grown by a FUEL's radius) as a box in the frame, 6 numbers a
+// surface (lo, hi) in a scratch array: a FUEL whose center is outside it is outside the bounds in
+// the surface's own coordinates too, where touches gives nothing. Only for the surfaces whose
+// touches is a mesh's or a Block's (bounded, and remembering nothing between calls); the others get
+// lo > hi (no box: always asked). The box is grown a micrometer past the rotated bounds so rounding
+// in either transform can't drop a FUEL that touches would have looked at.
+let SBOX = new Float64Array(96);
+function surfaceBounds(surfaces) {
+  if (SBOX.length < surfaces.length * 6) SBOX = new Float64Array(surfaces.length * 12);
+  for (let i = 0; i < surfaces.length; i++) {
+    const sf = surfaces[i], o = i * 6;
+    const plain = sf.touches === Surface.prototype.touches || sf.touches === Block.prototype.touches;
+    const lo = sf.lo, hi = sf.hi;
+    if (!plain || !(Number.isFinite(lo[0]) && Number.isFinite(hi[0]))) { SBOX[o] = 1; SBOX[o + 3] = -1; continue; }
+    const c0 = (lo[0] + hi[0]) / 2, c1 = (lo[1] + hi[1]) / 2, c2 = (lo[2] + hi[2]) / 2;
+    const h0 = (hi[0] - lo[0]) / 2, h1 = (hi[1] - lo[1]) / 2, h2 = (hi[2] - lo[2]) / 2;
+    const [ex, ey, ez] = sf.axes, p = sf.pos;
+    for (let k = 0; k < 3; k++) {
+      const c = p[k] + ex[k] * c0 + ey[k] * c1 + ez[k] * c2;
+      const h = Math.abs(ex[k]) * h0 + Math.abs(ey[k]) * h1 + Math.abs(ez[k]) * h2 + 1e-6;
+      SBOX[o + k] = c - h; SBOX[o + 3 + k] = c + h;
+    }
+  }
+  return SBOX;
+}
 
 // ------------------------------------------------------------------ the mechanism
 export class Mechanism {
@@ -757,10 +809,15 @@ export class Mechanism {
   _contacts(W, fr, at, state) {
     const C = [];
     const skip = this.skip;
+    const SB = surfaceBounds(this.surfaces);
     for (const [b, bc] of at) {
       const inFrame = this.surfaces.length ? qrotInv(fr.q, sub(bc, fr.p)) : null;
-      for (const sf of this.surfaces) {
+      for (let si = 0; si < this.surfaces.length; si++) {
+        const sf = this.surfaces[si];
         if (skip && skip.surfaces.has(sf) && skip.balls.has(b)) continue;
+        // (outside a plain surface's bounds, in the frame: it can't touch, and touches would say so)
+        const o = si * 6;
+        if (SB[o] <= SB[o + 3] && (inFrame[0] < SB[o] || inFrame[0] > SB[o + 3] || inFrame[1] < SB[o + 1] || inFrame[1] > SB[o + 4] || inFrame[2] < SB[o + 2] || inFrame[2] > SB[o + 5])) continue;
         const hits = sf.touches(sf.toLocal(inFrame), b);
         for (const { depth, n: nl } of hits) {
           const st = state(b), n = qrot(fr.q, sf.dirToFrame(nl));
