@@ -226,7 +226,7 @@ export class Physical2056 extends PhysicalRobot {
   }
   _front() { return intakeFront(this.deploy); }
 
-  preStep(dt, t) {
+  *preSteps(dt, t) {
     const r = this.r;
     if (this.lastDeploy !== undefined && Math.abs(r.intakeDeploy - this.lastDeploy) > 1e-6) { this.pos = SLIDE.travel * r.intakeDeploy; this.kick = kickAt(r.intakeDeploy); this.deployed = r.intakeDeploy > 0.5; this.t.slide._omega = 0; this.t.kickArm._omega = 0; }
     if (r.enabled) this.deployed = true;
@@ -236,7 +236,7 @@ export class Physical2056 extends PhysicalRobot {
     this.hoodSet = profile(...this.hoodSet, this.hoodGoal, SHOOTER.hoodV, SHOOTER.hoodA, dt);
     this.hood = this.hoodSet[0];
     this._place(r.turretYaw || 0);
-    this.stepMechanisms(dt, t);
+    yield; // (its mechanisms step here: PhysicalRobot.preStep)
     this.s.net.flex(dt, this.path.contacts);
     floorRoll(this.path.contacts, dt);
     moveRacks(this, this.t.slide, dt);

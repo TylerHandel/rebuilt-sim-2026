@@ -162,7 +162,7 @@ export class Physical1678 extends PhysicalRobot {
     return top;
   }
 
-  preStep(dt, t) {
+  *preSteps(dt, t) {
     const r = this.r, T = this.t, on = r.enabled;
     servoArm(T, this.armDeg, on && this.armHold ? this.armGoal : null, dt);
     // the hood: a profile to its goal (an X44 through 126:1; nothing pushes it hard)
@@ -186,7 +186,7 @@ export class Physical1678 extends PhysicalRobot {
     this.s.slide.setPose([ext, 0, 0]);
     this.s.lid.setPose([0, this.lift, 0]);
     placeNet(this.s.net, ext, this.lift);
-    this.stepMechanisms(dt, t);
+    yield; // (its mechanisms step here: PhysicalRobot.preStep)
     this.armDeg = turnArm(T, this.armDeg, dt);
     r.intakeDeploy = clamp((INTAKE.stowed - this.armDeg) / (INTAKE.stowed - INTAKE.down), 0, 1);
   }

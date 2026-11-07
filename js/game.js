@@ -128,6 +128,31 @@ export function createGame(world, settings, { onEvent = () => {}, prev = null } 
   };
 }
 
+// The robots' steps before the world's. A physical robot whose step can reach no FUEL another
+// robot's can (the ones within 1 m of it, its ball path's, the ones it's pulling in: no other
+// robot's) touches nothing another robot's step does, so its step can run in three parts: up to
+// its mechanisms (all such robots first, in order), the mechanisms of all of them together
+// (runner(robots, dt): on other threads, js/mech/mechThreads.js; or here one after another), then
+// the rest of each. The others step whole, in order, as they always have. The same steps either
+// way, to the bit (tools/samecheck.mjs).
+export function preStepRobots(robots, dt, runner = null) {
+  if (!PHASED || robots.length < 2) { for (const r of robots) r.preStep(dt); return; }
+  const balls = robots[0].fuel?.balls ?? [], claim = new Map(), shared = new Set();
+  robots.forEach((r, i) => {
+    const mark = (b) => { const o = claim.get(b); if (o === undefined) claim.set(b, i); else if (o !== i) { shared.add(o); shared.add(i); } };
+    const p = r.body.translation(), M = 1.05;
+    for (const b of balls) if (b.state === 'field' && Math.abs(b.pos.x - p.x) <= M && Math.abs(b.pos.z - p.z) <= M) mark(b);
+    if (r.phys) for (const b of r.phys.owned) mark(b);
+    for (const c of r.captured ?? []) mark(c.b);
+  });
+  const alone = robots.map((r, i) => !!r.phys && !shared.has(i));
+  robots.forEach((r, i) => (alone[i] ? r.preStepBegin(dt) : r.preStep(dt)));
+  const run = robots.filter((r, i) => alone[i] && r.phys._mechs);
+  if (runner && run.length) runner(run, dt); else for (const r of run) r.phys.mechRun(dt);
+  robots.forEach((r, i) => { if (alone[i]) r.preStepEnd(dt); });
+}
+const PHASED = globalThis.process?.env?.PHASED !== '0';
+
 // One fixed physics step
 export function stepGame(game, world, dt) {
   const { match, robots, units } = game;
@@ -151,7 +176,7 @@ export function stepGame(game, world, dt) {
     else if (match.isTeleop && game.driver) Object.assign(u.robot.cmd, game.driver);
     else Object.assign(u.robot.cmd, IDLE_CMD);
   }
-  for (const r of robots) r.preStep(dt);
+  preStepRobots(robots, dt, game.mechRunner);
   world.fuel.preStep(dt);
   world.physics.step();
   world.fuel.postStep(dt, match.t);

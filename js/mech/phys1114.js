@@ -129,7 +129,7 @@ export class Physical1114 extends PhysicalRobot {
     T.slide.impulse(SLIDE.mass * 9.81 * SLIDE.dir[1] * SLIDE.pinion * dt);
   }
 
-  preStep(dt, t) {
+  *preSteps(dt, t) {
     const r = this.r, T = this.t, on = r.enabled;
     this._slideStep(dt, on);
     // the hood: their position loop (an X44 through 2.43 deg a turn; nothing pushes it hard); out
@@ -143,7 +143,7 @@ export class Physical1114 extends PhysicalRobot {
     placeIntake(this.w.intake, this.ext);
     this.s.hood.setPose([...FLY, 0], 0, hoodRot(this.hoodDeg));
     placeHood(this.w.hood, this.hoodDeg);
-    this.stepMechanisms(dt, t);
+    yield; // (its mechanisms step here: PhysicalRobot.preStep)
     // the box moves as its pinions turned (to its stops: all the way in, all the way out)
     this.ext += T.slide.omega * SLIDE.pinion * dt;
     if (this.ext < 0) { this.ext = 0; if (T.slide._omega < 0) T.slide._omega = 0; }

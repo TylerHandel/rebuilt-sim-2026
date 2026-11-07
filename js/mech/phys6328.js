@@ -163,7 +163,7 @@ export class Physical6328 extends PhysicalRobot {
     return top;
   }
 
-  preStep(dt, t) {
+  *preSteps(dt, t) {
     const r = this.r, T = this.t, on = r.enabled;
     // the slam: their position loop toward its goal (DEPLOY straight to 17.4; RETRACT slewed)
     // (their slew limiters start from where the arm is: Slamtake resets them to the measured angle
@@ -188,7 +188,7 @@ export class Physical6328 extends PhysicalRobot {
     this.s.net.flex(this.path.contacts, dt); // (the net stretched as far as the load pushed it last step)
     this.s.hood.setPose([DRUM[0], DRUM[1], 0], 0, hoodRot(this.hoodDeg));
     placeHood(this.w.hood, this.hoodDeg);
-    this.stepMechanisms(dt, t);
+    yield; // (its mechanisms step here: PhysicalRobot.preStep)
     this.armDeg = turnArm(T, this.armDeg, dt);
     r.intakeDeploy = clamp((INTAKE.up - this.armDeg) / (INTAKE.up - INTAKE.down), 0, 1);
   }

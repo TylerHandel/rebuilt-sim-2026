@@ -181,7 +181,7 @@ export class Physical4414 extends PhysicalRobot {
   // what the turret's wheels might touch: up the hub's bore and in the turret
   shooterBalls(near) { return near.filter((b) => { const [x, y, z] = this._local(b.pos); return y > 0.2 && Math.hypot(x - AXIS[0], z - AXIS[1]) < 0.3; }); }
 
-  preStep(dt, t) {
+  *preSteps(dt, t) {
     const r = this.r, T = this.t;
     // (put somewhere by the game, not by its motors: a staged scene with the intake out)
     if (this.lastDeploy !== undefined && Math.abs(r.intakeDeploy - this.lastDeploy) > 1e-6) { this.ext = BOX.ext * r.intakeDeploy; this.deployed = r.intakeDeploy > 0.5; T.slide._omega = 0; }
@@ -199,7 +199,7 @@ export class Physical4414 extends PhysicalRobot {
     const yaw = r.turretYaw || 0;
     placeTurretSurfaces(this.s, yaw, this.hoodDeg);
     placeShooter(this.sw, yaw, this.hoodDeg);
-    this.stepMechanisms(dt, t);
+    yield; // (its mechanisms step here: PhysicalRobot.preStep)
     moveBox(this, T.slide, dt);
     this.phi = (this.phi + T.rotor.omega * dt) % TAU;
     r.intakeDeploy = this.lastDeploy = this.ext / BOX.ext;

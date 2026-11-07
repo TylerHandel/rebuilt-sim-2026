@@ -154,7 +154,7 @@ export class Physical581 extends PhysicalRobot {
     T.deploy.impulse((SLIDE.mass * 9.81 * SLIDE.dir[1] * SLIDE.pinion + floorTorque * floorRate(this.ext) * SLIDE.pinion) * dt);
   }
 
-  preStep(dt, t) {
+  *preSteps(dt, t) {
     const r = this.r, T = this.t, on = r.enabled;
     this._deployStep(dt, on);
     // the hood: their position loop (an X44 through 119.4:1; nothing pushes it hard)
@@ -169,7 +169,7 @@ export class Physical581 extends PhysicalRobot {
     this.s.hood.setPose([DRUM[0], DRUM[1], 0], 0, hoodRot(this.hoodDeg));
     placeHood(this.w.hood, this.hoodDeg);
     placeNet(this.s.net, this.ext);
-    this.stepMechanisms(dt, t);
+    yield; // (its mechanisms step here: PhysicalRobot.preStep)
     // the intake moves as its pinions turned (to its stops: all the way in, all the way out)
     this.ext += T.deploy.omega * SLIDE.pinion * dt;
     if (this.ext < 0) { this.ext = 0; if (T.deploy._omega < 0) T.deploy._omega = 0; }

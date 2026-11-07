@@ -102,7 +102,7 @@ export class Physical2910 extends PhysicalRobot {
   // the arm's angle up from forward (rad)
   armAngle() { return INTAKE.cadDeg * DEG + intakeRot(this.armDeg); }
 
-  preStep(dt, t) {
+  *preSteps(dt, t) {
     const r = this.r, T = this.t, on = r.enabled;
     // (the intake rollers' current limits: lower from teleop on, as their teleopInit sets them)
     intakeLimits(T, !!r.match?.isTeleop);
@@ -120,7 +120,7 @@ export class Physical2910 extends PhysicalRobot {
     placeIntake(this.w.intake, this.armDeg);
     this.s.hood.setPose([DRUM[0], DRUM[1], 0], 0, this.hoodDeg * DEG);
     placeHood(this.w.hood, this.hoodDeg);
-    this.stepMechanisms(dt, t);
+    yield; // (its mechanisms step here: PhysicalRobot.preStep)
     // the arm turns as its shaft did (down to the bumper, its hardstop; up to stowed)
     this.armDeg -= (T.pivot.omega * dt) / DEG;
     if (this.armDeg > INTAKE.deploy) { this.armDeg = INTAKE.deploy; if (T.pivot._omega < 0) T.pivot._omega = 0; }

@@ -175,9 +175,30 @@ export class PhysicalRobot {
     return this.bumperY0;
   }
 
-  // before the world's step (after the robot has posed its moving parts): which FUEL are its,
-  // and run the mechanisms
+  // Before the world's step: its own preSteps (each robot's: posing its moving parts, then at its
+  // yield the mechanisms, then what follows from them). In parts for the game's step (game.js), which
+  // runs a robot no other is near in three: preStepBegin (up to and including picking its FUEL),
+  // mechanisms (with the other such robots' ones), preStepEnd.
+  preStep(dt, t) {
+    const g = this.preSteps(dt, t);
+    if (!g.next().done) { this.stepMechanisms(dt, t); g.next(); }
+  }
+  preStepBegin(dt, t) {
+    this._g = this.preSteps(dt, t);
+    this._mechs = !this._g.next().done;
+    if (this._mechs) this.mechPrepare(dt, t);
+  }
+  preStepEnd() {
+    if (this._mechs) { this.mechFinish(); this._g.next(); }
+    this._g = null;
+  }
+  // which FUEL are its, run the mechanisms on them, then what they did to the FUEL's skins
   stepMechanisms(dt, t) {
+    this.mechPrepare(dt, t);
+    this.mechRun(dt);
+    this.mechFinish();
+  }
+  mechPrepare(dt, t) {
     const r = this.r;
     this._pose();
     // the FUEL near enough to touch anything of it; the ones in its ball path (or on its intake)
@@ -233,10 +254,18 @@ export class PhysicalRobot {
       if (HOODSUB_OFF && this._shared.size) { this.shooter.surfaces = this.shooter.surfaces.filter((sf) => !this._shared.has(sf)); this._shared.clear(); }
     }
     const skip = this._shared.size && sb.length ? { surfaces: this._shared, balls: new Set(sb) } : null;
-    this.path.step(dt, near.map((b) => b.body), [...owned].map((b) => b.body), skip);
-    if (this.shooter) this.shooter.step(dt, sb);
-    this._squash(near);
-    this._wear(near);
+    this._job = { near: near.map((b) => b.body), owned: [...owned].map((b) => b.body), skip, sb };
+  }
+  // its mechanisms' step (all they touch: their own shafts, its body, the FUEL in _job)
+  mechRun(dt) {
+    const j = this._job;
+    this.path.step(dt, j.near, j.owned, j.skip);
+    if (this.shooter) this.shooter.step(dt, j.sb);
+  }
+  mechFinish() {
+    this._squash(this.near);
+    this._wear(this.near);
+    this._job = null;
   }
 
   // what its mechanisms did to the skins of the FUEL they touched (drawn wear only: fuelDamage.js);

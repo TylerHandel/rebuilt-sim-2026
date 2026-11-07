@@ -158,7 +158,7 @@ export class Physical604 extends PhysicalRobot {
     if (this.armDeg > I.max + 1) { this.armDeg = I.max + 1; if (T.pivot._omega > 0) T.pivot._omega = 0; }
   }
 
-  preStep(dt, t) {
+  *preSteps(dt, t) {
     const r = this.r, T = this.t, on = r.enabled;
     // (put somewhere by the game, not by its motors: a staged scene, its intake down or up)
     if (this.lastDeploy !== undefined && Math.abs(r.intakeDeploy - this.lastDeploy) > 1e-6) {
@@ -178,7 +178,7 @@ export class Physical604 extends PhysicalRobot {
     const yaw = r.turretYaw || 0;
     placeTurretSurfaces(this.s, yaw, this.hoodDeg);
     placeShooter(this.sw, yaw, this.hoodDeg);
-    this.stepMechanisms(dt, t);
+    yield; // (its mechanisms step here: PhysicalRobot.preStep)
     this._turnArm(dt);
     this.phi = (this.phi + T.rotor.omega * dt) % TAU;
     r.intakeDeploy = this.lastDeploy = clamp((INTAKE.start - this.armDeg) / (INTAKE.start - INTAKE.deploy), 0, 1);

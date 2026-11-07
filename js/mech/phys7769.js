@@ -116,7 +116,7 @@ export class Physical7769 extends PhysicalRobot {
     return top;
   }
 
-  preStep(dt, t) {
+  *preSteps(dt, t) {
     const r = this.r, T = this.t, on = r.enabled;
     // the slide: its position loop toward its goal (null: coasting), at the deploy limit, or the
     // held one once it's out; its weight down the racks
@@ -131,7 +131,7 @@ export class Physical7769 extends PhysicalRobot {
     placeSlide(this.s, this.ext);
     placeIntake(this.w.intake, this.ext);
     this.s.hood.setPose([...AXLE, 0], 0, hoodRot(this.hoodDeg));
-    this.stepMechanisms(dt, t);
+    yield; // (its mechanisms step here: PhysicalRobot.preStep)
     // the intake moves as its pinions turned (to its stops: all the way in, all the way out)
     this.ext += T.slide.omega * SLIDE.pinion * dt;
     if (this.ext < 0) { this.ext = 0; if (T.slide._omega < 0) T.slide._omega = 0; }

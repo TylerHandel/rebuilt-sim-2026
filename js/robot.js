@@ -641,6 +641,21 @@ export class Robot {
 
   // ------------------------------------------------------------------ fixed-step control (before world.step)
   preStep(dt) {
+    const guide = this._preStepDrive(dt);
+    if (this.phys) this.phys.preStep(dt, this.lastT);
+    if (guide) this._guideCaptured(dt);
+  }
+  // (preStep in two, its mechanisms between: game.js steps those of robots no other is near together)
+  preStepBegin(dt) {
+    this._guide = this._preStepDrive(dt);
+    if (this.phys) this.phys.preStepBegin(dt, this.lastT);
+  }
+  preStepEnd(dt) {
+    if (this.phys) this.phys.preStepEnd();
+    if (this._guide) this._guideCaptured(dt);
+  }
+  // the drive (or the climb): true unless climbing (then nothing guides its captured FUEL)
+  _preStepDrive(dt) {
     // (the drive's push is a force on the body until this step's replaces it)
     this.body.resetForces(true);
     this.body.resetTorques(true);
@@ -648,9 +663,8 @@ export class Robot {
       this._climbStep(dt);
       // (a physical robot's mechanisms go on holding what's in it as it climbs: its FUEL pass through
       // its own colliders, and without its floors under them 1678's whole load fell out through the
-      // bottom onto the carpet under it as it climbed, tools/under-frame.mjs)
-      if (this.phys) this.phys.preStep(dt, this.lastT);
-      return;
+      // bottom onto the carpet under it as it climbed, tools/under-frame.mjs: preStep)
+      return false;
     }
     const d = this.cfg.drive;
     let tvx = 0, tvz = 0, tw = 0;
@@ -697,8 +711,7 @@ export class Robot {
     const yaw = Math.atan2(2 * (q.w * q.y + q.x * q.z), 1 - 2 * (q.y * q.y + q.z * q.z));
     this.drivetrain.limitsFor(!!this.match?.isTeleop);
     this.swerve.step(this.body, yaw, tvx, tvz, tw, down, dt);
-    if (this.phys) this.phys.preStep(dt, this.lastT);
-    this._guideCaptured(dt);
+    return true;
   }
 
   // Driver assist (playability; many real swerve teams' drive code does the same): a command

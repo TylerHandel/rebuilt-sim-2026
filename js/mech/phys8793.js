@@ -131,7 +131,7 @@ export class Physical8793 extends PhysicalRobot {
   shooterBalls(near) { return near.filter((b) => this._local(b.pos)[1] > 0.3); }
 
   // before the world's step: put the arm, turret and hood where they are, and run the mechanisms
-  preStep(dt, t) {
+  *preSteps(dt, t) {
     const r = this.r, st = this.armSt;
     // (put somewhere by the game, not by its motors: a staged scene. It's there, at rest)
     if (Math.abs(r.intakeDeploy - this.deploy) > 1e-6) { st.roll = (1 - r.intakeDeploy) * st.stow; st.set = null; this.t.pivot._omega = 0; }
@@ -145,7 +145,7 @@ export class Physical8793 extends PhysicalRobot {
     placeArm(this.arm, st.roll);
     this.s.turret.setPose([TURRET_X, 0, 0], r.turretYaw, 0);
     placeShooter(this.shooterWheels, r.hoodDeg, r.turretYaw, TURRET_X);
-    this.stepMechanisms(dt, t);
+    yield; // (its mechanisms step here: PhysicalRobot.preStep)
     if (contact) this.trenchPush(contact, w0, dt);
     // the arm turns as its shaft did (lifted by the FUEL under it, or swinging to stow, or pushed
     // by a TRENCH arm)

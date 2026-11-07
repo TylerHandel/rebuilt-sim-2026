@@ -133,7 +133,7 @@ export class Physical341 extends PhysicalRobot {
   }
   shooterBalls(near) { return near.filter((b) => this._local(b.pos)[1] > 0.33); }
 
-  preStep(dt, t) {
+  *preSteps(dt, t) {
     const r = this.r, T = this.t;
     servoArm(T, this.armDeg, r.enabled ? this.armGoal : null, dt);
     this.hoodSet = profile(...this.hoodSet, this.hoodGoal, HOOD_MM.v, HOOD_MM.a, dt);
@@ -144,7 +144,7 @@ export class Physical341 extends PhysicalRobot {
     const yaw = r.turretYaw || 0;
     placeTurretSurfaces(this.s, yaw, this.hoodDeg);
     placeShooter(this.sw, yaw, this.hoodDeg);
-    this.stepMechanisms(dt, t);
+    yield; // (its mechanisms step here: PhysicalRobot.preStep)
     this.armDeg = turnArm(T, this.armDeg, dt);
     r.intakeDeploy = clamp(this.armDeg / INTAKE.down, 0, 1);
   }

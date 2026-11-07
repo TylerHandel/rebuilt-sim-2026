@@ -180,7 +180,7 @@ export class Physical1706 extends PhysicalRobot {
     return near.filter((b) => { const [x, y, z] = this._local(b.pos); return y > 0.36 && TURRET.some(([tx, tz]) => Math.hypot(x - tx, z - tz) < 0.17); });
   }
 
-  preStep(dt, t) {
+  *preSteps(dt, t) {
     const r = this.r, T = this.t, on = r.enabled;
     // (put somewhere by the game, not by its motors: a staged scene, its intake out or in)
     if (this.lastDeploy !== undefined && Math.abs(r.intakeDeploy - this.lastDeploy) > 1e-6) {
@@ -193,7 +193,7 @@ export class Physical1706 extends PhysicalRobot {
       this.hood[i] = this.hoodSet[i][0];
     }
     this._place(r.turretYaws || [0, 0]);
-    this.stepMechanisms(dt, t);
+    yield; // (its mechanisms step here: PhysicalRobot.preStep)
     this.armDeg = turnArm(T, this.armDeg, dt);
     for (let i = 0; i < 2; i++) this.phi[i] = (this.phi[i] + T.spin[i].omega * dt) % TAU;
     r.intakeDeploy = this.lastDeploy = clamp(this.armDeg / INTAKE.out, 0, 1);
