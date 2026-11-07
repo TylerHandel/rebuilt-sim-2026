@@ -76,6 +76,7 @@ export async function startCover(sim) {
     ui.status('Starting the match…');
     const s = sim.settings;
     s.matchMode = '3v3';
+    s.physThread = 'main'; // (it steps the match itself: advance)
     s.slots = [...o.blue, ...o.red].map((robot, i) => ({ robot, auto: 'best', start: ['hub', 'leftTrench', 'rightBump'][i % 3], driver: 'scorer', skill: 'champs' }));
     sim.ui.openPage('3v3');
     sim.startMatch();

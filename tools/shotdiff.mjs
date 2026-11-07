@@ -27,7 +27,7 @@ const shot = async (preset, q, file) => {
   await page.addInitScript(([s]) => {
     localStorage.setItem('rebuiltSim.settings', JSON.stringify(s));
     let a = 12345; window.__reseed = (s) => { a = s; }; Math.random = () => { a = (a + 0x6d2b79f5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
-  }, [{ matchMode: '3v3', slots, graphics: preset, fps: 'off', dynRes: 'off', camera: arg('camera', 'driver'), sound: 0, preview: 'off' }]);
+  }, [{ matchMode: '3v3', slots, graphics: preset, fps: 'off', dynRes: 'off', camera: arg('camera', 'driver'), sound: 0, preview: 'off', physThread: 'main' }]);
   await page.goto(`http://127.0.0.1:${port}/index.html${q ? '?' + q : ''}`, { waitUntil: 'load' });
   await page.waitForFunction(() => window.__sim && window.__sim.ui, null, { timeout: 120000 });
   // (the CAD loads in the background)

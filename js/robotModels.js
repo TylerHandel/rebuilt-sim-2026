@@ -1296,7 +1296,27 @@ function hopperNet(parent, { x0, x1, x1Out = x1, xFixed = x1, hw, y, yFront = y,
     hangMid = Math.max(...hang);
     for (let k = 0; k < nv; k++) hNow[k] = y - (slack.sag * hang[k]) / hangMid;
   }
+  // (what it was last draped over: nothing that's moved a millimeter, nothing to do)
+  let lastEx = NaN, lastAt = '', lastLoad = new Float32Array(0), lastN = -1;
+  const unchanged = (load, ex, at) => {
+    const atKey = at ? `${at.y}|${at.yFront}|${at.xBack}` : '';
+    const n = load ? load.length : 0;
+    let same = ex === lastEx && atKey === lastAt && n === lastN;
+    if (lastLoad.length < n * 3) { lastLoad = new Float32Array(n * 6); same = false; }
+    for (let i = 0; i < n; i++) {
+      const p = load[i].p, o = i * 3;
+      if (same && (Math.abs(p.x - lastLoad[o]) > 0.001 || Math.abs(p.y - lastLoad[o + 1]) > 0.001 || Math.abs(p.z - lastLoad[o + 2]) > 0.001)) same = false;
+      if (!same) { lastLoad[o] = p.x; lastLoad[o + 1] = p.y; lastLoad[o + 2] = p.z; }
+    }
+    if (same) return true;
+    // (all of them noted again: the next look compares against this drape's)
+    for (let i = 0; i < n; i++) { const p = load[i].p, o = i * 3; lastLoad[o] = p.x; lastLoad[o + 1] = p.y; lastLoad[o + 2] = p.z; }
+    lastEx = ex; lastAt = atKey; lastN = n;
+    return false;
+  };
+  const nrm = geo.attributes.normal.array;
   const drape = (load, ex = 0, at = null) => {
+    if (unchanged(load, ex, at)) return;
     const kx = x1Out > xFixed ? (x1 + ex - xFixed) / (x1Out - xFixed) : 1;
     const yb = at?.y ?? y, yf = at?.yFront ?? yFront, xf = x1 + ex;
     // (at.xBack: its back edge held there instead, the cover gathered up toward the front)
@@ -1313,13 +1333,18 @@ function hopperNet(parent, { x0, x1, x1Out = x1, xFixed = x1, hw, y, yFront = y,
     const sag = slack ? slack.sag + ((slack.sagOut ?? slack.sag) - slack.sag) * Math.min(1, Math.max(0, x1Out > x1 ? ex / (x1Out - x1) : 0)) : 0;
     const drop = sag / hangMid;
     // held up by the FUEL poking above the pins (or above where a slack one hangs)
+    // (each row of the grid has one x: only the rows within a FUEL's reach of it are looked at)
     for (const e of load || []) {
       const p = e.p;
       if (p.y + R < Math.min(yb, yf) - sag) continue;
-      for (let k = 0; k < nv; k++) {
-        if (pin[k]) continue;
-        const dx = pos[k * 3] - p.x, dz = pos[k * 3 + 2] - p.z, d2 = dx * dx + dz * dz;
-        if (d2 < R * R) hMin[k] = Math.max(hMin[k], p.y + Math.sqrt(R * R - d2) + 0.004);
+      for (let i = 0; i <= NX; i++) {
+        const rx = pos[i * (NZ + 1) * 3] - p.x;
+        if (rx >= R || rx <= -R) continue;
+        for (let k = i * (NZ + 1), e2 = k + NZ + 1; k < e2; k++) {
+          if (pin[k]) continue;
+          const dx = pos[k * 3] - p.x, dz = pos[k * 3 + 2] - p.z, d2 = dx * dx + dz * dz;
+          if (d2 < R * R) hMin[k] = Math.max(hMin[k], p.y + Math.sqrt(R * R - d2) + 0.004);
+        }
       }
     }
     // a taut sheet: each point sits at its neighbors' average unless the FUEL holds it up (a slack
@@ -1335,7 +1360,20 @@ function hopperNet(parent, { x0, x1, x1Out = x1, xFixed = x1, hw, y, yFront = y,
     }
     for (let k = 0; k < nv; k++) pos[k * 3 + 1] = pin[k] ? hPin[k] : hNow[k];
     geo.attributes.position.needsUpdate = true;
-    geo.computeVertexNormals();
+    // (its normals across the grid: along it by its neighbors either side, j x i as its triangles
+    // wind; far cheaper than three.js's walk over the triangles, and the same on a smooth sheet)
+    for (let i = 0; i <= NX; i++) {
+      const ia = Math.max(0, i - 1) * (NZ + 1), ib = Math.min(NX, i + 1) * (NZ + 1);
+      for (let j = 0; j <= NZ; j++) {
+        const k = i * (NZ + 1) + j, ja = i * (NZ + 1) + Math.max(0, j - 1), jb = i * (NZ + 1) + Math.min(NZ, j + 1);
+        const ux = pos[(ib + j) * 3] - pos[(ia + j) * 3], uy = pos[(ib + j) * 3 + 1] - pos[(ia + j) * 3 + 1], uz = pos[(ib + j) * 3 + 2] - pos[(ia + j) * 3 + 2];
+        const vx = pos[jb * 3] - pos[ja * 3], vy = pos[jb * 3 + 1] - pos[ja * 3 + 1], vz = pos[jb * 3 + 2] - pos[ja * 3 + 2];
+        let nx = vy * uz - vz * uy, ny = vz * ux - vx * uz, nz = vx * uy - vy * ux;
+        const l = Math.hypot(nx, ny, nz) || 1;
+        nrm[k * 3] = nx / l; nrm[k * 3 + 1] = ny / l; nrm[k * 3 + 2] = nz / l;
+      }
+    }
+    geo.attributes.normal.needsUpdate = true;
   };
   return { mesh: m, drape };
 }

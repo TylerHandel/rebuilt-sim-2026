@@ -155,6 +155,10 @@ let simAcc = 0;
 // the physics thread (Settings → Physics thread: Separate, or ?worker): js/simThread.js
 const thread = new SimThread();
 thread.onError = (m) => ui.toast('Physics thread stopped: ' + m.message, 'foul');
+// (started now, while the menu's up, so it's ready when a match starts: built while the page is busy
+// drawing a match it could take longer than its start allows. Auto just runs with the drawing if it
+// can't start; Separate says why when a match starts)
+if ((settings.physThread === 'auto' || settings.physThread === 'worker' || new URLSearchParams(location.search).has('worker')) && !new URLSearchParams(location.search).has('main')) setTimeout(() => thread.start().catch(() => {}), 500);
 let threaded = false;
 let resultsShown = false;
 let backHeld = 0;
@@ -300,15 +304,18 @@ function startMatch() {
   // the match on the physics thread: not Training mode, a neural-net driver (its network is the
   // page's) or recording your driving, which the page does
   const usesNN = [eff.driver, eff.opponent, ...(eff.matchMode === '3v3' ? (eff.slots || []).map((sl) => sl.driver) : [])].includes('nn');
-  const wantThread = (settings.physThread === 'worker' || new URLSearchParams(location.search).has('worker')) && !training && !usesNN && !thread.failed;
+  // (auto: separate whenever it can; it quietly runs with the drawing where it can't, serve.py not serving)
+  const auto = settings.physThread === 'auto', q = new URLSearchParams(location.search);
+  const wantThread = (settings.physThread === 'worker' || auto || q.has('worker')) && !q.has('main') && !training && !usesNN && !thread.failed;
+  const told = (msg) => { if (!auto || q.has('worker')) ui.toast(msg, 'foul'); };
   threaded = false;
   if (wantThread) {
     const g = game;
     threaded = true;
     thread.start().then(() => {
       if (game !== g) return;
-      try { thread.begin(eff, { role, defenseTarget: game.defenseTarget }, fuel.carryWear); } catch (e) { threaded = false; ui.toast('Physics thread: ' + e.message + ' (running with the drawing)', 'foul'); }
-    }).catch((e) => { if (game === g) { threaded = false; ui.toast('Physics thread: ' + e.message + ' (running with the drawing)', 'foul'); } });
+      try { thread.begin(eff, { role, defenseTarget: game.defenseTarget }, fuel.carryWear); } catch (e) { threaded = false; told('Physics thread: ' + e.message + ' (running with the drawing)'); }
+    }).catch((e) => { if (game === g) { threaded = false; told('Physics thread: ' + e.message + ' (running with the drawing)'); } });
   }
   game.recorder = !threaded && game.you && game.you.human ? new DrivingRecorder(game) : null;
   game.nnRecorder = !threaded && game.you && game.you.human ? new NNRecorder(game) : null;

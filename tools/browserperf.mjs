@@ -29,7 +29,7 @@ try {
   page.on('console', (m) => { if (m.type() === 'error' && !/404|Failed to load resource/.test(m.text())) errors.push(m.text()); });
   const starts = ['leftTrench', 'hub', 'rightBump'];
   const slots = [...blue, ...red].map((robot, i) => ({ robot, auto: 'best', start: starts[i % 3], driver: 'scorer', skill: 'champs' }));
-  await page.addInitScript(([s]) => { localStorage.setItem('rebuiltSim.settings', JSON.stringify(s)); }, [{ matchMode: '3v3', slots, graphics: preset, fps: 'on', dynRes: 'off', camera: 'driver', sound: 0 }]);
+  await page.addInitScript(([s]) => { localStorage.setItem('rebuiltSim.settings', JSON.stringify(s)); }, [{ matchMode: '3v3', slots, graphics: preset, fps: 'on', dynRes: 'off', camera: 'driver', sound: 0, physThread: 'main' }]);
   const q = arg('query') ? '?' + arg('query') : '';
   await page.goto(`http://127.0.0.1:${port}/index.html${q}`, { waitUntil: 'load' });
   await page.waitForFunction(() => window.__sim && window.__sim.ui, null, { timeout: 120000 });

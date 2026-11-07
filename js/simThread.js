@@ -26,11 +26,12 @@ export class SimThread {
       let w;
       try { w = new Worker('w/js/simWorker.js', { type: 'module' }); } catch (e) { reject(e); return; }
       this.worker = w;
-      const fail = (why) => { this.failed = why; reject(new Error(why)); };
+      let done = false;
+      const fail = (why) => { if (done) return; done = true; this.failed = why; reject(new Error(why)); };
       w.onerror = (e) => fail(e.message || 'the physics thread could not start (it needs serve.py: start.bat / start.command)');
       w.onmessage = (e) => {
         const m = e.data;
-        if (m.type === 'ready') resolve(true);
+        if (m.type === 'ready') { if (!done) { done = true; resolve(true); } }
         else if (m.type === 'snap') {
           // (two before a frame takes them: the later one, with both's events)
           if (this.snap) m.events = this.snap.events.concat(m.events);
@@ -40,6 +41,8 @@ export class SimThread {
         else if (m.type === 'error') { this.error = m; console.error('physics thread:', m.message, m.stack); if (this.onError) this.onError(m); }
       };
       w.postMessage({ type: 'init', storage: storage() });
+      // (no answer in time: failed. Once it's answered, the timer does nothing: before, it marked a
+      // thread that had started failed 20 s later, and every match after the first ran with the drawing)
       setTimeout(() => fail('the physics thread did not answer (it needs serve.py: start.bat / start.command)'), 20000);
     });
     return this.ready;
