@@ -52,7 +52,10 @@ const b0 = fuel.balls[0];
 const fuelBody = { linearDamping: b0.body.linearDamping(), angularDamping: b0.body.angularDamping(), ccd: b0.body.isCcdEnabled(), mass: FUEL.mass, radius: FUEL.radius };
 const fc = b0.body.collider(0);
 const fuelCollider = { friction: fc.friction(), restitution: fc.restitution(), collisionGroups: fc.collisionGroups() >>> 0 };
-const start = fuel.balls.map((b) => { const t = b.body.translation(); return [t.x, t.y, t.z]; });
+// (on the field at the start: the ones a robot holds as preload are left out; the native game places those with its robots)
+const onField = fuel.balls.filter((b) => b.body.isEnabled() && b.body.translation().y > -1);
+const start = onField.map((b) => { const t = b.body.translation(); return [t.x, t.y, t.z]; });
+const preloaded = fuel.balls.length - onField.length;
 
 const ip = W.integrationParameters;
 const data = {
@@ -60,8 +63,8 @@ const data = {
   physics: { gravity: GRAVITY, dt: PHYSICS_DT, solverIterations: ip.numSolverIterations, predictionDistance: ip.normalizedPredictionDistance ?? null },
   groups: GROUP,
   field,
-  fuel: { body: fuelBody, collider: fuelCollider, start },
+  fuel: { total: fuel.balls.length, body: fuelBody, collider: fuelCollider, start, preloaded },
 };
 writeFileSync(out, JSON.stringify(data));
-console.log(`exported ${field.length} field colliders (${[...new Set(field.map((c) => c.shape.kind))].join(', ')}), ${start.length} FUEL to ${out}`);
+console.log(`exported ${field.length} field colliders (${[...new Set(field.map((c) => c.shape.kind))].join(', ')}), ${start.length} FUEL on the field (+${preloaded} preloaded) to ${out}`);
 process.exit(0);
