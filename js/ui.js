@@ -22,7 +22,7 @@ const $ = (id) => document.getElementById(id);
 export const DEFAULT_SETTINGS = {
   matchMode: '1v1', slots: DEFAULT_SLOTS,
   robot: '2910', alliance: BLUE, ds: 1, start: 'rightTrench', preload: 8, auto: 'best',
-  hp: 'manual', climber: 'none', camera: 'driver', preview: 'on',
+  hp: 'auto', climber: 'none', camera: 'driver', preview: 'on',
   opponent: 'scorer', oppRobot: '4414', oppSkill: 'regional', customSide: 'drawn',
   driver: 'human', driverSkill: 'trained', mode: 'normal', role: 'score', nnNet: 'auto', sound: 'medium',
   graphics: 'auto', renderScale: 'preset', dynRes: 'off', fps: 'off', physThread: 'auto', fuelWear: 'keep', rumble: 'on', matchCues: 'cheesy',
@@ -38,6 +38,9 @@ export function loadSettings() {
   if (!autoOk(s.auto)) s.auto = DEFAULT_SETTINGS.auto;
   if (!['practice', '1v1', '3v3'].includes(s.matchMode)) s.matchMode = '1v1';
   if (s.opponent === 'off') s.opponent = 'scorer'; // "no opponent" is Practice now
+  // (the HUMAN PLAYER throws by itself by default now: nobody presses a button to throw while
+  // driving. Settings saved before then carried the old default, manual: once, they're switched)
+  if (!s.hpAutoDefault) { s.hp = 'auto'; s.hpAutoDefault = true; }
   s.slots = DEFAULT_SLOTS.map((d, i) => {
     const sl = { ...d, ...((Array.isArray(s.slots) && s.slots[i]) || {}) };
     if (!autoOk(sl.auto)) sl.auto = d.auto;
@@ -95,7 +98,7 @@ const OPT = {
   driver: opt('driver', 'Your robot driven by', [['human', 'You'], ['scorer', 'AI Scorer (watch)'], ['defense', 'AI Defense (watch)'], ['hybrid', 'AI Hybrid (watch)'], ['nn', 'Neural net (watch)']],
     'Watch mode: an AI drives your robot in TELEOP (AUTO still runs your auto routine; the neural net drives AUTO too).'),
   driverSkill: opt('driverSkill', 'Its AI skill', SKILL_ORDER.map((k) => [k, OPP_SKILLS[k].name]), (s) => 'Only used in watch mode. ' + OPP_SKILLS[s.driverSkill].desc),
-  hp: opt('hp', 'Your human player', [['manual', 'Manual (X / Y)'], ['auto', 'Auto-throw when HUB active']], 'The human player at your OUTPOST: throw FUEL yourself, or let it throw whenever your HUB is active.'),
+  hp: opt('hp', 'Your human player', [['auto', 'Auto-throw when HUB active'], ['manual', 'Manual (X / Y)']], 'The human player at your OUTPOST: it throws FUEL by itself whenever your HUB is active, or you throw it yourself.'),
   climber: opt('climber', 'Climber add-on', [['none', 'None (as built)'], ['l1', 'Level 1 hook'], ['l3', 'Level 1-3 climber']], '971 and 1678 climb Level 1 as built; the other four didn\'t climb in 2026. Add a hypothetical climber to your robot to try the TOWER.'),
   camera: opt('camera', 'Starting camera', CAMERA_MODES.map((m) => [m, CAMERA_NAMES[m]]), 'Change it any time in a match with D-pad ◀ ▶ ([ / ]); right stick click (T) turns it around.'),
   nnNet: opt('nnNet', 'Neural net', () => [['auto', 'Automatic'], ...nnLibrary.list.map((n) => [n.key, n.name])], (s) => {
