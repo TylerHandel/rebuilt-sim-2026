@@ -1752,7 +1752,7 @@ export class Robot {
       // (taking over from AUTO: the climber where it is, 1678's lid where its code left it)
       this._manual = true;
       this.climberExt = this.phys?.liftNow ? this.phys.liftNow() : 0;
-      this.climberUp = this.climberExt > 0.5;
+      this.climberUp ||= this.climberExt > 0.5;
     }
     const lvl = Math.max(1, this.climbTarget), lift = CLIMB_LIFT[lvl];
     const tUp = Math.max(0.3, c.times[1] ?? 1.6), tClimb = Math.max(0.3, c.times[lvl] ?? 2);
