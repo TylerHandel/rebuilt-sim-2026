@@ -72,8 +72,18 @@ for (const k of Object.getOwnPropertyNames(Object.getPrototypeOf(ip))) {
   const v = ip[k];
   if (typeof v === 'number' || typeof v === 'boolean') integration[k] = v;
 }
+// the OUTPOSTS' world-space info (field.js outposts[a]: its corral, the CHUTE's upper opening, where
+// the HUMAN PLAYER throws from, which way is into the FIELD), and the TRENCH arms' boxes
+// (physics.js: arms, armsBottom; the rule that lets a frame under them)
+const outposts = {};
+for (const a of ['blue', 'red']) {
+  const o = world.field.outposts[a];
+  outposts[a] = { corral: o.corral, upperOpening: o.upperOpening, hpThrowPos: o.hpThrowPos, intoField: o.intoField };
+}
 const data = {
   source: 'rebuilt-sim-2026 tools/export-native.mjs',
+  outposts,
+  trenchArms: { arms: P.arms, armsBottom: P.armsBottom, armSolverGroups: P.armSolverGroups >>> 0, underSolverGroups: P.underSolverGroups >>> 0 },
   physics: { gravity: GRAVITY, dt: PHYSICS_DT, solverIterations: ip.numSolverIterations, predictionDistance: ip.normalizedPredictionDistance ?? null, integration },
   groups: GROUP,
   field,

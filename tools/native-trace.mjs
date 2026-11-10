@@ -4,7 +4,7 @@
 //   node --import ./tools/node-env.mjs tools/native-trace.mjs <script.json> <out.json> [--dump <step>]
 //
 // A script: { name, seed, slots: [{ robot, alliance, pose: [x, z, yaw] }], phase?: 'auto' |
-// 'teleop', steps, commands: [{ from, robot, cmd: { vx, vz, omega, intake, shoot, pass, outtake } }],
+// 'teleop', humanPlayers?: false, steps, commands: [{ from, robot, cmd: { vx, vz, omega, intake, shoot, pass, outtake } }],
 // launches: [{ step, ball, pos: [x, y, z], vel: [x, y, z], spin?: [x, y, z] }] }
 //  - The robots are made in slot order (blue ones first, as createGame makes them), with no preload,
 //    driven by the script ('external'), then placed at their poses.
@@ -14,6 +14,9 @@
 //  - commands: each robot's command from step `from` on, until its next.
 //  - launches: before step `step`, ball (fuel.balls index) is put at pos moving at vel, spinning at
 //    spin (fuel.launch, by the HUMAN PLAYER's rules: { by: 'test' }).
+//  - humanPlayers: false keeps both HUMAN PLAYERS from throwing at their HUBS (they still reload
+//    their CHUTES from the CORRALS); true (the default) as the game has them, throwing while their
+//    HUB is active.
 //  - frameGame every second step, as the headless matches run it.
 // The digest (FNV-1a 64, little-endian bits), version 1:
 //  - each FUEL in fuel.balls order: enabled (u8), translation, rotation (x, y, z, w), linvel, angvel
@@ -45,6 +48,7 @@ let draws = 0n;
 const rnd = mulberry32(script.seed ?? 1);
 Math.random = () => { draws++; return rnd(); };
 globalThis.SIM_SEED = script.seed ?? 1;
+if (script.humanPlayers === false) for (const hp of Object.values(game.hps)) hp.auto = false;
 if (script.phase) { game.match._go(script.phase); for (const r of game.robots) r.enabled = game.match.robotEnabled; }
 
 const MASK = (1n << 64n) - 1n, f32 = new Float32Array(13), bytes = new Uint8Array(f32.buffer), enc = new TextEncoder();
