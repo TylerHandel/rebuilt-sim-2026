@@ -1276,6 +1276,8 @@ function hopperNet(parent, { x0, x1, x1Out = x1, xFixed = x1, hw, y, yFront = y,
   m.castShadow = false;
   m.frustumCulled = false;
   m.userData.net = true;
+  // (what it is, for the native app's own: tools there read it, and how it's draped, drapeArgs)
+  m.userData.netSpec = { x0, x1, x1Out, xFixed, hw, y, yFront, NX, NZ, slack, hole: hole ? { ...hole } : null, inside: !!inside, color: material ? null : color };
   const R = FUEL.radius;
   const hPin = new Float32Array(nv);
   // (a slack net: how a sheet pinned at its edges hangs under its own weight, each point dropped
@@ -1316,6 +1318,7 @@ function hopperNet(parent, { x0, x1, x1Out = x1, xFixed = x1, hw, y, yFront = y,
   };
   const nrm = geo.attributes.normal.array;
   const drape = (load, ex = 0, at = null) => {
+    m.userData.drapeArgs = { ex, y: at?.y ?? null, yFront: at?.yFront ?? null, xBack: at?.xBack ?? null };
     if (unchanged(load, ex, at)) return;
     const kx = x1Out > xFixed ? (x1 + ex - xFixed) / (x1Out - xFixed) : 1;
     const yb = at?.y ?? y, yf = at?.yFront ?? yFront, xf = x1 + ex;
