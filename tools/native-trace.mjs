@@ -6,8 +6,9 @@
 // A script: { name, seed, slots: [{ robot, alliance, pose: [x, z, yaw] }], phase?: 'auto' |
 // 'teleop', humanPlayers?: false, steps, commands: [{ from, robot, cmd: { vx, vz, omega, intake, shoot, pass, outtake } }],
 // launches: [{ step, ball, pos: [x, y, z], vel: [x, y, z], spin?: [x, y, z] }] }
-//  - The robots are made in slot order (blue ones first, as createGame makes them), with no preload,
-//    driven by the script ('external'), then placed at their poses.
+//  - The robots are made in slot order (blue ones first, as createGame makes them), with `preload`
+//    FUEL each (none if left out), driven by the script ('external'), then placed at their poses
+//    (and their preload loaded again there).
 //  - Math.random is mulberry32(seed) from there on (the game's construction draws aren't part of
 //    it), and its draws are counted.
 //  - phase: the match jumps straight to it (no pre-match wait), robots enabled.
@@ -43,9 +44,14 @@ const blue = script.slots.filter((s) => s.alliance === 'blue'), red = script.slo
 if (blue.length > 3 || red.length > 3) throw new Error('three robots an alliance at most');
 blue.forEach((s, i) => { slots[i] = { robot: s.robot, auto: 'best', start: 'hub', driver: 'external', skill: 'champs' }; });
 red.forEach((s, i) => { slots[3 + i] = { robot: s.robot, auto: 'best', start: 'hub', driver: 'external', skill: 'champs' }; });
-const game = createGame(world, { matchMode: '3v3', slots, preload: 0, climber: 'none', hp: 'auto' });
+const game = createGame(world, { matchMode: '3v3', slots, preload: script.preload ?? 0, climber: 'none', hp: 'auto' });
 const order = [...blue, ...red];
-game.robots.forEach((r, i) => { const [x, z, yaw] = order[i].pose; r.spawn(x, z, yaw); });
+game.robots.forEach((r, i) => {
+  const [x, z, yaw] = order[i].pose;
+  r.spawn(x, z, yaw);
+  // (its preload, loaded where createGame put it, into its slots where it is now)
+  if (r.stored.length) { const balls = r.stored.slice(); r.stored = []; r.phys?.reset(); r.loadFuel(balls); }
+});
 
 let draws = 0n;
 const rnd = mulberry32(script.seed ?? 1);
