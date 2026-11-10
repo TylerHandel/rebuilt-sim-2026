@@ -4,8 +4,9 @@
 // and where a match starts them). The native game loads this instead of rebuilding the field by hand,
 // so its field is this one's to the vertex.
 // Also, beside it: constants.json (js/constants.js's values; its functions are ported by hand) and
-// robots.json (js/robotConfigs.js's ROBOTS, CLIMBER_OPTIONS, AUTO_ROUTINES, ROBOT_ORDER, and which
-// robots are built of physical mechanisms).
+// robots.json (js/robotConfigs.js's ROBOTS, CLIMBER_OPTIONS, AUTO_ROUTINES, ROBOT_ORDER, which
+// robots are built of physical mechanisms, what each one's modeled hopper holds as the menu shows it
+// (js/hopper.js modelCapacity), and js/auto.js's START_POSITIONS and START_ORDER).
 //   node --import ./tools/node-env.mjs tools/export-native.mjs <out.json> [--3v3 a,b,c:d,e,f]
 import { writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -14,6 +15,8 @@ import { ROBOTS, CLIMBER_OPTIONS, AUTO_ROUTINES, ROBOT_ORDER, BUMPER_T, BUMPER_Y
 import { createWorld, mulberry32 } from './headless.mjs';
 import { createGame } from '../js/game.js';
 import { FUEL, GROUP, GRAVITY, PHYSICS_DT } from '../js/constants.js';
+import { modelCapacity } from '../js/hopper.js';
+import { START_POSITIONS, START_ORDER } from '../js/auto.js';
 
 const args = process.argv.slice(2);
 const out = args.find((a) => !a.startsWith('--')) ?? 'world.json';
@@ -97,6 +100,7 @@ for (const [k, v] of Object.entries(CONSTANTS)) if (typeof v !== 'function') con
 Object.assign(constants, { BUMPER_T, BUMPER_Y0, BUMPER_Y1 });
 writeFileSync(join(dirname(out), 'constants.json'), JSON.stringify({ source: 'rebuilt-sim-2026 js/constants.js (and robotConfigs.js bumper sizes)', constants }, null, 1));
 const physical = Object.entries(ROBOTS).filter(([, c]) => c.physical).map(([k]) => k);
-writeFileSync(join(dirname(out), 'robots.json'), JSON.stringify({ source: 'rebuilt-sim-2026 js/robotConfigs.js', order: ROBOT_ORDER, physical, robots: ROBOTS, climbers: CLIMBER_OPTIONS, autoRoutines: AUTO_ROUTINES }, null, 1));
+const capacity = Object.fromEntries(Object.entries(ROBOTS).map(([k, c]) => [k, modelCapacity(c)]));
+writeFileSync(join(dirname(out), 'robots.json'), JSON.stringify({ source: 'rebuilt-sim-2026 js/robotConfigs.js', order: ROBOT_ORDER, physical, robots: ROBOTS, climbers: CLIMBER_OPTIONS, autoRoutines: AUTO_ROUTINES, capacity, startPositions: START_POSITIONS, startOrder: START_ORDER }, null, 1));
 console.log(`constants.json, robots.json (${Object.keys(ROBOTS).length} robots, ${physical.length} physical); exported ${field.length} field colliders (${[...new Set(field.map((c) => c.shape.kind))].join(', ')}), ${start.length} FUEL on the field (+${preloaded} preloaded) to ${out}`);
 process.exit(0);
