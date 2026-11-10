@@ -18,6 +18,8 @@
 //    their CHUTES from the CORRALS); true (the default) as the game has them, throwing while their
 //    HUB is active.
 //  - frameGame every second step, as the headless matches run it.
+//  - aimTruth: true aims from the robots' true poses (AIMTRUTH=1: js/localize.js off), for scripts
+//    the native sim plays before its port of the pose estimate.
 // The digest (FNV-1a 64, little-endian bits), version 1:
 //  - each FUEL in fuel.balls order: enabled (u8), translation, rotation (x, y, z, w), linvel, angvel
 //    (f32), its state's name (UTF-8, then a 0);
@@ -34,6 +36,7 @@ const [scriptPath, outPath] = args.filter((a, i) => !a.startsWith('--') && args[
 const dumpAt = args.includes('--dump') ? Number(args[args.indexOf('--dump') + 1]) : null;
 const script = JSON.parse(readFileSync(scriptPath, 'utf8'));
 
+if (script.aimTruth) process.env.AIMTRUTH = '1';
 const world = await createWorld();
 const slots = [0, 1, 2, 3, 4, 5].map(() => ({ driver: 'empty' }));
 const blue = script.slots.filter((s) => s.alliance === 'blue'), red = script.slots.filter((s) => s.alliance === 'red');
