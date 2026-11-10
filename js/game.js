@@ -153,8 +153,9 @@ export function preStepRobots(robots, dt, runner = null) {
 }
 const PHASED = globalThis.process?.env?.PHASED !== '0';
 
-// One fixed physics step
-export function stepGame(game, world, dt) {
+// One fixed physics step. probe(phase): called after each part of it, for tools that look inside
+// a step (tools/native-trace.mjs); it only looks.
+export function stepGame(game, world, dt, probe = null) {
   const { match, robots, units } = game;
   const prevPhase = match.phase;
   match.update(dt, robots);
@@ -163,6 +164,7 @@ export function stepGame(game, world, dt) {
     if (r.forceDeploy && r.intakeDeploy >= 1) r.forceDeploy = false;
     r.enabled = match.robotEnabled;
   }
+  probe?.('match');
   for (const u of units) {
     if (u.external) continue; // robot.cmd is set by the caller
     if (match.isAuto && u.ai && u.ai.drivesAuto) u.ai.update(dt);
@@ -176,12 +178,19 @@ export function stepGame(game, world, dt) {
     else if (match.isTeleop && game.driver) Object.assign(u.robot.cmd, game.driver);
     else Object.assign(u.robot.cmd, IDLE_CMD);
   }
+  probe?.('drivers');
   preStepRobots(robots, dt, game.mechRunner);
+  probe?.('robotsPre');
   world.fuel.preStep(dt);
+  probe?.('fuelPre');
   world.physics.step();
+  probe?.('physics');
   world.fuel.postStep(dt, match.t);
+  probe?.('fuelPost');
   for (const r of robots) r.postStep(dt, match.t);
+  probe?.('robotsPost');
   game.rules.update(dt, robots);
+  probe?.('rules');
 }
 
 // Per-frame (not per physics step) updates: HUB processing, FUEL returns, human players

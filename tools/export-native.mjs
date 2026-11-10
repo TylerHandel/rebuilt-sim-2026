@@ -3,8 +3,14 @@
 // collision and solver groups), the physics settings, and the FUEL (their body and collider settings,
 // and where a match starts them). The native game loads this instead of rebuilding the field by hand,
 // so its field is this one's to the vertex.
+// Also, beside it: constants.json (js/constants.js's values; its functions are ported by hand) and
+// robots.json (js/robotConfigs.js's ROBOTS, CLIMBER_OPTIONS, AUTO_ROUTINES, ROBOT_ORDER, and which
+// robots are built of physical mechanisms).
 //   node --import ./tools/node-env.mjs tools/export-native.mjs <out.json> [--3v3 a,b,c:d,e,f]
 import { writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import * as CONSTANTS from '../js/constants.js';
+import { ROBOTS, CLIMBER_OPTIONS, AUTO_ROUTINES, ROBOT_ORDER, BUMPER_T, BUMPER_Y0, BUMPER_Y1 } from '../js/robotConfigs.js';
 import { createWorld, mulberry32 } from './headless.mjs';
 import { createGame } from '../js/game.js';
 import { FUEL, GROUP, GRAVITY, PHYSICS_DT } from '../js/constants.js';
@@ -58,13 +64,29 @@ const start = onField.map((b) => { const t = b.body.translation(); return [t.x, 
 const preloaded = fuel.balls.length - onField.length;
 
 const ip = W.integrationParameters;
+// (every integration parameter the JS API has, as the engine holds it: the native sim checks its own
+// defaults are these)
+const integration = {};
+for (const k of Object.getOwnPropertyNames(Object.getPrototypeOf(ip))) {
+  if (k === 'constructor' || k === 'free') continue;
+  const v = ip[k];
+  if (typeof v === 'number' || typeof v === 'boolean') integration[k] = v;
+}
 const data = {
   source: 'rebuilt-sim-2026 tools/export-native.mjs',
-  physics: { gravity: GRAVITY, dt: PHYSICS_DT, solverIterations: ip.numSolverIterations, predictionDistance: ip.normalizedPredictionDistance ?? null },
+  physics: { gravity: GRAVITY, dt: PHYSICS_DT, solverIterations: ip.numSolverIterations, predictionDistance: ip.normalizedPredictionDistance ?? null, integration },
   groups: GROUP,
   field,
   fuel: { total: fuel.balls.length, body: fuelBody, collider: fuelCollider, start, preloaded },
 };
 writeFileSync(out, JSON.stringify(data));
-console.log(`exported ${field.length} field colliders (${[...new Set(field.map((c) => c.shape.kind))].join(', ')}), ${start.length} FUEL on the field (+${preloaded} preloaded) to ${out}`);
+
+// the constants (numbers, strings, and the objects and arrays of them; not the functions)
+const constants = {};
+for (const [k, v] of Object.entries(CONSTANTS)) if (typeof v !== 'function') constants[k] = v;
+Object.assign(constants, { BUMPER_T, BUMPER_Y0, BUMPER_Y1 });
+writeFileSync(join(dirname(out), 'constants.json'), JSON.stringify({ source: 'rebuilt-sim-2026 js/constants.js (and robotConfigs.js bumper sizes)', constants }, null, 1));
+const physical = Object.entries(ROBOTS).filter(([, c]) => c.physical).map(([k]) => k);
+writeFileSync(join(dirname(out), 'robots.json'), JSON.stringify({ source: 'rebuilt-sim-2026 js/robotConfigs.js', order: ROBOT_ORDER, physical, robots: ROBOTS, climbers: CLIMBER_OPTIONS, autoRoutines: AUTO_ROUTINES }, null, 1));
+console.log(`constants.json, robots.json (${Object.keys(ROBOTS).length} robots, ${physical.length} physical); exported ${field.length} field colliders (${[...new Set(field.map((c) => c.shape.kind))].join(', ')}), ${start.length} FUEL on the field (+${preloaded} preloaded) to ${out}`);
 process.exit(0);
