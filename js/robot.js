@@ -481,6 +481,9 @@ export class Robot {
     this.climbLevel = 0;
     this.climbTime = 0;
     this.climbClaim = false; // an AI has picked this robot to climb for its alliance
+    // (a climber a person works by hand: up or down as they last asked, how far out it is (0-1),
+    // its hooks over the RUNG: _manualClimb)
+    this.climberUp = false; this.climberExt = 0; this.hooked = false; this._manual = false;
     this.stats = { shots: 0, intaked: 0, passes: 0, dropped: 0 };
     this.lastInZone = false;
     this.preview = null;
@@ -659,8 +662,10 @@ export class Robot {
     // (the drive's push is a force on the body until this step's replaces it)
     this.body.resetForces(true);
     this.body.resetTorques(true);
+    // (a climber a person works: their button raises it and lowers it, and its hooks do the climb)
+    if (this.driverClimb) this._manualClimb(dt); else this._manual = false;
     if (this.climbState === 'climbing' || this.climbState === 'hanging' || this.climbState === 'descending') {
-      this._climbStep(dt);
+      if (!this.driverClimb) this._climbStep(dt);
       // (a physical robot's mechanisms go on holding what's in it as it climbs: its FUEL pass through
       // its own colliders, and without its floors under them 1678's whole load fell out through the
       // bottom onto the carpet under it as it climbed, tools/under-frame.mjs: preStep)
@@ -1699,6 +1704,8 @@ export class Robot {
 
   requestClimb() {
     if (!this.climberCfg) return 'No climber installed';
+    // (the robot a person drives, in TELEOP: their button works the climber by hand)
+    if (this.driverClimb) return this.toggleClimber();
     if (this.climbState === 'none') {
       if (!this.canStartClimb()) return 'Drive to the front of your TOWER to climb';
       this.climbState = 'aligning';
@@ -1725,6 +1732,58 @@ export class Robot {
     }
     const sp = Math.min(2.2, dist * 3);
     return { vx: (ex / (dist || 1)) * sp, vz: (ez / (dist || 1)) * sp, omega: clamp(eyaw * 6, -4, 4) };
+  }
+
+  // The climber of a robot a person drives, in TELEOP: one button raises it and lowers it (no
+  // automatic lining up, climbing or lid: an AI's, and an AUTO's, are requestClimb's and its
+  // mechanisms' own). Raised with the robot's back at its TOWER (climbPose, within 0.3 m and 20 deg),
+  // its hooks go over the RUNG; lowered then, they pull the robot up off the carpet to climbTarget's
+  // LEVEL over that LEVEL's climb time, and raised again they let it back down. 1678's lid rides on its
+  // climber (js/mech/phys1678.js liftScale): the same button raises and lowers it.
+  get driverClimb() { return !!this.humanDriven && !!this.climberCfg && !!this.match?.isTeleop; }
+  toggleClimber() {
+    this.climberUp = !this.climberUp;
+    if (this.climberUp) return this.climbState !== 'none' ? 'Climber up: letting the robot down' : 'Climber up';
+    return this.hooked ? 'Climber down: climbing' : 'Climber down';
+  }
+  _manualClimb(dt) {
+    const c = this.climberCfg;
+    if (!this._manual) {
+      // (taking over from AUTO: the climber where it is, 1678's lid where its code left it)
+      this._manual = true;
+      this.climberExt = this.phys?.liftNow ? this.phys.liftNow() : 0;
+      this.climberUp = this.climberExt > 0.5;
+    }
+    const lvl = Math.max(1, this.climbTarget), lift = CLIMB_LIFT[lvl];
+    const tUp = Math.max(0.3, c.times[1] ?? 1.6), tClimb = Math.max(0.3, c.times[lvl] ?? 2);
+    if (this.climbState === 'none') {
+      const p = this.climbPose();
+      const atTower = Math.hypot(this.pos.x - p.x, this.pos.z - p.z) < 0.3 && Math.abs(wrapAngle(p.yaw - this.yaw)) < 20 * DEG;
+      if (this.hooked && !atTower) this.hooked = false;
+      if (!this.hooked && atTower && this.climberExt >= 0.98) this.hooked = true;
+    }
+    const rate = this.hooked ? 1 / tClimb : 1 / tUp;
+    this.climberExt = clamp(this.climberExt + (this.climberUp ? rate : -rate) * dt, 0, 1);
+    if (!this.hooked) return;
+    const want = (1 - this.climberExt) * lift;
+    if (this.climbState === 'none') {
+      if (want <= 0) return;
+      // (the hooks bite: from here the climber carries the robot)
+      this.climbTime = 0;
+      this.body.setRotation(yawQuat(this.yaw), true);
+      this.body.setBodyType(RAPIER.RigidBodyType.KinematicPositionBased, true);
+      this.climbBase = { x: this.pos.x, y: this.pos.y, z: this.pos.z };
+    }
+    this.climbLift = want;
+    this.climbState = want <= 0 ? 'none' : this.climberExt <= 0 ? 'hanging' : this.climberUp ? 'descending' : 'climbing';
+    this.climbLevel = this.climbState === 'none' ? 0 : this.climbLevelFromLift(want);
+    if (this.climbState === 'none') {
+      this.body.setBodyType(RAPIER.RigidBodyType.Dynamic, true);
+      this.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+    } else {
+      const b = this.climbBase;
+      this.body.setNextKinematicTranslation({ x: b.x, y: b.y + want, z: b.z });
+    }
   }
 
   _climbStep(dt) {
@@ -1783,6 +1842,7 @@ export class Robot {
     return {
       pos: [this.pos.x, this.pos.y, this.pos.z], quat: [this.quat.x, this.quat.y, this.quat.z, this.quat.w],
       vel: [this.vel.x, this.vel.z], omega: this.omega, yaw: this.yaw, climbState: this.climbState, climbLift: this.climbLift,
+      climberExt: this.driverClimb ? this.climberExt : null,
       stored: { n, at, k, patches, dmg },
       anim: {
       intakeDeploy: this.intakeDeploy,
@@ -1805,6 +1865,8 @@ export class Robot {
       turretYaws: this.turretYaws,
       climbLift: this.climbLift,
       climbState: this.climbState,
+      // (a climber a person works by hand: how far out it is, 0-1; null: the automatic one's)
+      climberExt: this.driverClimb ? this.climberExt : null,
       rotorAngle: this.hopper.finAngle,
       // (a physical robot's FUEL are the field's, not in its hopper's list)
       load: plain ? (this.phys?.netLoad ? this.phys.netLoad() : this.hopper.list).map((e) => ({ p: { x: e.p.x, y: e.p.y, z: e.p.z } })) : this.phys?.netLoad ? this.phys.netLoad() : this.hopper.list,
@@ -1854,7 +1916,7 @@ export class Robot {
     }
     spinBlurEnd(m, v);
     if (m.climber) {
-      m.climber.hook.position.y = 0.55 + (vs.climbState === 'aligning' ? 0.25 : vs.climbState !== 'none' ? Math.max(0, 0.25 - vs.climbLift) : 0);
+      m.climber.hook.position.y = 0.55 + (vs.climberExt != null ? 0.25 * vs.climberExt : vs.climbState === 'aligning' ? 0.25 : vs.climbState !== 'none' ? Math.max(0, 0.25 - vs.climbLift) : 0);
     }
   }
 

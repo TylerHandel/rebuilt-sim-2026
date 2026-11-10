@@ -99,7 +99,7 @@ const OPT = {
     'Watch mode: an AI drives your robot in TELEOP (AUTO still runs your auto routine; the neural net drives AUTO too).'),
   driverSkill: opt('driverSkill', 'Its AI skill', SKILL_ORDER.map((k) => [k, OPP_SKILLS[k].name]), (s) => 'Only used in watch mode. ' + OPP_SKILLS[s.driverSkill].desc),
   hp: opt('hp', 'Your human player', [['auto', 'Auto-throw when HUB active'], ['manual', 'Manual (X / Y)']], 'The human player at your OUTPOST: it throws FUEL by itself whenever your HUB is active, or you throw it yourself.'),
-  climber: opt('climber', 'Climber add-on', [['none', 'None (as built)'], ['l1', 'Level 1 hook'], ['l3', 'Level 1-3 climber']], '971 and 1678 climb Level 1 as built; the other four didn\'t climb in 2026. Add a hypothetical climber to your robot to try the TOWER.'),
+  climber: opt('climber', 'Climber add-on', [['none', 'None (as built)'], ['l1', 'Level 1 hook'], ['l3', 'Level 1-3 climber']], '971, 1678 and 341 climb Level 1 as built. Add a hypothetical climber to your robot to try the TOWER. You raise and lower it with A / C: raised with your back at the TOWER, its hooks catch the RUNG, and lowering it climbs.'),
   camera: opt('camera', 'Starting camera', CAMERA_MODES.map((m) => [m, CAMERA_NAMES[m]]), 'Change it any time in a match with D-pad ◀ ▶ ([ / ]); right stick click (T) turns it around.'),
   nnNet: opt('nnNet', 'Neural net', () => [['auto', 'Automatic'], ...nnLibrary.list.map((n) => [n.key, n.name])], (s) => {
     const n = nnLibrary.list.find((x) => x.key === s.nnNet);
@@ -233,7 +233,7 @@ const CONTROLS = [
   ['Outtake / eject', 'LB', 'F'],
   ['Human player: open/close CHUTE DOOR', 'X', 'G'],
   ['Human player: throw FUEL at HUB', 'Y (hold)', 'H'],
-  ['Climb / cancel / lower (add-on)', 'A', 'C'],
+  ['Climber up / down (at your TOWER its hooks climb; 1678: its lid too)', 'A', 'C'],
   ['Climb level up / down', 'D-pad ↑ / ↓', '↑ / ↓'],
   ['Camera', 'D-pad ← / →', '[ / ]'],
   ['Turn camera around 180°', 'Right stick click', 'T'],
@@ -823,7 +823,9 @@ export class UI {
     z.className = 'v ' + (r.lastInZone ? 'ok' : 'warn');
     $('rpIntake').textContent = r.intakeSpeed > 0 ? (r.stalled ? 'Stalled (full)' : r.rollerSpeed < 1 ? 'Intaking (packing)' : 'Intaking') : r.intakeSpeed < 0 ? 'Ejecting' : r.intakeDeploy > 0.5 ? 'Deployed' : 'Stowed';
     $('rpClimbRow').classList.toggle('hidden', !r.climberCfg);
-    if (r.climberCfg) $('rpClimb').textContent = `${r.climbState === 'none' ? 'Ready' : r.climbState} · target L${r.climbTarget}${r.climbLevel ? ' · at L' + r.climbLevel : ''}`;
+    if (r.climberCfg) $('rpClimb').textContent = r.driverClimb
+      ? `${r.climbState !== 'none' ? r.climbState : r.hooked ? 'Hooked' : r.climberExt > 0.98 ? 'Up' : r.climberExt < 0.02 ? 'Down' : r.climberUp ? 'Raising' : 'Lowering'} · target L${r.climbTarget}${r.climbLevel ? ' · at L' + r.climbLevel : ''}`
+      : `${r.climbState === 'none' ? 'Ready' : r.climbState} · target L${r.climbTarget}${r.climbLevel ? ' · at L' + r.climbLevel : ''}`;
     const ai = game.driverAI || (lead && lead.ai);
     $('rpDrive').textContent = watching && ai
       ? `AI ${OPP_STRATEGIES[ai.strategy].name} · ${ai.label}`
@@ -876,8 +878,8 @@ export class UI {
     $('hint').innerHTML = watching
       ? `Watching the AI drive · ${pad ? '<b>D-pad ◀▶</b> Camera · <b>☰</b> Pause' : '<b>[ ]</b> Camera · <b>Esc</b> Pause'}`
       : pad
-      ? '<b>RT</b> Shoot · <b>LT</b> Intake · <b>RB</b> Pass · <b>LB</b> Eject · <b>X</b> Chute door · <b>Y</b> HP throw · <b>A</b> Climb · <b>D-pad ◀▶</b> Camera · <b>☰</b> Pause'
-      : '<b>WASD</b> Drive · <b>Q/E</b> Rotate · <b>Space</b> Shoot · <b>Shift</b> Intake · <b>R</b> Pass · <b>F</b> Eject · <b>G</b> Chute · <b>H</b> HP throw · <b>C</b> Climb · <b>[ ]</b> Camera · <b>Esc</b> Pause';
+      ? '<b>RT</b> Shoot · <b>LT</b> Intake · <b>RB</b> Pass · <b>LB</b> Eject · <b>X</b> Chute door · <b>Y</b> HP throw · <b>A</b> Climber · <b>D-pad ◀▶</b> Camera · <b>☰</b> Pause'
+      : '<b>WASD</b> Drive · <b>Q/E</b> Rotate · <b>Space</b> Shoot · <b>Shift</b> Intake · <b>R</b> Pass · <b>F</b> Eject · <b>G</b> Chute · <b>H</b> HP throw · <b>C</b> Climber · <b>[ ]</b> Camera · <b>Esc</b> Pause';
   }
 
   setPadStatus(name) {

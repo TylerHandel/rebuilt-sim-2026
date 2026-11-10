@@ -338,6 +338,8 @@ export class Physical1678 extends PhysicalRobot {
   // full yet (js/mech/physical.js)? With the lid down, a full hopper is the lower stage's: the lid
   // goes up instead (expanded), and it takes on (the watch starts over)
   watchFull(dt, intaking) {
+    // (a person raises the lid themselves: full is full under it as it is)
+    if (this.r.driverClimb) return super.watchFull(dt, intaking);
     // (up a little before it's full: once it holds LID_N while intaking, before the pile against the
     // lid starts slowing the intake down; the load's top isn't a guide, FUEL coming in bounce high)
     const lid = this.r.cfg.bay.lift?.h;
@@ -360,6 +362,9 @@ export class Physical1678 extends PhysicalRobot {
     const r = this.r, bay = r.cfg.bay, h = bay.lift?.h;
     if (!h) return 0;
     const now = this.liftNow(), onLoad = clamp((this.loadTop() - 0.01 - bay.top) / h, 0, 1);
+    // (a person works its climber by hand, js/robot.js _manualClimb: the lid as far up as the
+    // climber is, but never down onto the FUEL under it)
+    if (r.driverClimb) return Math.max(r.climberExt, Math.min(now, onLoad));
     const fits = bay.top + h * onLoad + 0.01 <= TRENCH.clearHeight - 0.005;
     const up = !this.tucked && this.expanded && !(this.nearTrench && fits);
     return up ? 1 : fits ? Math.min(now, onLoad) : now;

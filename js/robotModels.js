@@ -2457,7 +2457,8 @@ function build1678(cfg, alliance) {
     roller.rotation.y += st.intakeSpeed * dt * 40;
     drum.rotation.z += st.flywheel * dt * 8;
     // the lid rides up on the climber tubes (and all the way up to reach the rung for a climb)
-    const up = st.climbState && st.climbState !== 'none' ? 0.26 : (st.lift ?? 0) * H;
+    // (worked by hand: as its climber has it, js/mech/phys1678.js liftScale)
+    const up = st.climberExt == null && st.climbState && st.climbState !== 'none' ? 0.26 : (st.lift ?? 0) * H;
     lift.position.y = up;
     const ex = st.hopperDeploy * extLen;
     net.mesh.visible = ex > 0.02;
