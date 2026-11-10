@@ -1805,7 +1805,40 @@ function build4414(cfg, alliance) {
     g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
     g.setIndex(idx);
     g.computeVertexNormals();
-    mesh(g, std(0x40454d, 0.75, 0.05), root);
+    const printed = std(0x40454d, 0.75, 0.05);
+    mesh(g, printed, root);
+    // ...and solid, as the prints are: down to the hopper's floor under it, closed round its open
+    // edges (the bowl's rim, the walls, the front), so through the clear walls it's a printed block,
+    // not a sheet with the motors and the floor showing under it
+    const yb = rs.y - 0.005, sp = [], sIdx = [];
+    const quad = (a, b, c, d) => { const o = sp.length / 3; sp.push(...a, ...b, ...c, ...d); sIdx.push(o, o + 1, o + 2, o, o + 2, o + 3); };
+    const P = (v) => [pos[3 * v], pos[3 * v + 1], pos[3 * v + 2]];
+    // (an edge only one of its cells has is on the outline: a side wall down it)
+    const edges = new Map();
+    for (let t = 0; t < idx.length; t += 6) {
+      const [a, d, c, , , b] = idx.slice(t, t + 6);
+      const [pa, pb, pc, pd] = [a, b, c, d].map(P), mid = [(pa[0] + pc[0]) / 2, (pa[2] + pc[2]) / 2];
+      for (const [u, v] of [[a, b], [b, c], [c, d], [d, a]]) { const k = Math.min(u, v) + ':' + Math.max(u, v); edges.set(k, edges.has(k) ? null : [u, v, mid]); }
+      // (the bottom, under each cell)
+      quad([pa[0], yb, pa[2]], [pb[0], yb, pb[2]], [pc[0], yb, pc[2]], [pd[0], yb, pd[2]]);
+    }
+    // (the walls 3 mm in from the outline: where it runs along the hopper's walls, on their plane,
+    // they'd fight with them for each pixel)
+    for (const e of edges.values()) {
+      if (!e) continue;
+      const [p, q] = e.slice(0, 2).map(P), mid = e[2];
+      let nx = -(q[2] - p[2]), nz = q[0] - p[0];
+      const l = Math.hypot(nx, nz) || 1, s = (((mid[0] - p[0]) * nx + (mid[1] - p[2]) * nz) > 0 ? 1 : -1) * 0.003 / l;
+      nx *= s; nz *= s;
+      quad([p[0] + nx, p[1], p[2] + nz], [q[0] + nx, q[1], q[2] + nz], [q[0] + nx, yb, q[2] + nz], [p[0] + nx, yb, p[2] + nz]);
+    }
+    const sg = new THREE.BufferGeometry();
+    sg.setAttribute('position', new THREE.Float32BufferAttribute(sp, 3));
+    sg.setIndex(sIdx);
+    sg.computeVertexNormals();
+    const sides = printed.clone();
+    sides.side = THREE.DoubleSide;
+    mesh(sg, sides, root);
   }
   // center column: a cage of four legs under the turret bearing, wrapped low down in the
   // "shrink wrap" sheet so FUEL slides off it onto the rotor
