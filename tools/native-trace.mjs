@@ -35,6 +35,7 @@ import { PHYSICS_DT } from '../js/constants.js';
 const args = process.argv.slice(2);
 const [scriptPath, outPath] = args.filter((a, i) => !a.startsWith('--') && args[i - 1] !== '--dump');
 const dumpAt = args.includes('--dump') ? Number(args[args.indexOf('--dump') + 1]) : null;
+const locLog = args.includes('--loc'); // each step, each robot's pose estimate, to stderr
 const script = JSON.parse(readFileSync(scriptPath, 'utf8'));
 
 if (script.aimTruth) process.env.AIMTRUTH = '1';
@@ -44,6 +45,8 @@ const blue = script.slots.filter((s) => s.alliance === 'blue'), red = script.slo
 if (blue.length > 3 || red.length > 3) throw new Error('three robots an alliance at most');
 blue.forEach((s, i) => { slots[i] = { robot: s.robot, auto: 'best', start: 'hub', driver: 'external', skill: 'champs' }; });
 red.forEach((s, i) => { slots[3 + i] = { robot: s.robot, auto: 'best', start: 'hub', driver: 'external', skill: 'champs' }; });
+// (js/localize.js: each robot's own draws, seeded with the match's seed, as headless.mjs sets it)
+globalThis.SIM_SEED = script.seed ?? 1;
 const game = createGame(world, { matchMode: '3v3', slots, preload: script.preload ?? 0, climber: 'none', hp: 'auto' });
 const order = [...blue, ...red];
 game.robots.forEach((r, i) => {
@@ -56,7 +59,6 @@ game.robots.forEach((r, i) => {
 let draws = 0n;
 const rnd = mulberry32(script.seed ?? 1);
 Math.random = () => { draws++; return rnd(); };
-globalThis.SIM_SEED = script.seed ?? 1;
 if (script.humanPlayers === false) for (const hp of Object.values(game.hps)) hp.auto = false;
 if (script.phase) { game.match._go(script.phase); for (const r of game.robots) r.enabled = game.match.robotEnabled; }
 
@@ -96,6 +98,7 @@ for (let step = 0; step < script.steps; step++) {
   const phases = {};
   stepGame(game, world, PHYSICS_DT, (phase) => { phases[phase] = digest(); if (step === dumpAt) dump(step, phase); });
   if (step % 2 === 1) { frameGame(game, 2 * PHYSICS_DT); phases.frame = digest(); }
+  if (locLog) for (const r of game.robots) { const l = r.loc; console.error(`${step} est ${l.est?.X} ${l.est?.Y} ${l.est?.th} odo ${l.odo?.X} ${l.odo?.Y} v ${l.v?.f} ${l.v?.l} ${l.v?.w} used ${l.stats?.used}`); }
   steps.push(phases);
 }
 writeFileSync(outPath, JSON.stringify({ source: 'rebuilt-sim-2026 tools/native-trace.mjs', version: 1, script: script.name, steps }));
