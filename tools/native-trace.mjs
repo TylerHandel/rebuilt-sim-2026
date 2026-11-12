@@ -8,7 +8,8 @@
 // launches: [{ step, ball, pos: [x, y, z], vel: [x, y, z], spin?: [x, y, z] }] }
 //  - The robots are made in slot order (blue ones first, as createGame makes them), with `preload`
 //    FUEL each (none if left out), driven by the script ('external'), then placed at their poses
-//    (and their preload loaded again there).
+//    (and their preload loaded again there: a generic robot's dropped into its hopper with draws from
+//    mulberry32(seed ^ 0x2545F491 ^ its index), not counted).
 //  - Math.random is mulberry32(seed) from there on (the game's construction draws aren't part of
 //    it), and its draws are counted.
 //  - phase: the match jumps straight to it (no pre-match wait), robots enabled.
@@ -52,8 +53,17 @@ const order = [...blue, ...red];
 game.robots.forEach((r, i) => {
   const [x, z, yaw] = order[i].pose;
   r.spawn(x, z, yaw);
-  // (its preload, loaded where createGame put it, into its slots where it is now)
-  if (r.stored.length) { const balls = r.stored.slice(); r.stored = []; r.phys?.reset(); r.loadFuel(balls); }
+  // (its preload, loaded where createGame put it, into its slots where it is now; a generic robot
+  // drops it into its hopper a little at random, js/hopper.js fill: from a stream of its own here,
+  // mulberry32(seed ^ 0x2545F491 ^ its index), not counted with the match's draws)
+  if (r.stored.length) {
+    const balls = r.stored.slice(), preRandom = Math.random;
+    // (its hopper as new: a rotor's turn too, which createGame's fill had settled it with)
+    r.stored = []; r.phys?.reset(); r.hopper.clear(); r.hopper.finAngle = 0;
+    Math.random = mulberry32(((script.seed ?? 1) ^ 0x2545f491 ^ i) >>> 0);
+    r.loadFuel(balls);
+    Math.random = preRandom;
+  }
 });
 
 let draws = 0n;

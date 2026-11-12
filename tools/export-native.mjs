@@ -15,7 +15,7 @@ import { ROBOTS, CLIMBER_OPTIONS, AUTO_ROUTINES, ROBOT_ORDER, BUMPER_T, BUMPER_Y
 import { createWorld, mulberry32 } from './headless.mjs';
 import { createGame } from '../js/game.js';
 import { FUEL, GROUP, GRAVITY, PHYSICS_DT } from '../js/constants.js';
-import { modelCapacity } from '../js/hopper.js';
+import { modelCapacity, measureCapacity, intakePush } from '../js/hopper.js';
 import { START_POSITIONS, START_ORDER } from '../js/auto.js';
 
 const args = process.argv.slice(2);
@@ -101,6 +101,22 @@ Object.assign(constants, { BUMPER_T, BUMPER_Y0, BUMPER_Y1 });
 writeFileSync(join(dirname(out), 'constants.json'), JSON.stringify({ source: 'rebuilt-sim-2026 js/constants.js (and robotConfigs.js bumper sizes)', constants }, null, 1));
 const physical = Object.entries(ROBOTS).filter(([, c]) => c.physical).map(([k]) => k);
 const capacity = Object.fromEntries(Object.entries(ROBOTS).map(([k, c]) => [k, modelCapacity(c)]));
-writeFileSync(join(dirname(out), 'robots.json'), JSON.stringify({ source: 'rebuilt-sim-2026 js/robotConfigs.js', order: ROBOT_ORDER, physical, robots: ROBOTS, climbers: CLIMBER_OPTIONS, autoRoutines: AUTO_ROUTINES, capacity, startPositions: START_POSITIONS, startOrder: START_ORDER }, null, 1));
+// a generic robot's hopper as js/robot.js's constructor measures it: what it holds retracted,
+// extended and (a compacting intake) compacted, capped at the team's own number; and how hard its
+// intake shoves FUEL in (the native game holds FUEL the same way, and needn't measure it again)
+const geoCap = Object.fromEntries(Object.entries(ROBOTS).filter(([, c]) => !c.physical).map(([k, cfg]) => {
+  const push = intakePush(cfg), ext = cfg.storage.extLen || 0;
+  const g = { retracted: measureCapacity(cfg.bay, cfg.bay.x1, 0, push), extended: measureCapacity(cfg.bay, cfg.bay.x1 + ext, 1, push) };
+  if (cfg.intake.compacts) g.compacted = Math.max(g.retracted, measureCapacity(cfg.bay, cfg.bay.x1, 0, cfg.intake.compactPush ?? push));
+  const real = cfg.storage.capacity, capLimited = !!real && real < g.extended;
+  if (capLimited) {
+    const k = real / g.extended;
+    g.retracted = Math.min(g.retracted, cfg.storage.retracted ?? Math.round(g.retracted * k));
+    if (g.compacted !== undefined) g.compacted = Math.min(g.compacted, Math.max(g.retracted, Math.round(g.compacted * k)));
+    g.extended = real;
+  }
+  return [k, { ...g, capLimited, intakePush: push }];
+}));
+writeFileSync(join(dirname(out), 'robots.json'), JSON.stringify({ source: 'rebuilt-sim-2026 js/robotConfigs.js', order: ROBOT_ORDER, physical, robots: ROBOTS, climbers: CLIMBER_OPTIONS, autoRoutines: AUTO_ROUTINES, capacity, geoCap, startPositions: START_POSITIONS, startOrder: START_ORDER }, null, 1));
 console.log(`constants.json, robots.json (${Object.keys(ROBOTS).length} robots, ${physical.length} physical); exported ${field.length} field colliders (${[...new Set(field.map((c) => c.shape.kind))].join(', ')}), ${start.length} FUEL on the field (+${preloaded} preloaded) to ${out}`);
 process.exit(0);
