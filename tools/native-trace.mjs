@@ -27,6 +27,8 @@
 //    (f32), its state's name (UTF-8, then a 0);
 //  - each robot in game.robots order: the same of its body;
 //  - the random draws so far (u64).
+// The fouls called (fouls: "<step> <rule> <alliance> <pts>", in the order called): the rules
+// between robots move no body, so the digest can't see them.
 // --dump <step>: that step's full state, readable, to stderr.
 import { readFileSync, writeFileSync } from 'node:fs';
 import { createWorld, mulberry32 } from './headless.mjs';
@@ -88,15 +90,16 @@ function digest() {
   return h.toString(16).padStart(16, '0');
 }
 function dump(step, phase) {
-  const p = (b) => { const t = b.translation(), v = b.linvel(); return `(${t.x}, ${t.y}, ${t.z}) v (${v.x}, ${v.y}, ${v.z})`; };
+  const p = (b) => { const t = b.translation(), v = b.linvel(), q = b.rotation(), w = b.angvel(); return `(${t.x}, ${t.y}, ${t.z}) v (${v.x}, ${v.y}, ${v.z}) q (${q.x}, ${q.y}, ${q.z}, ${q.w}) w (${w.x}, ${w.y}, ${w.z})`; };
   console.error(`--- step ${step} ${phase}: draws ${draws}`);
   world.fuel.balls.forEach((b, i) => { if (b.body.isEnabled()) console.error(`fuel ${i} ${b.state} ${p(b.body)}`); });
-  game.robots.forEach((r, i) => console.error(`robot ${i} ${r.cfg.name ?? ''} ${p(r.body)}`));
+  game.robots.forEach((r, i) => console.error(`robot ${i} ${r.cfg.name ?? ''} ${p(r.body)} yaw ${r.yaw} intake ${r.intakeDeploy}`));
+  for (let i = 0; i < game.robots.length; i++) for (let j = i + 1; j < game.robots.length; j++) console.error(`gap ${i} ${j} ${game.rules.gap(game.robots[i], game.robots[j])}`);
 }
 
 const cmds = [...(script.commands ?? [])].sort((a, b) => a.from - b.from);
 const launches = script.launches ?? [];
-const steps = [];
+const steps = [], fouls = [];
 for (let step = 0; step < script.steps; step++) {
   for (const c of cmds) if (c.from === step) Object.assign(game.robots[c.robot].cmd, { vx: 0, vz: 0, omega: 0, intake: false, shoot: false, pass: false, outtake: false }, c.cmd);
   for (const l of launches) {
@@ -110,7 +113,8 @@ for (let step = 0; step < script.steps; step++) {
   if (step % 2 === 1) { frameGame(game, 2 * PHYSICS_DT); phases.frame = digest(); }
   if (locLog) for (const r of game.robots) { const l = r.loc; console.error(`${step} est ${l.est?.X} ${l.est?.Y} ${l.est?.th} odo ${l.odo?.X} ${l.odo?.Y} v ${l.v?.f} ${l.v?.l} ${l.v?.w} used ${l.stats?.used}`); }
   steps.push(phases);
+  while (fouls.length < game.match.foulLog.length) { const f = game.match.foulLog[fouls.length]; fouls.push(`${step} ${f.rule} ${f.committedBy} ${f.pts}`); }
 }
-writeFileSync(outPath, JSON.stringify({ source: 'rebuilt-sim-2026 tools/native-trace.mjs', version: 1, script: script.name, steps }));
+writeFileSync(outPath, JSON.stringify({ source: 'rebuilt-sim-2026 tools/native-trace.mjs', version: 1, script: script.name, steps, fouls }));
 console.log(`${script.name}: ${script.steps} steps, ${game.robots.length} robots, ${draws} draws -> ${outPath}`);
 process.exit(0);

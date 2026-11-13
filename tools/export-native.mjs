@@ -16,7 +16,8 @@ import { createWorld, mulberry32 } from './headless.mjs';
 import { createGame } from '../js/game.js';
 import { FUEL, GROUP, GRAVITY, PHYSICS_DT } from '../js/constants.js';
 import { modelCapacity, measureCapacity, intakePush } from '../js/hopper.js';
-import { START_POSITIONS, START_ORDER } from '../js/auto.js';
+import { START_POSITIONS, START_ORDER, BEST_AUTOS } from '../js/auto.js';
+import { TEAM_AUTOS } from '../js/teamAutos.js';
 
 const args = process.argv.slice(2);
 const out = args.find((a) => !a.startsWith('--')) ?? 'world.json';
@@ -117,6 +118,6 @@ const geoCap = Object.fromEntries(Object.entries(ROBOTS).filter(([, c]) => !c.ph
   }
   return [k, { ...g, capLimited, intakePush: push }];
 }));
-writeFileSync(join(dirname(out), 'robots.json'), JSON.stringify({ source: 'rebuilt-sim-2026 js/robotConfigs.js', order: ROBOT_ORDER, physical, robots: ROBOTS, climbers: CLIMBER_OPTIONS, autoRoutines: AUTO_ROUTINES, capacity, geoCap, startPositions: START_POSITIONS, startOrder: START_ORDER }, null, 1));
+writeFileSync(join(dirname(out), 'robots.json'), JSON.stringify({ source: 'rebuilt-sim-2026 js/robotConfigs.js', order: ROBOT_ORDER, physical, robots: ROBOTS, climbers: CLIMBER_OPTIONS, autoRoutines: AUTO_ROUTINES, capacity, geoCap, startPositions: START_POSITIONS, startOrder: START_ORDER, bestAutos: BEST_AUTOS, teamAutos: TEAM_AUTOS }, null, 1));
 console.log(`constants.json, robots.json (${Object.keys(ROBOTS).length} robots, ${physical.length} physical); exported ${field.length} field colliders (${[...new Set(field.map((c) => c.shape.kind))].join(', ')}), ${start.length} FUEL on the field (+${preloaded} preloaded) to ${out}`);
 process.exit(0);
