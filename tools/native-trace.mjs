@@ -3,9 +3,12 @@
 // (stepGame's probe), for the native sim to match bit for bit.
 //   node --import ./tools/node-env.mjs tools/native-trace.mjs <script.json> <out.json> [--dump <step>]
 //
-// A script: { name, seed, slots: [{ robot, alliance, pose: [x, z, yaw] }], phase?: 'auto' |
+// A script: { name, seed, slots: [{ robot, alliance, pose?: [x, z, yaw], driver?, auto?, start?, skill? }], phase?: 'auto' |
 // 'teleop', humanPlayers?: false, steps, commands: [{ from, robot, cmd: { vx, vz, omega, intake, shoot, pass, outtake } }],
 // launches: [{ step, ball, pos: [x, y, z], vel: [x, y, z], spin?: [x, y, z] }] }
+//  - A slot's driver: 'external' (the script's commands, the default) or an AI strategy ('scorer',
+//    'defense', 'hybrid'), with its auto ('best'), start ('hub') and skill ('champs'); with no pose
+//    it stays where createGame started it (its AUTO's start).
 //  - The robots are made in slot order (blue ones first, as createGame makes them), with `preload`
 //    FUEL each (none if left out), driven by the script ('external'), then placed at their poses
 //    (and their preload loaded again there: a generic robot's dropped into its hopper with draws from
@@ -46,14 +49,16 @@ const world = await createWorld();
 const slots = [0, 1, 2, 3, 4, 5].map(() => ({ driver: 'empty' }));
 const blue = script.slots.filter((s) => s.alliance === 'blue'), red = script.slots.filter((s) => s.alliance === 'red');
 if (blue.length > 3 || red.length > 3) throw new Error('three robots an alliance at most');
-blue.forEach((s, i) => { slots[i] = { robot: s.robot, auto: 'best', start: 'hub', driver: 'external', skill: 'champs' }; });
-red.forEach((s, i) => { slots[3 + i] = { robot: s.robot, auto: 'best', start: 'hub', driver: 'external', skill: 'champs' }; });
+const slotOf = (s) => ({ robot: s.robot, auto: s.auto ?? 'best', start: s.start ?? 'hub', driver: s.driver ?? 'external', skill: s.skill ?? 'champs' });
+blue.forEach((s, i) => { slots[i] = slotOf(s); });
+red.forEach((s, i) => { slots[3 + i] = slotOf(s); });
 // (js/localize.js: each robot's own draws, seeded with the match's seed, as headless.mjs sets it)
 globalThis.SIM_SEED = script.seed ?? 1;
 const game = createGame(world, { matchMode: '3v3', slots, preload: script.preload ?? 0, climber: 'none', hp: 'auto' });
 const order = [...blue, ...red];
 game.robots.forEach((r, i) => {
-  const [x, z, yaw] = order[i].pose;
+  // (no pose: where createGame started it, its AUTO's start)
+  const [x, z, yaw] = order[i].pose ?? [r.pos.x, r.pos.z, r.yaw];
   r.spawn(x, z, yaw);
   // (its preload, loaded where createGame put it, into its slots where it is now; a generic robot
   // drops it into its hopper a little at random, js/hopper.js fill: from a stream of its own here,
