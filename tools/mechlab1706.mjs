@@ -291,7 +291,9 @@ const tests = {
         const balls = [];
         let sd = seed; const rnd = () => ((sd = (sd * 16807) % 2147483647) / 2147483647 - 0.5);
         const [sx, sz] = SPIN.axes[0];
-        for (let k = 0; k < 10; k++) { const a = (k / 5) * TAU + rnd(); balls.push(ball(w, sx + (k < 5 ? 0.11 : 0.08) * Math.cos(a), SPIN.top + R + 0.01 + (k < 5 ? 0 : 0.15), sz + (k < 5 ? 0.11 : 0.08) * Math.sin(a))); }
+        // (SPIN_N=n: n laid in its ring only, as the last few are)
+        const nIn = Number(process.env.SPIN_N ?? 10);
+        for (let k = 0; k < nIn; k++) { const a = (k / Math.min(5, nIn)) * TAU + rnd(); balls.push(ball(w, sx + (k < 5 ? 0.11 : 0.08) * Math.cos(a), SPIN.top + R + 0.01 + (k < 5 ? 0 : 0.15), sz + (k < 5 ? 0.11 : 0.08) * Math.sin(a))); }
         for (let i = 0; i < 1 / DT; i++) { r.fire(0, 8, false); r.step(live(balls)); w.step(); }
         const watch = shotWatch(r);
         for (let k = 0; k < 6 / DT; k++) {
@@ -305,7 +307,7 @@ const tests = {
         w.free();
       }
       SPIN_DIR[0] = 1;
-      console.log(`1706's right spindexer turning ${dir > 0 ? 'counterclockwise' : 'clockwise'} seen from above at ${SPIN_RPS} rps, 10 FUEL in its bowl, its kicker at ${KICK_RPM} rpm: ${res.map((x) => x.n).join(', ')} shot in 6 s, ${res.map((x) => x.rate.toFixed(1)).join(', ')} FUEL/s, the first after ${res.map((x) => x.first.toFixed(2)).join(', ')} s`);
+      console.log(`1706's right spindexer turning ${dir > 0 ? 'counterclockwise' : 'clockwise'} seen from above at ${SPIN_RPS} rps, ${process.env.SPIN_N ?? 10} FUEL in its bowl, its kicker at ${KICK_RPM} rpm: ${res.map((x) => x.n).join(', ')} shot in 6 s, ${res.map((x) => x.rate.toFixed(1)).join(', ')} FUEL/s, the first after ${res.map((x) => x.first.toFixed(2)).join(', ')} s`);
     }
   },
   // intaking alone: 24 FUEL four abreast on a treadmill carpet at SPEED
@@ -386,9 +388,11 @@ const tests = {
       if (process.env.SHAKE) {
         const kb = w.createRigidBody(RAPIER.RigidBodyDesc.kinematicVelocityBased());
         r.path.body = kb; r.shooter.body = kb;
-        r.shake = (t) => { const om = 2 * Math.PI * 1.5, a = Number(process.env.SHAKE); kb.setLinvel({ x: (a / om) * Math.sin(om * t), y: 0, z: 0 }, true); };
+        // (SHAKE_HZ, SHAKE_Y=1: at another frequency, or up and down: a vibration)
+        const hz = Number(process.env.SHAKE_HZ ?? 1.5), vert = process.env.SHAKE_Y === '1';
+        r.shake = (t) => { const om = 2 * Math.PI * hz, a = Number(process.env.SHAKE), v = (a / om) * Math.sin(om * t); kb.setLinvel({ x: vert ? 0 : v, y: vert ? v : 0, z: 0 }, true); };
       }
-      let ringN = 0, ringW = 0, snapT = null; const feet = {}; const ringY = new Array(10).fill(0); const ringIn = new Map(), ringAt = [];
+      let ringN = 0, ringW = 0, snapT = null, flow = null; const feet = {}; const ringY = new Array(10).fill(0); const ringIn = new Map(), ringAt = [];
       // (the intake's rollers running while it folds in, until 30 deg, as js/mech/phys1706.js runs them
       // while it shoots; NOROLL=1 leaves them off)
       for (let k = 0; k < env('SEC2', 10) / DT; k++) {
@@ -398,8 +402,27 @@ const tests = {
         const l = live(balls);
         // (ESC=1: each FUEL that leaves it other than as a shot: where, how fast, what it last touched)
         const was = process.env.ESC ? new Map(l.map((b) => [b, inRobot(b) ? [...r.path.contacts, ...r.shooter.contacts].filter((c) => c.ball === b).map((c) => c.wheel.name + ' ' + c.force.toFixed(0)).join(', ') || '-' : null])) : null;
+        // (SETTLE=v: a trial, FUEL resting over a ring (within 0.15 m of its axis, 0.26-0.42 m up, slower
+        // than 0.15 m/s) pushed down into it at v m/s: how much faster it feeds if they don't hang there)
+        if (process.env.SETTLE) for (const b of l) {
+          const [x, y, z] = P(b), v = b.linvel();
+          if (y > 0.26 && y < 0.42 && Math.hypot(v.x, v.y, v.z) < 0.15 && [0, 1].some((i) => Math.hypot(x - SPIN.axes[i][0], z - SPIN.axes[i][1]) < 0.15)) b.setLinvel({ x: v.x, y: Math.min(v.y, -Number(process.env.SETTLE)), z: v.z }, true);
+        }
         r.step(l); w.step(); watch.check(l, k * DT); esc.check(l);
         if (was) for (const b of l) if (was.get(b) && !inRobot(b) && b.translation().x < 40) { const [x, y, z] = P(b), v = b.linvel(); console.log(`   ${(k * DT).toFixed(2)} s out at ${x.toFixed(2)},${y.toFixed(2)},${z.toFixed(2)} v ${v.x.toFixed(1)},${v.y.toFixed(1)},${v.z.toFixed(1)}; touching ${was.get(b)}`); }
+        // (FLOW=1: each FUEL into a ring (a bowl, on its disc: within 0.16 m of its axis, under 0.25 m)
+        // and out of it, by the back (onto the ramps) or up (back over the bowl): counted at the end)
+        if (process.env.FLOW) {
+          flow ??= { in: 0, back: 0, up: 0, side: 0, where: new Map() };
+          for (const b of l) {
+            const [x, y, z] = P(b);
+            const ring = [0, 1].find((i) => Math.hypot(x - SPIN.axes[i][0], z - SPIN.axes[i][1]) < 0.16 && y < 0.25);
+            const was = flow.where.get(b);
+            if (ring !== undefined && was === undefined) flow.in++;
+            if (ring === undefined && was !== undefined) { if (x < -0.04) flow.back++; else if (y >= 0.25) flow.up++; else flow.side++; }
+            if (ring === undefined) flow.where.delete(b); else flow.where.set(b, ring);
+          }
+        }
         // (TALLY=1: every half second, where the FUEL in it are: each bowl (on its disc), over the
         // bowls, on the shelf in front of them, in the box out over the intake, on the ramps and up
         // the turrets; the arm's angle)
@@ -412,7 +435,7 @@ const tests = {
           }
           console.log(`   ${(k * DT).toFixed(1)} s: ${watch.shots.length} shot; arm ${r.deg.toFixed(0)} deg; ${Object.entries(c).map(([q, n]) => q + ' ' + n).join(', ')}`);
           // (TALLY=2: and what holds up the ones over the bowls, a second in)
-          if (process.env.TALLY === '2' && k === 120) for (const b of l) { const [x, y, z] = P(b); if (inRobot(b) && x >= -0.04 && x <= 0.2 && !(Math.hypot(x - SPIN.axes[0][0], z - SPIN.axes[0][1]) < 0.19 && y < 0.3) && !(Math.hypot(x - SPIN.axes[1][0], z - SPIN.axes[1][1]) < 0.19 && y < 0.3)) console.log(`     ${x.toFixed(3)},${y.toFixed(3)},${z.toFixed(3)} v${b.linvel().y.toFixed(2)}: ${r.path.contacts.filter((q) => q.ball === b).map((q) => q.wheel.name + ' ' + q.force.toFixed(0)).join(', ')}`); }
+          if (process.env.TALLY === '2' && k === Math.round(Number(process.env.TALLYT ?? 1) / DT)) for (const b of l) { const [x, y, z] = P(b); if (inRobot(b) && x >= -0.04 && x <= 0.2 && !(Math.hypot(x - SPIN.axes[0][0], z - SPIN.axes[0][1]) < 0.19 && y < 0.3) && !(Math.hypot(x - SPIN.axes[1][0], z - SPIN.axes[1][1]) < 0.19 && y < 0.3)) console.log(`     ${x.toFixed(3)},${y.toFixed(3)},${z.toFixed(3)} v${b.linvel().y.toFixed(2)}: ${r.path.contacts.filter((q) => q.ball === b).map((q) => q.wheel.name + ' ' + q.force.toFixed(0)).join(', ')}`); }
         }
         // (RINGT=t0: from t0 s, for a second, every 0.05 s, the FUEL in and over the right bowl: angle
         // about its axis (deg; 0 forward, -90 out to the robot's side, 180 the back), out from it (cm), up (cm))
@@ -451,6 +474,7 @@ const tests = {
           for (const b of l) { const [x, y, z] = P(b); if ((process.env.RAMP === 'bowl' ? Math.hypot(x - SPIN.axes[0][0], z - SPIN.axes[0][1]) < 0.2 && y < 0.45 : x < 0.0) && inRobot(b)) console.log(`     ${x.toFixed(3)},${y.toFixed(3)},${z.toFixed(3)} v${b.linvel().y.toFixed(2)}: ${[...r.path.contacts, ...r.shooter.contacts].filter((c) => c.ball === b).map((c) => c.wheel.name + ' ' + c.force.toFixed(0)).join(', ')}`); }
         }
       }
+      if (flow) console.log(`   into the rings ${flow.in}; out by the back ${flow.back}, up over the bowls ${flow.up}, out the side ${flow.side}`);
       if (snapT && seed === 1) (await import('node:fs')).writeFileSync(process.env.SNAPT, JSON.stringify(snapT));
       if (process.env.GAPS) for (let i = 0; i < 2; i++) { const q = watch.shots.filter((o) => o.i === i).map((o) => o.t), g = q.slice(1).map((t, j) => Math.round((t - q[j]) * 1000)).sort((a, b) => a - b); console.log(`   turret ${i}: ms between shots, sorted: ${g.join(' ')}`); }
       if (process.env.FEET) console.log(`   what holds up the FUEL over the rings (N, on average): ${Object.entries(feet).map(([k, v]) => k + ' ' + v.toFixed(1)).join(', ')}`);
