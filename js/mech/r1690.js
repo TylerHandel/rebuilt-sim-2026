@@ -174,11 +174,14 @@ export const INTAKE = {
   // their pin. What turns: the tube (Part 162, 87.7 cc of aluminum, 0.200 m out), the two outer arms
   // (Parts 154/159, 22 cc each) and the inner brackets (Part 157, 16 cc each): 0.44 kg, its center
   // 0.173 m out along the tube's line, 0.015 kg m^2 about the pin. The surgical tubing isn't in the
-  // CAD: 1/4in latex tubing (1/16in wall, ~36 N per unit strain), one a side stretched ~40% at the
-  // arms' stop, pulling at ~5 cm from the pin: 1.4 N m of preload holding them down, 1.2 N m more
-  // per radian they're lifted (estimates). rigid (KICKRIGID=1, headless): the arms posed by the
-  // carriage, as before, for comparison)
-  kick: { pivot: [0.2723, 0.1703], tube: [0.1499, 0.3283, 0.0127], fall: -163.0, width: 0.675, mass: 0.44, com: 0.173, J: 0.015, tubing: { preload: 1.4, rate: 1.2 }, rigid: typeof process !== 'undefined' && process.env?.KICKRIGID === '1' },
+  // CAD: latex tubing pulling at ~5 cm from the pin (estimates). One 1/4in band a side, stretched
+  // ~40% at the arms' stop, would give 1.4 N m of preload and 1.2 N m more per radian lifted; at that
+  // the FUEL a robot drives into in a clump lift the bar (~7 N at the tube) and slip under it, pinned
+  // there against the bumper, and its intake took in next to nothing for the rest of a match
+  // (tools: the native watch). Six times that, as banded tubing stretched hard gives (8.4 N m, ~42 N
+  // at the tube; 7.2 N m per radian), holds it down so they're pinched and climb, as the team's
+  // does. rigid (KICKRIGID=1, headless): the arms posed by the carriage, as before, for comparison)
+  kick: { pivot: [0.2723, 0.1703], tube: [0.1499, 0.3283, 0.0127], fall: -163.0, width: 0.675, mass: 0.44, com: 0.173, J: 0.015, tubing: { preload: 8.4, rate: 7.2 }, rigid: typeof process !== 'undefined' && process.env?.KICKRIGID === '1' },
 };
 // the carriage's drive: its X44 through a MAXPlanetary 4:1 and 18T:28T (45T 5M) to a cross shaft
 // whose 28T 20 DP pinions (0.7in pitch radius) run in the side bars' racks; what it moves (the

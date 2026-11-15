@@ -102,6 +102,10 @@ const TENV = globalThis.process?.env ?? {};
 // middle between shots alone came out even (563/415/189 points from 558/428/195): the turret swings
 // to the nearest way round, as before. TURRET_HOLD=60 TURRET_UNWIND=30 to try them)
 const UNWIND = Number(TENV.TURRET_UNWIND ?? -1) * DEG, HOLD = Number(TENV.TURRET_HOLD ?? 0) * DEG, TURRET_ASSIST = Number(TENV.TURRET_ASSIST ?? 1) > 0;
+// how long 1678's climber takes to raise or lower its lid by hand (s): the lid's own travel at its
+// speed up (js/mech/phys1678.js LID_SPEED, 0.3 m/s over its 8.5in)
+export const LID_RAISE = 0.75;
+
 export function turretGoal(rel, cur, lim, shooting) {
   const b = cur + wrapAngle(rel - cur); // (the target's bearing the way round it's turned now)
   const cands = [rel, rel + 2 * Math.PI, rel - 2 * Math.PI].filter((a) => Math.abs(a) <= lim);
@@ -1767,7 +1771,9 @@ export class Robot {
       this.climberUp ||= this.climberExt > 0.5;
     }
     const lvl = Math.max(1, this.climbTarget), lift = CLIMB_LIFT[lvl];
-    const tUp = Math.max(0.3, c.times[1] ?? 1.6), tClimb = Math.max(0.3, c.times[lvl] ?? 2);
+    // (raising or lowering it free: 1678's climber carries only its lid, as fast as the lid goes:
+    // LID_RAISE, the user: within a second)
+    const tUp = this.cfg.physical === '1678' && !this.hooked ? LID_RAISE : Math.max(0.3, c.times[1] ?? 1.6), tClimb = Math.max(0.3, c.times[lvl] ?? 2);
     if (this.climbState === 'none') {
       const p = this.climbPose();
       const atTower = Math.hypot(this.pos.x - p.x, this.pos.z - p.z) < 0.3 && Math.abs(wrapAngle(p.yaw - this.yaw)) < 20 * DEG;
