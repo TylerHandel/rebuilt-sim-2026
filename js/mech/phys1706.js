@@ -43,15 +43,17 @@ export const SPIN_RPS = Number(globalThis.process?.env?.SPIN_RPS ?? 12);
 export const KICK_RPM = Number(globalThis.process?.env?.KICK_RPM ?? 3000);
 // What its driver does with the intake while it shoots (estimates: their code isn't public; postStep).
 // Shooting while it intakes, the intake stays out (the user: it doesn't compact then); shooting and
-// not intaking, it folds in at once and stays folding. Off by default, for trying (PUMP_N=4,
-// ROCK_STALL=0.3): the pump, with n or more FUEL out in the box, the intake pulled in to deg (its
+// not intaking, it folds in at once and stays folding; and when that fold stalls on FUEL wedged
+// in front, the rock (below, ROCK_STALL=0.3: on, as a driver would see it stuck and rock it; it was
+// off, and the last few FUEL stayed out there, unfed, until the robot next intook). Off by
+// default, for trying (PUMP_N=4): the pump, with n or more FUEL out in the box, the intake pulled in to deg (its
 // rollers running) and let back out, at most every gap s, each pull given up after max s
 const penv = (k, d) => Number(globalThis.process?.env?.[k] ?? d);
 export const FOLD_TO_SHOOT = penv('FOLD_TO_SHOOT', 1) > 0;
 export const PUMP = { n: penv('PUMP_N', Infinity), deg: penv('PUMP_DEG', 30), gap: penv('PUMP_GAP', 1.5), max: penv('PUMP_MAX', 0.8) };
 // and the rock: shooting, not intaking, the fold stalled (stall s) with FUEL still out front, the
 // intake swung back out to deg and folded in again, each swing given up after max s, at most every gap s
-export const ROCK = { deg: penv('ROCK_DEG', 70), stall: penv('ROCK_STALL', Infinity), gap: penv('ROCK_GAP', 0.5), max: penv('ROCK_MAX', 0.6) };
+export const ROCK = { deg: penv('ROCK_DEG', 70), stall: penv('ROCK_STALL', 0.3), gap: penv('ROCK_GAP', 0.5), max: penv('ROCK_MAX', 0.6) };
 // Its shots, as the bench measures them (tools/mechlab1706.mjs shooter with MAP=1, and calibrate:
 // FUEL fed by the kicker into the turret's wheels at hood swings and accelerator speeds, and the
 // sim's table's rows tuned the way a team tunes its table): where the FUEL leaves (its turret's

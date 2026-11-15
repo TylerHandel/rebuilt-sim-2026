@@ -1526,11 +1526,11 @@ export class Robot {
   // its own shot from where it sits and turning within its own travel. Any turret that's on target
   // can fire (the feed takes turns among them). If none can reach the target, the chassis turns
   // to bring the nearest one into range (on the chassis heading loop: AIM_GAIN, the profile); while
-  // one can, the chassis is left alone.
+  // one can and another's at its stop, it turns just enough to bring that one back in.
   _twinTurrets(dt, t, tgt, active, wantShoot, status) {
     const sh = this.cfg.shooter, on = this.enabled && this.climbState === 'none';
     const lim = sh.turretRange * DEG, margin = 8 * DEG, pass = tgt.mode === 'pass';
-    let need = Infinity, show = -1, anyReach = false, anySol = false, spun = false, aimed = false;
+    let need = Infinity, keep = 0, show = -1, anyReach = false, anySol = false, spun = false, aimed = false;
     this.turrets.forEach((tt, i) => {
       const w = this.tws[i];
       w.ok = false;
@@ -1557,6 +1557,12 @@ export class Robot {
           this.turretYaws[i] = mid + approach(cur, goal, sh.turretRate * DEG * dt);
           const o = over || rel - clamp(rel, margin - lim, lim - margin);
           if (Math.abs(o) < Math.abs(need)) need = o;
+          // (shooting: how far past its travel, less the margin, the target is the way round it's
+          // turned now: the most of any turret's, for the chassis to take up)
+          if (wantShoot) {
+            const b = cur + wrapAngle(rel - cur), k = b - clamp(b, margin - lim, lim - margin);
+            if (Math.abs(k) > Math.abs(keep)) keep = k;
+          }
           if (cands.length) {
             anyReach = true;
             setpoint = sol.v;
@@ -1579,6 +1585,12 @@ export class Robot {
     if (active && wantShoot && !anyReach && Number.isFinite(need) && need) {
       const d = this.cfg.drive, a = Math.abs(need);
       this.aimOverride = Math.sign(need) * Math.min(d.maxOmega, Math.sqrt(2 * 0.7 * d.maxAlpha * a), AIM_GAIN * a);
+    } else if (active && wantShoot && anyReach && keep) {
+      // one turret can shoot but another's at (or past) its stop, in its dead zone: the chassis
+      // turns just enough to keep the target in every turret's travel, so they all fire (1706's
+      // twin turrets each have a 20 deg dead zone a side; one of them stuck in it halved its rate)
+      const d = this.cfg.drive, a = Math.abs(keep);
+      this.aimOverride = Math.sign(keep) * Math.min(d.maxOmega, Math.sqrt(2 * 0.7 * d.maxAlpha * a), AIM_GAIN * a);
     }
     // what the HUD, the preview and the anims show: the turret that's firing (or about to)
     const k = show >= 0 ? show : 0, w = this.tws[k];

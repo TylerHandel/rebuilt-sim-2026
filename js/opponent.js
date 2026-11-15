@@ -211,8 +211,10 @@ export class OpponentAI {
     // nothing coming out, its driver lets go of the trigger for a moment and presses it again
     if (r.phys?.letGo?.()) { cmd.shoot = false; cmd.pass = false; }
     // one whose intake folds in to feed its shots (1706: the user, its intake compacts as soon as
-    // it shoots): it doesn't intake while it shoots
-    if (r.phys?.foldToShoot && cmd.shoot) cmd.intake = false;
+    // it shoots): it doesn't intake while it shoots, unless it's out collecting (shooting while it
+    // collects, its intake stays out, as the user says it does: otherwise a few FUEL it can't feed
+    // with the intake out keep it shooting, and so never intaking, for the rest of the period)
+    if (r.phys?.foldToShoot && cmd.shoot && this.state !== 'collect') cmd.intake = false;
 
     // stuck detection (pushing against another robot isn't being stuck)
     const want = Math.hypot(cmd.vx, cmd.vz), have = Math.hypot(r.vel.x, r.vel.z);
